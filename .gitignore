@@ -4,3 +4,7 @@ assets/external/
 __pycache__/
 .web
 *.py[cod]
+.venv/
+*.log
+import_log.txt
+error.log

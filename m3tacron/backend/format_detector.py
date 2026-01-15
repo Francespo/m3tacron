@@ -1,135 +1,92 @@
 """
 Format Detector for M3taCron.
 
-Detects X-Wing tournament formats from XWS list data.
+Analyzes XWS list data to determine the game format (2.0 vs 2.5 and sub-variants).
 """
-from typing import Optional, Tuple, List, Dict, Any
+from datetime import datetime
+from .models import MacroFormat, SubFormat
 
 
-# Format constants
-MACRO_2_0 = "2.0"
-MACRO_2_5 = "2.5"
-MACRO_OTHER = "Other"
-
-# Sub-format constants
-SUB_FFG = "FFG"          # Original FFG rules (raithos)
-SUB_X2PO = "X2PO"        # Community 2.0 (legacy)
-SUB_XLC = "XLC"          # Lorenzo Santi variant
-SUB_AMG = "AMG"          # Official AMG (deprecated)
-SUB_XWA = "XWA"          # X-Wing Alliance
-SUB_EPIC = "Epic"        # Epic battles
-SUB_CUSTOM = "Custom"    # Unknown
-SUB_UNKNOWN = "Unknown"
-
-
-def detect_format_from_xws(xws: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
+def detect_format_from_xws(xws: dict) -> tuple[str | None, str | None]:
     """
-    Detects the tournament format (Macro/Sub) by analyzing an XWS squad list.
+    Analyzes an XWS squad list to determine the game format.
     
-    It inspects 'builder' strings and 'vendor' specific metadata to classify the list
-    into 2.0 (FFG, X2PO, XLC) or 2.5 (AMG, XWA) hierarchies.
+    Inspects builder strings and vendor metadata to classify into
+    2.0 (FFG, X2PO, XLC) or 2.5 (AMG, XWA) categories.
     """
-    # Verify input validity to prevent attribute errors
     if not xws:
         return (None, None)
     
-    # Extract the builder string from the root dictionary
-    # We use string conversion and lower() to allow case-insensitive (robust) matching
     builder = str(xws.get("builder", "")).lower()
     
-    # Check the 'vendor' field which contains builder-specific structured data
-    # This is the standard XWS way to store metadata, so we check it first for reliability
+    # Extract builder info from 'vendor' field (XWS standard)
     vendor = xws.get("vendor", {})
     if isinstance(vendor, dict):
-        # YASB specific logic: it places metadata under a 'yasb' key
         if "yasb" in vendor:
             yasb_data = vendor["yasb"]
             if isinstance(yasb_data, dict):
-                # Concatenate builder info and link to form a searchable string
                 builder += " " + str(yasb_data.get("builder", ""))
                 builder += " " + str(yasb_data.get("link", ""))
         
-        # LaunchBayNext specific logic: it places metadata under 'lbn' or 'launchbaynext'
         if "lbn" in vendor or "launchbaynext" in vendor:
             lbn_data = vendor.get("lbn") or vendor.get("launchbaynext")
             if isinstance(lbn_data, dict):
-                # Explicitly add 'launchbaynext' and the ruleset to the builder string
-                # This ensures consistent matching logic downstream
                 builder += " launchbaynext " + str(lbn_data.get("ruleset", ""))
     
-    # Filter out squad designers that do not carry format information
-    # xwingsquaddesigner adds no value for format detection, so we early exit
+    # xwingsquaddesigner cannot be used for format detection
     if "xwingsquaddesigner" in builder or "squaddesigner" in builder:
         return (None, None)
     
-    # Detect Logic for LaunchBayNext
-    # We check for explicit ruleset definitions provided by LBN
+    # LaunchBayNext detection via ruleset field
     if "launchbaynext" in builder or "lbn" in builder:
         ruleset = str(xws.get("ruleset", "")).lower()
         
-        # Map specific ruleset strings to our internal format constants
         if ruleset == "xwa":
-            return (MACRO_2_5, SUB_XWA)
+            return (MacroFormat.V2_5.value, SubFormat.XWA.value)
         elif ruleset == "amg":
-            return (MACRO_2_5, SUB_AMG)
+            return (MacroFormat.V2_5.value, SubFormat.AMG.value)
         elif ruleset == "legacy":
-            return (MACRO_2_0, SUB_X2PO)
-            
-        # Fallback: Inference from builder string if ruleset field is missing
-        # Sometimes 'xwa' is part of the builder name/version string
+            return (MacroFormat.V2_0.value, SubFormat.X2PO.value)
+        
         if "xwa" in builder:
-            return (MACRO_2_5, SUB_XWA)
+            return (MacroFormat.V2_5.value, SubFormat.XWA.value)
     
-    # Detect Logic for YASB
-    # We rely on specific keywords present in the URL or builder version string
+    # YASB detection via keywords in builder/URL
     if "yasb" in builder:
-        # Check for XWA specific indicators first (Priority detection)
         if "xwa" in builder or "2.5" in builder:
-            return (MACRO_2_5, SUB_XWA)
-            
-        # Check for 2.0 legacy variants
+            return (MacroFormat.V2_5.value, SubFormat.XWA.value)
+        
         if "2.0" in builder:
             if "legacy" in builder:
-                return (MACRO_2_0, SUB_X2PO)
+                return (MacroFormat.V2_0.value, SubFormat.X2PO.value)
             elif "raithos" in builder:
-                return (MACRO_2_0, SUB_FFG)
+                return (MacroFormat.V2_0.value, SubFormat.FFG.value)
             elif "lorenzosanti" in builder:
-                return (MACRO_2_0, SUB_XLC)
+                return (MacroFormat.V2_0.value, SubFormat.XLC.value)
             
-            # Default to generic 2.0 Unknown if no specific link variant is found
-            # This handles older YASB 2.0 list exports
-            return (MACRO_2_0, SUB_UNKNOWN)
+            return (MacroFormat.V2_0.value, SubFormat.UNKNOWN.value)
     
-    # Fallback: Direct keyword matching for less common builders
+    # Direct keyword fallback
     if "x2po" in builder:
-        return (MACRO_2_0, SUB_X2PO)
+        return (MacroFormat.V2_0.value, SubFormat.X2PO.value)
     if "raithos" in builder:
-        return (MACRO_2_0, SUB_FFG)
+        return (MacroFormat.V2_0.value, SubFormat.FFG.value)
     
     return (None, None)
 
 
 def detect_format_from_tournament_lists(
-    xws_lists: List[Dict[str, Any]],
+    xws_lists: list[dict],
     sample_size: int = 10
-) -> Tuple[str, str]:
+) -> tuple[str, str]:
     """
-    Detect tournament format by sampling XWS lists from participants.
-    
-    Args:
-        xws_lists: List of XWS dictionaries from tournament participants
-        sample_size: Maximum number of lists to sample
-        
-    Returns:
-        Tuple of (macro_format, sub_format) using majority voting
+    Determines format by sampling XWS lists and using majority voting.
     """
     if not xws_lists:
-        return (MACRO_OTHER, SUB_UNKNOWN)
+        return (MacroFormat.OTHER.value, SubFormat.UNKNOWN.value)
     
-    # Sample lists
     sample = xws_lists[:sample_size]
-    
-    format_votes: Dict[Tuple[str, str], int] = {}
+    format_votes: dict[tuple[str, str], int] = {}
     
     for xws in sample:
         macro, sub = detect_format_from_xws(xws)
@@ -138,9 +95,8 @@ def detect_format_from_tournament_lists(
             format_votes[key] = format_votes.get(key, 0) + 1
     
     if not format_votes:
-        return (MACRO_OTHER, SUB_UNKNOWN)
+        return (MacroFormat.OTHER.value, SubFormat.UNKNOWN.value)
     
-    # Return most common format
     winner = max(format_votes.items(), key=lambda x: x[1])
     return winner[0]
 
@@ -149,66 +105,56 @@ def detect_format_from_listfortress(
     format_field: str,
     tournament_name: str,
     tournament_date: str,
-    xws_lists: List[Dict[str, Any]] = None
-) -> Tuple[str, str]:
+    xws_lists: list[dict] | None = None
+) -> tuple[str, str]:
     """
-    Detect format for ListFortress tournaments with heuristics.
+    Detects format for ListFortress tournaments using heuristics.
     
-    Args:
-        format_field: ListFortress format field ("standard", "extended", "other")
-        tournament_name: Tournament name for keyword matching
-        tournament_date: Tournament date (YYYY-MM-DD) for recency check
-        xws_lists: Optional list of XWS data to analyze
-        
-    Returns:
-        Tuple of (macro_format, sub_format)
+    Falls back to XWS analysis, then name keywords, then recency inference.
     """
     format_lower = format_field.lower() if format_field else ""
     name_lower = tournament_name.lower() if tournament_name else ""
     
-    # First try XWS detection if available
+    # Primary: XWS-based detection
     if xws_lists:
         macro, sub = detect_format_from_tournament_lists(xws_lists)
-        if macro and sub != SUB_UNKNOWN:
+        if macro and sub != SubFormat.UNKNOWN.value:
             return (macro, sub)
     
-    # Standard/Extended → 2.5 AMG (legacy support)
+    # Standard/Extended are legacy AMG labels
     if format_lower in ("standard", "extended"):
-        # Could be mislabeled XWA - check name
         if "xwa" in name_lower or "alliance" in name_lower:
-            return (MACRO_2_5, SUB_XWA)
-        return (MACRO_2_5, SUB_AMG)
+            return (MacroFormat.V2_5.value, SubFormat.XWA.value)
+        return (MacroFormat.V2_5.value, SubFormat.AMG.value)
     
-    # "Other" heuristics
+    # "Other" category requires deeper heuristics
     if format_lower == "other":
-        # Check tournament name for clues
         if "xwa" in name_lower or "alliance" in name_lower:
-            return (MACRO_2_5, SUB_XWA)
+            return (MacroFormat.V2_5.value, SubFormat.XWA.value)
         if "epic" in name_lower:
-            return (MACRO_OTHER, SUB_EPIC)
+            return (MacroFormat.OTHER.value, SubFormat.EPIC.value)
         if "legacy" in name_lower or "2.0" in name_lower:
-            return (MACRO_2_0, SUB_X2PO)
+            return (MacroFormat.V2_0.value, SubFormat.X2PO.value)
         if "x2po" in name_lower:
-            return (MACRO_2_0, SUB_X2PO)
+            return (MacroFormat.V2_0.value, SubFormat.X2PO.value)
         if "xlc" in name_lower or "lorenzosanti" in name_lower:
-            return (MACRO_2_0, SUB_XLC)
+            return (MacroFormat.V2_0.value, SubFormat.XLC.value)
         
-        # Recent "Other" on ListFortress is ~90% XWA
+        # Recent "Other" tournaments are typically XWA
         if tournament_date:
             try:
-                from datetime import datetime
                 date = datetime.strptime(tournament_date[:10], "%Y-%m-%d")
-                cutoff = datetime(2025, 1, 1)  # Last year
+                cutoff = datetime(2025, 1, 1)
                 if date >= cutoff:
-                    return (MACRO_2_5, SUB_XWA)
-            except:
+                    return (MacroFormat.V2_5.value, SubFormat.XWA.value)
+            except ValueError:
                 pass
     
-    return (MACRO_OTHER, SUB_UNKNOWN)
+    return (MacroFormat.OTHER.value, SubFormat.UNKNOWN.value)
 
 
 def get_format_display(macro: str, sub: str) -> str:
-    """Get display string for format."""
-    if sub == SUB_UNKNOWN:
+    """Formats the macro/sub tuple as a display string."""
+    if sub == SubFormat.UNKNOWN.value:
         return macro
     return f"{macro} {sub}"

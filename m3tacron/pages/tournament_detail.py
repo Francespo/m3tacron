@@ -8,92 +8,119 @@ from ..components.sidebar import layout
 from ..backend.database import engine
 from ..backend.models import Tournament, PlayerResult, Match
 
+from ..backend.xwing_data import parse_xws
+
+class UpgradeItem(rx.Base):
+    """Model for a single upgrade."""
+    name: str
+    type: str
+    xws: str = ""
+
+class PilotItem(rx.Base):
+    """Model for a pilot card."""
+    name: str
+    ship: str
+    points: int
+    upgrades: list[UpgradeItem]
 
 class TournamentDetailState(rx.State):
     """State for the Tournament Detail page."""
+    # Note: 'id' is automatically provided by Reflex from the /tournament/[id] route
+    
     tournament: dict = {}
     players: list[dict] = []
     matches: list[dict] = []
     loading: bool = True
     error: str = ""
     
+    # List View State
+    open_list_id: int = 0
+    open_list_data: dict = {}
+    open_list_pilots: list[PilotItem] = []
+    
     def load_tournament(self):
         """Load tournament data from URL parameter."""
-        # Get tournament ID from route
-        tournament_id = self.router.page.params.get("id")
-        if not tournament_id:
+        # In Reflex, dynamic route segments like [id] are automatically 
+        # populated as state variables, not read from router.page.params
+        tournament_id_str = self.id
+        
+        if not tournament_id_str:
             self.error = "No tournament ID provided"
             self.loading = False
             return
         
         try:
-            tournament_id = int(tournament_id)
+            tournament_id = int(tournament_id_str)
         except ValueError:
-            self.error = "Invalid tournament ID"
+            self.error = f"Invalid tournament ID: {tournament_id_str}"
             self.loading = False
             return
         
-        with Session(engine) as session:
-            # Fetch tournament
-            t = session.exec(
-                select(Tournament).where(Tournament.id == tournament_id)
-            ).first()
-            
-            if not t:
-                self.error = "Tournament not found"
+        try:
+            with Session(engine) as session:
+                # Fetch tournament
+                t = session.exec(
+                    select(Tournament).where(Tournament.id == tournament_id)
+                ).first()
+                
+                if not t:
+                    self.error = "Tournament not found"
+                    self.loading = False
+                    return
+                
+                self.tournament = {
+                    "id": t.id,
+                    "name": t.name,
+                    "date": t.date.strftime("%Y-%m-%d") if t.date else "Unknown Date",
+                    "platform": t.platform,
+                    "format": t.format,
+                    "macro_format": t.macro_format,
+                    "sub_format": t.sub_format,
+                    "url": t.url,
+                }
+                
+                # Fetch players ordered by rank
+                players = session.exec(
+                    select(PlayerResult)
+                    .where(PlayerResult.tournament_id == tournament_id)
+                    .order_by(PlayerResult.rank)
+                ).all()
+                
+                self.players = [{
+                    "id": p.id,
+                    "name": p.player_name,
+                    "rank": p.rank,
+                    "faction": self._extract_faction(p.list_json),
+                    "has_list": bool(p.list_json and isinstance(p.list_json, dict) and p.list_json.get("pilots")),
+                } for p in players]
+                
+                # Fetch matches
+                matches = session.exec(
+                    select(Match)
+                    .where(Match.tournament_id == tournament_id)
+                    .order_by(Match.round_number)
+                ).all()
+                
+                # Build match data with player names
+                player_map = {p.id: p.player_name for p in players}
+                self.matches = [{
+                    "round": m.round_number,
+                    "type": m.round_type,
+                    "player1": player_map.get(m.player1_id, "Unknown"),
+                    "player2": player_map.get(m.player2_id, "Bye") if not m.is_bye else "BYE",
+                    "score1": m.player1_score,
+                    "score2": m.player2_score,
+                    "winner_id": m.winner_id,
+                } for m in matches]
+                
                 self.loading = False
-                return
-            
-            self.tournament = {
-                "id": t.id,
-                "name": t.name,
-                "date": t.date.strftime("%Y-%m-%d"),
-                "platform": t.platform,
-                "format": t.format,
-                "macro_format": t.macro_format,
-                "sub_format": t.sub_format,
-                "url": t.url,
-            }
-            
-            # Fetch players ordered by rank
-            players = session.exec(
-                select(PlayerResult)
-                .where(PlayerResult.tournament_id == tournament_id)
-                .order_by(PlayerResult.rank)
-            ).all()
-            
-            self.players = [{
-                "id": p.id,
-                "name": p.player_name,
-                "rank": p.rank,
-                "faction": self._extract_faction(p.list_json),
-                "has_list": bool(p.list_json and p.list_json.get("pilots")),
-            } for p in players]
-            
-            # Fetch matches
-            matches = session.exec(
-                select(Match)
-                .where(Match.tournament_id == tournament_id)
-                .order_by(Match.round_number)
-            ).all()
-            
-            # Build match data with player names
-            player_map = {p.id: p.player_name for p in players}
-            self.matches = [{
-                "round": m.round_number,
-                "type": m.round_type,
-                "player1": player_map.get(m.player1_id, "Unknown"),
-                "player2": player_map.get(m.player2_id, "Bye") if not m.is_bye else "BYE",
-                "score1": m.player1_score,
-                "score2": m.player2_score,
-                "winner_id": m.winner_id,
-            } for m in matches]
-            
+        except Exception as e:
+            self.error = f"Error loading tournament: {str(e)}"
             self.loading = False
     
     def _extract_faction(self, list_json: dict) -> str:
         """Extract faction from XWS list."""
-        if not list_json:
+        if not list_json or not isinstance(list_json, dict):
             return "Unknown"
         faction = list_json.get("faction", "Unknown")
         # Prettify faction names
@@ -107,6 +134,137 @@ class TournamentDetailState(rx.State):
             "separatistalliance": "Separatist Alliance",
         }
         return faction_map.get(faction.lower().replace(" ", ""), faction)
+
+    def open_list(self, player_id: int):
+        """Open the list view modal for a player."""
+        self.open_list_id = player_id
+        with Session(engine) as session:
+            player = session.get(PlayerResult, player_id)
+            if player and player.list_json:
+                 # Parse the raw JSON into our rich structure
+                 data = parse_xws(player.list_json)
+                 self.open_list_data = data
+                 
+                 # Convert to Pydantic models
+                 pilots_list = []
+                 for p in data.get("pilots", []):
+                     upgrades_list = [
+                         UpgradeItem(name=u["name"], type=u["type"], xws=u.get("xws", ""))
+                         for u in p.get("upgrades", [])
+                     ]
+                     pilots_list.append(
+                         PilotItem(
+                             name=p["name"],
+                             ship=p["ship"],
+                             points=p["points"],
+                             upgrades=upgrades_list
+                         )
+                     )
+                 self.open_list_pilots = pilots_list
+            else:
+                 self.open_list_data = {}
+                 self.open_list_pilots = []
+
+    def close_list(self):
+        """Close the list view modal."""
+        self.open_list_id = 0
+        self.open_list_data = {}
+        self.open_list_pilots = []
+
+    def handle_open_change(self, is_open: bool):
+        """Handle dialog open state change."""
+        if not is_open:
+            self.close_list()
+
+
+def render_pilot_card(pilot: PilotItem) -> rx.Component:
+    """Render a single pilot with upgrades."""
+    return rx.box(
+        rx.hstack(
+            # Pilot Info
+            rx.vstack(
+                rx.text(pilot.name, weight="bold", size="3"),
+                rx.text(pilot.ship, size="1", color="gray"),
+                align="start",
+                spacing="1",
+            ),
+            rx.spacer(),
+            # Points
+            rx.badge(pilot.points.to_string(), color_scheme="gray", variant="outline"),
+            width="100%",
+            align="center",
+            margin_bottom="8px",
+        ),
+        # Upgrades
+        rx.flex(
+            rx.foreach(
+                pilot.upgrades,
+                lambda u: rx.badge(
+                    u.name, 
+                    color_scheme="gray", 
+                    variant="soft",
+                    padding="4px 8px",
+                )
+            ),
+            wrap="wrap",
+            gap="4px",
+        ),
+        padding="12px",
+        background="rgba(255, 255, 255, 0.05)",
+        border_radius="6px",
+        width="100%",
+    )
+
+
+def render_list_modal() -> rx.Component:
+    """Render the modal for viewing a squad list."""
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.dialog.title(
+                rx.hstack(
+                    rx.text(TournamentDetailState.open_list_data["faction"], size="4"),
+                    rx.spacer(),
+                    # Safety check for points
+                    rx.cond(
+                         TournamentDetailState.open_list_data.contains("points"),
+                         rx.badge(
+                            TournamentDetailState.open_list_data["points"].to_string() + " pts", 
+                            color_scheme="yellow", 
+                            size="3"
+                        ),
+                        rx.fragment()
+                    ),
+                    width="100%",
+                    align="center",
+                ),
+            ),
+            rx.dialog.description(
+                rx.vstack(
+                   rx.foreach(
+                       TournamentDetailState.open_list_pilots,
+                       render_pilot_card
+                   ),
+                   spacing="3",
+                   margin_top="16px",
+                ),
+            ),
+            rx.flex(
+                rx.dialog.close(
+                    rx.button(
+                        "Close", 
+                        variant="soft", 
+                        color_scheme="gray",
+                        on_click=TournamentDetailState.close_list,
+                    ),
+                ),
+                justify="end",
+                margin_top="16px",
+            ),
+            max_width="500px",
+        ),
+        open=TournamentDetailState.open_list_id != 0,
+        on_open_change=TournamentDetailState.handle_open_change,
+    )
 
 
 def player_row(player: dict) -> rx.Component:
@@ -127,7 +285,13 @@ def player_row(player: dict) -> rx.Component:
         rx.spacer(),
         rx.cond(
             player["has_list"],
-            rx.badge("XWS", color_scheme="green", size="1"),
+            rx.button(
+                "View List",
+                rx.icon("file-text", size=16),
+                size="1", 
+                variant="outline",
+                on_click=TournamentDetailState.open_list(player["id"]),
+            ),
             rx.fragment(),
         ),
         width="100%",
@@ -162,10 +326,12 @@ def match_row(match: dict) -> rx.Component:
     )
 
 
-
 def tournament_detail_content() -> rx.Component:
     """The main content for the Tournament Detail page."""
     return rx.vstack(
+        # Modal
+        render_list_modal(),
+        
         # Loading state
         rx.cond(
             TournamentDetailState.loading,

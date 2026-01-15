@@ -15,6 +15,6 @@ from .rollbetter import (
 
 from .longshanks import (
     scrape_tournament as ls_scrape_tournament,
-    search_xwing_tournaments as ls_search_tournaments,
+    scrape_longshanks_history as ls_scrape_history,
 )
 

@@ -70,18 +70,25 @@ def stat_card(title: str, value: rx.Var, subtitle: str = "") -> rx.Component:
     """A stat card component for the dashboard."""
     return rx.box(
         rx.vstack(
-            rx.text(title, size="2", color="gray"),
-            rx.text(value, size="7", weight="bold", color="cyan"),
+            rx.text(title, size="2", color="gray", font_family="Rajdhani", letter_spacing="0.05em"),
+            rx.text(value, size="8", weight="bold", color="cyan", font_family="Rajdhani"),
             rx.text(subtitle, size="1", color="gray") if subtitle else rx.fragment(),
             spacing="1",
             align="start",
         ),
         padding="20px",
-        background="rgba(255, 255, 255, 0.05)",
+        background="rgba(255, 255, 255, 0.03)",
         border_radius="12px",
         border="1px solid rgba(255, 255, 255, 0.1)",
         backdrop_filter="blur(10px)",
-        min_width="180px",
+        min_width="200px",
+        transition="all 0.3s ease",
+        _hover={
+            "transform": "translateY(-5px)",
+            "box_shadow": "0 10px 30px -10px rgba(6, 182, 212, 0.3)",
+            "border_color": "rgba(6, 182, 212, 0.5)",
+            "background": "rgba(255, 255, 255, 0.05)",
+        },
     )
 
 
@@ -100,7 +107,14 @@ def ship_row(ship: dict) -> rx.Component:
         padding="12px 16px",
         background="rgba(255, 255, 255, 0.02)",
         border_radius="8px",
-        _hover={"background": "rgba(255, 255, 255, 0.05)"},
+        border="1px solid transparent",
+        transition="all 0.2s ease",
+        _hover={
+            "background": "rgba(255, 255, 255, 0.05)",
+            "border_color": "rgba(255, 255, 255, 0.1)",
+            "transform": "translateX(5px)",
+            "cursor": "pointer",
+        },
     )
 
 
@@ -123,7 +137,14 @@ def tournament_row(tournament: dict) -> rx.Component:
         padding="12px 16px",
         background="rgba(255, 255, 255, 0.02)",
         border_radius="8px",
-        _hover={"background": "rgba(255, 255, 255, 0.05)"},
+        border="1px solid transparent",
+        transition="all 0.2s ease",
+        _hover={
+            "background": "rgba(255, 255, 255, 0.05)",
+            "border_color": "rgba(255, 255, 255, 0.1)",
+            "transform": "translateX(5px)",
+            "cursor": "pointer",
+        },
     )
 
 
@@ -131,12 +152,20 @@ def home_content() -> rx.Component:
     """The main content for the Home page."""
     return rx.vstack(
         # Header
-        rx.heading("Meta Snapshot", size="8", margin_bottom="8px"),
+        rx.heading(
+            "META SNAPSHOT", 
+            size="8", 
+            margin_bottom="8px", 
+            font_family="Rajdhani", 
+            letter_spacing="0.1em",
+            color="white",
+        ),
         rx.text(
             "Current tournament meta analysis for Star Wars: X-Wing",
             size="3",
             color="gray",
             margin_bottom="32px",
+            font_family="Rajdhani",
         ),
         
         # Stats row - now with real data
@@ -154,7 +183,7 @@ def home_content() -> rx.Component:
             # Top Ships
             rx.box(
                 rx.vstack(
-                    rx.heading("Top Ships", size="5", margin_bottom="16px"),
+                    rx.heading("TOP SHIPS", size="4", margin_bottom="16px", font_family="Rajdhani", color="cyan"),
                     rx.foreach(HomeState.top_ships, ship_row),
                     align="stretch",
                     width="100%",
@@ -167,7 +196,7 @@ def home_content() -> rx.Component:
             # Recent Tournaments
             rx.box(
                 rx.vstack(
-                    rx.heading("Recent Tournaments", size="5", margin_bottom="16px"),
+                    rx.heading("RECENT TOURNAMENTS", size="4", margin_bottom="16px", font_family="Rajdhani", color="cyan"),
                     rx.foreach(HomeState.recent_tournaments, tournament_row),
                     rx.link(
                         rx.button("View All Tournaments", variant="outline", size="2"),

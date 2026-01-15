@@ -18,7 +18,8 @@ theme = rx.theme(
     appearance="dark",
     accent_color="cyan",
     gray_color="slate",
-    radius="medium",
+    radius="large",
+    scaling="100%",
 )
 
 
@@ -26,12 +27,14 @@ theme = rx.theme(
 app = rx.App(
     theme=theme,
     stylesheets=[
-        # Google Fonts - Inter for clean typography
-        "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+        # Google Fonts - Inter for body, Rajdhani for headers
+        "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&display=swap",
     ],
     style={
         "font_family": "Inter, sans-serif",
-        "background": "#0f172a",
+        "background_color": "#0f172a",
+        "background_image": """radial-gradient(circle at 15% 50%, rgba(14, 165, 233, 0.15), transparent 25%), 
+                             radial-gradient(circle at 85% 30%, rgba(236, 72, 153, 0.15), transparent 25%)""",
         "color": "#e2e8f0",
     },
 )

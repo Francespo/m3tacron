@@ -1,42 +1,51 @@
 """
-Analytics Page - Visualizes X-Wing meta statistics.
+Analytics Page - Meta statistics visualization.
 
-Provides aggregated views of faction popularity and pilot usage across
-all imported tournaments, with optional filtering by format.
+Aggregates faction and pilot usage data with optional format filtering.
 """
 import reflex as rx
 from sqlmodel import Session, select
 from collections import Counter
-from typing import Dict, List, Any
 
 from ..components.sidebar import layout
 from ..backend.database import engine
-from ..backend.models import PlayerResult
+from ..backend.models import PlayerResult, Tournament, Faction, MacroFormat
+from ..backend.xwing_data import get_pilot_name, get_faction_icon
 
 
 class AnalyticsState(rx.State):
-    """Manages statistics aggregation and chart data for the Analytics page."""
+    """Manages statistics aggregation for the Analytics page."""
     
-    faction_data: List[Dict[str, Any]] = []
-    pilot_data: List[Dict[str, Any]] = []
+    faction_data: list[dict] = []
+    pilot_data: list[dict] = []
     total_lists: int = 0
     format_filter: str = "all"
     
-    # Faction display names and colors
-    FACTION_MAP = {
-        "rebelalliance": ("Rebel Alliance", "#e74c3c"),
-        "galacticempire": ("Galactic Empire", "#3498db"),
-        "scumandvillainy": ("Scum and Villainy", "#f39c12"),
-        "resistance": ("Resistance", "#e91e63"),
-        "firstorder": ("First Order", "#9c27b0"),
-        "galacticrepublic": ("Galactic Republic", "#8bc34a"),
-        "separatistalliance": ("Separatist Alliance", "#607d8b"),
+    # Faction display config: xws_id -> (display_name, color, icon_url)
+    FACTION_CONFIG = {
+        Faction.REBEL.value: ("Rebel Alliance", "#e74c3c"),
+        Faction.EMPIRE.value: ("Galactic Empire", "#3498db"),
+        Faction.SCUM.value: ("Scum and Villainy", "#27ae60"),
+        Faction.RESISTANCE.value: ("Resistance", "#e67e22"),
+        Faction.FIRST_ORDER.value: ("First Order", "#922b21"),
+        Faction.REPUBLIC.value: ("Galactic Republic", "#d4c4a8"),
+        Faction.SEPARATIST.value: ("Separatist Alliance", "#95a5a6"),
     }
     
     def load_analytics(self):
-        """Fetches player lists and computes faction/pilot statistics."""
+        """Aggregates faction and pilot stats, respecting format filter."""
         with Session(engine) as session:
-            results = session.exec(select(PlayerResult)).all()
+            # Build query with optional format filter
+            if self.format_filter == "all":
+                results = session.exec(select(PlayerResult)).all()
+            else:
+                # Join with Tournament to filter by macro_format
+                query = (
+                    select(PlayerResult)
+                    .join(Tournament, PlayerResult.tournament_id == Tournament.id)
+                    .where(Tournament.macro_format == self.format_filter)
+                )
+                results = session.exec(query).all()
             
             faction_counter: Counter = Counter()
             pilot_counter: Counter = Counter()
@@ -49,45 +58,73 @@ class AnalyticsState(rx.State):
                 
                 valid_lists += 1
                 
-                # Count faction
-                faction_raw = xws.get("faction", "unknown").lower().replace(" ", "")
-                faction_counter[faction_raw] += 1
+                # Normalize and validate faction
+                faction_raw = xws.get("faction", "").lower().replace(" ", "").replace("-", "")
                 
-                # Count pilots
+                # Only count if it's a known faction
+                if faction_raw in self.FACTION_CONFIG:
+                    faction_counter[faction_raw] += 1
+                
                 for pilot in xws.get("pilots", []):
                     pilot_id = pilot.get("id") or pilot.get("name", "unknown")
                     pilot_counter[pilot_id] += 1
             
             self.total_lists = valid_lists
             
-            # Build faction chart data
+            # Build faction chart data with icons
             self.faction_data = []
             for faction_key, count in faction_counter.most_common():
-                name, color = self.FACTION_MAP.get(faction_key, (faction_key.title(), "#95a5a6"))
+                name, color = self.FACTION_CONFIG[faction_key]
+                icon_url = get_faction_icon(faction_key)
                 self.faction_data.append({
                     "name": name,
                     "value": count,
                     "fill": color,
+                    "icon": icon_url,
                 })
             
-            # Build pilot chart data (top 10)
+            # Build pilot data with readable names from xwing-data2
             self.pilot_data = [
-                {"name": self._prettify_pilot(p), "count": c}
+                {"name": get_pilot_name(p), "count": c}
                 for p, c in pilot_counter.most_common(10)
             ]
-    
-    def _prettify_pilot(self, pilot_id: str) -> str:
-        """Converts pilot IDs to readable names."""
-        # Simple heuristic: replace hyphens with spaces and title case
-        return pilot_id.replace("-", " ").replace("_", " ").title()
     
     def set_format_filter(self, value: str):
         self.format_filter = value
         self.load_analytics()
 
 
+def format_filter_select() -> rx.Component:
+    """Dropdown to filter statistics by game format."""
+    return rx.select(
+        ["all", MacroFormat.V2_5.value, MacroFormat.V2_0.value, MacroFormat.OTHER.value],
+        value=AnalyticsState.format_filter,
+        on_change=AnalyticsState.set_format_filter,
+        placeholder="Filter by Format",
+    )
+
+
+
+def render_faction_legend_item(item: dict):
+    return rx.hstack(
+        rx.cond(
+            item["icon"],
+            rx.image(src=item["icon"], width="24px", height="24px", object_fit="contain"),
+            rx.box(width="24px", height="24px", bg=item["fill"], border_radius="50%"),
+        ),
+        rx.text(item["name"], weight="medium"),
+        rx.badge(item["value"], variant="outline", color_scheme="gray"),
+        spacing="2",
+        align="center",
+        padding="6px 12px",
+        border_radius="8px",
+        bg="rgba(255, 255, 255, 0.05)",
+        border_left=f"3px solid {item['fill']}",
+    )
+
+
 def faction_chart() -> rx.Component:
-    """Pie chart showing faction distribution."""
+    """Pie chart for faction distribution with percentages."""
     return rx.box(
         rx.vstack(
             rx.heading("Faction Distribution", size="5"),
@@ -99,10 +136,18 @@ def faction_chart() -> rx.Component:
                     cx="50%",
                     cy="50%",
                     label=True,
+                    label_line=True,
                 ),
-                rx.recharts.legend(),
                 width="100%",
-                height=350,
+                height=300,
+            ),
+            rx.flex(
+                rx.foreach(AnalyticsState.faction_data, render_faction_legend_item),
+                wrap="wrap",
+                spacing="3",
+                justify="center",
+                width="100%",
+                margin_top="16px",
             ),
             align="center",
             width="100%",
@@ -115,7 +160,7 @@ def faction_chart() -> rx.Component:
 
 
 def pilot_chart() -> rx.Component:
-    """Bar chart showing top pilots by usage."""
+    """Bar chart for top pilot usage."""
     return rx.box(
         rx.vstack(
             rx.heading("Top 10 Pilots", size="5"),
@@ -128,7 +173,8 @@ def pilot_chart() -> rx.Component:
                 rx.recharts.y_axis(),
                 data=AnalyticsState.pilot_data,
                 width="100%",
-                height=350,
+                height=400,
+                margin={"bottom": 100, "left": 20},
             ),
             align="center",
             width="100%",
@@ -141,26 +187,30 @@ def pilot_chart() -> rx.Component:
 
 
 def analytics_content() -> rx.Component:
-    """Main content layout for the Analytics page."""
+    """Main content layout."""
     return rx.vstack(
-        # Header
+        # Header with filter
         rx.hstack(
             rx.vstack(
                 rx.heading("Meta Analytics", size="8"),
-                rx.text("Explore faction and pilot trends across tournaments", size="3", color="gray"),
+                rx.text("Explore faction and pilot trends", size="3", color="gray"),
                 align="start",
             ),
             rx.spacer(),
-            rx.badge(
-                AnalyticsState.total_lists.to_string() + " lists analyzed",
-                color_scheme="cyan",
-                size="2",
+            rx.hstack(
+                format_filter_select(),
+                rx.badge(
+                    AnalyticsState.total_lists.to_string() + " lists",
+                    color_scheme="cyan",
+                    size="2",
+                ),
+                spacing="3",
             ),
             width="100%",
             margin_bottom="24px",
         ),
         
-        # Charts Grid
+        # Charts
         rx.grid(
             faction_chart(),
             pilot_chart(),
@@ -177,5 +227,5 @@ def analytics_content() -> rx.Component:
 
 
 def analytics_page() -> rx.Component:
-    """The Analytics page wrapped in the layout."""
+    """Analytics page wrapped in layout."""
     return layout(analytics_content())

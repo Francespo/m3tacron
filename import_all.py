@@ -1,29 +1,28 @@
-"""
+﻿"""
 Consolidated Import Script for M3taCron.
 
 Imports data from:
-1. RollBetter (JSON API) - via static ID list
-2. ListFortress (JSON API) - via listing endpoint
-3. Longshanks (Playwright Scraper) - via static ID list
+1. RollBetter (JSON API)
+2. ListFortress (JSON API)  
+3. Longshanks (Playwright Scraper)
 
-Applies format detection using XWS data and heuristics.
+Includes duplicate detection and date filtering.
 """
 import asyncio
 import sys
 import os
+import argparse
 from datetime import datetime, timedelta
 
 sys.path.insert(0, '.')
 
 from sqlmodel import Session, select
 from m3tacron.backend.database import engine, create_db_and_tables
-from m3tacron.backend.models import Tournament, PlayerResult, Match
+from m3tacron.backend.models import Tournament, PlayerResult, MacroFormat, SubFormat
 
-# Scrapers
 from m3tacron.backend.scrapers.rollbetter import (
     fetch_tournament as fetch_rb_tournament,
     fetch_players as fetch_rb_players,
-    fetch_round_matches as fetch_rb_matches,
     extract_xws_from_player as extract_rb_xws
 )
 from m3tacron.backend.scrapers.listfortress import (
@@ -31,72 +30,104 @@ from m3tacron.backend.scrapers.listfortress import (
     fetch_tournament_details as fetch_lf_details,
     extract_xws_from_participant as extract_lf_xws
 )
-from m3tacron.backend.scrapers.longshanks import scrape_tournament as scrape_ls_tournament
+from m3tacron.backend.scrapers.longshanks import (
+    scrape_tournament as scrape_ls_tournament,
+    scrape_longshanks_history
+)
 
-# Format Detector
 from m3tacron.backend.format_detector import (
     detect_format_from_tournament_lists,
     detect_format_from_listfortress,
     get_format_display,
-    MACRO_2_0, MACRO_2_5, MACRO_OTHER,
-    SUB_X2PO, SUB_AMG, SUB_XWA, SUB_UNKNOWN
 )
 
-# Known RollBetter IDs (Legacy 2.0 focus)
-RB_IDS = [2510, 2530, 2502] 
+# Hardcoded fallbacks if search fails or for specific tests
+RB_IDS = [2550, 2551, 2554, 2555, 2556, 2557, 2510, 2530, 2502, 2600, 2650]
+LF_LIMIT = 8
 
-async def import_rollbetter(session: Session):
-    """Import specific RollBetter tournaments."""
-    print(f"\n--- Importing RollBetter (Static List) ---")
+def is_duplicate(session: Session, name: str, date: datetime, tolerance_days: int = 3) -> bool:
+    """Check if tournament with similar name and date already exists."""
+    from difflib import SequenceMatcher
     
+    start_date = date - timedelta(days=tolerance_days)
+    end_date = date + timedelta(days=tolerance_days)
+    
+    existing = session.exec(
+        select(Tournament).where(
+            Tournament.date >= start_date,
+            Tournament.date <= end_date
+        )
+    ).all()
+    
+    name_lower = name.lower().strip()
+    for t in existing:
+        existing_name = t.name.lower().strip()
+        if name_lower == existing_name:
+            return True
+        similarity = SequenceMatcher(None, name_lower, existing_name).ratio()
+        if similarity > 0.8:
+            print(f"    [Duplicate] '{name}' matches '{t.name}' ({similarity:.0%})")
+            return True
+    return False
+
+
+async def import_rollbetter(session: Session, since_date: datetime, limit: int = 0):
+    """Import RollBetter tournaments."""
+    print("\n--- Importing RollBetter ---")
     count = 0
+    
+    # In a real scenario we would search RB api by date, here we iterate known IDs
     for t_id in RB_IDS:
+        if limit > 0 and count >= limit:
+            break
         print(f"Fetching RB {t_id}...")
         try:
             t_data = await fetch_rb_tournament(t_id)
             if not t_data:
-                print(f"  ✗ Failed to fetch RB {t_id}")
                 continue
             
-            t_name = t_data.get("name", "Unknown")
-            players = await fetch_rb_players(t_id)
+            t_date = datetime.now()
+            if t_data.get("startDate"):
+                try:
+                    t_date = datetime.fromisoformat(t_data["startDate"][:10])
+                except:
+                    pass
             
-            if len(players) < 4:
-                print(f"  ✗ Too few players: {len(players)}")
+            if t_date < since_date:
+                print(f"  [Skip] Too old: {t_date.date()}")
+                continue
+                
+            t_name = t_data.get("title") or t_data.get("name", "Unknown")
+            if is_duplicate(session, t_name, t_date):
+                print(f"  [Skip] Duplicate: {t_name}")
                 continue
 
-            # Detect format
+            players = await fetch_rb_players(t_id)
+            if len(players) < 4:
+                print(f"  [Skip] Small event: {len(players)}")
+                continue
+
+            # Format detection
             rb_format_raw = t_data.get("format", "Unknown")
-            print(f"  RB Format Raw: {rb_format_raw}")
+            xws_lists = [extract_rb_xws(p) for p in players if extract_rb_xws(p)]
             
-            # Extract XWS to help detection
-            xws_lists = []
-            for p in players:
-                xws = extract_rb_xws(p)
-                if xws:
-                    xws_lists.append(xws)
+            macro = MacroFormat.OTHER.value
+            sub = SubFormat.UNKNOWN.value
             
-            # Default RB detection
-            macro = MACRO_OTHER
-            sub = SUB_UNKNOWN
-            
-            if "Legacy 2.0" in rb_format_raw or "2.0" in rb_format_raw: # Expanded check
-                macro = MACRO_2_0
-                # Check XWS for X2PO vs FFG vs XLC
+            if "Legacy 2.0" in rb_format_raw or "2.0" in rb_format_raw:
+                macro = MacroFormat.V2_0.value
                 m, s = detect_format_from_tournament_lists(xws_lists)
-                sub = s if s != SUB_UNKNOWN else SUB_X2PO
+                sub = s if s != SubFormat.UNKNOWN.value else SubFormat.X2PO.value
             elif "Standard" in rb_format_raw or "Extended" in rb_format_raw:
-                macro = MACRO_2_5
-                # Check XWS for XWA vs AMG
+                macro = MacroFormat.V2_5.value
                 m, s = detect_format_from_tournament_lists(xws_lists)
-                sub = s if s != SUB_UNKNOWN else SUB_AMG
+                sub = s if s != SubFormat.UNKNOWN.value else SubFormat.AMG.value
                 
             display_format = get_format_display(macro, sub)
             
-            # Save to DB
             t = Tournament(
                 name=t_name,
-                date=datetime.now(), # Placeholder as API date parsing varies
+                date=t_date,
                 platform="RollBetter",
                 format=display_format,
                 macro_format=macro,
@@ -107,129 +138,76 @@ async def import_rollbetter(session: Session):
             session.commit()
             session.refresh(t)
             
-            player_map = {}
-            # Save players
             for i, p in enumerate(players):
                 p_name = p.get("name") or p.get("displayName") or f"Player {i+1}"
                 xws = extract_rb_xws(p)
                 
                 pr = PlayerResult(
                     tournament_id=t.id,
-                    player_name=p_name or "Unknown Player",
+                    player_name=p_name,
                     rank=p.get("rank") or (i+1),
                     list_json=xws or {},
                     points_at_event=0
                 )
                 session.add(pr)
-                session.commit()
-                session.refresh(pr)
-                
-                # Map ID
-                rb_pid = p.get("id") or p.get("playerId")
-                if rb_pid:
-                    player_map[rb_pid] = pr.id
-            
-            # Save Matches (if rounds > 0)
-            rounds = t_data.get("rounds", [])
-            for r_num in range(1, len(rounds) + 1):
-                try:
-                    matches = await fetch_rb_matches(t_id, r_num)
-                    for m in matches:
-                        p1_id = m.get("player1Id")
-                        p2_id = m.get("player2Id")
-                        winner_id = m.get("winnerId")
-                        
-                        match = Match(
-                            tournament_id=t.id,
-                            round_number=r_num,
-                            round_type="swiss",
-                            player1_id=player_map.get(p1_id),
-                            player2_id=player_map.get(p2_id),
-                            winner_id=player_map.get(winner_id),
-                            player1_score=m.get("player1Score", 0) or 0,
-                            player2_score=m.get("player2Score", 0) or 0,
-                            is_bye=(p2_id is None)
-                        )
-                        session.add(match)
-                except Exception:
-                    pass # Ignore match errors for now
             
             session.commit()
-            print(f"  ✓ Imported RB: {t_name} ({display_format}) - {len(players)} players")
+            print(f"  [OK] Imported RB: {t_name}")
             count += 1
 
         except Exception as e:
-            print(f"  ✗ Error RB {t_id}: {e}")
+            print(f"  [X] Error RB {t_id}: {e}")
             
     print(f"Imported {count} RollBetter tournaments.")
 
 
-async def import_listfortress(session: Session, limit: int = 5):
-    """Import recent tournaments from ListFortress."""
-    print(f"\n--- Importing ListFortress (limit={limit}) ---")
-    tournaments = await fetch_lf_tournaments(limit=limit * 4) 
+async def import_listfortress(session: Session, since_date: datetime, limit: int = 0):
+    """Import ListFortress tournaments."""
+    # Use effective limit
+    effective_limit = limit if limit > 0 else LF_LIMIT
+    
+    print(f"\n--- Importing ListFortress (limit={effective_limit}) ---")
+    tournaments = await fetch_lf_tournaments(limit=effective_limit * 2) # Fetch more to filter by date
     
     count = 0
     for t_summary in tournaments:
-        if count >= limit:
+        if limit > 0 and count >= limit:
             break
             
         t_id = t_summary.get("id")
         t_name = t_summary.get("name")
-        t_date = t_summary.get("date", "1900-01-01")
+        t_date_str = t_summary.get("date", "1900-01-01")
         lf_format = str(t_summary.get("format_id", "0"))
         
-        # Pass if too small participant count in summary
-        # (Optimization: check summary first if available)
-        
+        try:
+            t_date = datetime.fromisoformat(t_date_str)
+        except:
+            t_date = datetime.now()
+            
+        if t_date < since_date:
+            continue
+            
+        if is_duplicate(session, t_name, t_date):
+            print(f"  [Skip] Duplicate: {t_name}")
+            continue
+            
         try:
             details = await fetch_lf_details(t_id)
-        except Exception as e:
-            print(f"Failed to fetch LF {t_id}: {e}")
+        except Exception:
             continue
             
-        if not details:
-            continue
+        if not details: continue
             
         participants = details.get("participants", [])
-        if len(participants) < 8: # Increased threshold
-            continue
-            
-        print(f"  Processing {t_name}: {len(participants)} players")
-            
-        # Extract XWS
-        xws_lists = []
-        for i, p in enumerate(participants):
-            if i == 0:
-                 print(f"  Debug P0 keys: {list(p.keys())}")
-                 raw_list = p.get("list_json")
-                 print(f"  Debug P0 list_json type: {type(raw_list)}")
-                 if isinstance(raw_list, dict):
-                     print(f"  Debug P0 list_json keys: {list(raw_list.keys())}")
-            
-            xws = extract_lf_xws(p)
-            if xws:
-                xws_lists.append(xws)
-                # Debug first valid XWS
-                if len(xws_lists) == 1:
-                     print(f"  Debug XWS Valid (first): keys={list(xws.keys())}")
-                     if "vendor" in xws:
-                         print(f"  Debug XWS Vendor: {xws['vendor']}")
-                     if "builder" in xws:
-                         print(f"  Debug XWS Builder: {xws['builder']}")
+        if len(participants) < 4: continue
         
-        print(f"  Extracted {len(xws_lists)} valid XWS lists")
-        
-        # Detect Format
-        macro, sub = detect_format_from_listfortress(
-            lf_format, t_name, t_date, xws_lists
-        )
+        xws_lists = [extract_lf_xws(p) for p in participants if extract_lf_xws(p)]
+        macro, sub = detect_format_from_listfortress(lf_format, t_name, t_date_str, xws_lists)
         display_format = get_format_display(macro, sub)
         
-        # Save to DB
         t = Tournament(
             name=t_name,
-            date=datetime.fromisoformat(t_date),
+            date=t_date,
             platform="ListFortress",
             format=display_format,
             macro_format=macro,
@@ -240,12 +218,10 @@ async def import_listfortress(session: Session, limit: int = 5):
         session.commit()
         session.refresh(t)
         
-        # Save Players
         for p in participants:
-            p_name = p.get("name")
             pr = PlayerResult(
                 tournament_id=t.id,
-                player_name=p_name or "Unknown Player",
+                player_name=p.get("name") or "Unknown",
                 rank=p.get("rank", 0),
                 swiss_rank=p.get("swiss_rank"),
                 list_json=extract_lf_xws(p) or {},
@@ -254,92 +230,167 @@ async def import_listfortress(session: Session, limit: int = 5):
             session.add(pr)
             
         session.commit()
-        print(f"  ✓ Imported LF: {t_name} ({display_format}) - {len(participants)} players")
+        print(f"  [OK] Imported LF: {t_name}")
         count += 1
         
     print(f"Imported {count} ListFortress tournaments.")
 
 
-async def import_longshanks(session: Session):
-    """Import specific Longshanks tournament (as example)."""
-    print(f"\n--- Importing Longshanks (Example) ---")
-    event_ids = [30874] 
+
+async def import_longshanks(session: Session, since_date: datetime, limit: int = 0):
+    """Import Longshanks tournaments using history page scraping."""
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        return
+
+    print("\n--- Importing Longshanks ---")
     
-    for eid in event_ids:
+    # Target specific subdomains as requested
+    urls = [
+        "https://xwing.longshanks.org/events/history/",
+        "https://xwing-legacy.longshanks.org/events/history/"
+    ]
+    
+    print("Scraping Longshanks history pages...")
+    found_tournaments = await scrape_longshanks_history(urls)
+    print(f"Found {len(found_tournaments)} potential tournaments.")
+    
+    count = 0
+    
+    # Use one browser instance for all details
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
         try:
-            result = await scrape_ls_tournament(eid)
-            if not result:
-                continue
+            for t_info in found_tournaments:
+                if limit > 0 and count >= limit:
+                    break
                 
-            tournament = result.get("tournament")
-            players = result.get("players")
-            
-            # Simple heuristic since XWS is scarce on LS
-            display_format = "2.5 XWA" # Assume recent LS is XWA
-            macro = MACRO_2_5
-            sub = SUB_XWA
+                eid = t_info["id"]
+                t_name = t_info["name"]
+                t_date = t_info["date"]
                 
-            t = Tournament(
-                name=tournament.get("name"),
-                date=tournament.get("date"),
-                platform="Longshanks",
-                format=display_format,
-                macro_format=macro,
-                sub_format=sub,
-                url=tournament.get("url")
-            )
-            session.add(t)
-            session.commit()
-            session.refresh(t)
-            
-            for p in players:
-                p_name = p.get("name")
-                pr = PlayerResult(
-                    tournament_id=t.id,
-                    player_name=p_name or "Unknown Player",
-                    rank=p.get("rank"),
-                    list_json={"faction": p.get("faction")} if p.get("faction") else {},
-                    points_at_event=0
-                )
-                session.add(pr)
+                # Date filter
+                if t_date < since_date:
+                    continue
+                    
+                if is_duplicate(session, t_name, t_date):
+                    print(f"  [Skip] Duplicate: {t_name}")
+                    continue
                 
-            session.commit()
-            print(f"  ✓ Imported LS: {t.name} ({display_format}) - {len(players)} players")
+                # Create Tournament immediately with trusted metadata
+                fmt = t_info.get("format", "Standard")
+                if fmt == "Legacy":
+                    macro = MacroFormat.V2_0.value
+                    sub = SubFormat.X2PO.value
+                    display = "2.0 Legacy"
+                else:
+                    macro = MacroFormat.V2_5.value
+                    sub = SubFormat.AMG.value
+                    display = "2.5 Standard"
+                    
+                print(f"  Processing {t_name} ({t_date.date()})...")
+                
+                try:
+                    # Scrape details for players - REUSING BROWSER
+                    result = await scrape_ls_tournament(eid, browser=browser)
+                    
+                    # If detail scrape fails, we skip (need players)
+                    if not result:
+                        print(f"    [X] Failed to get details for {eid}")
+                        continue
+                        
+                    players = result.get("players", [])
+                    
+                    if len(players) < 4:
+                        print(f"    [Skip] Small event: {len(players)}")
+                        continue
+
+                    t = Tournament(
+                        name=t_name,
+                        date=t_date,
+                         platform="Longshanks",
+                        format=display,
+                        macro_format=macro,
+                        sub_format=sub,
+                        url=t_info.get("url")
+                    )
+                    session.add(t)
+                    session.commit()
+                    session.refresh(t)
+                    
+                    for p in players:
+                        # Basic mock XWS for now as LS doesn't expose full XWS easily without JSON export
+                        mock_xws = {}
+                        if p.get("faction"):
+                            mock_xws["faction"] = p.get("faction")
+                        
+                        pr = PlayerResult(
+                            tournament_id=t.id,
+                            player_name=p.get("name") or "Unknown",
+                            rank=p.get("rank"),
+                            list_json=mock_xws,
+                            points_at_event=0
+                        )
+                        session.add(pr)
+                        
+                    session.commit()
+                    print(f"    [OK] Imported LS: {t.name} - {len(players)} players")
+                    count += 1
+                    
+                except Exception as e:
+                    print(f"Failed to import LS {eid}: {e}")
+        finally:
+            await browser.close()
             
-        except Exception as e:
-            print(f"Failed to import LS {eid}: {e}")
+    print(f"Imported {count} Longshanks tournaments.")
 
 
-def reset_database():
-    """Delete the database file if it exists."""
-    db_file = "metacron.db"
-    if os.path.exists(db_file):
-        print(f"Deleting existing database: {db_file}")
-        try:
-            os.remove(db_file)
-            print("✓ Database deleted")
-        except Exception as e:
-            print(f"✗ Failed to delete database: {e}")
-    else:
-        print(f"Database file not found: {db_file}")
+def parse_args():
+    parser = argparse.ArgumentParser(description="M3taCron Data Import")
+    parser.add_argument("--days", type=int, default=30, help="Import tournaments from last N days (default: 30)")
+    parser.add_argument("--clean", action="store_true", help="Clear database before importing")
+    parser.add_argument("--all", action="store_true", help="Ignore date limit (import everything found)")
+    parser.add_argument("--limit", type=int, default=0, help="Max number of tournaments to import per source (0 = no limit)")
+    return parser.parse_args()
 
 
 async def main():
-    print("="*60)
-    print("M3taCron - Comprehensive Data Import with Format Detection")
-    print("="*60)
+    args = parse_args()
     
-    reset_database()
+    # Calculate cutoff date
+    if args.all:
+        cutoff_date = datetime(2000, 1, 1)
+        limit_txt = "ALL TIME"
+    else:
+        cutoff_date = datetime.now() - timedelta(days=args.days)
+        limit_txt = f"Last {args.days} days ({cutoff_date.date()})"
+    
+    print("=" * 60)
+    print(f"M3taCron - Data Import")
+    print(f"Range: {limit_txt}")
+    if args.limit > 0:
+        print(f"Limit: {args.limit} tournaments per source")
+    print("=" * 60)
+    
+    if args.clean:
+        print("Cleaning database...")
+        db_file = "metacron.db"
+        if os.path.exists(db_file):
+            try:
+                os.remove(db_file)
+            except PermissionError:
+                print("Warning: Could not delete database (locked). Using existing DB.")
+            
     create_db_and_tables()
-    print("✓ Tables created")
     
     with Session(engine) as session:
-        await import_rollbetter(session)
-        await import_listfortress(session, limit=5)
-        await import_longshanks(session)
+        await import_rollbetter(session, cutoff_date, limit=args.limit)
+        await import_longshanks(session, cutoff_date, limit=args.limit)
+        await import_listfortress(session, cutoff_date, limit=args.limit)
     
-    print("\n" + "="*60)
-    print("Import process complete!")
+    print("\n" + "=" * 60)
+    print("Import complete!")
 
 
 if __name__ == "__main__":

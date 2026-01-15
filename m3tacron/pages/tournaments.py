@@ -13,7 +13,23 @@ class TournamentsState(rx.State):
     """State for the Tournaments page."""
     tournaments: list[dict] = []
     search_query: str = ""
-    format_filter: str = "all"  # 'all', 'Legacy 2.0', 'Standard', etc.
+    format_filter: str = "all"
+    
+    @rx.var
+    def filtered_tournaments(self) -> list[dict]:
+        """Filters tournaments based on search query and format filter."""
+        result = self.tournaments
+        
+        # Apply format filter
+        if self.format_filter != "all":
+            result = [t for t in result if t["macro_format"] == self.format_filter]
+        
+        # Apply search filter
+        if self.search_query:
+            query = self.search_query.lower()
+            result = [t for t in result if query in t["name"].lower()]
+        
+        return result
     
     def load_tournaments(self):
         """Load all tournaments from database."""
@@ -23,7 +39,6 @@ class TournamentsState(rx.State):
             
             self.tournaments = []
             for t in tournaments:
-                # Count players per tournament
                 player_count = session.exec(
                     select(func.count(PlayerResult.id)).where(
                         PlayerResult.tournament_id == t.id
@@ -43,11 +58,9 @@ class TournamentsState(rx.State):
                 })
     
     def set_search(self, value: str):
-        """Update search query."""
         self.search_query = value
     
     def set_format_filter(self, value: str):
-        """Update format filter."""
         self.format_filter = value
 
 
@@ -119,7 +132,7 @@ def tournaments_content() -> rx.Component:
             ),
             rx.spacer(),
             rx.badge(
-                rx.Var.create(f"{TournamentsState.tournaments.length()} total"),
+                TournamentsState.filtered_tournaments.length().to_string() + " shown",
                 color_scheme="cyan",
                 size="2",
             ),
@@ -147,9 +160,9 @@ def tournaments_content() -> rx.Component:
         
         # Tournament grid
         rx.cond(
-            TournamentsState.tournaments.length() > 0,
+            TournamentsState.filtered_tournaments.length() > 0,
             rx.vstack(
-                rx.foreach(TournamentsState.tournaments, tournament_card),
+                rx.foreach(TournamentsState.filtered_tournaments, tournament_card),
                 spacing="4",
                 width="100%",
             ),
