@@ -1,5 +1,6 @@
 """
 M3taCron Tournament Detail Page - View single tournament with players and matches.
+Star Wars Imperial aesthetic.
 """
 import reflex as rx
 from sqlmodel import Session, select, func
@@ -9,6 +10,15 @@ from ..backend.database import engine
 from ..backend.models import Tournament, PlayerResult, Match
 
 from ..backend.xwing_data import parse_xws
+
+
+# Star Wars color palette
+IMPERIAL_BLUE = "#4fb8ff"
+IMPERIAL_RED = "#ff4757"
+IMPERIAL_YELLOW = "#ffc312"
+STEEL_BORDER = "#2a2a3a"
+STEEL_BG = "#1a1a24"
+
 
 class UpgradeItem(rx.Base):
     """Model for a single upgrade."""
@@ -26,6 +36,7 @@ class PilotItem(rx.Base):
 class TournamentDetailState(rx.State):
     """State for the Tournament Detail page."""
     # Note: 'id' is automatically provided by Reflex from the /tournament/[id] route
+    id: str = ""
     
     tournament: dict = {}
     players: list[dict] = []
@@ -178,19 +189,19 @@ class TournamentDetailState(rx.State):
 
 
 def render_pilot_card(pilot: PilotItem) -> rx.Component:
-    """Render a single pilot with upgrades."""
+    """Render a single pilot with upgrades - Imperial style."""
     return rx.box(
         rx.hstack(
             # Pilot Info
             rx.vstack(
                 rx.text(pilot.name, weight="bold", size="3"),
-                rx.text(pilot.ship, size="1", color="gray"),
+                rx.text(pilot.ship, size="1", color="#8a8a9a"),
                 align="start",
                 spacing="1",
             ),
             rx.spacer(),
             # Points
-            rx.badge(pilot.points.to_string(), color_scheme="gray", variant="outline"),
+            rx.badge(pilot.points.to_string(), color_scheme="yellow", variant="outline"),
             width="100%",
             align="center",
             margin_bottom="8px",
@@ -210,14 +221,15 @@ def render_pilot_card(pilot: PilotItem) -> rx.Component:
             gap="4px",
         ),
         padding="12px",
-        background="rgba(255, 255, 255, 0.05)",
-        border_radius="6px",
+        background="rgba(26, 26, 36, 0.5)",
+        border_radius="4px",
+        border_left=f"2px solid {IMPERIAL_BLUE}",
         width="100%",
     )
 
 
 def render_list_modal() -> rx.Component:
-    """Render the modal for viewing a squad list."""
+    """Render the modal for viewing a squad list - Imperial style."""
     return rx.dialog.root(
         rx.dialog.content(
             rx.dialog.title(
@@ -261,6 +273,7 @@ def render_list_modal() -> rx.Component:
                 margin_top="16px",
             ),
             max_width="500px",
+            background=f"linear-gradient(180deg, {STEEL_BG} 0%, rgba(26, 26, 36, 0.95) 100%)",
         ),
         open=TournamentDetailState.open_list_id != 0,
         on_open_change=TournamentDetailState.handle_open_change,
@@ -268,17 +281,17 @@ def render_list_modal() -> rx.Component:
 
 
 def player_row(player: dict) -> rx.Component:
-    """A row displaying player info."""
+    """A row displaying player info - Imperial terminal style."""
     return rx.hstack(
         rx.badge(
             player["rank"],
-            color_scheme="cyan",
+            color_scheme="blue",
             size="2",
             variant="soft",
         ),
         rx.vstack(
             rx.text(player["name"], size="3", weight="medium"),
-            rx.text(player["faction"], size="1", color="gray"),
+            rx.text(player["faction"], size="1", color="#8a8a9a"),
             spacing="1",
             align="start",
         ),
@@ -296,14 +309,19 @@ def player_row(player: dict) -> rx.Component:
         ),
         width="100%",
         padding="12px 16px",
-        background="rgba(255, 255, 255, 0.02)",
-        border_radius="8px",
-        _hover={"background": "rgba(255, 255, 255, 0.05)"},
+        background="rgba(26, 26, 36, 0.5)",
+        border_radius="4px",
+        border_left="2px solid transparent",
+        transition="all 0.2s ease",
+        _hover={
+            "background": "rgba(79, 184, 255, 0.1)",
+            "border_left": f"2px solid {IMPERIAL_BLUE}",
+        },
     )
 
 
 def match_row(match: dict) -> rx.Component:
-    """A row displaying match result."""
+    """A row displaying match result - Imperial style."""
     return rx.hstack(
         rx.badge(
             match["round"],
@@ -312,22 +330,70 @@ def match_row(match: dict) -> rx.Component:
         ),
         rx.text(match["player1"], size="2", weight="medium"),
         rx.hstack(
-            rx.text(match["score1"], size="2", color="cyan"),
-            rx.text("-", size="2", color="gray"),
-            rx.text(match["score2"], size="2", color="cyan"),
+            rx.text(match["score1"], size="2", color=IMPERIAL_BLUE),
+            rx.text("-", size="2", color="#6a6a7a"),
+            rx.text(match["score2"], size="2", color=IMPERIAL_BLUE),
             spacing="1",
         ),
         rx.text(match["player2"], size="2", weight="medium"),
         width="100%",
         padding="8px 12px",
-        background="rgba(255, 255, 255, 0.02)",
-        border_radius="6px",
+        background="rgba(26, 26, 36, 0.5)",
+        border_radius="4px",
         justify="between",
     )
 
 
+def stat_box(label: str, value: rx.Var) -> rx.Component:
+    """A stat box - Imperial style."""
+    return rx.box(
+        rx.vstack(
+            rx.text(label, size="1", color="#8a8a9a", text_transform="uppercase", letter_spacing="0.05em"),
+            rx.text(value, size="5", weight="bold", color=IMPERIAL_BLUE),
+            spacing="1",
+        ),
+        padding="16px",
+        background=f"linear-gradient(135deg, {STEEL_BG} 0%, rgba(26, 26, 36, 0.5) 100%)",
+        border_radius="4px",
+        border=f"1px solid {STEEL_BORDER}",
+        border_left=f"3px solid {IMPERIAL_BLUE}",
+    )
+
+
+def section_panel(title: str, content: rx.Component) -> rx.Component:
+    """A section panel - Imperial control room style."""
+    return rx.box(
+        rx.vstack(
+            rx.hstack(
+                rx.box(
+                    width="4px",
+                    height="20px",
+                    background=IMPERIAL_BLUE,
+                    border_radius="2px",
+                ),
+                rx.heading(
+                    title, 
+                    size="5", 
+                    font_family="Orbitron, sans-serif",
+                    letter_spacing="0.1em",
+                ),
+                spacing="3",
+                align="center",
+                margin_bottom="12px",
+            ),
+            content,
+            align="stretch",
+            width="100%",
+        ),
+        padding="20px",
+        background=f"linear-gradient(180deg, rgba(26, 26, 36, 0.8) 0%, rgba(26, 26, 36, 0.4) 100%)",
+        border_radius="4px",
+        border=f"1px solid {STEEL_BORDER}",
+    )
+
+
 def tournament_detail_content() -> rx.Component:
-    """The main content for the Tournament Detail page."""
+    """The main content for the Tournament Detail page - Imperial style."""
     return rx.vstack(
         # Modal
         render_list_modal(),
@@ -347,8 +413,8 @@ def tournament_detail_content() -> rx.Component:
             TournamentDetailState.error != "",
             rx.center(
                 rx.vstack(
-                    rx.icon("circle-alert", size=48, color="red"),
-                    rx.text(TournamentDetailState.error, color="red"),
+                    rx.icon("circle-alert", size=48, color=IMPERIAL_RED),
+                    rx.text(TournamentDetailState.error, color=IMPERIAL_RED),
                     rx.link(
                         rx.button("Back to Tournaments", variant="outline"),
                         href="/tournaments",
@@ -372,12 +438,24 @@ def tournament_detail_content() -> rx.Component:
                         href="/tournaments",
                     ),
                     rx.vstack(
-                        rx.heading(TournamentDetailState.tournament["name"], size="7"),
+                        rx.heading(
+                            TournamentDetailState.tournament["name"], 
+                            size="7",
+                            font_family="Orbitron, sans-serif",
+                            letter_spacing="0.1em",
+                        ),
+                        rx.box(
+                            width="80px",
+                            height="2px",
+                            background=f"linear-gradient(90deg, {IMPERIAL_BLUE}, transparent)",
+                            margin_top="4px",
+                            margin_bottom="8px",
+                        ),
                         rx.hstack(
                             rx.badge(TournamentDetailState.tournament["macro_format"], color_scheme="purple"),
-                            rx.badge(TournamentDetailState.tournament["sub_format"], color_scheme="cyan", variant="outline"),
-                            rx.badge(TournamentDetailState.tournament["platform"], color_scheme="blue", variant="soft"),
-                            rx.text(TournamentDetailState.tournament["date"], size="2", color="gray"),
+                            rx.badge(TournamentDetailState.tournament["sub_format"], color_scheme="blue", variant="outline"),
+                            rx.badge(TournamentDetailState.tournament["platform"], color_scheme="gray", variant="soft"),
+                            rx.text(TournamentDetailState.tournament["date"], size="2", color="#8a8a9a"),
                             spacing="2",
                         ),
                         align="start",
@@ -390,26 +468,8 @@ def tournament_detail_content() -> rx.Component:
                 
                 # Stats
                 rx.hstack(
-                    rx.box(
-                        rx.vstack(
-                            rx.text("Players", size="1", color="gray"),
-                            rx.text(TournamentDetailState.players.length(), size="5", weight="bold", color="cyan"),
-                            spacing="1",
-                        ),
-                        padding="16px",
-                        background="rgba(255, 255, 255, 0.03)",
-                        border_radius="8px",
-                    ),
-                    rx.box(
-                        rx.vstack(
-                            rx.text("Rounds", size="1", color="gray"),
-                            rx.text(TournamentDetailState.matches.length(), size="5", weight="bold", color="cyan"),
-                            spacing="1",
-                        ),
-                        padding="16px",
-                        background="rgba(255, 255, 255, 0.03)",
-                        border_radius="8px",
-                    ),
+                    stat_box("Players", TournamentDetailState.players.length()),
+                    stat_box("Rounds", TournamentDetailState.matches.length()),
                     rx.link(
                         rx.button(
                             rx.icon("external-link", size=14),
@@ -427,32 +487,24 @@ def tournament_detail_content() -> rx.Component:
                 # Two columns: Players and Matches
                 rx.grid(
                     # Players list
-                    rx.box(
+                    section_panel(
+                        "PLAYERS",
                         rx.vstack(
-                            rx.heading("Players", size="5", margin_bottom="12px"),
                             rx.foreach(TournamentDetailState.players, player_row),
-                            align="stretch",
+                            spacing="2",
                             width="100%",
                         ),
-                        padding="20px",
-                        background="rgba(255, 255, 255, 0.03)",
-                        border_radius="12px",
-                        border="1px solid rgba(255, 255, 255, 0.08)",
                     ),
                     # Matches (if available)
                     rx.cond(
                         TournamentDetailState.matches.length() > 0,
-                        rx.box(
+                        section_panel(
+                            "MATCHES",
                             rx.vstack(
-                                rx.heading("Matches", size="5", margin_bottom="12px"),
                                 rx.foreach(TournamentDetailState.matches, match_row),
-                                align="stretch",
+                                spacing="2",
                                 width="100%",
                             ),
-                            padding="20px",
-                            background="rgba(255, 255, 255, 0.03)",
-                            border_radius="12px",
-                            border="1px solid rgba(255, 255, 255, 0.08)",
                         ),
                         rx.fragment(),
                     ),
@@ -477,3 +529,4 @@ def tournament_detail_content() -> rx.Component:
 def tournament_detail_page() -> rx.Component:
     """The Tournament Detail page wrapped in the layout."""
     return layout(tournament_detail_content())
+

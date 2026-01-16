@@ -9,8 +9,8 @@ from .rollbetter import (
     fetch_tournament as rb_fetch_tournament,
     fetch_players as rb_fetch_players,
     fetch_round_matches as rb_fetch_round_matches,
-    fetch_full_tournament as rb_fetch_full_tournament,
     extract_xws_from_player as rb_extract_xws,
+    scrape_tournament as rb_scrape_tournament,
 )
 
 from .longshanks import (

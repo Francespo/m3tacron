@@ -1,90 +1,65 @@
 """
-Longshanks Playwright Scraper for M3taCron (Updated with correct selectors).
+Longshanks Playwright Scraper for M3taCron.
 
-URL format: https://longshanks.org/event/{id}/
+Supports X-Wing 2.5 (xwing.longshanks.org) and Legacy 2.0 (xwing-legacy.longshanks.org).
+Extracts player lists from modals containing YASB/LaunchBayNext links.
 """
-from typing import Optional, Dict, Any, List
+
 from datetime import datetime
 import re
 
-async def scrape_tournament(event_id: int, browser=None) -> Optional[Dict[str, Any]]:
+XWING_25_HISTORY = "https://xwing.longshanks.org/events/history/"
+XWING_20_HISTORY = "https://xwing-legacy.longshanks.org/events/history/"
+
+
+async def scrape_tournament(event_id: int, subdomain: str = "xwing", browser=None) -> dict[str, any] | None:
     """
     Scrape a Longshanks tournament page using Playwright.
-    Only proceeds if it's an X-Wing or X-Wing Legacy event.
     
     Args:
         event_id: The Longshanks event ID.
-        browser: Optional Playwright browser instance. If None, a new one is created/closed.
+        subdomain: Either "xwing" (2.5) or "xwing-legacy" (2.0).
+        browser: Optional Playwright browser instance.
 
     Returns:
-        Dict with tournament info, players, and matches, or None if failed.
+        Dict with tournament info, players with XWS links, and matches.
     """
     try:
         from playwright.async_api import async_playwright
     except ImportError:
         raise ImportError("Playwright required: pip install playwright && playwright install")
     
-    # Use the correct URL format
-    url = f"https://longshanks.org/event/{event_id}/"
+    # Build correct URL with subdomain
+    url = f"https://{subdomain}.longshanks.org/event/{event_id}/"
     
-    # Internal context manager helper if we need to launch our own
-    class LocalBrowser:
-        async def __aenter__(self):
-            self.p = await async_playwright().start()
-            self.b = await self.p.chromium.launch(headless=True)
-            return self.b
-        async def __aexit__(self, exc_type, exc, tb):
-            await self.b.close()
-            await self.p.stop()
-
-    # Determine if we own the browser
-    own_browser = browser is None
-    
-    try:
-        browser_ctx = LocalBrowser() if own_browser else None
-        
-        # If we didn't get a browser, launch one
-        current_browser = browser
-        if own_browser:
-            # We must await the context manager manualy if not using 'async with' block easily with conditional
-            # Simplified: just duplicate logic slightly or use contextlib
-            # For simplicity in this function structure:
-            pass 
-
-    except Exception:
-        pass
-
-    # Easier pattern: Logic split
     if browser:
-        return await _scrape_with_browser(event_id, browser, url)
+        return await _scrape_with_browser(event_id, browser, url, subdomain)
     else:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
-            return await _scrape_with_browser(event_id, browser, url)
+            try:
+                return await _scrape_with_browser(event_id, browser, url, subdomain)
+            finally:
+                await browser.close()
 
-async def _scrape_with_browser(event_id, browser, url):
+
+async def _scrape_with_browser(event_id: int, browser, url: str, subdomain: str) -> dict[str, any] | None:
     """Internal worker using an existing browser."""
     page = await browser.new_page()
     try:
         await page.goto(url, wait_until="networkidle", timeout=30000)
-        
-        # Wait for content to load
         await page.wait_for_timeout(2000)
         
+        # Dismiss cookie consent popup if present
+        await _dismiss_cookie_popup(page)
+        
         # Extract tournament info
-        tournament = await _extract_tournament_info(page, event_id, url)
+        tournament = await _extract_tournament_info(page, event_id, url, subdomain)
         if not tournament:
             return None
         
-        # Click on "Player results" tab if exists
-        try:
-            await page.click("#tab_player", timeout=2000)
-            await page.wait_for_timeout(1000)
-        except:
-            pass
-        
-        # Extract players
-        players = await _extract_players(page)
+        # Extract players with list links
+        players = await _extract_players_with_lists(page)
         
         return {
             "tournament": tournament,
@@ -98,48 +73,76 @@ async def _scrape_with_browser(event_id, browser, url):
         await page.close()
 
 
-async def _extract_tournament_info(page, event_id: int, url: str) -> Optional[Dict[str, Any]]:
+async def _dismiss_cookie_popup(page) -> None:
+    """Dismiss the cookie consent popup if present."""
+    try:
+        # Look for the cookie permission popup
+        cookie_popup = await page.query_selector("#cookie_permission")
+        if cookie_popup:
+            # Try to accept/dismiss by clicking the accept button
+            accept_btn = await page.query_selector("#cookie_permission button, #cookie_permission a.accept, #cookie_permission .button")
+            if accept_btn:
+                await accept_btn.click()
+                await page.wait_for_timeout(500)
+            else:
+                # Hide the popup via JavaScript
+                await page.evaluate("""() => {
+                    const popup = document.getElementById('cookie_permission');
+                    if (popup) popup.style.display = 'none';
+                }""")
+    except Exception:
+        # Silently ignore - popup may not exist
+        pass
+
+
+async def _extract_tournament_info(page, event_id: int, url: str, subdomain: str) -> dict[str, any] | None:
     """Extract tournament metadata from the page."""
     try:
-
-
         # Title is in h1
         name_el = await page.query_selector("h1")
         name = await name_el.inner_text() if name_el else f"Longshanks Event {event_id}"
         
-        # STRICT VALIDATION
-        # 1. Check title for bad keywords
-        bad_keywords = ["shatterpoint", "legion", "armada", "marvel crisis", "mcp", "40k", "warhammer", "kill team", "blood bowl"]
-        name_lower = name.lower()
-        if any(kw in name_lower for kw in bad_keywords):
-            print(f"Skipping non-X-Wing event (bad keyword in title): {name}")
-            return None
-
-        # 2. Check for game system link
-        # Longshanks usually links to the system page
-        game_link = await page.query_selector("a[href^='/systems/xwing'], a[href^='/systems/xwinglegacy']")
+        # Extract date and player count from event info table
+        event_info = await page.evaluate("""() => {
+            let dateStr = '';
+            let playerCount = 0;
+            
+            const rows = document.querySelectorAll('tr');
+            for (const row of rows) {
+                const img = row.querySelector('img');
+                const cells = row.querySelectorAll('td');
+                if (!img || cells.length < 2) continue;
+                
+                const alt = img.alt || '';
+                const value = cells[1]?.textContent?.trim() || '';
+                
+                // Event size (e.g. "17 players")
+                if (alt === 'Event size' || value.includes('player')) {
+                    // Check for "X out of Y players" pattern first
+                    const outOfMatch = value.match(/(\d+)\s*out\s*of\s*\d+/i);
+                    if (outOfMatch) {
+                        playerCount = parseInt(outOfMatch[1], 10);
+                    } else {
+                        // Fallback to standard "X players"
+                        const match = value.match(/(\d+)\s*player/i);
+                        if (match) playerCount = parseInt(match[1], 10);
+                    }
+                }
+                
+                // Date
+                if (alt === 'Date' || value.match(/\d{4}-\d{2}-\d{2}/) || value.match(/\d{1,2}\s+\w+\s+\d{4}/)) {
+                    if (!dateStr) dateStr = value;
+                }
+            }
+            
+            return { dateStr, playerCount };
+        }""")
         
-        # 3. Check page content for X-Wing mentions if link not found
-        content = await page.content()
-        is_xwing_content = "X-Wing" in content or "xwing" in url or "xwinglegacy" in url
+        parsed_date = _parse_date(event_info.get("dateStr", ""))
+        player_count = event_info.get("playerCount", 0)
         
-        if not game_link and not is_xwing_content:
-             print(f"Skipping non-X-Wing event {event_id}: {name}")
-             return None
-        
-        # Try to find date - Longshanks often puts it in a specific div
-        # Format: "14 Jan 2024" or similar
-        date_el = await page.query_selector("div.date")
-        date_str = await date_el.inner_text() if date_el else ""
-        
-        parsed_date = _parse_date(date_str)
-        
-        # Determine format (Legacy vs Standard)
-        fmt = "Standard"
-        if "legacy" in name.lower() or "2.0" in name.lower():
-            fmt = "Legacy"
-        if "2.5" in name.lower():
-            fmt = "Standard"
+        # Determine format based on subdomain
+        fmt = "2.5" if subdomain == "xwing" else "2.0"
         
         return {
             "id": event_id,
@@ -148,64 +151,241 @@ async def _extract_tournament_info(page, event_id: int, url: str) -> Optional[Di
             "format": fmt,
             "url": url,
             "platform": "Longshanks",
+            "player_count": player_count,  # From Event size header
         }
     except Exception as e:
         print(f"Error extracting tournament info: {e}")
         return None
 
 
-async def _extract_players(page) -> List[Dict[str, Any]]:
-    """Extract player rankings using correct selectors."""
+async def _extract_players_with_lists(page) -> list[dict[str, any]]:
+    """
+    Extract player rankings and their list links.
+    
+    Longshanks shows lists in modals. The </> icon indicates an encoded list
+    with a link to YASB or LaunchBayNext.
+    
+    Note: The results table has repeated header rows (after every ~8 players).
+    We only extract rows containing actual player links (a.player_link).
+    """
     players = []
     
     try:
-        # Get all player links
-        player_links = await page.query_selector_all("a.player_link")
-        rank_elements = await page.query_selector_all("div.rank")
-        faction_elements = await page.query_selector_all("img.logo")
+        # Use JavaScript to extract only actual player data, skipping header rows
+        player_data = await page.evaluate("""() => {
+            const results = [];
+            // Only select actual player links - these are unique per player
+            const playerLinks = document.querySelectorAll('a.player_link');
+            
+            playerLinks.forEach((link, idx) => {
+                const row = link.closest('tr') || link.closest('div');
+                if (!row) return;
+                
+                // Get faction from image
+                let faction = null;
+                const factionImg = row.querySelector('img.faction, img.logo');
+                if (factionImg) {
+                    faction = factionImg.alt || factionImg.src || null;
+                }
+                
+                results.push({
+                    name: link.textContent.trim(),
+                    faction: faction,
+                    index: idx
+                });
+            });
+            
+            return results;
+        }""")
         
-        seen_names = set()
+        for i, p in enumerate(player_data):
+            players.append({
+                "rank": i + 1,
+                "name": p.get("name", f"Player {i+1}"),
+                "faction": _parse_faction(p.get("faction") or ""),
+                "xws_link": None,
+                "xws": None,
+            })
         
-        for i, link in enumerate(player_links):
-            try:
-                name = await link.inner_text()
-                name = name.strip()
-                
-                if not name or name in seen_names:
-                    continue
-                
-                # Filter out likely non-player links (organizers often match event title)
-                # This is heuristic but helpful
-                parent_class = await link.evaluate("el => el.parentElement.className")
-                if "admin" in parent_class or "organizer" in parent_class:
-                    continue
-
-                seen_names.add(name)
-                
-                # Get rank if available
-                rank = len(players) + 1 # Simple increments since scraping order usually matches rank
-                
-                # Check explicit rank if aligned (risky if filtering happened)
-                # Instead, rely on list order for rank 
-                
-                # Get faction if available (heuristic mapping likely fails with filtering)
-                # We'll try to get faction relative to the link row if possible
-                # But for now, keeping simple structure
-                faction = None
-                
-                players.append({
-                    "rank": rank,
-                    "name": name,
-                    "faction": faction,
-                    "xws": None,
-                })
-            except Exception:
-                continue
-                
+        # Extract list links from modals
+        await _extract_list_links_from_icons(page, players)
+        
     except Exception as e:
         print(f"Error extracting players: {e}")
     
     return players
+
+
+async def _extract_list_links_from_icons(page, players: list[dict[str, any]]) -> None:
+    """
+    Extract XWS links by clicking on encoded list icons with force option.
+    
+    Uses Playwright's force=True to bypass overlay interception.
+    """
+    try:
+        # Get icon-to-player mappings
+        icon_data = await page.evaluate("""() => {
+            const icons = document.querySelectorAll("img.logo[title='Encoded list']");
+            const results = [];
+            
+            icons.forEach((icon, idx) => {
+                let parent = icon.parentElement;
+                let name = null;
+                
+                for (let i = 0; i < 10 && parent; i++) {
+                    const playerLink = parent.querySelector('a.player_link');
+                    if (playerLink) {
+                        name = playerLink.textContent.trim();
+                        break;
+                    }
+                    parent = parent.parentElement;
+                }
+                
+                if (name) {
+                    results.push({index: idx, name: name});
+                }
+            });
+            
+            return results;
+        }""")
+        
+        if not icon_data:
+            print(f"   No encoded list icons found")
+            return
+        
+        print(f"   Found {len(icon_data)} encoded list icons")
+        
+        # Create a name-to-player lookup
+        player_by_name = {p["name"].strip(): p for p in players}
+        
+        # Get all icons
+        list_icons = await page.query_selector_all("img.logo[title='Encoded list']")
+        
+        for item in icon_data:
+            icon_idx = item["index"]
+            player_name = item["name"]
+            
+            if icon_idx >= len(list_icons):
+                continue
+            
+            try:
+                icon = list_icons[icon_idx]
+                
+                # Force click to bypass any overlays
+                await icon.click(force=True)
+                await page.wait_for_timeout(1000)
+                
+                # Extract XWS from the hidden textarea in #edit_player_list
+                # This contains the full XWS JSON already formatted!
+                xws_data = await page.evaluate("""() => {
+                    // Get the XWS link first
+                    let xws_link = null;
+                    const linkSelectors = [
+                        "a[href*='yasb.app']",
+                        "a[href*='launchbaynext']"
+                    ];
+                    for (const sel of linkSelectors) {
+                        const el = document.querySelector(sel);
+                        if (el) {
+                            xws_link = el.getAttribute('href');
+                            break;
+                        }
+                    }
+                    
+                    // Try to get XWS from hidden textarea in #edit_player_list
+                    const textarea = document.querySelector('#edit_player_list textarea');
+                    let xwsJson = null;
+                    if (textarea) {
+                        try {
+                            xwsJson = JSON.parse(textarea.value);
+                        } catch (e) {
+                            // Not valid JSON, continue with fallback
+                        }
+                    }
+                    
+                    // Parse faction from the link as fallback
+                    let faction = null;
+                    if (xws_link) {
+                        const fMatch = xws_link.match(/[?&]f=([^&]+)/);
+                        if (fMatch) faction = decodeURIComponent(fMatch[1]);
+                    }
+                    
+                    // Extract squad name if present
+                    let squadName = null;
+                    if (xws_link) {
+                        const snMatch = xws_link.match(/[?&]sn=([^&]+)/);
+                        if (snMatch) squadName = decodeURIComponent(snMatch[1]);
+                    }
+                    
+                    return {
+                        link: xws_link,
+                        faction: faction,
+                        name: squadName,
+                        xws: xwsJson  // Full XWS JSON from textarea
+                    };
+                }""")
+                
+                if xws_data and player_name in player_by_name:
+                    player_by_name[player_name]["xws_link"] = xws_data.get("link")
+                    
+                    # If we got full XWS from textarea, use it directly
+                    xws_json = xws_data.get("xws")
+                    if xws_json:
+                        # Add link to vendor section
+                        if "vendor" not in xws_json:
+                            xws_json["vendor"] = {}
+                        xws_json["vendor"]["longshanks"] = {"link": xws_data.get("link")}
+                        player_by_name[player_name]["xws"] = xws_json
+                        pilot_count = len(xws_json.get("pilots", []))
+                        print(f"   [OK] Got XWS for {player_name} ({pilot_count} pilots)")
+                    else:
+                        # Fallback: store basic info from URL
+                        player_by_name[player_name]["xws"] = {
+                            "faction": xws_data.get("faction"),
+                            "name": xws_data.get("name"),
+                            "vendor": {
+                                "longshanks": {"link": xws_data.get("link")}
+                            }
+                        }
+                        print(f"   [OK] Got XWS link for {player_name} (no full XWS)")
+                
+                # Close modal
+                await page.keyboard.press("Escape")
+                await page.wait_for_timeout(400)
+                
+            except Exception as e:
+                # Try to recover
+                try:
+                    await page.keyboard.press("Escape")
+                    await page.wait_for_timeout(200)
+                except:
+                    pass
+                continue
+                
+    except Exception as e:
+        print(f"Error extracting list links: {e}")
+
+
+
+def _parse_faction(value: str) -> str | None:
+    """Parse faction from image alt text or src."""
+    value = value.lower()
+    
+    faction_map = {
+        "rebel": "rebelalliance",
+        "empire": "galacticempire",
+        "scum": "scumandvillainy",
+        "resistance": "resistance",
+        "first order": "firstorder",
+        "republic": "galacticrepublic",
+        "separatist": "separatistalliance",
+    }
+    
+    for key, faction in faction_map.items():
+        if key in value:
+            return faction
+    
+    return None
 
 
 def _parse_date(date_str: str) -> datetime:
@@ -216,8 +396,7 @@ def _parse_date(date_str: str) -> datetime:
     # Remove ordinal suffixes (1st, 2nd, 3rd, 4th)
     clean_str = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", date_str.strip())
     
-    # Handle ranges (e.g. "2026-01-10 – 2026-01-11" or "10-11 Jan")
-    # Take the first part
+    # Handle ranges (e.g. "2026-01-10 – 2026-01-11")
     if "–" in clean_str:
         clean_str = clean_str.split("–")[0].strip()
     if " - " in clean_str:
@@ -237,56 +416,58 @@ def _parse_date(date_str: str) -> datetime:
         except ValueError:
             continue
             
-    print(f"Warning: Could not parse date '{date_str}', using today.")
     return datetime.now()
 
 
-
-async def scrape_longshanks_history(url_list: List[str]) -> List[Dict[str, Any]]:
+async def scrape_longshanks_history(subdomain: str = "xwing", max_pages: int = 1) -> list[dict[str, any]]:
     """
-    Scrape tournament history from specific Longshanks subdomains.
-    Returns metadata from the history page which is often more accurate.
+    Scrape tournament history from X-Wing Longshanks subdomains.
+    
+    Args:
+        subdomain: "xwing" for 2.5, "xwing-legacy" for 2.0
+        max_pages: Number of history pages to scrape
+    
+    Returns:
+        List of tournament metadata dicts
     """
     try:
         from playwright.async_api import async_playwright
     except ImportError:
         return []
     
+    url = f"https://{subdomain}.longshanks.org/events/history/"
     tournaments = []
+    game_format = "2.5" if subdomain == "xwing" else "2.0"
     
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
         
-        for url in url_list:
-            try:
-                page = await browser.new_page()
-                print(f"Scraping History: {url}")
-                await page.goto(url, wait_until="networkidle", timeout=30000)
-                await page.wait_for_timeout(2000)
-                
-                # Determine format based on URL
-                fmt = "Standard"
-                if "legacy" in url:
-                    fmt = "Legacy"
-                
+        try:
+            print(f"Scraping History: {url}")
+            await page.goto(url, wait_until="networkidle", timeout=30000)
+            await page.wait_for_timeout(2000)
+            
+            for page_num in range(max_pages):
                 # Find all event cards
                 cards = await page.query_selector_all(".event_display")
                 
                 for card in cards:
                     try:
-                        # Name and ID
+                        # Name and ID from link
                         name_el = await card.query_selector(".event_name a")
-                        if not name_el: continue
+                        if not name_el:
+                            continue
                         
                         name = await name_el.inner_text()
                         href = await name_el.get_attribute("href")
                         
                         # Extract ID: /event/1234/
-                        if "/event/" not in href: continue
+                        if "/event/" not in href:
+                            continue
                         event_id = int(href.split("/event/")[1].split("/")[0])
                         
                         # Date
-                        # Find icon with alt="Date", get parent row, read 2nd cell
                         date_str = await card.evaluate("""(card) => {
                             const img = card.querySelector('img[alt="Date"]');
                             if (!img) return "";
@@ -298,12 +479,8 @@ async def scrape_longshanks_history(url_list: List[str]) -> List[Dict[str, Any]]
                         }""")
                         
                         parsed_date = _parse_date(date_str)
-                        if not parsed_date or parsed_date.date() == datetime.now().date():
-                             # Debug only if suspicious (today generally means fallback)
-                             # (But events CAN be today, so this is just for dev)
-                             print(f"DEBUG: Date '{date_str}' parsed as NOW for {name}")
                         
-                        # Player Count
+                        # Player count
                         player_count = 0
                         p_text = await card.evaluate("""(card) => {
                             const img = card.querySelector('img[alt="Event size"]');
@@ -313,12 +490,20 @@ async def scrape_longshanks_history(url_list: List[str]) -> List[Dict[str, Any]]
                                 return tr.cells[1].textContent.trim();
                             }
                             return "";
-                        }""")    # Format: "9 players" or "9 of 16 players"
+                        }""")
                         
                         if p_text:
-                            # Format: "9 players" or "9 of 16 players"
                             try:
-                                player_count = int(p_text.split(" ")[0])
+                                # Handle "4 out of 30 players"
+                                if "out of" in p_text.lower():
+                                    player_count = int(p_text.split(" ")[0])
+                                else:
+                                    # Standard "30 players"
+                                    # Use regex to find first number to be safe
+                                    import re
+                                    m = re.search(r'\d+', p_text)
+                                    if m:
+                                        player_count = int(m.group(0))
                             except:
                                 pass
                         
@@ -327,20 +512,49 @@ async def scrape_longshanks_history(url_list: List[str]) -> List[Dict[str, Any]]
                             "name": name.strip(),
                             "date": parsed_date,
                             "platform": "Longshanks",
-                            "format": fmt,
+                            "format": game_format,
                             "player_count": player_count,
-                            "url": f"https://longshanks.org{href}"
+                            "url": f"https://{subdomain}.longshanks.org{href}"
                         })
                         
-                    except Exception as e:
-                        # print(f"Error parsing card: {e}")
+                    except Exception:
                         continue
+                
+                # Try to go to next page if needed
+                if page_num < max_pages - 1:
+                    next_btn = await page.query_selector("a.next, .pagination a:has-text('Next')")
+                    if next_btn:
+                        await next_btn.click()
+                        await page.wait_for_timeout(2000)
+                    else:
+                        break
                         
-                await page.close()
-                
-            except Exception as e:
-                print(f"Error scraping {url}: {e}")
-                
-        await browser.close()
+        except Exception as e:
+            print(f"Error scraping history: {e}")
+        finally:
+            await page.close()
+            await browser.close()
     
     return tournaments
+
+
+async def fetch_xws_from_builder_link(link: str) -> dict[str, any] | None:
+    """
+    Parse a YASB or LaunchBayNext link to extract XWS data.
+    
+    YASB links encode the squad in the 'd' parameter.
+    This requires a separate decoder or calling the builder API.
+    """
+    if not link:
+        return None
+    
+    # For now, return the link as a reference
+    # Full XWS parsing would require decoding YASB's format
+    # or calling an API endpoint
+    
+    if "yasb" in link.lower():
+        return {"builder": "yasb", "link": link}
+    elif "launchbay" in link.lower():
+        return {"builder": "launchbaynext", "link": link}
+    
+    return None

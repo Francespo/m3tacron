@@ -1,5 +1,6 @@
 """
 Analytics Page - Meta statistics visualization.
+Star Wars Imperial aesthetic.
 
 Aggregates faction and pilot usage data with optional format filtering.
 """
@@ -13,6 +14,13 @@ from ..backend.models import PlayerResult, Tournament, Faction, MacroFormat
 from ..backend.xwing_data import get_pilot_name, get_faction_icon
 
 
+# Star Wars color palette
+IMPERIAL_BLUE = "#4fb8ff"
+IMPERIAL_RED = "#ff4757"
+STEEL_BORDER = "#2a2a3a"
+STEEL_BG = "#1a1a24"
+
+
 class AnalyticsState(rx.State):
     """Manages statistics aggregation for the Analytics page."""
     
@@ -22,14 +30,15 @@ class AnalyticsState(rx.State):
     format_filter: str = "all"
     
     # Faction display config: xws_id -> (display_name, color, icon_url)
+    # Colors aligned with Star Wars faction aesthetics
     FACTION_CONFIG = {
         Faction.REBEL.value: ("Rebel Alliance", "#e74c3c"),
-        Faction.EMPIRE.value: ("Galactic Empire", "#3498db"),
+        Faction.EMPIRE.value: ("Galactic Empire", "#4fb8ff"),
         Faction.SCUM.value: ("Scum and Villainy", "#27ae60"),
         Faction.RESISTANCE.value: ("Resistance", "#e67e22"),
-        Faction.FIRST_ORDER.value: ("First Order", "#922b21"),
-        Faction.REPUBLIC.value: ("Galactic Republic", "#d4c4a8"),
-        Faction.SEPARATIST.value: ("Separatist Alliance", "#95a5a6"),
+        Faction.FIRST_ORDER.value: ("First Order", "#ff4757"),
+        Faction.REPUBLIC.value: ("Galactic Republic", "#ffc312"),
+        Faction.SEPARATIST.value: ("Separatist Alliance", "#8e44ad"),
     }
     
     def load_analytics(self):
@@ -117,17 +126,32 @@ def render_faction_legend_item(item: dict):
         spacing="2",
         align="center",
         padding="6px 12px",
-        border_radius="8px",
-        bg="rgba(255, 255, 255, 0.05)",
+        border_radius="4px",
+        bg="rgba(26, 26, 36, 0.5)",
         border_left=f"3px solid {item['fill']}",
     )
 
 
 def faction_chart() -> rx.Component:
-    """Pie chart for faction distribution with percentages."""
+    """Pie chart for faction distribution - Imperial style."""
     return rx.box(
         rx.vstack(
-            rx.heading("Faction Distribution", size="5"),
+            rx.hstack(
+                rx.box(
+                    width="4px",
+                    height="20px",
+                    background=IMPERIAL_BLUE,
+                    border_radius="2px",
+                ),
+                rx.heading(
+                    "FACTION DISTRIBUTION", 
+                    size="5",
+                    font_family="Orbitron, sans-serif",
+                    letter_spacing="0.1em",
+                ),
+                spacing="3",
+                align="center",
+            ),
             rx.recharts.pie_chart(
                 rx.recharts.pie(
                     data=AnalyticsState.faction_data,
@@ -153,21 +177,36 @@ def faction_chart() -> rx.Component:
             width="100%",
         ),
         padding="24px",
-        background="rgba(255, 255, 255, 0.03)",
-        border_radius="12px",
-        border="1px solid rgba(255, 255, 255, 0.08)",
+        background=f"linear-gradient(180deg, rgba(26, 26, 36, 0.8) 0%, rgba(26, 26, 36, 0.4) 100%)",
+        border_radius="4px",
+        border=f"1px solid {STEEL_BORDER}",
     )
 
 
 def pilot_chart() -> rx.Component:
-    """Bar chart for top pilot usage."""
+    """Bar chart for top pilot usage - Imperial style."""
     return rx.box(
         rx.vstack(
-            rx.heading("Top 10 Pilots", size="5"),
+            rx.hstack(
+                rx.box(
+                    width="4px",
+                    height="20px",
+                    background=IMPERIAL_BLUE,
+                    border_radius="2px",
+                ),
+                rx.heading(
+                    "TOP 10 PILOTS", 
+                    size="5",
+                    font_family="Orbitron, sans-serif",
+                    letter_spacing="0.1em",
+                ),
+                spacing="3",
+                align="center",
+            ),
             rx.recharts.bar_chart(
                 rx.recharts.bar(
                     data_key="count",
-                    fill="#00bcd4",
+                    fill=IMPERIAL_BLUE,
                 ),
                 rx.recharts.x_axis(data_key="name", angle=-45, text_anchor="end"),
                 rx.recharts.y_axis(),
@@ -180,20 +219,31 @@ def pilot_chart() -> rx.Component:
             width="100%",
         ),
         padding="24px",
-        background="rgba(255, 255, 255, 0.03)",
-        border_radius="12px",
-        border="1px solid rgba(255, 255, 255, 0.08)",
+        background=f"linear-gradient(180deg, rgba(26, 26, 36, 0.8) 0%, rgba(26, 26, 36, 0.4) 100%)",
+        border_radius="4px",
+        border=f"1px solid {STEEL_BORDER}",
     )
 
 
 def analytics_content() -> rx.Component:
-    """Main content layout."""
+    """Main content layout - Imperial style."""
     return rx.vstack(
         # Header with filter
         rx.hstack(
             rx.vstack(
-                rx.heading("Meta Analytics", size="8"),
-                rx.text("Explore faction and pilot trends", size="3", color="gray"),
+                rx.heading(
+                    "META ANALYTICS", 
+                    size="8",
+                    font_family="Orbitron, sans-serif",
+                    letter_spacing="0.15em",
+                ),
+                rx.box(
+                    width="100px",
+                    height="2px",
+                    background=f"linear-gradient(90deg, {IMPERIAL_BLUE}, transparent)",
+                    margin_top="4px",
+                ),
+                rx.text("Explore faction and pilot trends", size="3", color="#8a8a9a"),
                 align="start",
             ),
             rx.spacer(),
@@ -201,7 +251,7 @@ def analytics_content() -> rx.Component:
                 format_filter_select(),
                 rx.badge(
                     AnalyticsState.total_lists.to_string() + " lists",
-                    color_scheme="cyan",
+                    color_scheme="blue",
                     size="2",
                 ),
                 spacing="3",
@@ -229,3 +279,4 @@ def analytics_content() -> rx.Component:
 def analytics_page() -> rx.Component:
     """Analytics page wrapped in layout."""
     return layout(analytics_content())
+

@@ -21,14 +21,14 @@ async def test_format_detection():
     print("-" * 40)
     
     test_cases = [
-        {"builder": "YASB XWA 2.5", "expected": ("2.5", "XWA")},
-        {"builder": "YASB 2.0 legacy", "expected": ("2.0", "X2PO")},
-        {"builder": "YASB 2.0 raithos", "expected": ("2.0", "FFG")},
-        {"builder": "YASB 2.0 lorenzosanti", "expected": ("2.0", "XLC")},
-        {"builder": "launchbaynext", "ruleset": "XWA", "expected": ("2.5", "XWA")},
-        {"builder": "launchbaynext", "ruleset": "AMG", "expected": ("2.5", "AMG")},
-        {"builder": "launchbaynext", "ruleset": "legacy", "expected": ("2.0", "X2PO")},
-        {"builder": "xwingsquaddesigner", "expected": (None, None)},
+        {"builder": "YASB XWA 2.5", "expected": "XWA"},
+        {"builder": "YASB 2.0 legacy", "expected": "Legacy (X2PO)"},
+        {"builder": "YASB 2.0 raithos", "expected": "FFG"},
+        {"builder": "YASB 2.0 lorenzosanti", "expected": "Legacy (XLC)"},
+        {"builder": "launchbaynext", "ruleset": "XWA", "expected": "XWA"},
+        {"builder": "launchbaynext", "ruleset": "AMG", "expected": "AMG"},
+        {"builder": "launchbaynext", "ruleset": "legacy", "expected": "Legacy (X2PO)"},
+        {"builder": "xwingsquaddesigner", "expected": None},
     ]
     
     for case in test_cases:
@@ -38,7 +38,7 @@ async def test_format_detection():
         
         result = detect_format_from_xws(xws)
         expected = case["expected"]
-        status = "✓" if result == expected else "✗"
+        status = "[OK]" if result == expected else "[FAIL]"
         print(f"  {status} '{case['builder']}' -> {result} (expected {expected})")
     
     # Test on real ListFortress tournaments

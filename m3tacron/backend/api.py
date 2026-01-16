@@ -5,7 +5,7 @@ These are FastAPI-style routes that will be exposed via Reflex's backend API.
 """
 import os
 from datetime import datetime
-from typing import Optional
+
 import reflex as rx
 
 from .scrapers.listfortress import fetch_tournaments, fetch_tournament_details, extract_xws_from_participant
@@ -113,14 +113,14 @@ async def trigger_update(days_back: int = 30) -> UpdateResponse:
 class SubmissionRequest(rx.Base):
     player_name: str
     xws_data: dict
-    tournament_name: Optional[str] = None
-    date: Optional[str] = None
+    tournament_name: str | None = None
+    date: str | None = None
 
 
 class SubmissionResponse(rx.Base):
     success: bool
     message: str
-    submission_id: Optional[int] = None
+    submission_id: int | None = None
 
 
 async def submit_list(data: SubmissionRequest, submitter_ip: str) -> SubmissionResponse:

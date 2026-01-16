@@ -1,5 +1,6 @@
 """
 M3taCron Home Page - Meta Snapshot Dashboard.
+Star Wars Imperial aesthetic.
 """
 import reflex as rx
 from sqlmodel import Session, select, func
@@ -7,6 +8,14 @@ from sqlmodel import Session, select, func
 from ..components.sidebar import layout
 from ..backend.database import engine
 from ..backend.models import Tournament, PlayerResult
+
+
+# Star Wars color palette
+IMPERIAL_BLUE = "#4fb8ff"
+IMPERIAL_RED = "#ff4757"
+IMPERIAL_YELLOW = "#ffc312"
+STEEL_BORDER = "#2a2a3a"
+STEEL_BG = "#1a1a24"
 
 
 class HomeState(rx.State):
@@ -67,65 +76,77 @@ class HomeState(rx.State):
 
 
 def stat_card(title: str, value: rx.Var, subtitle: str = "") -> rx.Component:
-    """A stat card component for the dashboard."""
+    """A stat card component - Imperial control panel style."""
     return rx.box(
         rx.vstack(
-            rx.text(title, size="2", color="gray", font_family="Rajdhani", letter_spacing="0.05em"),
-            rx.text(value, size="8", weight="bold", color="cyan", font_family="Rajdhani"),
-            rx.text(subtitle, size="1", color="gray") if subtitle else rx.fragment(),
+            rx.text(
+                title, 
+                size="2", 
+                color="#8a8a9a", 
+                font_family="Orbitron, sans-serif", 
+                letter_spacing="0.08em",
+                text_transform="uppercase",
+            ),
+            rx.text(
+                value, 
+                size="8", 
+                weight="bold", 
+                color=IMPERIAL_BLUE, 
+                font_family="Orbitron, sans-serif",
+            ),
+            rx.text(subtitle, size="1", color="#6a6a7a") if subtitle else rx.fragment(),
             spacing="1",
             align="start",
         ),
-        padding="20px",
-        background="rgba(255, 255, 255, 0.03)",
-        border_radius="12px",
-        border="1px solid rgba(255, 255, 255, 0.1)",
-        backdrop_filter="blur(10px)",
+        padding="20px 24px",
+        background=f"linear-gradient(135deg, {STEEL_BG} 0%, rgba(26, 26, 36, 0.5) 100%)",
+        border_radius="4px",
+        border=f"1px solid {STEEL_BORDER}",
+        border_left=f"3px solid {IMPERIAL_BLUE}",
         min_width="200px",
         transition="all 0.3s ease",
         _hover={
-            "transform": "translateY(-5px)",
-            "box_shadow": "0 10px 30px -10px rgba(6, 182, 212, 0.3)",
-            "border_color": "rgba(6, 182, 212, 0.5)",
-            "background": "rgba(255, 255, 255, 0.05)",
+            "transform": "translateY(-3px)",
+            "box_shadow": f"0 8px 30px -10px rgba(79, 184, 255, 0.3), 0 0 0 1px rgba(79, 184, 255, 0.2)",
+            "border_color": IMPERIAL_BLUE,
         },
     )
 
 
 def ship_row(ship: dict) -> rx.Component:
-    """A row displaying ship statistics."""
+    """A row displaying ship statistics - Imperial terminal style."""
     return rx.hstack(
         rx.text(ship["name"], size="3", weight="medium"),
         rx.spacer(),
-        rx.text(rx.Var.create(f"{ship['count']} lists"), size="2", color="gray"),
+        rx.text(rx.Var.create(f"{ship['count']} lists"), size="2", color="#8a8a9a"),
         rx.badge(
             rx.Var.create(f"{ship['winrate']}%"),
             color_scheme="green",
             size="1",
+            variant="soft",
         ),
         width="100%",
         padding="12px 16px",
-        background="rgba(255, 255, 255, 0.02)",
-        border_radius="8px",
-        border="1px solid transparent",
+        background="rgba(26, 26, 36, 0.5)",
+        border_radius="4px",
+        border_left=f"2px solid transparent",
         transition="all 0.2s ease",
         _hover={
-            "background": "rgba(255, 255, 255, 0.05)",
-            "border_color": "rgba(255, 255, 255, 0.1)",
-            "transform": "translateX(5px)",
+            "background": "rgba(79, 184, 255, 0.1)",
+            "border_left": f"2px solid {IMPERIAL_BLUE}",
             "cursor": "pointer",
         },
     )
 
 
 def tournament_row(tournament: dict) -> rx.Component:
-    """A row displaying tournament info."""
+    """A row displaying tournament info - Imperial data terminal style."""
     return rx.hstack(
         rx.vstack(
             rx.text(tournament["name"], size="3", weight="medium"),
             rx.hstack(
-                rx.text(tournament["date"], size="1", color="gray"),
-                rx.badge(tournament["format"], color_scheme="purple", size="1"),
+                rx.text(tournament["date"], size="1", color="#6a6a7a"),
+                rx.badge(tournament["format"], color_scheme="purple", size="1", variant="outline"),
                 spacing="2",
             ),
             spacing="1",
@@ -135,40 +156,84 @@ def tournament_row(tournament: dict) -> rx.Component:
         rx.badge(rx.Var.create(f"{tournament['players']} players"), color_scheme="blue", size="1"),
         width="100%",
         padding="12px 16px",
-        background="rgba(255, 255, 255, 0.02)",
-        border_radius="8px",
-        border="1px solid transparent",
+        background="rgba(26, 26, 36, 0.5)",
+        border_radius="4px",
+        border_left=f"2px solid transparent",
         transition="all 0.2s ease",
         _hover={
-            "background": "rgba(255, 255, 255, 0.05)",
-            "border_color": "rgba(255, 255, 255, 0.1)",
-            "transform": "translateX(5px)",
+            "background": "rgba(79, 184, 255, 0.1)",
+            "border_left": f"2px solid {IMPERIAL_BLUE}",
             "cursor": "pointer",
         },
     )
 
 
+def section_panel(title: str, content: rx.Component) -> rx.Component:
+    """A section panel - Imperial control room style."""
+    return rx.box(
+        rx.vstack(
+            rx.hstack(
+                rx.box(
+                    width="4px",
+                    height="20px",
+                    background=IMPERIAL_BLUE,
+                    border_radius="2px",
+                ),
+                rx.heading(
+                    title, 
+                    size="4", 
+                    font_family="Orbitron, sans-serif",
+                    letter_spacing="0.1em",
+                    color="#e8e8e8",
+                ),
+                spacing="3",
+                align="center",
+                margin_bottom="16px",
+            ),
+            content,
+            align="stretch",
+            width="100%",
+        ),
+        padding="24px",
+        background=f"linear-gradient(180deg, rgba(26, 26, 36, 0.8) 0%, rgba(26, 26, 36, 0.4) 100%)",
+        border_radius="4px",
+        border=f"1px solid {STEEL_BORDER}",
+        _hover={
+            "border_color": "rgba(79, 184, 255, 0.3)",
+        },
+    )
+
+
 def home_content() -> rx.Component:
-    """The main content for the Home page."""
+    """The main content for the Home page - Imperial style."""
     return rx.vstack(
         # Header
-        rx.heading(
-            "META SNAPSHOT", 
-            size="8", 
-            margin_bottom="8px", 
-            font_family="Rajdhani", 
-            letter_spacing="0.1em",
-            color="white",
-        ),
-        rx.text(
-            "Current tournament meta analysis for Star Wars: X-Wing",
-            size="3",
-            color="gray",
+        rx.vstack(
+            rx.heading(
+                "META SNAPSHOT", 
+                size="8", 
+                font_family="Orbitron, sans-serif", 
+                letter_spacing="0.15em",
+                color="#e8e8e8",
+            ),
+            rx.box(
+                width="120px",
+                height="2px",
+                background=f"linear-gradient(90deg, {IMPERIAL_BLUE}, transparent)",
+                margin_top="8px",
+                margin_bottom="8px",
+            ),
+            rx.text(
+                "Current tournament meta analysis for Star Wars: X-Wing",
+                size="3",
+                color="#8a8a9a",
+                font_family="Inter, sans-serif",
+            ),
+            align="start",
             margin_bottom="32px",
-            font_family="Rajdhani",
         ),
         
-        # Stats row - now with real data
+        # Stats row
         rx.hstack(
             stat_card("Tournaments", HomeState.total_tournaments, "tracked"),
             stat_card("Lists", HomeState.total_lists, "analyzed"),
@@ -181,35 +246,32 @@ def home_content() -> rx.Component:
         # Two column layout
         rx.grid(
             # Top Ships
-            rx.box(
+            section_panel(
+                "TOP SHIPS",
                 rx.vstack(
-                    rx.heading("TOP SHIPS", size="4", margin_bottom="16px", font_family="Rajdhani", color="cyan"),
                     rx.foreach(HomeState.top_ships, ship_row),
-                    align="stretch",
+                    spacing="2",
                     width="100%",
                 ),
-                padding="24px",
-                background="rgba(255, 255, 255, 0.03)",
-                border_radius="16px",
-                border="1px solid rgba(255, 255, 255, 0.08)",
             ),
             # Recent Tournaments
-            rx.box(
+            section_panel(
+                "RECENT TOURNAMENTS",
                 rx.vstack(
-                    rx.heading("RECENT TOURNAMENTS", size="4", margin_bottom="16px", font_family="Rajdhani", color="cyan"),
                     rx.foreach(HomeState.recent_tournaments, tournament_row),
                     rx.link(
-                        rx.button("View All Tournaments", variant="outline", size="2"),
+                        rx.button(
+                            "View All Tournaments", 
+                            variant="outline", 
+                            size="2",
+                            color=IMPERIAL_BLUE,
+                        ),
                         href="/tournaments",
                         margin_top="16px",
                     ),
-                    align="stretch",
+                    spacing="2",
                     width="100%",
                 ),
-                padding="24px",
-                background="rgba(255, 255, 255, 0.03)",
-                border_radius="16px",
-                border="1px solid rgba(255, 255, 255, 0.08)",
             ),
             columns="2",
             spacing="6",
@@ -219,10 +281,11 @@ def home_content() -> rx.Component:
         align="start",
         width="100%",
         max_width="1200px",
-        on_mount=HomeState.load_data,  # Load data when page mounts
+        on_mount=HomeState.load_data,
     )
 
 
 def home_page() -> rx.Component:
     """The Home page wrapped in the layout."""
     return layout(home_content())
+

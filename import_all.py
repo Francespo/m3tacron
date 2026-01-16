@@ -45,8 +45,19 @@ from m3tacron.backend.format_detector import (
 RB_IDS = [2550, 2551, 2554, 2555, 2556, 2557, 2510, 2530, 2502, 2600, 2650]
 LF_LIMIT = 8
 
-def is_duplicate(session: Session, name: str, date: datetime, tolerance_days: int = 3) -> bool:
-    """Check if tournament with similar name and date already exists."""
+def is_duplicate(session: Session, name: str, date: datetime, player_count: int = 0, tolerance_days: int = 3) -> bool:
+    """Check if tournament with similar name, date, and player count already exists.
+    
+    Args:
+        session: Database session
+        name: Tournament name to check
+        date: Tournament date
+        player_count: Number of participants (if 0, skip this check)
+        tolerance_days: Date range tolerance (default ±3 days)
+    
+    Returns:
+        True if a duplicate is found
+    """
     from difflib import SequenceMatcher
     
     start_date = date - timedelta(days=tolerance_days)
@@ -62,12 +73,32 @@ def is_duplicate(session: Session, name: str, date: datetime, tolerance_days: in
     name_lower = name.lower().strip()
     for t in existing:
         existing_name = t.name.lower().strip()
+        
+        # Check name similarity
+        is_name_match = False
         if name_lower == existing_name:
+            is_name_match = True
+        else:
+            similarity = SequenceMatcher(None, name_lower, existing_name).ratio()
+            if similarity > 0.8:
+                is_name_match = True
+        
+        if not is_name_match:
+            continue
+        
+        # If player_count provided, also check if counts are similar (±20%)
+        if player_count > 0 and t.player_count > 0:
+            tolerance = 0.2
+            min_count = int(player_count * (1 - tolerance))
+            max_count = int(player_count * (1 + tolerance))
+            if min_count <= t.player_count <= max_count:
+                print(f"    [Duplicate] '{name}' matches '{t.name}' (players: {player_count}~{t.player_count})")
+                return True
+        else:
+            # No player count to compare, name+date match is enough
+            print(f"    [Duplicate] '{name}' matches '{t.name}' (name+date)")
             return True
-        similarity = SequenceMatcher(None, name_lower, existing_name).ratio()
-        if similarity > 0.8:
-            print(f"    [Duplicate] '{name}' matches '{t.name}' ({similarity:.0%})")
-            return True
+    
     return False
 
 
@@ -98,13 +129,15 @@ async def import_rollbetter(session: Session, since_date: datetime, limit: int =
                 continue
                 
             t_name = t_data.get("title") or t_data.get("name", "Unknown")
-            if is_duplicate(session, t_name, t_date):
-                print(f"  [Skip] Duplicate: {t_name}")
-                continue
-
+            
+            # Fetch players FIRST to get count for duplicate detection
             players = await fetch_rb_players(t_id)
             if len(players) < 4:
                 print(f"  [Skip] Small event: {len(players)}")
+                continue
+            
+            if is_duplicate(session, t_name, t_date, player_count=len(players)):
+                print(f"  [Skip] Duplicate: {t_name}")
                 continue
 
             # Format detection
@@ -186,11 +219,8 @@ async def import_listfortress(session: Session, since_date: datetime, limit: int
             
         if t_date < since_date:
             continue
-            
-        if is_duplicate(session, t_name, t_date):
-            print(f"  [Skip] Duplicate: {t_name}")
-            continue
-            
+        
+        # Fetch details FIRST to get participant count for duplicate detection
         try:
             details = await fetch_lf_details(t_id)
         except Exception:
@@ -200,6 +230,11 @@ async def import_listfortress(session: Session, since_date: datetime, limit: int
             
         participants = details.get("participants", [])
         if len(participants) < 4: continue
+        
+        # Check duplicates with player count (important for LF which may duplicate RB/LS)
+        if is_duplicate(session, t_name, t_date, player_count=len(participants)):
+            print(f"  [Skip] Duplicate: {t_name}")
+            continue
         
         xws_lists = [extract_lf_xws(p) for p in participants if extract_lf_xws(p)]
         macro, sub = detect_format_from_listfortress(lf_format, t_name, t_date_str, xws_lists)
@@ -273,12 +308,14 @@ async def import_longshanks(session: Session, since_date: datetime, limit: int =
                 # Date filter
                 if t_date < since_date:
                     continue
-                    
-                if is_duplicate(session, t_name, t_date):
+                
+                # Get player count from scrape info (if available) for early duplicate check
+                player_count = t_info.get("player_count", 0)
+                if player_count > 0 and is_duplicate(session, t_name, t_date, player_count=player_count):
                     print(f"  [Skip] Duplicate: {t_name}")
                     continue
                 
-                # Create Tournament immediately with trusted metadata
+                # Create Tournament with trusted metadata
                 fmt = t_info.get("format", "Standard")
                 if fmt == "Legacy":
                     macro = MacroFormat.V2_0.value
@@ -303,7 +340,7 @@ async def import_longshanks(session: Session, since_date: datetime, limit: int =
                     players = result.get("players", [])
                     
                     if len(players) < 4:
-                        print(f"    [Skip] Small event: {len(players)}")
+                        print(f"    [Skip] Small event: {len(players)})")
                         continue
 
                     t = Tournament(

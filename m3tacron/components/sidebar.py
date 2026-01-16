@@ -1,27 +1,37 @@
 """
 Responsive Sidebar/Layout Component for M3taCron.
 
-Desktop: Fixed left sidebar with navigation.
+Desktop: Fixed left sidebar with navigation - Star Wars Imperial style.
 Mobile: Collapsible drawer accessible via hamburger menu.
 """
 import reflex as rx
 
 
+# Star Wars color palette
+IMPERIAL_BLUE = "#4fb8ff"
+IMPERIAL_RED = "#ff4757"
+IMPERIAL_YELLOW = "#ffc312"
+DARK_SPACE = "#0a0a0f"
+STEEL_DARK = "#1a1a24"
+STEEL_BORDER = "#2a2a3a"
+
+
 def sidebar_link(text: str, href: str, icon: str) -> rx.Component:
-    """Create a navigation link for the sidebar."""
+    """Create a navigation link for the sidebar - Imperial style."""
     return rx.link(
         rx.hstack(
-            rx.icon(icon, size=20),
-            rx.text(text, size="3", weight="medium"),
+            rx.icon(icon, size=20, color=IMPERIAL_BLUE),
+            rx.text(text, size="3", weight="medium", letter_spacing="0.05em"),
             width="100%",
             padding="12px 16px",
-            border_radius="8px",
+            border_radius="4px",
+            border_left=f"2px solid transparent",
             _hover={
-                "background": "rgba(255, 255, 255, 0.1)",
-                "box_shadow": "0 0 15px rgba(6, 182, 212, 0.3)",
-                "border": "1px solid rgba(6, 182, 212, 0.3)",
+                "background": "rgba(79, 184, 255, 0.1)",
+                "border_left": f"2px solid {IMPERIAL_BLUE}",
+                "box_shadow": f"0 0 20px rgba(79, 184, 255, 0.2), inset 0 0 20px rgba(79, 184, 255, 0.05)",
             },
-            transition="all 0.2s ease-in-out",
+            transition="all 0.3s ease",
         ),
         href=href,
         style={"text_decoration": "none", "color": "inherit"},
@@ -29,31 +39,40 @@ def sidebar_link(text: str, href: str, icon: str) -> rx.Component:
 
 
 def sidebar_content() -> rx.Component:
-    """The sidebar navigation content."""
+    """The sidebar navigation content - Imperial control room style."""
     return rx.vstack(
-        # Logo/Brand
+        # Logo/Brand - Imperial style
         rx.hstack(
-            rx.text(
-                "M3TACRON",
-                size="6",
-                weight="bold",
-                color="cyan",
-                font_family="Rajdhani",
-                letter_spacing="0.1em",
-                _hover={
-                    "text_shadow": "0 0 10px var(--accent-9)",
-                    "cursor": "default",
-                },
+            rx.vstack(
+                rx.text(
+                    "M3TACRON",
+                    size="6",
+                    weight="bold",
+                    color=IMPERIAL_BLUE,
+                    font_family="Orbitron, sans-serif",
+                    letter_spacing="0.15em",
+                ),
+                rx.box(
+                    width="100%",
+                    height="2px",
+                    background=f"linear-gradient(90deg, {IMPERIAL_BLUE}, transparent)",
+                    margin_top="4px",
+                ),
+                align="start",
             ),
             padding="24px 16px",
         ),
-        rx.divider(color_scheme="gray"),
+        # Decorative line
+        rx.box(
+            width="100%",
+            height="1px",
+            background=f"linear-gradient(90deg, {STEEL_BORDER}, transparent 80%)",
+        ),
         # Navigation links
         rx.vstack(
             sidebar_link("Home", "/", "home"),
             sidebar_link("Tournaments", "/tournaments", "trophy"),
             sidebar_link("Analytics", "/analytics", "bar-chart-2"),
-            sidebar_link("Admin", "/admin", "shield"),
             width="100%",
             padding="16px 8px",
             spacing="2",
@@ -62,11 +81,28 @@ def sidebar_content() -> rx.Component:
         rx.spacer(),
         # Footer / Disclaimer
         rx.box(
-            rx.text(
-                "Unofficial. Not affiliated with Disney/Lucasfilm.",
-                size="1",
-                color="gray",
-                text_align="center",
+            rx.vstack(
+                rx.box(
+                    width="60%",
+                    height="1px",
+                    background=f"linear-gradient(90deg, transparent, {STEEL_BORDER}, transparent)",
+                    margin_bottom="12px",
+                ),
+                rx.text(
+                    "UNOFFICIAL",
+                    size="1",
+                    color=IMPERIAL_YELLOW,
+                    font_family="Orbitron, sans-serif",
+                    letter_spacing="0.1em",
+                    text_align="center",
+                ),
+                rx.text(
+                    "Not affiliated with Disney/Lucasfilm",
+                    size="1",
+                    color="#6a6a7a",
+                    text_align="center",
+                ),
+                align="center",
             ),
             padding="16px",
         ),
@@ -77,8 +113,7 @@ def sidebar_content() -> rx.Component:
 
 
 def sidebar() -> rx.Component:
-    """Responsive sidebar component."""
-    # Desktop sidebar (visible on large screens)
+    """Responsive sidebar component - Imperial style."""
     return rx.box(
         sidebar_content(),
         position="fixed",
@@ -86,16 +121,16 @@ def sidebar() -> rx.Component:
         top="0",
         width="240px",
         height="100vh",
-        background="rgba(15, 23, 42, 0.6)",
+        background=f"linear-gradient(180deg, {DARK_SPACE} 0%, {STEEL_DARK} 100%)",
         backdrop_filter="blur(20px)",
-        border_right="1px solid rgba(255, 255, 255, 0.1)",
-        display=["none", "none", "flex", "flex"],  # Hidden on mobile, visible on md+
+        border_right=f"1px solid {STEEL_BORDER}",
+        display=["none", "none", "flex", "flex"],
         z_index="100",
     )
 
 
 def mobile_header() -> rx.Component:
-    """Mobile header with hamburger menu."""
+    """Mobile header with hamburger menu - Imperial style."""
     return rx.box(
         rx.hstack(
             rx.drawer.root(
@@ -110,7 +145,7 @@ def mobile_header() -> rx.Component:
                     rx.drawer.content(
                         sidebar_content(),
                         width="240px",
-                        background="rgba(15, 23, 42, 0.98)",
+                        background=f"linear-gradient(180deg, {DARK_SPACE} 0%, {STEEL_DARK} 100%)",
                         z_index="100",
                     ),
                 ),
@@ -120,9 +155,9 @@ def mobile_header() -> rx.Component:
                 "M3TACRON", 
                 size="4", 
                 weight="bold", 
-                color="cyan",
-                font_family="Rajdhani",
-                letter_spacing="0.1em",
+                color=IMPERIAL_BLUE,
+                font_family="Orbitron, sans-serif",
+                letter_spacing="0.15em",
             ),
             rx.spacer(),
             rx.color_mode.button(size="2"),
@@ -134,17 +169,17 @@ def mobile_header() -> rx.Component:
         top="0",
         left="0",
         right="0",
-        background="rgba(15, 23, 42, 0.8)",
+        background=f"rgba(10, 10, 15, 0.95)",
         backdrop_filter="blur(20px)",
-        border_bottom="1px solid rgba(255, 255, 255, 0.1)",
-        display=["flex", "flex", "none", "none"],  # Visible on mobile, hidden on md+
+        border_bottom=f"1px solid {STEEL_BORDER}",
+        display=["flex", "flex", "none", "none"],
         z_index="100",
     )
 
 
 def layout(page_content: rx.Component) -> rx.Component:
     """
-    Main layout wrapper with responsive sidebar.
+    Main layout wrapper with responsive sidebar - Imperial style.
     
     Args:
         page_content: The page content to render in the main area.
@@ -157,12 +192,10 @@ def layout(page_content: rx.Component) -> rx.Component:
         mobile_header(),
         rx.box(
             page_content,
-            # Margin left for sidebar on desktop, top for mobile header
             margin_left=["0", "0", "240px", "240px"],
             margin_top=["60px", "60px", "0", "0"],
             padding="24px",
             min_height="100vh",
-            # Remove background from here as it's now global
-            # background="linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
         ),
     )
+

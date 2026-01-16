@@ -32,23 +32,64 @@ class Faction(str, Enum):
         return cls.UNKNOWN
 
 
+class GameFormat(str, Enum):
+    """X-Wing game format/ruleset identifiers."""
+    # 2.5
+    XWA = "XWA"
+    AMG = "AMG"
+    # 2.0
+    FFG = "FFG"
+    LEGACY_X2PO = "Legacy (X2PO)"
+    LEGACY_XLC = "Legacy (XLC)"
+    WILDSPACE = "Wildspace"
+    # Other
+    OTHER = "Other"
+
+
 class MacroFormat(str, Enum):
-    """Top-level game version categories."""
-    V2_0 = "2.0"
+    """High-level format categories."""
     V2_5 = "2.5"
+    V2_0 = "2.0"
     OTHER = "Other"
 
 
 class SubFormat(str, Enum):
-    """Specific rulesets within each macro format."""
-    FFG = "FFG"
-    X2PO = "X2PO"
-    XLC = "XLC"
+    """Sub-format categories for detailed filtering."""
+    # 2.5 sub-formats
     AMG = "AMG"
     XWA = "XWA"
-    EPIC = "Epic"
-    CUSTOM = "Custom"
+    # 2.0 sub-formats
+    X2PO = "Legacy (X2PO)"
+    XLC = "Legacy (XLC)"
+    WILDSPACE = "Wildspace"
+    # Other
     UNKNOWN = "Unknown"
+
+
+def get_macro_format(fmt: str) -> str:
+    """Infer macro format category from a specific format."""
+    fmt_lower = fmt.lower()
+    if any(x in fmt_lower for x in ["xwa", "amg", "2.5"]):
+        return MacroFormat.V2_5.value
+    elif any(x in fmt_lower for x in ["legacy (x2po)", "legacy (xlc)", "wildspace", "2.0", "ffg"]):
+        return MacroFormat.V2_0.value
+    return MacroFormat.OTHER.value
+
+
+def get_sub_format(fmt: str) -> str:
+    """Extract sub-format from format string."""
+    fmt_lower = fmt.lower()
+    if "x2po" in fmt_lower:
+        return SubFormat.X2PO.value
+    elif "xlc" in fmt_lower:
+        return SubFormat.XLC.value
+    elif "wildspace" in fmt_lower:
+        return SubFormat.WILDSPACE.value
+    elif "xwa" in fmt_lower:
+        return SubFormat.XWA.value
+    elif "amg" in fmt_lower:
+        return SubFormat.AMG.value
+    return SubFormat.UNKNOWN.value
 
 
 class Tournament(rx.Model, table=True):
@@ -56,13 +97,21 @@ class Tournament(rx.Model, table=True):
     name: str
     date: datetime
     platform: str
-    format: str
+    format: str = GameFormat.OTHER.value
+    player_count: int = Field(default=0)
     url: str
     
-    macro_format: str = MacroFormat.OTHER.value
-    sub_format: str = SubFormat.UNKNOWN.value
-    
     results: list["PlayerResult"] = Relationship(back_populates="tournament")
+    
+    @property
+    def macro_format(self) -> str:
+        """Infer macro format from the specific format."""
+        return get_macro_format(self.format)
+    
+    @property
+    def sub_format(self) -> str:
+        """Return the specific format as sub-format."""
+        return self.format
 
 
 class PlayerResult(rx.Model, table=True):
@@ -79,18 +128,6 @@ class PlayerResult(rx.Model, table=True):
 
     class Config:
         arbitrary_types_allowed = True
-
-
-class ManualSubmission(rx.Model, table=True):
-    """User-submitted lists pending admin review."""
-    status: str = "PENDING"
-    xws_data: dict = Field(default={}, sa_column=Column(JSON))
-    submitter_ip: str | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    
-    player_name: str
-    tournament_name: str | None = None
-    date: datetime | None = None
 
 
 class Match(rx.Model, table=True):

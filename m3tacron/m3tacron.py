@@ -13,12 +13,12 @@ from .pages.analytics import analytics_page
 from .backend.database import create_db_and_tables
 
 
-# Custom theme with dark mode
+# Custom theme with dark mode - Star Wars Imperial style
 theme = rx.theme(
     appearance="dark",
-    accent_color="cyan",
+    accent_color="blue",
     gray_color="slate",
-    radius="large",
+    radius="medium",
     scaling="100%",
 )
 
@@ -27,15 +27,20 @@ theme = rx.theme(
 app = rx.App(
     theme=theme,
     stylesheets=[
-        # Google Fonts - Inter for body, Rajdhani for headers
-        "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&display=swap",
+        # Google Fonts - Orbitron for sci-fi headers, Inter for body
+        "https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap",
     ],
     style={
         "font_family": "Inter, sans-serif",
-        "background_color": "#0f172a",
-        "background_image": """radial-gradient(circle at 15% 50%, rgba(14, 165, 233, 0.15), transparent 25%), 
-                             radial-gradient(circle at 85% 30%, rgba(236, 72, 153, 0.15), transparent 25%)""",
-        "color": "#e2e8f0",
+        "background_color": "#0a0a0f",
+        "background_image": """
+            linear-gradient(rgba(42, 42, 58, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(42, 42, 58, 0.03) 1px, transparent 1px),
+            radial-gradient(circle at 20% 80%, rgba(79, 184, 255, 0.08), transparent 30%),
+            radial-gradient(circle at 80% 20%, rgba(255, 71, 87, 0.05), transparent 30%)
+        """,
+        "background_size": "50px 50px, 50px 50px, 100% 100%, 100% 100%",
+        "color": "#e8e8e8",
     },
 )
 

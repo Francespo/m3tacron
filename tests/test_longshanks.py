@@ -1,4 +1,4 @@
-"""Test and import from Longshanks."""
+"""Test Longshanks scraper with X-Wing subdomains."""
 import asyncio
 import sys
 sys.path.insert(0, '.')
@@ -7,80 +7,104 @@ from datetime import datetime
 from sqlmodel import Session, select
 from m3tacron.backend.database import engine, create_db_and_tables
 from m3tacron.backend.models import Tournament, PlayerResult
-from m3tacron.backend.scrapers.longshanks import scrape_tournament
+from m3tacron.backend.scrapers.longshanks import (
+    scrape_tournament,
+    scrape_longshanks_history,
+)
 
 
-async def test_and_import_longshanks():
+async def test_longshanks_history():
+    """Test scraping tournament history from X-Wing subdomains."""
     print("=" * 60)
-    print("Testing Longshanks Scraper")
+    print("Testing Longshanks History Scraper")
     print("=" * 60)
     
-    # Test with known X-Wing tournament from DOM analysis
-    event_id = 30874  # Xhammer X-Wing X-mas Tournament 2025
+    # Test 2.5 history
+    print("\n1. Scraping X-Wing 2.5 history...")
+    tournaments_25 = await scrape_longshanks_history(subdomain="xwing", max_pages=1)
+    print(f"   [OK] Found {len(tournaments_25)} tournaments")
     
-    print(f"\n1. Scraping event {event_id}...")
-    result = await scrape_tournament(event_id)
+    if tournaments_25:
+        print("\n   Recent 2.5 tournaments:")
+        for t in tournaments_25[:3]:
+            print(f"   - {t['name']} ({t['date'].strftime('%Y-%m-%d')}) - {t['player_count']} players")
+    
+    # Test 2.0 legacy history
+    print("\n2. Scraping X-Wing Legacy (2.0) history...")
+    tournaments_20 = await scrape_longshanks_history(subdomain="xwing-legacy", max_pages=1)
+    print(f"   [OK] Found {len(tournaments_20)} tournaments")
+    
+    if tournaments_20:
+        print("\n   Recent 2.0 tournaments:")
+        for t in tournaments_20[:3]:
+            print(f"   - {t['name']} ({t['date'].strftime('%Y-%m-%d')}) - {t['player_count']} players")
+    
+    return tournaments_25, tournaments_20
+
+
+async def test_tournament_scrape():
+    """Test scraping a single tournament with player lists."""
+    print("\n" + "=" * 60)
+    print("Testing Single Tournament Scrape")
+    print("=" * 60)
+    
+    # First get a tournament ID from history
+    tournaments = await scrape_longshanks_history(subdomain="xwing", max_pages=1)
+    
+    if not tournaments:
+        print("   [FAIL] No tournaments found in history")
+        return None
+    
+    # Pick the first one
+    event = tournaments[0]
+    event_id = event["id"]
+    subdomain = "xwing"
+    
+    print(f"\n1. Scraping event {event_id}: {event['name']}...")
+    result = await scrape_tournament(event_id, subdomain=subdomain)
     
     if not result:
-        print("   ✗ Failed to scrape tournament")
-        return
+        print("   [FAIL] Failed to scrape tournament")
+        return None
     
     tournament = result.get("tournament", {})
     players = result.get("players", [])
     
-    print(f"   ✓ Tournament: {tournament.get('name')}")
-    print(f"   ✓ Players found: {len(players)}")
+    print(f"   [OK] Tournament: {tournament.get('name')}")
+    print(f"   [OK] Format: {tournament.get('format')}")
+    print(f"   [OK] Players found: {len(players)}")
     
     if players:
-        print("\n   Top players:")
+        print("\n   Player results:")
         for p in players[:5]:
             faction = p.get('faction', 'Unknown')
-            print(f"   - #{p['rank']} {p['name']} ({faction})")
-    
-    # Import to database
-    if len(players) >= 4:
-        print("\n2. Importing to database...")
-        create_db_and_tables()
+            xws_link = p.get('xws_link', '')
+            link_indicator = "[LIST]" if xws_link else "[NO LIST]"
+            print(f"   - #{p['rank']} {p['name']} ({faction}) {link_indicator}")
         
-        with Session(engine) as session:
-            # Check if exists
-            existing = session.exec(
-                select(Tournament).where(Tournament.url.contains(str(event_id)))
-            ).first()
-            
-            if existing:
-                print(f"   → Already exists: {existing.name}")
-            else:
-                # Create tournament
-                t = Tournament(
-                    name=tournament.get("name", f"Event {event_id}"),
-                    date=tournament.get("date", datetime.now()),
-                    platform="Longshanks",
-                    format="Standard",
-                    url=tournament.get("url", f"https://longshanks.org/event/{event_id}/"),
-                )
-                session.add(t)
-                session.commit()
-                session.refresh(t)
-                print(f"   ✓ Created: {t.name}")
-                
-                # Import players
-                for p in players:
-                    pr = PlayerResult(
-                        tournament_id=t.id,
-                        player_name=p.get("name", "Unknown"),
-                        rank=p.get("rank", 999),
-                        list_json={"faction": p.get("faction")} if p.get("faction") else {},
-                        points_at_event=200,
-                    )
-                    session.add(pr)
-                
-                session.commit()
-                print(f"   ✓ Imported {len(players)} players")
+        # Count players with lists
+        with_lists = sum(1 for p in players if p.get('xws_link'))
+        print(f"\n   Players with XWS links: {with_lists}/{len(players)}")
+    
+    return result
+
+
+async def main():
+    """Run all tests."""
+    print("\n" + "=" * 60)
+    print("LONGSHANKS SCRAPER TEST SUITE")
+    print("=" * 60 + "\n")
+    
+    # Test history scraping
+    await test_longshanks_history()
+    
+    # Test single tournament scrape
+    await test_tournament_scrape()
     
     print("\n" + "=" * 60)
-    print("Longshanks test complete!")
+    print("All tests complete!")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
-    asyncio.run(test_and_import_longshanks())
+    asyncio.run(main())
