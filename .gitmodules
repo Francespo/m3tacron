@@ -1,9 +1,9 @@
-[submodule "data/xwing-data2"]
-	path = data/xwing-data2
+[submodule "assets/data/xwing-data2"]
+	path = assets/data/xwing-data2
 	url = https://github.com/guidokessels/xwing-data2.git
 [submodule "assets/xwing-miniatures-font"]
 	path = assets/xwing-miniatures-font
 	url = https://github.com/geordanr/xwing-miniatures-font.git
-[submodule "data/xwing-data-legacy"]
-	path = data/xwing-data-legacy
+[submodule "assets/data/xwing-data-legacy"]
+	path = assets/data/xwing-data-legacy
 	url = https://github.com/guidokessels/xwing-data.git

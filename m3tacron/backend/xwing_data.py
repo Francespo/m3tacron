@@ -6,6 +6,7 @@ Data source: https://github.com/guidokessels/xwing-data2 (cloned as submodule)
 import json
 from pathlib import Path
 from functools import lru_cache
+from .enums.factions import Faction
 
 
 # Path to xwing-data2 data directory
@@ -55,6 +56,7 @@ def load_all_pilots() -> dict:
                             "name": pilot.get("name", xws_id),
                             "caption": pilot.get("caption", ""),
                             "ship": ship_name,
+                            "ship_xws": ship_data.get("xws", ""),
                             "ship_icon": ship_icon,
                             "faction": faction,
                             "image": pilot.get("image", ""),
@@ -65,21 +67,45 @@ def load_all_pilots() -> dict:
             except Exception:
                 continue
     
+    # Manual patches for missing scenario pilots (e.g. Battle of Yavin / D'Qar)
+    MANUAL_PILOT_DATA = {
+        "longshot-evacuationofdqar": {
+            "name": "Longshot", "ship": "TIE/fo Fighter", "ship_xws": "tiefofighter", "faction": "First Order", "ship_icon": "tiefofighter"
+        },
+        "stomeronistarck-evacuationofdqar": {
+            "name": "Stomeroni Starck", "ship": "T-70 X-wing", "ship_xws": "t70xwing", "faction": "Resistance", "ship_icon": "t70xwing"
+        },
+        "zizitlo-evacuationofdqar": {
+            "name": "Zizi Tlo", "ship": "RZ-2 A-wing", "ship_xws": "rz2awing", "faction": "Resistance", "ship_icon": "rz2awing"
+        },
+        "caithrenalli-evacuationofdqar": {
+            "name": "C'ai Threnalli", "ship": "T-70 X-wing", "ship_xws": "t70xwing", "faction": "Resistance", "ship_icon": "t70xwing"
+        },
+        "fennrau-armedanddangerous": {
+            "name": "Fenn Rau", "ship": "Fang Fighter", "ship_xws": "fangfighter", "faction": "Scum and Villainy", "ship_icon": "fangfighter"
+        },
+        "themandalorian-armedanddangerous": {
+            "name": "The Mandalorian", "ship": "ST-70 Assault Ship", "ship_xws": "st70assaultship", "faction": "Scum and Villainy", "ship_icon": "st70assaultship"
+        },
+        "dengar-armedanddangerous": {
+            "name": "Dengar", "ship": "JumpMaster 5000", "ship_xws": "jumpmaster5000", "faction": "Scum and Villainy", "ship_icon": "jumpmaster5000"
+        },
+        "bossk-armedanddangerous": {
+            "name": "Bossk", "ship": "YV-666", "ship_xws": "yv666lightfreighter", "faction": "Scum and Villainy", "ship_icon": "yv666lightfreighter"
+        },
+        "cadbane-armedanddangerous": {
+            "name": "Cad Bane", "ship": "Rogue-class Starfighter", "ship_xws": "rogueclassstarfighter", "faction": "Scum and Villainy", "ship_icon": "rogueclassstarfighter"
+        }
+    }
+    
+    # Merge manual data if not already present
+    for pid, pdata in MANUAL_PILOT_DATA.items():
+        if pid not in all_pilots:
+            all_pilots[pid] = pdata
+
     return all_pilots
 
 
-def get_faction_name(xws_faction: str) -> str:
-    """Get human-readable faction name from XWS ID."""
-    factions = load_factions()
-    faction = factions.get(xws_faction.lower().replace(" ", ""))
-    return faction["name"] if faction else xws_faction
-
-
-def get_faction_icon(xws_faction: str) -> str:
-    """Get faction icon URL from XWS ID."""
-    factions = load_factions()
-    faction = factions.get(xws_faction.lower().replace(" ", ""))
-    return faction.get("icon", "") if faction else ""
 
 
 def get_pilot_name(xws_pilot: str) -> str:
@@ -114,16 +140,7 @@ def search_pilot(query: str) -> list[dict]:
     return results[:20]  # Limit results
 
 
-# Pre-built faction name mapping for common XWS IDs
-FACTION_NAMES = {
-    "rebelalliance": "Rebel Alliance",
-    "galacticempire": "Galactic Empire",
-    "scumandvillainy": "Scum and Villainy",
-    "resistance": "Resistance",
-    "firstorder": "First Order",
-    "galacticrepublic": "Galactic Republic",
-    "separatistalliance": "Separatist Alliance",
-}
+    return results[:20]  # Limit results
 
 
 @lru_cache(maxsize=1)
@@ -224,6 +241,7 @@ def parse_xws(xws: dict) -> dict:
         
         output["pilots"].append({
             "name": pilot_name,
+            "xws": p_xws,  # Include XWS ID for image lookups
             "ship": ship_name,
             "points": pst_points,
             "upgrades": processed_upgrades
@@ -237,22 +255,4 @@ def parse_xws(xws: dict) -> dict:
 
 
 def normalize_faction(faction_str: str) -> str:
-    """Normalize faction string to standard XWS format."""
-    if not faction_str:
-        return ""
-    
-    normalized = faction_str.lower().replace(" ", "").replace("-", "")
-    
-    # Map to standard XWS ID
-    mapping = {
-        "rebel": "rebelalliance",
-        "rebels": "rebelalliance",
-        "empire": "galacticempire",
-        "imperial": "galacticempire",
-        "scum": "scumandvillainy",
-        "republic": "galacticrepublic",
-        "separatist": "separatistalliance",
-        "cis": "separatistalliance",
-    }
-    
-    return mapping.get(normalized, normalized)
+    return Faction.from_xws(faction_str).value

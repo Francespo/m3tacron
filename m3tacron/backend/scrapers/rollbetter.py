@@ -1,311 +1,502 @@
 """
-RollBetter Scraper for M3taCron.
+RollBetter Scraper Implementation (Playwright).
 
-RollBetter has an undocumented JSON API:
-- GET /tournaments/{id} - Tournament metadata + rounds list
-- GET /tournaments/{id}/players - Rankings with full squad lists
-- GET /tournaments/{id}/rounds/{n} - Match pairings for round N
-
-Also supports Playwright-based scraping for full XWS extraction (which the API lacks).
+This module implements the scraping logic for rollbetter.gg using Playwright,
+as the public API is unreliable or non-existent for many tournaments.
 """
-import httpx
 import json
-
+import logging
+import re
 from datetime import datetime
 
-BASE_URL = "https://api.rollbetter.gg"
+from urllib.parse import unquote
 
+from playwright.sync_api import sync_playwright
 
-async def scrape_tournament(tournament_id: int, browser=None) -> dict[str, any] | None:
+# Local Imports
+from .base import BaseScraper
+from ..models import Tournament, PlayerResult, Match
+from ..enums.formats import Format, infer_format_from_xws
+from ..enums.factions import Faction
+from ..enums.factions import Faction
+from ..enums.platforms import Platform
+from ..enums.round_types import RoundType
+from ..enums.scenarios import Scenario
+
+logger = logging.getLogger(__name__)
+
+class RollbetterScraper(BaseScraper):
     """
-    Scrape a Rollbetter tournament using Playwright.
-    
-    Extracts full XWS from the Lists tab where each player has
-    a "Copy XWS to Clipboard" button.
-    
-    Args:
-        tournament_id: Rollbetter tournament ID
-        browser: Optional Playwright browser instance
-        
-    Returns:
-        Dict with tournament info and players with XWS
+    Scraper for RollBetter.gg tournaments using Playwright.
     """
-    try:
-        from playwright.async_api import async_playwright
-    except ImportError:
-        raise ImportError("Playwright required: pip install playwright && playwright install")
     
-    url = f"https://rollbetter.gg/tournaments/{tournament_id}/lists"
-    
-    async def _scrape(browser_instance):
-        context = await browser_instance.new_context()
-        page = await context.new_page()
+    BASE_URL = "https://rollbetter.gg"
+
+    def get_tournament_data(self, tournament_id: str) -> Tournament:
+        """
+        Scrape high-level tournament metadata from the main page.
+        """
+        url = f"{self.BASE_URL}/tournaments/{tournament_id}"
         
-        try:
-            await page.goto(url, wait_until="networkidle", timeout=30000)
-            await page.wait_for_timeout(2000)
-            
-            # Get tournament name
-            tournament_name = await page.evaluate("""() => {
-                const h1 = document.querySelector('h1');
-                return h1 ? h1.textContent.trim() : 'Unknown Tournament';
-            }""")
-            
-            # Extract all XWS data using JavaScript
-            # Each player card has a hidden XWS that gets copied to clipboard
-            players_data = await page.evaluate("""() => {
-                const results = [];
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            try:
+                page.goto(url, wait_until="domcontentloaded")
+                # Wait for title to appear
+                page.wait_for_selector("h1", timeout=10000)
                 
-                // Find all player cards/rows in the lists view
-                const cards = document.querySelectorAll('[class*="PlayerListCard"], [class*="player"], .list-card');
+                # Scrape Title
+                name = page.locator("h1").first.inner_text().strip()
                 
-                // Also try to find buttons that copy XWS
-                const copyButtons = document.querySelectorAll('button');
+                # Scrape Date
+                date_obj = datetime.now()
+                try:
+                    # Look for calendar icon
+                    # The date is usually in the parent or next sibling of .fa-calendar
+                    if page.locator(".bi-calendar, .fa-calendar").count() > 0:
+                        icon = page.locator(".bi-calendar, .fa-calendar").first
+                        # Try parent text
+                        parent_text = icon.locator("..").inner_text()
+                        # Regex for date
+                        match = re.search(r"([A-Za-z]{3})\s+(\d{1,2}),\s+(\d{4})", parent_text)
+                        if match:
+                             date_str = match.group(0)
+                             date_obj = datetime.strptime(date_str, "%b %d, %Y")
+                    # Fallback: Body regex
+                    else:
+                        body_text = page.locator("body").inner_text()
+                        match = re.search(r"([A-Za-z]{3})\s+(\d{1,2}),\s+(\d{4})", body_text)
+                        if match:
+                             date_str = match.group(0)
+                             date_obj = datetime.strptime(date_str, "%b %d, %Y")
+                except Exception as e:
+                    logger.warning(f"Date extraction failed: {e}")
+
+                # Player Count
+                # Look for badge "X/Y" e.g. "6/16"
+                player_count = 0
+                try:
+                    badges = page.locator(".badge").all_inner_texts()
+                    for b in badges:
+                        if "/" in b:
+                             parts = b.split("/")
+                             if parts[0].strip().isdigit():
+                                 player_count = int(parts[0].strip())
+                                 break
+                except Exception as e:
+                    logger.warning(f"Count extraction failed: {e}")
+
+                return Tournament(
+                    id=int(tournament_id),
+                    name=name,
+                    date=date_obj.date(),
+                    format=None, # Inferred later
+                    player_count=player_count,
+                    platform=Platform.ROLLBETTER,
+                    url=url
+                )
+            except Exception as e:
+                logger.error(f"Failed to scrape tournament {tournament_id}: {e}")
+                raise e
+            finally:
+                browser.close()
+
+    def get_participants(self, tournament_id: str) -> list[PlayerResult]:
+        """
+        Scrape players and lists.
+        """
+        ladder_url = f"{self.BASE_URL}/tournaments/{tournament_id}"
+        lists_url = f"{self.BASE_URL}/tournaments/{tournament_id}/lists"
+        
+        participants_map: dict[str, PlayerResult] = {}
+        
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            try:
+                # 1. LADDER
+                page.goto(ladder_url, wait_until="domcontentloaded")
+                try: page.wait_for_selector("table tr", timeout=5000)
+                except: pass
                 
-                // Method 1: Look for data in React state or component props
-                // Rollbetter uses React, so data might be in __reactProps
-                const findXWSInElement = (el) => {
-                    const text = el.innerText || '';
-                    const props = el.__reactProps || {};
-                    return { text, hasProps: Object.keys(props).length > 0 };
-                };
-                
-                // Method 2: Parse visible content for each player
-                // Look for elements containing faction/pilot info
-                const factionDivs = document.querySelectorAll('[class*="faction"], [class*="list-header"]');
-                
-                // For now, return info about what we found
-                return {
-                    cardsFound: cards.length,
-                    buttonsFound: copyButtons.length,
-                    factionDivsFound: factionDivs.length,
-                    pageText: document.body.innerText.substring(0, 2000)
-                };
-            }""")
-            
-            # Try to intercept the XWS by triggering copy buttons
-            xws_list = await page.evaluate("""async () => {
-                const results = [];
-                
-                // Find all "Copy XWS to Clipboard" buttons
-                const buttons = Array.from(document.querySelectorAll('button'))
-                    .filter(b => b.textContent.includes('Copy XWS'));
-                
-                // For each button, we need to intercept what it copies
-                const originalWriteText = navigator.clipboard.writeText;
-                let lastCopied = null;
-                
-                navigator.clipboard.writeText = async (text) => {
-                    lastCopied = text;
-                    return Promise.resolve();
-                };
-                
-                for (let i = 0; i < buttons.length; i++) {
-                    const btn = buttons[i];
-                    lastCopied = null;
+                ladder_data = page.evaluate("""() => {
+                    const rows = Array.from(document.querySelectorAll("table tr"));
+                    const headers = Array.from(document.querySelectorAll("table th"));
+                    let wdlIndex = headers.findIndex(h => h.innerText.includes("W/D/L"));
+                    if (wdlIndex === -1) wdlIndex = 5; 
                     
-                    // Find player name near this button
-                    let playerName = 'Unknown';
-                    let parent = btn.parentElement;
-                    for (let j = 0; j < 10 && parent; j++) {
-                        const nameEl = parent.querySelector('h3, h4, [class*="name"], [class*="Name"]');
-                        if (nameEl) {
-                            playerName = nameEl.textContent.trim();
-                            break;
-                        }
-                        parent = parent.parentElement;
-                    }
-                    
-                    try {
-                        btn.click();
-                        await new Promise(r => setTimeout(r, 100));
+                    const players = [];
+                    for (const row of rows) {
+                        const nameEl = row.querySelector(".fancy-link") || row.querySelector("a[href*='/player/']");
+                        if (!nameEl) continue;
+                        const name = nameEl.innerText.trim();
+                        const cells = row.querySelectorAll("td");
+                        let rank = 0, points = 0;
+                        if (cells.length > 0) rank = parseInt(cells[0].innerText) || 0;
+                        if (cells.length > 4) points = parseInt(cells[4].innerText) || 0;
                         
-                        if (lastCopied) {
-                            try {
-                                const xws = JSON.parse(lastCopied);
-                                results.push({
-                                    name: playerName,
-                                    xws: xws
-                                });
-                            } catch (e) {
-                                // Not valid JSON
+                        let wins = 0, losses = 0, draws = 0;
+                        if (cells.length > wdlIndex) {
+                             const parts = cells[wdlIndex].innerText.trim().split("/");
+                             if (parts.length === 3) {
+                                  wins = parseInt(parts[0])||0; draws = parseInt(parts[1])||0; losses = parseInt(parts[2])||0;
+                             }
+                        }
+                        players.push({name, rank, points, wins, losses, draws});
+                    }
+                    return players;
+                }""")
+                
+                for d in ladder_data:
+                    participants_map[d["name"]] = PlayerResult(
+                        tournament_id=int(tournament_id),
+                        player_name=d["name"],
+                        list_json={},
+                        rank=d["rank"],
+                        swiss_rank=d["rank"],
+                        points_at_event=d["points"],
+                        swiss_wins=d["wins"],
+                        swiss_losses=d["losses"],
+                        swiss_draws=d["draws"]
+                    )
+                logger.info(f"Ladder: Found {len(participants_map)} players.")
+
+                # 2. LISTS
+                page.goto(lists_url, wait_until="domcontentloaded")
+                
+                # Check if hidden
+                if page.get_by_text("Lists are hidden").count() > 0:
+                    logger.warning(f"Lists are explicitly hidden for tournament {tournament_id}.")
+                else:
+                    page_num = 1
+                    matched_total = 0
+                    
+                    while True:
+                        logger.info(f"Scraping Lists Page {page_num}...")
+                        try:
+                            # Wait for ANY content that might have lists
+                            page.wait_for_selector("button", timeout=4000)
+                        except:
+                             pass
+
+                        page_lists = page.evaluate("""async (names) => {
+                            const results = [];
+                            // Target specific XWS buttons or generic fallback
+                            const buttons = Array.from(document.querySelectorAll("button"))
+                                            .filter(b => b.innerText.includes("Copy XWS") || b.innerText.includes("Export XWS"));
+                            
+                            let lastCopied = null;
+                            const originalWrite = navigator.clipboard.writeText;
+                            navigator.clipboard.writeText = async (t) => { lastCopied = t; };
+
+                            const players = names; // Injected variable? No, need to pass it.
+                            
+                            for (const btn of buttons) {
+                                let current = btn;
+                                let bestXws = null;
+                                let matchedName = null;
+                                
+                                btn.click();
+                                await new Promise(r => setTimeout(r, 10));
+                                if (lastCopied) {
+                                    try { bestXws = JSON.parse(lastCopied); } catch(e){}
+                                    lastCopied = null;
+                                }
+                                if (!bestXws) continue;
+
+                                // Traverse up to find name
+                                let temp = btn;
+                                for(let i=0; i<6; i++) {
+                                     if(!temp) break;
+                                     
+                                     // 1. Check Previous Sibling (Header)
+                                     if (temp.previousElementSibling) {
+                                          const sibText = temp.previousElementSibling.innerText;
+                                          for (const p of players) {
+                                               if (sibText.includes(p)) {
+                                                    matchedName = p;
+                                                    break;
+                                               }
+                                          }
+                                     }
+                                     if (matchedName) break;
+
+                                     // 2. Check Container Text (Wrapper)
+                                     // Be careful not to match "Search" or huge grids
+                                     // Only check if length is reasonable? Or just check inclusion.
+                                     // If we are at a high level (Grid), it might contain ALL names.
+                                     // But usually "Search | IRIS | ..." means IRIS is first.
+                                     // We verify strict containment. 
+                                     
+                                     // NOTE: Checking container text is risky if it contains multiple players.
+                                     // But if we are deeper than the Grid, it is safe.
+                                     // We can trust Sibling Check more.
+                                     
+                                     // Let's rely on Sibling Check primarily?
+                                     // What if Name is inside the wrapper?
+                                     
+                                     // Check Inner Text
+                                     const txt = temp.innerText;
+                                     // Optimization: Only check if txt length is not huge
+                                     if (txt.length < 500) {
+                                         for (const p of players) {
+                                             if (txt.includes(p)) {
+                                                  matchedName = p;
+                                                  break;
+                                             }
+                                         }
+                                     }
+                                     if (matchedName) break;
+                                     
+                                     temp = temp.parentElement;
+                                }
+                                
+                                if (matchedName) {
+                                     results.push({name: matchedName, xws: bestXws});
+                                }
+                            }
+                            navigator.clipboard.writeText = originalWrite;
+                            return results;
+                        }""", sorted(participants_map.keys(), key=len, reverse=True))
+                        
+                        logger.info(f"Raw lists found on page {page_num}: {len(page_lists)}")
+                        
+                        names_desc = sorted(participants_map.keys(), key=len, reverse=True)
+                        
+                        for item in page_lists:
+                            if not item.get("name"): continue
+                            
+                            p_name = item["name"]
+                            if p_name in participants_map:
+                                participants_map[p_name].list_json = item["xws"]
+                                matched_total += 1
+                        
+                        # Pagination
+                        next_loc = page.locator("ul.pagination li.page-item:not(.disabled) a[aria-label='Next'], ul.pagination li.page-item:not(.disabled) a:has-text('›')")
+                        if next_loc.count() > 0 and next_loc.first.is_visible():
+                            next_loc.first.click()
+                            page.wait_for_timeout(2000)
+                            page_num += 1
+                        else:
+                            break
+                    
+                    logger.info(f"Lists: Matched {matched_total} XWS lists.")
+
+            except Exception as e:
+                logger.error(f"Error scraping participants: {e}")
+            finally:
+                browser.close()
+        return list(participants_map.values())
+
+    def get_matches(self, tournament_id: str) -> list[Match]:
+        """
+        Scrape matches.
+        """
+        url = f"{self.BASE_URL}/tournaments/{tournament_id}"
+        matches = []
+        
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            try:
+                page.goto(url, wait_until="domcontentloaded")
+                
+                # Navigate to Rounds
+                try:
+                    page.locator("a.nav-link:has-text('Rounds'), button.nav-link:has-text('Rounds')").first.click()
+                    page.wait_for_timeout(2000) # Wait for component load
+                except:
+                    logger.warning("No Rounds tab.")
+                    return []
+
+                # Filter TABS by Allowlist (Safer)
+                possible_tabs = page.locator("button.nav-link.no-wrap-tab").all()
+                valid_tabs = []
+                
+                # We only want tabs that look like tournament rounds
+                allowed_prefixes = ["Round", "Top", "Cut", "Final", "Bracket", "Swiss", "Group"]
+                
+                logger.info(f"Total potential tabs found: {len(possible_tabs)}")
+                
+                for t in possible_tabs:
+                    txt = t.inner_text().strip()
+                    if txt == "Rounds": continue
+                    
+                    # Check prefix
+                    is_valid = False
+                    for prefix in allowed_prefixes:
+                        if txt.startswith(prefix) or txt == prefix: # Exact or prefix
+                            is_valid = True
+                            break
+                    
+                    if is_valid:
+                        valid_tabs.append(t)
+                        logger.info(f"  [Use] {txt}")
+                    else:
+                        logger.info(f"  [Skip] {txt}")
+                
+                logger.info(f"Valid Rounds found: {len(valid_tabs)}")
+                
+                # If no tabs found, maybe it's just a single page? Check if there's a table.
+                if not valid_tabs and page.locator("table").count() > 0:
+                     logger.info("No tabs found, checking for existing table as single round.")
+                     valid_tabs = [None] # Mock a 'Round 1' tab for loop
+
+                for i, tab in enumerate(valid_tabs):
+                    if tab:
+                        round_name = tab.inner_text().strip()
+                        logger.info(f"Scraping Round {i+1}: {round_name}")
+                        tab.click()
+                        page.wait_for_timeout(1000)
+                    else:
+                        round_name = "Round 1"
+                        logger.info("Scraping default view as Round 1")
+                    
+                    # Extract Scenario
+                    # Scope to the active tab pane to avoid grabbing hidden text from other rounds
+                    current_scenario = None
+                    try:
+                        # Find the active tab pane. 
+                        # Usually .tab-content > .tab-pane.active
+                        active_pane = page.locator(".tab-pane.active")
+                        if active_pane.count() > 0:
+                            scenario_el = active_pane.locator("div:has-text('Scenario:')").first
+                            if scenario_el.count() > 0 and scenario_el.is_visible():
+                                txt = scenario_el.inner_text()
+                                if "Scenario:" in txt:
+                                    val = txt.split("Scenario:")[1].strip()
+                                    val = val.split("\n")[0].strip()
+                                    
+                                    from m3tacron.backend.enums.scenarios import Scenario
+                                    for s in Scenario:
+                                        if s.label.lower() == val.lower():
+                                            current_scenario = s
+                                            logger.info(f"Found Scenario: {s.label}")
+                                            break
+                    except Exception as e:
+                        logger.warning(f"Could not extract scenario: {e}")
+
+                    # Scrape Table
+                    try:
+                        rows = page.locator("table tr").all()
+                    except:
+                        rows = []
+                        
+                    # Use generic scraping
+                    rr_data = page.evaluate("""() => {
+                        const rows = Array.from(document.querySelectorAll("table tr"));
+                        const matches = [];
+                        for (let i=0; i<rows.length; i++) {
+                            const r = rows[i];
+                            const next = r.nextElementSibling;
+                            
+                            // Check if this looks like a match row 
+                            // Rollbetter matches are typically pairs of rows (one per player)
+                            if (!next) continue;
+                            
+                            // Extract Names
+                            const get_name = (el) => {
+                                 let n = el.querySelector(".fancy-link") || el.querySelector("a[href*='/player/']");
+                                 return n ? n.innerText.trim() : null;
+                            };
+                            
+                            const p1 = get_name(r);
+                            const p2 = get_name(next);
+                            
+                            if (p1 && p2) {
+                                // Scores
+                                const getScore = (el) => {
+                                    const cells = el.querySelectorAll("td");
+                                    if (cells.length > 4) return parseInt(cells[4].innerText)||0;
+                                    return 0;
+                                };
+                                const s1 = getScore(r);
+                                const s2 = getScore(next);
+                                
+                                // Winner
+                                const isWin = (el) => el.innerText.includes("Win") || !!el.querySelector(".bi-check-circle-fill");
+                                const p1Win = isWin(r);
+                                const p2Win = isWin(next);
+                                
+                                matches.push({p1, p2, p1Win, p2Win, s1, s2});
                             }
                         }
-                    } catch (e) {
-                        // Button click failed
-                    }
-                }
-                
-                navigator.clipboard.writeText = originalWriteText;
-                return results;
-            }""")
-            
-            # Build player results
-            players = []
-            for i, item in enumerate(xws_list):
-                players.append({
-                    "rank": i + 1,
-                    "name": item.get("name", f"Player {i+1}"),
-                    "xws": item.get("xws")
-                })
-            
-            return {
-                "tournament": {
-                    "name": tournament_name,
-                    "platform": "Rollbetter",
-                    "url": url,
-                },
-                "players": players,
-                "debug": players_data
-            }
-        finally:
-            await page.close()
-            await context.close()
+                        return matches;
+                    }""")
+                    
+                    seen_matches = set()
+                    
+                    for m_dat in rr_data:
+                        # Composite key
+                        key = tuple(sorted([m_dat['p1'], m_dat['p2']]))
+                        if key in seen_matches: continue
+                        seen_matches.add(key)
+                        
+                        is_bye = (m_dat['p2'] == "Bye")
+                        
+                        # Match Round Type
+                        # from m3tacron.backend.enums.matches import RoundType # Already imported at top
+                        current_round_type = RoundType.SWISS
+                        lower_name = round_name.lower()
+                        if "cut" in lower_name or "top" in lower_name or "final" in lower_name or "bracket" in lower_name:
+                             current_round_type = RoundType.CUT
 
-    if browser:
-        return await _scrape(browser)
-    else:
-        async with async_playwright() as p:
-            browser_instance = await p.chromium.launch(headless=True)
-            try:
-                return await _scrape(browser_instance)
+                        m = Match(
+                            tournament_id=int(tournament_id),
+                            round_number=i+1, 
+                            round_type=current_round_type,
+                            scenario=current_scenario, # New Field
+                            player1_id=0, player2_id=0, winner_id=0,
+                            player1_score=m_dat['s1'],
+                            player2_score=m_dat['s2'],
+                            is_bye=is_bye
+                        )
+                        m.p1_name_temp = m_dat['p1']
+                        m.p2_name_temp = m_dat['p2']
+                        if m_dat['p1Win']: m.winner_name_temp = m_dat['p1']
+                        elif m_dat['p2Win']: m.winner_name_temp = m_dat['p2']
+                        
+                        matches.append(m)
+
+            except Exception as e:
+                logger.error(f"Error scraping matches: {e}")
             finally:
-                await browser_instance.close()
+                browser.close()
+        return matches
 
-
-async def fetch_tournament(tournament_id: int) -> dict[str, any] | None:
-    """
-    Fetch tournament metadata from RollBetter API.
-    """
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.get(f"{BASE_URL}/tournaments/{tournament_id}")
-        if response.status_code == 404 or response.status_code == 500:
-            return None
-        response.raise_for_status()
-        data = response.json()
+    def run_full_scrape(
+        self, 
+        tournament_id: str
+    ) -> tuple[Tournament, list[PlayerResult], list[Match]]:
+        """
+        Execute a complete scrape, inferring format from XWS.
+        """
+        # 1. Metadata
+        tournament = self.get_tournament_data(tournament_id)
         
-        if "name" not in data and "title" in data:
-            data["name"] = data["title"]
+        # 2. Players
+        players = self.get_participants(tournament_id)
+        
+        # 3. Infer Format from Players' XWS
+        if not tournament.format:
+            # Check up to first 20 players to find a valid format
+            # Prioritize players who actually have lists
+            for p in players[:20]:
+                if p.list_json:
+                    format_enum = infer_format_from_xws(p.list_json)
+                    if format_enum != Format.OTHER:
+                        tournament.format = format_enum
+                        logger.info(f"Inferred format {format_enum.value} from player {p.player_name}")
+                        break
             
-        return data
+            # If still None
+            if not tournament.format:
+                logger.warning(f"Could not infer format for {tournament_id}, defaulting to Other")
 
+                tournament.format = Format.OTHER
 
-async def fetch_players(tournament_id: int) -> list[dict[str, any]]:
-    """
-    Fetch player rankings and squad lists from API.
-    Note: These lists might be simplified (missing pilots/upgrades).
-    """
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.get(f"{BASE_URL}/tournaments/{tournament_id}/players")
-        if response.status_code != 200:
-            return []
-        data = response.json()
-        if isinstance(data, list):
-            return data
-        return data.get("players", data.get("ladder", []))
-
-
-async def fetch_round_matches(tournament_id: int, round_number: int) -> list[dict[str, any]]:
-    """
-    Fetch match pairings for a specific round from API.
-    """
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.get(
-            f"{BASE_URL}/tournaments/{tournament_id}/rounds/{round_number}"
-        )
-        if response.status_code != 200:
-            return []
-        data = response.json()
+        # 4. Matches
+        matches = self.get_matches(tournament_id)
         
-        # 2026 Update: API returns a list of round objects for some endpoints
-        # [ { "roundNumber": 1, "pairings": [...] } ]
-        if isinstance(data, list) and len(data) > 0 and "pairings" in data[0]:
-            return data[0].get("pairings", [])
-            
-        if isinstance(data, list):
-            return data
-        return data.get("matches", data.get("pairings", data.get("games", [])))
-
-
-def extract_xws_from_player(player: dict[str, any]) -> dict[str, any] | None:
-    """
-    Extract XWS data from a RollBetter player record (API response).
-    """
-    # Try different possible field names
-    squad = player.get("squad") or player.get("xws")
-    
-    # Check 'list' field first - this is the ListFortress export format
-    list_data = player.get("list")
-    if list_data and isinstance(list_data, str) and list_data.strip():
-        try:
-            parsed = json.loads(list_data)
-            if isinstance(parsed, dict) and ("faction" in parsed or "pilots" in parsed):
-                return parsed
-        except json.JSONDecodeError:
-            pass
-    
-    # 2026 Update: simplify API format
-    if not squad and "lists" in player and isinstance(player["lists"], list) and len(player["lists"]) > 0:
-        squad_entry = player["lists"][0]
-        squad = squad_entry.get("raw") or squad_entry.get("json") or squad_entry
-        
-    if not squad:
-        return None
-    
-    if isinstance(squad, dict):
-        if "faction" in squad or "pilots" in squad:
-            return squad
-    
-    if isinstance(squad, str):
-        try:
-            parsed = json.loads(squad)
-            if isinstance(parsed, dict) and ("faction" in parsed or "pilots" in parsed):
-                return parsed
-        except json.JSONDecodeError:
-            pass
-    
-    return None
-
-
-
-def parse_listfortress_export(export_data: dict[str, any]) -> list[dict[str, any]]:
-    """
-    Parse data from Rollbetter's "Export to ListFortress" format.
-    
-    This is the preferred method when you have the export JSON.
-    Contains full XWS in the 'list' field of each player.
-    
-    Args:
-        export_data: The parsed JSON from the ListFortress export
-        
-    Returns:
-        List of player dicts with extracted XWS
-    """
-    results = []
-    players = export_data.get("players", [])
-    
-    for p in players:
-        player_data = {
-            "name": p.get("name"),
-            "rank": p.get("rank", {}).get("swiss") if isinstance(p.get("rank"), dict) else p.get("rank"),
-            "score": p.get("score"),
-            "sos": p.get("sos"),
-            "mov": p.get("mov"),
-            "dropped": p.get("dropped", False),
-        }
-        
-        # Parse the 'list' field which contains full XWS as JSON string
-        list_str = p.get("list", "")
-        if list_str and isinstance(list_str, str):
-            try:
-                xws = json.loads(list_str)
-                player_data["xws"] = xws
-            except json.JSONDecodeError:
-                player_data["xws"] = None
-        else:
-            player_data["xws"] = None
-            
-        results.append(player_data)
-    
-    return results
-
+        return tournament, players, matches

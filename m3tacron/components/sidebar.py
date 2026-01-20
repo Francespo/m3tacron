@@ -1,136 +1,147 @@
 """
-Responsive Sidebar/Layout Component for M3taCron.
-
-Desktop: Fixed left sidebar with navigation - Star Wars Imperial style.
-Mobile: Collapsible drawer accessible via hamburger menu.
+Responsive Sidebar/Layout Component - Imperial Data Terminal Spec.
 """
 import reflex as rx
 
-
-# Star Wars color palette
-IMPERIAL_BLUE = "#4fb8ff"
-IMPERIAL_RED = "#ff4757"
-IMPERIAL_YELLOW = "#ffc312"
-DARK_SPACE = "#0a0a0f"
-STEEL_DARK = "#1a1a24"
-STEEL_BORDER = "#2a2a3a"
+from ..theme import (
+    TERMINAL_BG, TERMINAL_PANEL, TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR,
+    MONOSPACE_FONT, SANS_FONT
+)
 
 
 def sidebar_link(text: str, href: str, icon: str) -> rx.Component:
-    """Create a navigation link for the sidebar - Imperial style."""
+    """Navigation link - Console Menu style."""
+    is_active = rx.State.router.page.path == href
+    
     return rx.link(
         rx.hstack(
-            rx.icon(icon, size=20, color=IMPERIAL_BLUE),
-            rx.text(text, size="3", weight="medium", letter_spacing="0.05em"),
+            rx.icon(icon, size=18, color=rx.cond(is_active, TEXT_PRIMARY, TEXT_SECONDARY)),
+            rx.text(
+                text, 
+                size="2", 
+                weight="medium", 
+                color=rx.cond(is_active, TEXT_PRIMARY, TEXT_SECONDARY),
+                font_family=SANS_FONT,
+            ),
+            # Active Indicator (Bracket)
+            rx.cond(
+                is_active,
+                rx.text("<", color=TEXT_PRIMARY, font_family=MONOSPACE_FONT),
+                rx.fragment()
+            ),
             width="100%",
             padding="12px 16px",
-            border_radius="4px",
-            border_left=f"2px solid transparent",
+            background=rx.cond(
+                is_active, 
+                "rgba(255, 255, 255, 0.05)", 
+                "transparent"
+            ),
+            border_left=rx.cond(
+                is_active,
+                f"2px solid {TEXT_PRIMARY}",
+                "2px solid transparent"
+            ),
             _hover={
-                "background": "rgba(79, 184, 255, 0.1)",
-                "border_left": f"2px solid {IMPERIAL_BLUE}",
-                "box_shadow": f"0 0 20px rgba(79, 184, 255, 0.2), inset 0 0 20px rgba(79, 184, 255, 0.05)",
+                "background": "rgba(255, 255, 255, 0.03)",
+                "color": TEXT_PRIMARY,
             },
-            transition="all 0.3s ease",
+            transition="all 0.2s ease",
+            align="center",
+            spacing="3",
         ),
         href=href,
-        style={"text_decoration": "none", "color": "inherit"},
+        style={"text_decoration": "none", "width": "100%"},
     )
 
 
 def sidebar_content() -> rx.Component:
-    """The sidebar navigation content - Imperial control room style."""
+    """The sidebar navigation content."""
     return rx.vstack(
-        # Logo/Brand - Imperial style
-        rx.hstack(
+        # Header / Brand
+        rx.box(
             rx.vstack(
                 rx.text(
                     "M3TACRON",
-                    size="6",
+                    size="5",
                     weight="bold",
-                    color=IMPERIAL_BLUE,
-                    font_family="Orbitron, sans-serif",
-                    letter_spacing="0.15em",
-                ),
-                rx.box(
-                    width="100%",
-                    height="2px",
-                    background=f"linear-gradient(90deg, {IMPERIAL_BLUE}, transparent)",
-                    margin_top="4px",
-                ),
-                align="start",
-            ),
-            padding="24px 16px",
-        ),
-        # Decorative line
-        rx.box(
-            width="100%",
-            height="1px",
-            background=f"linear-gradient(90deg, {STEEL_BORDER}, transparent 80%)",
-        ),
-        # Navigation links
-        rx.vstack(
-            sidebar_link("Home", "/", "home"),
-            sidebar_link("Tournaments", "/tournaments", "trophy"),
-            sidebar_link("Analytics", "/analytics", "bar-chart-2"),
-            width="100%",
-            padding="16px 8px",
-            spacing="2",
-        ),
-        # Spacer
-        rx.spacer(),
-        # Footer / Disclaimer
-        rx.box(
-            rx.vstack(
-                rx.box(
-                    width="60%",
-                    height="1px",
-                    background=f"linear-gradient(90deg, transparent, {STEEL_BORDER}, transparent)",
-                    margin_bottom="12px",
+                    color=TEXT_PRIMARY,
+                    font_family=SANS_FONT,
+                    letter_spacing="-0.02em",
                 ),
                 rx.text(
-                    "UNOFFICIAL",
+                    "v2.0.0",
                     size="1",
-                    color=IMPERIAL_YELLOW,
-                    font_family="Orbitron, sans-serif",
-                    letter_spacing="0.1em",
+                    color=TEXT_SECONDARY,
+                    font_family=MONOSPACE_FONT,
+                ),
+                align="start",
+                spacing="0"
+            ),
+            padding="24px 16px",
+            border_bottom=f"1px solid {BORDER_COLOR}",
+            width="100%"
+        ),
+        
+        # Navigation
+        rx.vstack(
+            sidebar_link("DASHBOARD", "/", "home"),
+            sidebar_link("TOURNAMENTS", "/tournaments", "database"),
+            sidebar_link("SQUADRONS", "/squadrons", "layers"),
+            width="100%",
+            padding="16px 0",
+            spacing="1",
+        ),
+        
+        rx.spacer(),
+        
+        # Footer
+        rx.box(
+            rx.vstack(
+                rx.text(
+                    "M3taCron Analytics",
+                    size="1",
+                    color=TEXT_SECONDARY,
+                    font_family=SANS_FONT,
                     text_align="center",
                 ),
                 rx.text(
-                    "Not affiliated with Disney/Lucasfilm",
+                    "Community Managed",
                     size="1",
-                    color="#6a6a7a",
+                    color="#444444",
+                    font_family=SANS_FONT,
                     text_align="center",
                 ),
                 align="center",
+                spacing="1"
             ),
             padding="16px",
+            border_top=f"1px solid {BORDER_COLOR}",
+            width="100%"
         ),
+        
         width="100%",
         height="100vh",
-        align_items="stretch",
+        background=TERMINAL_PANEL,
+        border_right=f"1px solid {BORDER_COLOR}",
     )
 
 
 def sidebar() -> rx.Component:
-    """Responsive sidebar component - Imperial style."""
+    """Responsive sidebar component."""
     return rx.box(
         sidebar_content(),
         position="fixed",
         left="0",
         top="0",
-        width="240px",
+        width="260px",
         height="100vh",
-        background=f"linear-gradient(180deg, {DARK_SPACE} 0%, {STEEL_DARK} 100%)",
-        backdrop_filter="blur(20px)",
-        border_right=f"1px solid {STEEL_BORDER}",
         display=["none", "none", "flex", "flex"],
         z_index="100",
     )
 
 
 def mobile_header() -> rx.Component:
-    """Mobile header with hamburger menu - Imperial style."""
+    """Mobile header."""
     return rx.box(
         rx.hstack(
             rx.drawer.root(
@@ -138,14 +149,15 @@ def mobile_header() -> rx.Component:
                     rx.button(
                         rx.icon("menu", size=24),
                         variant="ghost",
+                        color=TEXT_PRIMARY
                     ),
                 ),
                 rx.drawer.overlay(z_index="99"),
                 rx.drawer.portal(
                     rx.drawer.content(
                         sidebar_content(),
-                        width="240px",
-                        background=f"linear-gradient(180deg, {DARK_SPACE} 0%, {STEEL_DARK} 100%)",
+                        width="260px",
+                        background=TERMINAL_PANEL,
                         z_index="100",
                     ),
                 ),
@@ -154,48 +166,37 @@ def mobile_header() -> rx.Component:
             rx.text(
                 "M3TACRON", 
                 size="4", 
-                weight="bold", 
-                color=IMPERIAL_BLUE,
-                font_family="Orbitron, sans-serif",
-                letter_spacing="0.15em",
+                font_family=SANS_FONT,
+                weight="bold",
+                color=TEXT_PRIMARY
             ),
             rx.spacer(),
-            rx.color_mode.button(size="2"),
             width="100%",
             padding="12px 16px",
             justify="between",
+            border_bottom=f"1px solid {BORDER_COLOR}",
+            background=TERMINAL_BG
         ),
         position="fixed",
         top="0",
         left="0",
         right="0",
-        background=f"rgba(10, 10, 15, 0.95)",
-        backdrop_filter="blur(20px)",
-        border_bottom=f"1px solid {STEEL_BORDER}",
         display=["flex", "flex", "none", "none"],
         z_index="100",
     )
 
 
 def layout(page_content: rx.Component) -> rx.Component:
-    """
-    Main layout wrapper with responsive sidebar - Imperial style.
-    
-    Args:
-        page_content: The page content to render in the main area.
-    
-    Returns:
-        A layout component with sidebar and main content area.
-    """
+    """Layout wrapper."""
     return rx.box(
         sidebar(),
         mobile_header(),
         rx.box(
             page_content,
-            margin_left=["0", "0", "240px", "240px"],
+            margin_left=["0", "0", "260px", "260px"],
             margin_top=["60px", "60px", "0", "0"],
-            padding="24px",
+            padding="32px",
             min_height="100vh",
+            background=TERMINAL_BG
         ),
     )
-

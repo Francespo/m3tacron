@@ -1,0 +1,909 @@
+{
+  "quick-builds": [
+    {
+      "threat": 4,
+      "pilots": [
+        {
+          "id": "poedameron",
+          "upgrades": {
+            "torpedo": ["protontorpedoes"],
+            "astromech": ["bb8"],
+            "configuration": ["integratedsfoils"],
+            "modification": ["afterburners"],
+            "title": ["blackone"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "elloasty",
+          "upgrades": {
+            "talent": ["elusive"],
+            "modification": ["afterburners"],
+            "configuration": ["integratedsfoils"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "niennunb",
+          "upgrades": {
+            "talent": ["elusive"],
+            "modification": ["afterburners"],
+            "configuration": ["integratedsfoils"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "karekun",
+          "upgrades": {
+            "talent": ["predator"],
+            "configuration": ["integratedsfoils"],
+            "modification": ["afterburners"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "temminwexley",
+          "upgrades": {
+            "talent": ["outmaneuver"],
+            "configuration": ["integratedsfoils"],
+            "torpedo": ["protontorpedoes"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "jessikapava",
+          "upgrades": {
+            "astromech": ["r5astromech"],
+            "configuration": ["integratedsfoils"],
+            "modification": ["hullupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "jophseastriker",
+          "upgrades": {
+            "astromech": ["r2astromech"],
+            "configuration": ["integratedsfoils"],
+            "modification": ["shieldupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "redsquadronexpert"
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "lieutenantbastian",
+          "upgrades": {
+            "astromech": ["r3astromech"],
+            "configuration": ["integratedsfoils"],
+            "tech": ["targetingsynchronizer"],
+            "torpedo": ["protontorpedoes"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "bluesquadronrookie",
+          "upgrades": {
+            "astromech": ["bbastromech"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "jaycristubbs"
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "blacksquadronace-t70xwing",
+          "upgrades": {
+            "torpedo": ["protontorpedoes"],
+            "astromech": ["m9g8"],
+            "configuration": ["integratedsfoils"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "tallissanlintra",
+          "upgrades": {
+            "talent": ["predator"],
+            "tech": ["ferrospherepaint"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "lulolampar",
+          "upgrades": {
+            "tech": ["primedthrusters"],
+            "missile": ["homingmissiles"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "greersonnel",
+          "upgrades": {
+            "talent": ["elusive"],
+            "modification": ["afterburners"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "greersonnel",
+          "upgrades": {
+            "talent": ["marksmanship"],
+            "tech": ["primedthrusters"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "greensquadronexpert",
+          "upgrades": {
+            "talent": ["heroic"],
+            "tech": ["primedthrusters"],
+            "modification": ["hullupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "zaribangel",
+          "upgrades": {
+            "talent": ["outmaneuver"],
+            "missile": ["protonrockets"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "bluesquadronrecruit",
+          "upgrades": {
+            "tech": ["primedthrusters"],
+            "modification": ["shieldupgrade"],
+            "missile": ["homingmissiles"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "bluesquadronrecruit",
+          "upgrades": {
+            "tech": ["primedthrusters"],
+            "talent": ["composure", "snapshot"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "cobaltsquadronbomber",
+          "upgrades": {
+            "sensor": ["trajectorysimulator"],
+            "modification": ["ablativeplating"],
+            "device": ["protonbombs"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "cobaltsquadronbomber",
+          "upgrades": {
+            "sensor": ["passivesensors"],
+            "modification": ["hullupgrade"],
+            "device": ["connernets"],
+            "gunner": ["agilegunner"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "cat",
+          "upgrades": {
+            "gunner": ["skilledbombardier"],
+            "modification": ["electronicbaffle"],
+            "device": ["connernets"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 4,
+      "pilots": [
+        {
+          "id": "edonkappehl",
+          "upgrades": {
+            "tech": ["patternanalyzer"],
+            "gunner": ["skilledbombardier"],
+            "crew": ["seasonednavigator"],
+            "device": ["protonbombs", "connernets"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 4,
+      "pilots": [
+        {
+          "id": "vennie",
+          "upgrades": {
+            "tech": ["advancedoptics"],
+            "gunner": ["finn"],
+            "crew": ["rosetico"],
+            "modification": ["shieldupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "benteene",
+          "upgrades": {
+            "device": ["protonbombs", "connernets"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 4,
+      "pilots": [
+        {
+          "id": "finchdallow",
+          "upgrades": {
+            "tech": ["advancedoptics"],
+            "gunner": ["paigetico"],
+            "modification": ["hullupgrade", "ablativeplating"],
+            "device": ["protonbombs"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "hansolo-scavengedyt1300",
+          "upgrades": {
+            "crew": ["chewbacca-crew-swz19"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 5,
+      "pilots": [
+        {
+          "id": "rey",
+          "upgrades": {
+            "gunner": ["finn"],
+            "astromech": ["bb8"],
+            "illicit": ["inertialdampeners"],
+            "modification": ["engineupgrade"],
+            "title": ["reysmillenniumfalcon"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 4,
+      "pilots": [
+        {
+          "id": "chewbacca-scavengedyt1300",
+          "upgrades": {
+            "gunner": ["rey-gunner"],
+            "modification": ["engineupgrade"],
+            "title": ["reysmillenniumfalcon"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 4,
+      "pilots": [
+        {
+          "id": "resistancesympathizer",
+          "upgrades": {
+            "crew": ["chewbacca-crew-swz19", "hansolo-crew", "c3po-crew"],
+            "talent": ["debrisgambit"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "bb8",
+          "upgrades": {
+            "cannon": ["autoblasters"],
+            "modification": ["afterburners"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 1,
+      "pilots": [
+        {
+          "id": "rosetico",
+          "upgrades": {
+            "crew": ["pz4co"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 1,
+      "pilots": [
+        {
+          "id": "vimoradi",
+          "upgrades": {
+            "crew": ["ga97"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 1,
+      "pilots": [
+        {
+          "id": "finn",
+          "upgrades": {
+            "talent": ["predator"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "covanell",
+          "upgrades": {
+            "crew": ["leiaorgana-resistance", "korrsella"],
+            "talent": ["composure"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "pammichnerrogoode",
+          "upgrades": {
+            "crew": ["kaydelconnix"],
+            "modification": ["sparepartscanisters"],
+            "cannon": ["autoblasters"],
+            "astromech": ["r5x3"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "nodinchavdri",
+          "upgrades": {
+            "astromech": ["r2ha"],
+            "modification": ["angleddeflectors"],
+            "torpedo": ["plasmatorpedoes"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "logisticsdivisionpilot",
+          "upgrades": {
+            "crew": ["amilynholdo", "larmadacy"],
+            "torpedo": ["protontorpedoes"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "paigetico",
+          "upgrades": {
+            "crew": ["rosetico"],
+            "device": ["protonbombs"],
+            "gunner": ["skilledbombardier"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "zizitlo",
+          "upgrades": {
+            "talent": ["elusive", "snapshot"],
+            "tech": ["advancedoptics"],
+            "modification": ["afterburners"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "ronithblario",
+          "upgrades": {
+            "talent": ["snapshot"],
+            "tech": ["patternanalyzer"],
+            "missile": ["magpulsewarheads"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 1,
+      "pilots": [
+        {
+          "id": "colossusstationmechanic",
+          "upgrades": {
+            "talent": ["snapshot"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "jarekyeager",
+          "upgrades": {
+            "talent": ["elusive"],
+            "missile": ["magpulsewarheads"],
+            "modification": ["advancedslam", "targetingcomputer"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "kazudaxiono",
+          "upgrades": {
+            "talent": ["outmaneuver"],
+            "modification": ["advancedslam"],
+            "title": ["kazsfireball"],
+            "astromech": ["r1j5"],
+            "illicit": ["coaxiumhyperfuel"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "r1j5",
+          "upgrades": {
+            "illicit": ["coaxiumhyperfuel"],
+            "missile": ["magpulsewarheads"],
+            "modification": ["afterburners", "targetingcomputer"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "aftabackbar",
+          "upgrades": {
+            "talent": ["elusive"],
+            "missile": ["electrochaffmissiles"],
+            "configuration": ["wartimeloadout"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "caithrenalli-btanr2ywing",
+          "upgrades": {
+            "talent": ["experthandling"],
+            "astromech": ["r2astromech"],
+            "modification": ["engineupgrade", "hullupgrade", "targetingcomputer"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "coruskapellim",
+          "upgrades": {
+            "turret": ["ioncannonturret"],
+            "illicit": ["overtunedmodulators"],
+            "modification": ["engineupgrade", "targetingcomputer"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "kijimispicerunner",
+          "upgrades": {
+            "talent": ["tierfonbellyrun"],
+            "turret": ["ioncannonturret"],
+			"illicit": ["overtunedmodulators"],
+            "modification": ["engineupgrade", "targetingcomputer"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "legafossang",
+          "upgrades": {
+            "torpedo": ["protontorpedoes"],
+            "astromech": ["l4er5"],
+            "configuration": ["wartimeloadout"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "newrepublicpatrol",
+          "upgrades": {
+            "talent": ["outmaneuver"],
+            "turret": ["ioncannonturret"],
+			"astromech": ["r3astromech"],
+            "modification": ["shieldupgrade", "targetingcomputer"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "shasazaro",
+          "upgrades": {
+            "turret": ["ioncannonturret"],
+			"astromech": ["watchfulastromech"],
+            "device": ["concussionbombs"],
+            "configuration": ["wartimeloadout"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "tezanasz",
+          "upgrades": {
+            "talent": ["experthandling"],
+            "astromech": ["r2astromech"],
+            "turret": ["ioncannonturret"],
+			"modification": ["delayedfuses", "engineupgrade"],
+			"device": ["concussionbombs"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "wilsateshlo",
+          "upgrades": {
+            "talent": ["predator"],
+            "astromech": ["r3astromech"],
+			"turret": ["ioncannonturret"],
+            "modification": ["engineupgrade", "targetingcomputer"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "zoriibliss",
+          "upgrades": {
+            "talent": ["outmaneuver"],
+            "torpedo": ["protontorpedoes"],
+			"astromech": ["r3astromech"],
+			"illicit": ["babufrik"],
+            "configuration": ["wartimeloadout"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "bluesquadronrecruit",
+          "upgrades": {
+            "talent": ["snapshot"],
+            "missile": ["concussionmissiles"],
+            "tech": ["automatedtargetpriority"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "greensquadronexpert",
+          "upgrades": {
+            "talent": ["snapshot"],
+            "tech": ["primedthrusters"],
+            "modification": ["afterburners"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "merlcobben",
+          "upgrades": {
+            "talent": ["predator", "deadeyeshot"],
+            "tech": ["automatedtargetpriority"],
+            "modification": ["shieldupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "seftinvanik",
+          "upgrades": {
+            "talent": ["daredevil", "snapshot"],
+            "modification": ["hullupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "suralindajavos",
+          "upgrades": {
+            "talent": ["snapshot", "starbirdslash"],
+            "missile": ["ionmissiles"],
+            "modification": ["shieldupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "wrobietyce",
+          "upgrades": {
+            "talent": ["elusive", "starbirdslash"],
+            "missile": ["concussionmissiles"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "bluesquadronrookie",
+          "upgrades": {
+            "tech": ["automatedtargetpriority"],
+            "configuration": ["integratedsfoils"],
+            "astromech": ["r2astromech"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "nimichireen",
+          "upgrades": {
+            "tech": ["automatedtargetpriority"],
+            "configuration": ["integratedsfoils"],
+            "cannon": ["ioncannon"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "redsquadronexpert",
+          "upgrades": {
+            "talent": ["predator"],
+            "configuration": ["integratedsfoils"],
+            "cannon": ["underslungblastercannon"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "blacksquadronace-t70xwing",
+          "upgrades": {
+            "tech": ["primedthrusters"],
+			"talent": ["deadeyeshot"],
+			"torpedo": ["protontorpedoes"],
+            "configuration": ["integratedsfoils"],
+            "astromech": ["r3astromech"],
+			"modification": ["afterburners"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "caithrenalli",
+          "upgrades": {
+            "tech": ["primedthrusters"],
+			"talent": ["backwardstailslide"],
+            "configuration": ["integratedsfoils"],
+            "astromech": ["r4astromech"],
+			"torpedo": ["protontorpedoes"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "poedameron-swz68",
+          "upgrades": {
+            "talent": ["backwardstailslide", "daredevil"],
+            "configuration": ["integratedsfoils"],
+            "astromech": ["r2d2-resistance"],
+			"modification": ["overdrivethruster"],
+			"title": ["blackone"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "temminwexley-swz68",
+          "upgrades": {
+            "talent": ["snapshot"],
+            "configuration": ["integratedsfoils"],
+            "astromech": ["r6d8"],
+			"cannon": ["underslungblastercannon"],
+			"modification": ["hullupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 4,
+      "pilots": [
+        {
+          "id": "newrepublicvolunteers",
+          "upgrades": {
+            "command": ["stalwartcaptain"],
+            "hardpoint": ["ioncannonbattery"],
+            "turret": ["dorsalturret"],
+			"team": ["sensorexperts"],
+			"cargo": ["boostedscanners", "tibannareserves"]
+          }
+        }
+      ]
+    }
+  ]
+}

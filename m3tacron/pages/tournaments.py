@@ -1,23 +1,20 @@
 """
-M3taCron Tournaments Page - Browse all tournaments.
-Star Wars Imperial aesthetic.
+M3taCron Tournaments Page - Imperial Data Terminal Spec.
 """
 import reflex as rx
 from sqlmodel import Session, select, func
 
 from ..components.sidebar import layout
 from ..backend.database import engine
-from ..backend.models import (
-    Tournament, PlayerResult, MacroFormat, SubFormat,
-    get_macro_format, get_sub_format
+from ..components.ui import terminal_panel, list_row
+from ..components.icons import xwing_icon
+from ..backend.models import Tournament, PlayerResult
+from ..backend.enums.formats import FORMAT_HIERARCHY, get_format
+from ..backend.enums.platforms import Platform
+from ..theme import (
+    TERMINAL_BG, TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR, 
+    MONOSPACE_FONT, SANS_FONT, INPUT_STYLE, FACTION_COLORS
 )
-
-
-# Star Wars color palette
-IMPERIAL_BLUE = "#4fb8ff"
-IMPERIAL_RED = "#ff4757"
-STEEL_BORDER = "#2a2a3a"
-STEEL_BG = "#1a1a24"
 
 
 class TournamentsState(rx.State):
@@ -27,16 +24,27 @@ class TournamentsState(rx.State):
     macro_filter: str = "all"
     sub_filter: str = "all"
     
+    # Pagination
+    page_size: int = 20
+    current_page: int = 0
+    
     @rx.var
-    def available_sub_formats(self) -> list[str]:
+    def available_sub_formats(self) -> list[list[str]]:
         """Get available sub-formats based on current macro filter."""
         if self.macro_filter == "all":
-            return ["all"] + [sf.value for sf in SubFormat if sf != SubFormat.UNKNOWN]
-        elif self.macro_filter == MacroFormat.V2_5.value:
-            return ["all", SubFormat.AMG.value, SubFormat.XWA.value, SubFormat.STANDARD.value]
-        elif self.macro_filter == MacroFormat.V2_0.value:
-            return ["all", SubFormat.X2PO.value, SubFormat.XLC.value, SubFormat.WILDSPACE.value, SubFormat.LEGACY.value]
-        return ["all"]
+            # Return all sub-formats (flattened children)
+            sub_formats = []
+            for macro in FORMAT_HIERARCHY:
+                for sub in macro["children"]:
+                    sub_formats.append([sub["label"], sub["value"]])
+            return [["All", "all"]] + sub_formats
+        
+        # Find the specific macro format and return its children
+        for macro in FORMAT_HIERARCHY:
+            if macro["value"] == self.macro_filter:
+                return [["All", "all"]] + [[sub["label"], sub["value"]] for sub in macro["children"]]
+        
+        return [["All", "all"]]
     
     @rx.var
     def filtered_tournaments(self) -> list[dict]:
@@ -58,6 +66,39 @@ class TournamentsState(rx.State):
         
         return result
     
+    @rx.var
+    def paginated_tournaments(self) -> list[dict]:
+        """Get current page of filtered tournaments."""
+        start = self.current_page * self.page_size
+        end = start + self.page_size
+        return self.filtered_tournaments[start:end]
+    
+    @rx.var
+    def total_pages(self) -> int:
+        """Calculate total pages."""
+        total = len(self.filtered_tournaments)
+        return (total + self.page_size - 1) // self.page_size if total > 0 else 1
+    
+    @rx.var
+    def has_next(self) -> bool:
+        return self.current_page < self.total_pages - 1
+    
+    @rx.var
+    def has_prev(self) -> bool:
+        return self.current_page > 0
+    
+    def next_page(self):
+        if self.current_page < self.total_pages - 1:
+            self.current_page += 1
+    
+    def prev_page(self):
+        if self.current_page > 0:
+            self.current_page -= 1
+    
+    def set_page_size(self, size: str):
+        self.page_size = int(size)
+        self.current_page = 0
+    
     def load_tournaments(self):
         """Load all tournaments from database."""
         with Session(engine) as session:
@@ -66,8 +107,6 @@ class TournamentsState(rx.State):
             
             self.tournaments = []
             for t in tournaments:
-                # Use player_count from Tournament model if available
-                # Otherwise fall back to counting PlayerResults
                 player_count = t.player_count
                 if player_count == 0:
                     player_count = session.exec(
@@ -81,10 +120,12 @@ class TournamentsState(rx.State):
                     "name": t.name,
                     "date": t.date.strftime("%Y-%m-%d"),
                     "players": player_count,
-                    "format": t.format,
-                    "macro_format": get_macro_format(t.format),
-                    "sub_format": get_sub_format(t.format),
-                    "platform": t.platform,
+                    "format": t.format, # ID
+                    "format_label": get_format(t.format).label,
+                    "macro_format": t.macro_format,
+                    "sub_format": t.format, # Mapped for filter logic compatibility
+                    "platform": t.platform, # ID
+                    "platform_label": Platform(t.platform).label if t.platform in Platform._value2member_map_ else t.platform,
                     "url": t.url,
                 })
     
@@ -93,83 +134,75 @@ class TournamentsState(rx.State):
     
     def set_macro_filter(self, value: str):
         self.macro_filter = value
-        # Reset sub filter when macro changes
         self.sub_filter = "all"
     
     def set_sub_filter(self, value: str):
         self.sub_filter = value
 
 
-def tournament_card(tournament: dict) -> rx.Component:
-    """A card displaying tournament info - Imperial data terminal style."""
-    return rx.box(
-        rx.vstack(
-            # Header
-            rx.hstack(
-                rx.heading(tournament["name"], size="4"),
-                rx.spacer(),
-                rx.badge(tournament["macro_format"], color_scheme="purple", size="1"),
-                rx.badge(tournament["sub_format"], color_scheme="blue", variant="outline", size="1"),
-                width="100%",
+def tournament_card(tournament: dict, index: int) -> rx.Component:
+    """A card displaying tournament info - Terminal ListRow"""
+    return rx.link(
+        list_row(
+            left_content=rx.vstack(
+                 rx.text(
+                     tournament["name"], 
+                     size="2", 
+                     weight="bold", 
+                     color="white",
+                     font_family=MONOSPACE_FONT
+                 ),
+                 rx.hstack(
+                    rx.text(f"[{tournament['format_label']}]", size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+                    rx.text(tournament["date"], size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+                    spacing="2",
+                    align="center"
+                 ),
+                 spacing="0",
+                 align="start"
             ),
-            # Meta info
-            rx.hstack(
-                rx.icon("calendar", size=14, color="#6a6a7a"),
-                rx.text(tournament["date"], size="2", color="#8a8a9a"),
-                rx.icon("users", size=14, color="#6a6a7a"),
-                rx.text(rx.Var.create(f"{tournament['players']} players"), size="2", color="#8a8a9a"),
-                rx.icon("globe", size=14, color="#6a6a7a"),
-                rx.text(tournament["platform"], size="2", color="#8a8a9a"),
-                spacing="2",
-            ),
-            # Actions
-            rx.hstack(
-                rx.link(
-                    rx.button("View Details", variant="outline", size="1"),
-                    href="/tournament/" + tournament["id"].to_string(),
+            right_content=rx.hstack(
+                rx.vstack(
+                    rx.text(f"{tournament['players']} PLY", size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT, text_align="right"),
+                    rx.text(tournament["platform_label"].to(str).upper(), size="1", color="#444444", font_family=MONOSPACE_FONT),
+                    spacing="0",
+                    align="end"
                 ),
-                rx.link(
-                    rx.button(
-                        rx.icon("external-link", size=14),
-                        "Source",
-                        variant="ghost",
-                        size="1",
-                    ),
-                    href=tournament["url"],
-                    is_external=True,
-                ),
-                spacing="2",
+                spacing="4",
+                align="center"
             ),
-            align="start",
-            spacing="3",
-            width="100%",
+            index=index,
+            border_color=FACTION_COLORS.get("galacticempire", "#333333") # Default schematic color
         ),
-        padding="20px 24px",
-        background=f"linear-gradient(135deg, {STEEL_BG} 0%, rgba(26, 26, 36, 0.5) 100%)",
-        border_radius="4px",
-        border=f"1px solid {STEEL_BORDER}",
-        border_left=f"3px solid transparent",
-        transition="all 0.3s ease",
-        _hover={
-            "border_left": f"3px solid {IMPERIAL_BLUE}",
-            "border_color": f"rgba(79, 184, 255, 0.3)",
-            "box_shadow": f"0 4px 20px -5px rgba(79, 184, 255, 0.2)",
-        },
-        width="100%",
+        href="/tournament/" + tournament["id"].to_string(),
+        style={"text_decoration": "none", "width": "100%"}
     )
 
 
 def filter_select(
     label: str,
-    options: list[str] | rx.Var,
+    options: list[list[str]] | rx.Var,
     value: rx.Var,
     on_change: callable,
 ) -> rx.Component:
-    """A styled filter select - Imperial style."""
+    """A styled filter select - Terminal style.
+    
+    Args:
+        label: Label text above the select.
+        options: List of [label, value] pairs for options.
+        value: Current selected value (state var).
+        on_change: Handler when selection changes.
+    """
     return rx.vstack(
-        rx.text(label, size="1", color="#6a6a7a", text_transform="uppercase", letter_spacing="0.05em"),
-        rx.select(
-            options,
+        rx.text(label, size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+        rx.select.root(
+            rx.select.trigger(style=INPUT_STYLE),
+            rx.select.content(
+                rx.foreach(
+                    options,
+                    lambda opt: rx.select.item(opt[0], value=opt[1])
+                )
+            ),
             value=value,
             on_change=on_change,
             size="2",
@@ -180,99 +213,115 @@ def filter_select(
 
 
 def tournaments_content() -> rx.Component:
-    """The main content for the Tournaments page - Imperial style."""
+    """The main content for the Tournaments page - Imperial Data Terminal."""
     return rx.vstack(
         # Header
-        rx.hstack(
-            rx.vstack(
-                rx.heading(
-                    "TOURNAMENTS", 
-                    size="8",
-                    font_family="Orbitron, sans-serif",
-                    letter_spacing="0.15em",
-                ),
-                rx.box(
-                    width="100px",
-                    height="2px",
-                    background=f"linear-gradient(90deg, {IMPERIAL_BLUE}, transparent)",
-                    margin_top="4px",
-                ),
-                rx.text("Browse all tracked X-Wing tournaments", size="3", color="#8a8a9a"),
-                align="start",
+        rx.box(
+             rx.heading(
+                "Tournaments", 
+                size="6",
+                font_family=SANS_FONT,
+                weight="bold",
+                color=TEXT_PRIMARY
             ),
-            rx.spacer(),
-            rx.badge(
-                TournamentsState.filtered_tournaments.length().to_string() + " shown",
-                color_scheme="blue",
-                size="2",
+            padding_bottom="24px",
+            border_bottom=f"1px solid {BORDER_COLOR}",
+            margin_bottom="24px",
+            width="100%"
+        ),
+        
+        # Filters
+        rx.box(
+            terminal_panel(
+                "Filters",
+                rx.hstack(
+                    rx.input(
+                        placeholder="SEARCH...",
+                        value=TournamentsState.search_query,
+                        on_change=TournamentsState.set_search,
+                        width="280px",
+                        style=INPUT_STYLE
+                    ),
+                    rx.box(width="1px", height="32px", background=BORDER_COLOR),
+                    filter_select(
+                        "FORMAT",
+                        [["All", "all"]] + [[item["label"], item["value"]] for item in FORMAT_HIERARCHY],
+                        TournamentsState.macro_filter,
+                        TournamentsState.set_macro_filter,
+                    ),
+                    filter_select(
+                        "SUB-FORMAT",
+                        TournamentsState.available_sub_formats,
+                        TournamentsState.sub_filter,
+                        TournamentsState.set_sub_filter,
+                    ),
+                    spacing="4",
+                    align="end",
+                    width="100%"
+                ),
+                icon="filter"
             ),
             width="100%",
             margin_bottom="24px",
-        ),
-        
-        # Filters - styled Imperial control panel
-        rx.box(
-            rx.hstack(
-                rx.input(
-                    placeholder="Search tournaments...",
-                    value=TournamentsState.search_query,
-                    on_change=TournamentsState.set_search,
-                    width="280px",
-                ),
-                rx.box(width="1px", height="32px", background=STEEL_BORDER),
-                filter_select(
-                    "Format",
-                    ["all", MacroFormat.V2_5.value, MacroFormat.V2_0.value, MacroFormat.OTHER.value],
-                    TournamentsState.macro_filter,
-                    TournamentsState.set_macro_filter,
-                ),
-                filter_select(
-                    "Sub-Format",
-                    TournamentsState.available_sub_formats,
-                    TournamentsState.sub_filter,
-                    TournamentsState.set_sub_filter,
-                ),
-                spacing="4",
-                align="end",
-            ),
-            padding="16px 20px",
-            background=f"linear-gradient(135deg, {STEEL_BG} 0%, rgba(26, 26, 36, 0.5) 100%)",
-            border_radius="4px",
-            border=f"1px solid {STEEL_BORDER}",
-            margin_bottom="24px",
+            class_name="animate-fade-in-up delay-200"
         ),
         
         # Tournament grid
         rx.cond(
             TournamentsState.filtered_tournaments.length() > 0,
             rx.vstack(
-                rx.foreach(TournamentsState.filtered_tournaments, tournament_card),
-                spacing="4",
+                rx.foreach(
+                    TournamentsState.paginated_tournaments.to(list[dict]), 
+                    lambda t, i: tournament_card(t, i)
+                ),
+                # Pagination
+                rx.hstack(
+                    rx.text(
+                        (TournamentsState.current_page + 1).to_string() + " / " + TournamentsState.total_pages.to_string(),
+                        size="2",
+                        color=TEXT_SECONDARY,
+                        font_family=MONOSPACE_FONT
+                    ),
+                    rx.spacer(),
+                    rx.button(
+                        "< PREV",
+                        variant="ghost",
+                        size="1",
+                        on_click=TournamentsState.prev_page,
+                        disabled=~TournamentsState.has_prev,
+                        style={"color": TEXT_PRIMARY, "font_family": MONOSPACE_FONT}
+                    ),
+                    rx.button(
+                        "NEXT >",
+                        variant="ghost",
+                        size="1",
+                        on_click=TournamentsState.next_page,
+                        disabled=~TournamentsState.has_next,
+                        style={"color": TEXT_PRIMARY, "font_family": MONOSPACE_FONT}
+                    ),
+                    width="100%",
+                    padding_top="16px",
+                    border_top=f"1px solid {BORDER_COLOR}"
+                ),
+                spacing="0", # Tight list
                 width="100%",
+                class_name="animate-fade-in-up delay-300"
             ),
             rx.box(
-                rx.vstack(
-                    rx.icon("inbox", size=48, color="#6a6a7a"),
-                    rx.text("No tournaments found", size="4", color="#8a8a9a"),
-                    rx.text("Try adjusting your filters", size="2", color="#6a6a7a"),
-                    spacing="2",
-                    align="center",
-                ),
+                rx.text("NO RECORDS FOUND", size="2", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
                 padding="48px",
                 width="100%",
                 text_align="center",
             ),
         ),
         
-        align="start",
         width="100%",
-        max_width="900px",
+        max_width="1000px",
         on_mount=TournamentsState.load_tournaments,
+        padding_bottom="60px"
     )
 
 
 def tournaments_page() -> rx.Component:
     """The Tournaments page wrapped in the layout."""
     return layout(tournaments_content())
-
-

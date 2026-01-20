@@ -1,5 +1,0 @@
-{
-    "name": "M3taCron Dev Container",
-    "image": "mcr.microsoft.com/devcontainers/python:3.13",
-    "postCreateCommand": "pip install -r requirements.txt"
-}
