@@ -9,15 +9,25 @@ from functools import lru_cache
 from .enums.factions import Faction
 
 
-# Path to xwing-data2 data directory
-# Structure: m3tacron/backend/xwing_data.py -> go up to m3tacron/ then into data/
-DATA_DIR = Path(__file__).parent.parent.parent / "assets" / "data" / "xwing-data2" / "data"
+# Path to data directories
+# Structure: m3tacron/backend/xwing_data.py -> up to root -> external_data
+ROOT_DIR = Path(__file__).parent.parent.parent
+EXTERNAL_DATA_DIR = ROOT_DIR / "external_data"
+
+XWA_DATA_DIR = EXTERNAL_DATA_DIR / "xwing-data2" / "data"
+LEGACY_DATA_DIR = EXTERNAL_DATA_DIR / "xwing-data2-legacy" / "data"
+
+def get_data_dir(source: str = "xwa") -> Path:
+    if source.lower() == "legacy":
+        return LEGACY_DATA_DIR
+    return XWA_DATA_DIR
 
 
 @lru_cache(maxsize=1)
 def load_factions() -> dict:
     """Load faction data. Returns dict mapping xws ID to faction info."""
-    factions_file = DATA_DIR / "factions" / "factions.json"
+    # Factions are usually common, but let's default to XWA
+    factions_file = XWA_DATA_DIR / "factions" / "factions.json"
     if not factions_file.exists():
         return {}
     
@@ -27,10 +37,11 @@ def load_factions() -> dict:
     return {f["xws"]: f for f in factions}
 
 
-@lru_cache(maxsize=1)
-def load_all_pilots() -> dict:
+@lru_cache(maxsize=4)
+def load_all_pilots(source: str = "xwa") -> dict:
     """Load all pilots from all factions. Returns dict mapping xws ID to pilot info."""
-    pilots_dir = DATA_DIR / "pilots"
+    data_dir = get_data_dir(source)
+    pilots_dir = data_dir / "pilots"
     if not pilots_dir.exists():
         return {}
     
@@ -63,6 +74,7 @@ def load_all_pilots() -> dict:
                             "artwork": pilot.get("artwork", ""),
                             "initiative": pilot.get("initiative", 0),
                             "cost": pilot.get("cost", 0),
+                            "ability": pilot.get("ability", ""),
                         }
             except Exception:
                 continue
@@ -115,15 +127,15 @@ def get_pilot_name(xws_pilot: str) -> str:
     return pilot["name"] if pilot else xws_pilot
 
 
-def get_pilot_info(xws_pilot: str) -> dict | None:
+def get_pilot_info(xws_pilot: str, source: str = "xwa") -> dict | None:
     """Get full pilot info from XWS ID."""
-    pilots = load_all_pilots()
+    pilots = load_all_pilots(source)
     return pilots.get(xws_pilot)
 
 
-def get_pilot_image(xws_pilot: str) -> str:
+def get_pilot_image(xws_pilot: str, source: str = "xwa") -> str:
     """Get pilot card image URL from XWS ID."""
-    pilot = get_pilot_info(xws_pilot)
+    pilot = get_pilot_info(xws_pilot, source)
     return pilot.get("image", "") if pilot else ""
 
 
@@ -143,10 +155,11 @@ def search_pilot(query: str) -> list[dict]:
     return results[:20]  # Limit results
 
 
-@lru_cache(maxsize=1)
-def load_all_upgrades() -> dict:
+@lru_cache(maxsize=4)
+def load_all_upgrades(source: str = "xwa") -> dict:
     """Load all upgrades. Returns dict mapping xws ID to upgrade info."""
-    upgrades_dir = DATA_DIR / "upgrades"
+    data_dir = get_data_dir(source)
+    upgrades_dir = data_dir / "upgrades"
     if not upgrades_dir.exists():
         return {}
     
@@ -160,11 +173,29 @@ def load_all_upgrades() -> dict:
             for upgrade in type_data:
                 xws_id = upgrade.get("xws", "")
                 if xws_id:
+                    # Extract text and image from sides
+                    text = ""
+                    image = upgrade.get("image", "")
+                    sides = upgrade.get("sides", [])
+                    
+                    if sides:
+                        # Join ability/text from all sides
+                        text_parts = []
+                        for side in sides:
+                            if "ability" in side: text_parts.append(side["ability"])
+                            if "text" in side: text_parts.append(side["text"])
+                        text = " ".join(text_parts)
+                        
+                        # Fallback for image from first side if top-level is empty
+                        if not image and len(sides) > 0:
+                            image = sides[0].get("image", "")
+
                     all_upgrades[xws_id] = {
                         "name": upgrade.get("name", xws_id),
                         "type": upgrade_file.stem.capitalize(), # e.g. "talent" -> "Talent"
-                        "image": upgrade.get("image", ""),
+                        "image": image,
                         "cost": upgrade.get("cost", {}).get("value", 0) if isinstance(upgrade.get("cost"), dict) else 0,
+                        "text": text,
                     }
         except Exception:
             continue

@@ -12,7 +12,7 @@ import reflex as rx
 # -----------------------------------------------------------------------------
 # 1. THE CANVAS (MONOCHROME)
 # -----------------------------------------------------------------------------
-TERMINAL_BG = "#050505"      # Deep Depth
+TERMINAL_BG = "#000000"      # Pure Depth
 TERMINAL_PANEL = "#0A0A0A"   # Very dark grey
 TEXT_PRIMARY = "#FFFFFF"     # Primary Text
 TEXT_SECONDARY = "#888888"   # Softer Grey for Labels

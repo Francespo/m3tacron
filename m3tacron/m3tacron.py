@@ -18,8 +18,8 @@ from .backend.database import create_db_and_tables
 # Custom theme with dark mode - Functional Sci-Fi style
 theme = rx.theme(
     appearance="dark",
-    accent_color="blue",
-    gray_color="slate",
+    accent_color="gray",
+    gray_color="gray",
     radius="none",  # Sharp edges everywhere
     scaling="100%",
 )
@@ -34,12 +34,13 @@ app = rx.App(
         "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", # Added Inter
         # X-Wing Miniatures Font integration
         "/global.css",
-        "/xwing-miniatures-font/dist/xwing-miniatures.css",
+        "/xwing-miniatures-font_LINK/xwing-miniatures.css",
     ],
     style={
         "font_family": "'JetBrains Mono', 'Roboto Mono', monospace",
-        "background_color": "#050505", # Pure Black
+        "background_color": "#000000", # Pure Black
         "color": "#FFFFFF",
+        "overflow": "hidden", # Prevent global scrollbar
     },
 )
 

@@ -55,12 +55,13 @@ def render_macro_section(
                 rx.checkbox(
                     checked=path_to_selection[child["value"]],
                     on_change=lambda val: on_toggle_child(child["value"], val, macro["value"]),
-                    color_scheme="gray", 
+                    color_scheme="gray",
+                    size="1",
                 ),
-                rx.text(child["label"], size="2", color=TEXT_SECONDARY),
-                spacing="2",
+                rx.text(child["label"], size="1", color=TEXT_SECONDARY),
+                spacing="1",
                 align="center",
-                padding_left="12px"
+                padding_left="8px"
             )
         )
 
@@ -70,11 +71,11 @@ def render_macro_section(
             rx.checkbox(
                 checked=path_to_selection[macro["value"]],
                 on_change=lambda val: on_toggle_macro(macro["value"], val),
-                size="3", 
-                color_scheme="green",
+                size="2", 
+                color_scheme="gray",
             ),
-            rx.text(macro["label"], weight="bold", size="3", color=TEXT_PRIMARY),
-            spacing="3",
+            rx.text(macro["label"], weight="bold", size="2", color=TEXT_PRIMARY),
+            spacing="2",
             align="center",
             width="100%",
             padding_y="4px",

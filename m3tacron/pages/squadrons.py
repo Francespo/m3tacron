@@ -6,12 +6,14 @@ from sqlmodel import Session, select
 from collections import Counter
 
 from ..components.card_tooltip import pilot_card_tooltip
-from ..components.sidebar import layout
+from ..components.sidebar import layout, dashboard_layout
 from ..backend.database import engine
 from ..backend.models import PlayerResult, Tournament
 from ..backend.enums.formats import FORMAT_HIERARCHY, get_format
 from ..backend.squadron_utils import get_squadron_signature, parse_squadron_signature
 from ..backend.enums.factions import Faction
+from ..components.format_filter import hierarchical_format_filter
+from ..components.multi_filter import collapsible_checkbox_group
 from ..theme import (
     FACTION_COLORS, TERMINAL_BG, BORDER_COLOR, TERMINAL_PANEL,
     TEXT_PRIMARY, TEXT_SECONDARY, MONOSPACE_FONT, SANS_FONT, INPUT_STYLE,
@@ -23,8 +25,42 @@ from ..backend.xwing_data import load_all_pilots, get_pilot_info
 
 class SquadronsState(rx.State):
     """State for the Squadrons browser page."""
-    format_filter: str = "all"
-    faction_filter: str = "all"
+    # Multi-Select Filters
+    selected_formats: dict[str, bool] = {}
+    selected_factions: dict[str, bool] = {}
+    
+    # Static Options
+    faction_options: list[list[str]] = [["Rebel Alliance", "Rebel Alliance"], ["Galactic Empire", "Galactic Empire"], ["Scum and Villainy", "Scum and Villainy"], ["Resistance", "Resistance"], ["First Order", "First Order"], ["Galactic Republic", "Galactic Republic"], ["Separatist Alliance", "Separatist Alliance"]]
+
+    def on_mount(self):
+        # Default Formats to All if empty
+        if not self.selected_formats:
+             for macro in FORMAT_HIERARCHY:
+                self.selected_formats[macro["value"]] = True
+                for child in macro["children"]:
+                    self.selected_formats[child["value"]] = True
+        self.load_squadrons()
+
+    # Format Filter Logic
+    def toggle_format_macro(self, macro_val: str, checked: bool):
+        self.selected_formats[macro_val] = checked
+        # Toggle all children
+        for m in FORMAT_HIERARCHY:
+            if m["value"] == macro_val:
+                for child in m["children"]:
+                    self.selected_formats[child["value"]] = checked
+        self.load_squadrons()
+
+    def toggle_format_child(self, child_val: str, checked: bool, macro_val: str):
+        self.selected_formats[child_val] = checked
+        if not checked:
+            self.selected_formats[macro_val] = False
+        self.load_squadrons()
+
+    def toggle_faction(self, faction: str, checked: bool):
+        self.selected_factions[faction] = checked
+        self.current_page = 0
+        self.load_squadrons()
     
     # New Filters
     date_range_start: str = "" # YYYY-MM-DD
@@ -58,15 +94,7 @@ class SquadronsState(rx.State):
     current_ships: list[str] = []
     current_rich_ships: list[dict] = []
     
-    def set_format_filter(self, value: str):
-        self.format_filter = value
-        self.current_page = 0
-        self.load_squadrons()
-    
-    def set_faction_filter(self, value: str):
-        self.faction_filter = value
-        self.current_page = 0
-        self.load_squadrons()
+
         
     def set_ship_filter(self, value: str):
         self.ship_filter = value
@@ -98,12 +126,8 @@ class SquadronsState(rx.State):
             query = select(PlayerResult, Tournament).where(PlayerResult.tournament_id == Tournament.id)
             
             # 1. Apply Filters
-            if self.format_filter != "all":
-                # We can't easily filter by property 'macro_format' in SQL translation usually, 
-                # but we can filter by the raw column if needed, or filter in python if dataset is small.
-                # For now, let's fetch all and filter in python to be safe with the Enum logic, 
-                # or better, iterate.
-                pass 
+            # SQL level format filter difficult with detailed hierarchy/enum mix, do mostly in python
+            pass 
                 
             # Execute query - fetching necessary fields
             rows = session.exec(query).all()
@@ -114,8 +138,22 @@ class SquadronsState(rx.State):
             
             for result, tournament in rows:
                 # Filter by Format
-                if self.format_filter != "all" and tournament.macro_format != self.format_filter:
-                    continue
+                # Hierarchy Logic: Check if t_fmt is enabled
+                t_fmt_raw = tournament.format
+                t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
+                
+                if self.selected_formats:
+                     if not self.selected_formats.get(t_fmt, False):
+                         # If not exact match, check macro? 
+                         # Usually hierarchy sets exact match keys.
+                         # If key missing, assume false if filters exist.
+                         continue
+                # If selected_formats is empty, it means all? Or logic in load ensures it's populated.
+                # If we consider empty = all, then fine. But on mount default populates it.
+                
+                # Check Macro if not found?
+                # Actually, the hierarchy component populates LEAF values (formats) as well as MACRO values.
+                # So t_fmt should be in there if selected.
                 
                 # Filter by Date
                 if self.date_range_start and str(tournament.date) < self.date_range_start:
@@ -140,7 +178,26 @@ class SquadronsState(rx.State):
                 faction, ships = parse_squadron_signature(sig)
                 
                 # Filter by Faction
-                if self.faction_filter != "all" and faction != self.faction_filter: continue
+                # Multi-Select Faction Check
+                # If selected_factions has true entries, current faction must be one of them.
+                active_factions = [k for k,v in self.selected_factions.items() if v]
+                if active_factions:
+                    # Normalize sig faction? 
+                    # Sig uses Faction Enum Value usually? or Label?
+                    # parse_squadron_signature returns faction NAME usually if I recall utils.
+                    # Let's check or normalize. Faction.from_xws(faction).value
+                    # Wait, parse_squadron_signature returns "Rebel Alliance" (label) or value?
+                    # Sig: "rebelalliance_..." -> faction segment is xws.
+                    # But parse_squadron_signature might return xws or label. 
+                    # Let's check Faction.from_xws usage below -> `Faction.from_xws(faction).label`.
+                    # So 'faction' variable here is likely XWS or Label?
+                    # `Faction.from_xws` handles both.
+                    # Let's use the value for comparison.
+                    current_fac_val = Faction.from_xws(faction).value
+                    # Check against active_factions (which use values if we set them up that way)
+                    # We will set up options using values.
+                    if current_fac_val not in active_factions:
+                        continue
                 
                 # Filter by Ship (Search)
                 if self.ship_filter:
@@ -400,7 +457,9 @@ def ship_filter_input() -> rx.Component:
             value=SquadronsState.ship_filter,
             on_change=SquadronsState.set_ship_filter,
             style=INPUT_STYLE,
-            list="ships-datalist"
+            list="ships-datalist",
+            width="100%",
+            color_scheme="gray",
         ),
         rx.el.datalist(
             rx.foreach(
@@ -446,6 +505,63 @@ def sort_select() -> rx.Component:
         value=SquadronsState.sort_mode,
         on_change=SquadronsState.set_sort_mode,
         size="2",
+    )
+
+def render_sidebar_filters() -> rx.Component:
+    """Render the sidebar filters for Squadrons."""
+    return rx.vstack(
+        rx.text("FILTERS", size="1", weight="bold", letter_spacing="1px", color=TEXT_SECONDARY),
+        
+        # Sort
+        rx.vstack(
+             rx.text("Sort By", size="1", color=TEXT_SECONDARY),
+             sort_select(),
+             width="100%",
+             spacing="1"
+        ),
+        
+        rx.divider(border_color=BORDER_COLOR),
+
+        # Search Ship
+        rx.vstack(
+             rx.text("Ship Chassis", size="1", color=TEXT_SECONDARY),
+             ship_filter_input(),
+             width="100%",
+             spacing="1"
+        ),
+
+        # Date
+        rx.vstack(
+            rx.text("Date Range", size="1", color=TEXT_SECONDARY),
+            date_filter_inputs(),
+             width="100%",
+             spacing="1"
+        ),
+
+        # Format
+        rx.box(
+            rx.text("Formats", size="1", color=TEXT_SECONDARY, margin_bottom="4px"),
+            hierarchical_format_filter(
+                SquadronsState.selected_formats,
+                SquadronsState.toggle_format_macro,
+                SquadronsState.toggle_format_child
+            ),
+            width="100%",
+            padding="8px",
+            border=f"1px solid {BORDER_COLOR}",
+            border_radius=RADIUS
+        ),
+        
+        # Faction
+        collapsible_checkbox_group(
+            "Factions",
+            SquadronsState.faction_options,
+            SquadronsState.selected_factions,
+            SquadronsState.toggle_faction
+        ),
+
+        spacing="4",
+        width="100%",
     )
 
 
@@ -626,21 +742,11 @@ def squadrons_content() -> rx.Component:
         rx.flex(
             rx.text(f"{SquadronsState.total_squadrons} UNIQUE SQUADRONS", size="2", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
             rx.spacer(),
-            rx.flex(
-                date_filter_inputs(),
-                faction_filter_select(),
-                format_filter_select(),
-                ship_filter_input(),
-                sort_select(),
-                spacing="2",
-                wrap="wrap",
-                justify="end"
-            ),
-            spacing="4",
-            width="100%",
-            margin_bottom="16px",
-            justify="between",
-            wrap="wrap"
+            pagination_controls(),
+            width="100%", 
+            justify="between", 
+            align="center",
+            margin_bottom="16px"
         ),
         rx.grid(
             rx.foreach(SquadronsState.squadrons_data.to(list[dict]), squadron_card),
@@ -657,4 +763,12 @@ def squadrons_content() -> rx.Component:
     )
 
 def squadrons_page() -> rx.Component:
-    return layout(rx.fragment(squadrons_content(), render_squadron_detail()))
+    return layout(
+        rx.fragment(
+            dashboard_layout(
+                render_sidebar_filters(),
+                squadrons_content()
+            ),
+            render_squadron_detail()
+        )
+    )

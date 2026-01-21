@@ -4,7 +4,7 @@ M3taCron Tournaments Page - Imperial Data Terminal Spec.
 import reflex as rx
 from sqlmodel import Session, select, func
 
-from ..components.sidebar import layout
+from ..components.sidebar import layout, dashboard_layout
 from ..backend.database import engine
 from ..components.ui import terminal_panel, list_row
 from ..components.icons import xwing_icon
@@ -206,9 +206,50 @@ def filter_select(
             value=value,
             on_change=on_change,
             size="2",
+            color_scheme="gray",
         ),
         align="start",
         spacing="1",
+    )
+
+def render_filters() -> rx.Component:
+    """Render the sidebar filters for Tournaments."""
+    return rx.vstack(
+        rx.text("FILTERS", size="1", weight="bold", letter_spacing="1px", color=TEXT_SECONDARY),
+        
+        # Search
+        rx.vstack(
+             rx.text("Search", size="1", color=TEXT_SECONDARY),
+             rx.input(
+                placeholder="Search Tournament...",
+                value=TournamentsState.search_query,
+                on_change=TournamentsState.set_search,
+                width="100%",
+                style=INPUT_STYLE,
+                color_scheme="gray",
+            ),
+             width="100%",
+             spacing="1"
+        ),
+
+        rx.divider(border_color=BORDER_COLOR),
+
+        # Format
+        filter_select(
+            "FORMAT",
+            [["All", "all"]] + [[item["label"], item["value"]] for item in FORMAT_HIERARCHY],
+            TournamentsState.macro_filter,
+            TournamentsState.set_macro_filter,
+        ),
+        filter_select(
+            "SUB-FORMAT",
+            TournamentsState.available_sub_formats,
+            TournamentsState.sub_filter,
+            TournamentsState.set_sub_filter,
+        ),
+        
+        spacing="4",
+        width="100%",
     )
 
 
@@ -230,40 +271,12 @@ def tournaments_content() -> rx.Component:
             width="100%"
         ),
         
-        # Filters
-        rx.box(
-            terminal_panel(
-                "Filters",
-                rx.hstack(
-                    rx.input(
-                        placeholder="SEARCH...",
-                        value=TournamentsState.search_query,
-                        on_change=TournamentsState.set_search,
-                        width="280px",
-                        style=INPUT_STYLE
-                    ),
-                    rx.box(width="1px", height="32px", background=BORDER_COLOR),
-                    filter_select(
-                        "FORMAT",
-                        [["All", "all"]] + [[item["label"], item["value"]] for item in FORMAT_HIERARCHY],
-                        TournamentsState.macro_filter,
-                        TournamentsState.set_macro_filter,
-                    ),
-                    filter_select(
-                        "SUB-FORMAT",
-                        TournamentsState.available_sub_formats,
-                        TournamentsState.sub_filter,
-                        TournamentsState.set_sub_filter,
-                    ),
-                    spacing="4",
-                    align="end",
-                    width="100%"
-                ),
-                icon="filter"
-            ),
-            width="100%",
-            margin_bottom="24px",
-            class_name="animate-fade-in-up delay-200"
+        
+        # Filters removed from here
+        rx.flex(
+             rx.text(TournamentsState.filtered_tournaments.length().to_string() + " Tournaments", size="2", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+             width="100%",
+             margin_bottom="16px"
         ),
         
         # Tournament grid
@@ -324,4 +337,9 @@ def tournaments_content() -> rx.Component:
 
 def tournaments_page() -> rx.Component:
     """The Tournaments page wrapped in the layout."""
-    return layout(tournaments_content())
+    return layout(
+        dashboard_layout(
+             render_filters(),
+             tournaments_content()
+        )
+    )

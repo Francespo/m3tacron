@@ -196,8 +196,44 @@ def layout(page_content: rx.Component) -> rx.Component:
             page_content,
             margin_left=["0", "0", "260px", "260px"],
             margin_top=["60px", "60px", "0", "0"],
-            padding="32px",
-            min_height="100vh",
-            background=TERMINAL_BG
+            padding="0",
+            height="100vh",
+            width="auto",
+            overflow="hidden", # Force hidden here
+            background=TERMINAL_BG,
+            style={"position": "relative"}
         ),
+    )
+
+def dashboard_layout(filters_sidebar: rx.Component, main_content: rx.Component) -> rx.Component:
+    """
+    A 2-column dashboard layout (Filters | Content) to be used within the main layout.
+    """
+    return rx.flex(
+        # Filters Column
+        rx.box(
+            filters_sidebar,
+            width=["100%", "100%", "300px", "320px"],
+            height="100%",
+            overflow_y="auto",
+            border_right=f"1px solid {BORDER_COLOR}",
+            padding="24px",
+            background=TERMINAL_BG,
+            class_name="scrollbar-thin" # Custom class for styling if needed
+        ),
+        # Main Content Column
+        rx.box(
+            main_content,
+            flex="1",
+            height="100%",
+            overflow_y="auto", # Content scrolls independently
+            padding="24px",
+            background=TERMINAL_BG,
+            class_name="scrollbar-thin"
+        ),
+        flex_direction=["column", "row"],
+        width="100%",
+        height="100%",
+        overflow="hidden",
+        style={"box_shadow": "none", "border": "none"} # Remove any persistent glows
     )

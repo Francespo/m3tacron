@@ -5,7 +5,9 @@ import reflex as rx
 from ..backend.card_analytics import aggregate_card_stats
 from ..backend.enums.formats import FORMAT_HIERARCHY
 from ..components.format_filter import hierarchical_format_filter
-from ..components.sidebar import layout
+from ..components.multi_filter import collapsible_checkbox_group
+from ..components.sidebar import layout, dashboard_layout
+from ..backend.enums.factions import Faction
 from ..theme import (
     TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR, TERMINAL_PANEL, TERMINAL_PANEL_STYLE,
     HEADER_FONT, MONOSPACE_FONT, SANS_FONT, INPUT_STYLE, RADIUS, FACTION_COLORS
@@ -31,14 +33,25 @@ class CardAnalyzerState(rx.State):
     selected_formats: dict[str, bool] = {}
     
     # Pilot Specific
-    faction_filter: str = "all"
+    # Map of value -> boolean
+    selected_factions: dict[str, bool] = {}
+    ship_filter: str = "" # Comma separated
+    selected_initiatives: dict[str, bool] = {}
     
     # Upgrade Specific
-    upgrade_type_filter: str = "all"
+    selected_upgrade_types: dict[str, bool] = {}
+    
+    # Static info for filters
+    faction_options: list[list[str]] = [["Rebel Alliance", "Rebel Alliance"], ["Galactic Empire", "Galactic Empire"], ["Scum and Villainy", "Scum and Villainy"], ["Resistance", "Resistance"], ["First Order", "First Order"], ["Galactic Republic", "Galactic Republic"], ["Separatist Alliance", "Separatist Alliance"]]
+    initiative_options: list[list[str]] = [[str(i), str(i)] for i in range(7)]
+    upgrade_type_options: list[list[str]] = [[t, t] for t in ["Talent", "Force", "System", "Cannon", "Turret", "Torpedo", "Missile", "Crew", "Gunner", "Astromech", "Device", "Illicit", "Modification", "Title", "Configuration", "Sensor", "Tech"]]
     
     # Sorting
     sort_mode: str = "popularity"
     
+    # Data Source (XWA vs Legacy)
+    data_source: str = "xwa" # xwa, legacy
+
     # Data
     results: list[dict] = []
     total_count: int = 0
@@ -54,10 +67,17 @@ class CardAnalyzerState(rx.State):
                 self.selected_formats[macro["value"]] = True
                 for child in macro["children"]:
                     self.selected_formats[child["value"]] = True
+        
+        # Initialize other multi-selects to empty (all) or full?
+        # Logic is: empty/None = All. 
+        # So we can leave them empty.
+        
+        # Trigger initial load
         self.load_data()
         
     def set_active_tab(self, tab: str):
         self.active_tab = tab
+        self.results = []
         self.page = 0
         self.load_data()
         
@@ -65,13 +85,23 @@ class CardAnalyzerState(rx.State):
         self.sort_mode = mode
         self.load_data()
         
-    def set_faction_filter(self, faction: str):
-        self.faction_filter = faction
+    def toggle_faction(self, faction: str, checked: bool):
+        self.selected_factions[faction] = checked
         self.page = 0
         self.load_data()
 
-    def set_upgrade_type_filter(self, u_type: str):
-        self.upgrade_type_filter = u_type
+    def set_ship_filter(self, ship: str):
+        self.ship_filter = ship
+        self.page = 0
+        self.load_data()
+
+    def toggle_initiative(self, init: str, checked: bool):
+        self.selected_initiatives[init] = checked
+        self.page = 0
+        self.load_data()
+
+    def toggle_upgrade_type(self, u_type: str, checked: bool):
+        self.selected_upgrade_types[u_type] = checked
         self.page = 0
         self.load_data()
 
@@ -86,6 +116,12 @@ class CardAnalyzerState(rx.State):
         
     def set_date_end(self, date: str):
         self.date_range_end = date
+        self.load_data()
+        
+    def set_data_source(self, source: str | list[str]):
+        if isinstance(source, list):
+            source = source[0]
+        self.data_source = source
         self.load_data()
         
     # Format Filter Logic
@@ -130,16 +166,23 @@ class CardAnalyzerState(rx.State):
         # If all formats are selected, we can pass None to optimize?
         # Or just pass the list.
         
+        # Prepare multi-select lists
+        active_factions = [k for k, v in self.selected_factions.items() if v]
+        active_initiatives = [k for k, v in self.selected_initiatives.items() if v]
+        active_upgrade_types = [k for k, v in self.selected_upgrade_types.items() if v]
+
         filters = {
             "allowed_formats": allowed,
             "date_start": self.date_range_start,
             "date_end": self.date_range_end,
             "search_text": self.text_filter,
-            "faction": self.faction_filter,
-            "upgrade_type": self.upgrade_type_filter
+            "faction": active_factions,
+            "ship": self.ship_filter, 
+            "initiative": active_initiatives,
+            "upgrade_type": active_upgrade_types
         }
         
-        data = aggregate_card_stats(filters, self.sort_mode, self.active_tab)
+        data = aggregate_card_stats(filters, self.sort_mode, self.active_tab, self.data_source)
         
         self.total_count = len(data)
         
@@ -151,49 +194,22 @@ class CardAnalyzerState(rx.State):
 def render_filters() -> rx.Component:
     """Render the sidebar filters."""
     return rx.vstack(
-        # Search
-        rx.input(
-            placeholder="Search Name or Effect...",
-            value=CardAnalyzerState.text_filter,
-            on_change=CardAnalyzerState.set_text_filter,
-            style=INPUT_STYLE,
-            width="100%"
-        ),
-        
-        # Date Range
+        # 1. Data Source
         rx.vstack(
-            rx.text("Date Range", size="1", color=TEXT_SECONDARY),
-            rx.hstack(
-                rx.input(type="date", value=CardAnalyzerState.date_range_start, on_change=CardAnalyzerState.set_date_start, style=INPUT_STYLE, width="100%"),
-                rx.text("-", color=TEXT_SECONDARY),
-                rx.input(type="date", value=CardAnalyzerState.date_range_end, on_change=CardAnalyzerState.set_date_end, style=INPUT_STYLE, width="100%"),
+            rx.text("Data Source", size="1", color=TEXT_SECONDARY),
+            rx.segmented_control.root(
+                rx.segmented_control.item("XWA", value="xwa"),
+                rx.segmented_control.item("Legacy", value="legacy"),
+                value=CardAnalyzerState.data_source,
+                on_change=CardAnalyzerState.set_data_source,
+                width="100%",
+                color_scheme="gray",
             ),
             spacing="1",
             width="100%"
         ),
-        
-        # Tab Specific Filters
-        rx.cond(
-            CardAnalyzerState.active_tab == "pilots",
-            # Faction Selector
-            rx.select(
-                ["all", "Rebel Alliance", "Galactic Empire", "Scum and Villainy", "Resistance", "First Order", "Galactic Republic", "Separatist Alliance"],
-                value=CardAnalyzerState.faction_filter,
-                on_change=CardAnalyzerState.set_faction_filter,
-                style=INPUT_STYLE,
-                width="100%"
-            ),
-            # Upgrade Type Selector
-            rx.select(
-                ["all", "Talent", "Force", "System", "Cannon", "Turret", "Torpedo", "Missile", "Crew", "Gunner", "Astromech", "Device", "Illicit", "Modification", "Title", "Configuration", "Sensor", "Tech"],
-                value=CardAnalyzerState.upgrade_type_filter,
-                on_change=CardAnalyzerState.set_upgrade_type_filter,
-                style=INPUT_STYLE,
-                width="100%"
-            )
-        ),
-        
-        # Sort
+
+        # 2. Sort
         rx.vstack(
             rx.text("Sort By", size="1", color=TEXT_SECONDARY),
             rx.select(
@@ -201,13 +217,41 @@ def render_filters() -> rx.Component:
                 value=CardAnalyzerState.sort_mode,
                 on_change=CardAnalyzerState.set_sort_mode,
                 style=INPUT_STYLE,
+                width="100%",
+                color_scheme="gray",
+            ),
+            spacing="1",
+            width="100%"
+        ),
+
+        rx.divider(border_color=BORDER_COLOR),
+        rx.text("FILTERS", size="1", weight="bold", letter_spacing="1px", color=TEXT_SECONDARY),
+
+        # 3. Search
+        rx.input(
+            placeholder="Search Name / Effect...",
+            value=CardAnalyzerState.text_filter,
+            on_change=CardAnalyzerState.set_text_filter,
+            style=INPUT_STYLE,
+            width="100%",
+            color_scheme="gray",
+        ),
+        
+        # 4. Date Range
+        rx.vstack(
+            rx.text("Date Range", size="1", color=TEXT_SECONDARY),
+            rx.vstack(
+                rx.input(type="date", value=CardAnalyzerState.date_range_start, on_change=CardAnalyzerState.set_date_start, style=INPUT_STYLE, width="100%"),
+                rx.text("to", size="1", color=TEXT_SECONDARY, text_align="center"),
+                rx.input(type="date", value=CardAnalyzerState.date_range_end, on_change=CardAnalyzerState.set_date_end, style=INPUT_STYLE, width="100%"),
+                spacing="1",
                 width="100%"
             ),
             spacing="1",
             width="100%"
         ),
 
-        # Format Filter
+        # 5. Format Filter
         rx.box(
             rx.text("Formats", size="1", color=TEXT_SECONDARY, margin_bottom="4px"),
             hierarchical_format_filter(
@@ -221,15 +265,66 @@ def render_filters() -> rx.Component:
             border_radius=RADIUS
         ),
         
+        # 6. Context Specific Filters
+        rx.cond(
+            CardAnalyzerState.active_tab == "pilots",
+            rx.vstack(
+                # Faction
+                collapsible_checkbox_group(
+                    "Factions",
+                    CardAnalyzerState.faction_options,
+                    CardAnalyzerState.selected_factions,
+                    CardAnalyzerState.toggle_faction
+                ),
+                
+                # Ship 
+                rx.vstack(
+                    rx.text("Ship Chassis", size="1", color=TEXT_SECONDARY),
+                     rx.input(
+                        placeholder="e.g. X-wing, Y-wing",
+                        value=CardAnalyzerState.ship_filter,
+                        on_change=CardAnalyzerState.set_ship_filter,
+                        style=INPUT_STYLE,
+                        width="100%",
+                        list="ships-datalist-card" 
+                    ),
+                    # Datalist could be added if requested, but simple Text Input supports CSV better natively
+                    rx.el.datalist(
+                        rx.foreach(
+                            # We could create a list of all ships here if needed, or leave it standard
+                            ["X-wing", "Y-wing", "A-wing", "TIE Fighter", "TIE Interceptor"], 
+                            lambda s: rx.el.option(value=s)
+                        ),
+                        id="ships-datalist-card"
+                    ),
+                    width="100%",
+                    spacing="1"
+                ),
+                
+                # Initiative
+                collapsible_checkbox_group(
+                    "Initiative",
+                    CardAnalyzerState.initiative_options,
+                    CardAnalyzerState.selected_initiatives,
+                    CardAnalyzerState.toggle_initiative
+                ),
+                spacing="3",
+                width="100%"
+            ),
+            # Upgrade Filters
+            collapsible_checkbox_group(
+                "Upgrade Type",
+                CardAnalyzerState.upgrade_type_options,
+                CardAnalyzerState.selected_upgrade_types,
+                CardAnalyzerState.toggle_upgrade_type
+            )
+        ),
+        
         spacing="4",
-        width="280px", # Increased width slightly for better fit
-        min_width="280px",
-        padding="24px", # Increased padding
-        border_right=f"1px solid {BORDER_COLOR}",
-        height="100vh", # Full viewport height
-        position="sticky", # Sticky sidebar
-        top="0",
-        overflow_y="auto"
+        width="100%", 
+        min_width="250px",
+        height="100%",
+        # Layout handles scrolling and positioning
     )
 
 def pilot_card(p: dict) -> rx.Component:
@@ -316,7 +411,8 @@ def render_content() -> rx.Component:
                 ),
                 value=CardAnalyzerState.active_tab,
                 on_change=CardAnalyzerState.set_active_tab,
-                width="100%" 
+                width="100%",
+                color_scheme="gray",
             ),
             width="100%",
             margin_bottom="24px",
@@ -337,12 +433,13 @@ def render_content() -> rx.Component:
         
         # Pagination
         rx.hstack(
-            rx.button("Previous", on_click=CardAnalyzerState.prev_page, disabled=CardAnalyzerState.page == 0),
-            rx.text(f"Page {CardAnalyzerState.page + 1}", color=TEXT_SECONDARY),
-            rx.button("Next", on_click=CardAnalyzerState.next_page),
+            rx.button("< PREVIOUS", variant="ghost", on_click=CardAnalyzerState.prev_page, disabled=CardAnalyzerState.page == 0, color_scheme="gray", style={"font_family": MONOSPACE_FONT}),
+            rx.text(f"PAGE {CardAnalyzerState.page + 1}", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+            rx.button("NEXT >", variant="ghost", on_click=CardAnalyzerState.next_page, color_scheme="gray", style={"font_family": MONOSPACE_FONT}),
             justify="center",
             width="100%",
-            padding_top="20px"
+            padding_top="20px",
+            spacing="4"
         ),
         
         width="100%",
@@ -352,11 +449,8 @@ def render_content() -> rx.Component:
 
 def card_analyzer_page() -> rx.Component:
     return layout(
-        rx.flex(
-            render_filters(),
-            render_content(),
-            width="100%",
-            height="100%",
-            align="start"
+        dashboard_layout(
+             render_filters(),
+             render_content()
         )
     )

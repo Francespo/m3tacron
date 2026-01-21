@@ -72,7 +72,8 @@ def check_format_filter(tournament: Tournament, format_selection: dict[str, bool
 def aggregate_card_stats(
     filters: dict,
     sort_mode: str = "popularity", # popularity, win_rate
-    mode: str = "pilots" # pilots, upgrades
+    mode: str = "pilots", # pilots, upgrades
+    data_source: str = "xwa" # xwa, legacy
 ) -> list[dict]:
     """
     Aggregate statistics for pilots or upgrades.
@@ -88,21 +89,65 @@ def aggregate_card_stats(
         
         stats = {} # xws_id -> {counts, wins, games, faction, ...}
         
-        # Pre-load Data
-        all_pilots = load_all_pilots()
-        all_upgrades = load_all_upgrades()
+        # Pre-load Data using Source (XWA/Legacy)
+        all_pilots = load_all_pilots(data_source)
+        all_upgrades = load_all_upgrades(data_source)
         
         allowed_formats = filters.get("allowed_formats", None) # Set of strings
         faction_filter = filters.get("faction") # For pilots
         type_filter = filters.get("upgrade_type") # For upgrades
         text_filter = filters.get("search_text", "").lower()
+        ship_filter = filters.get("ship")
+        initiative_filter = filters.get("initiative")
+        
+        # Pre-process initiative filter (e.g., "3" or "3+")
+        # Pre-process initiative filter (list[str] or single string "all")
+        # Filters now come as list[str] of allowed values. "all" is not used if list is provided, default to empty/all behavior.
+        # But legacy call might still pass string "all".
+        # Let's handle both.
+        
+        allowed_initiatives = set()
+        if initiative_filter and initiative_filter != "all":
+            if isinstance(initiative_filter, list):
+                for i_str in initiative_filter:
+                    try:
+                        allowed_initiatives.add(int(i_str))
+                    except ValueError:
+                        pass
+            else:
+                 try:
+                     allowed_initiatives.add(int(initiative_filter))
+                 except ValueError:
+                     pass
+        
+        # Ship Filter Logic (Comma Separated)
+        ship_search_terms = []
+        if ship_filter and ship_filter != "all":
+            ship_search_terms = [s.strip().lower() for s in ship_filter.split(",") if s.strip()]
+
+        # Faction Filter Logic
+        allowed_factions = set()
+        if faction_filter and faction_filter != "all":
+             if isinstance(faction_filter, list):
+                 allowed_factions = set(faction_filter)
+             else:
+                 allowed_factions = {faction_filter}
+        
+        # Upgrade Type Logic
+        allowed_types = set()
+        if type_filter and type_filter != "all":
+            if isinstance(type_filter, list):
+                allowed_types = set(t.lower() for t in type_filter)
+            else:
+                allowed_types = {type_filter.lower()}
 
         for result, tournament in rows:
             # Python-level Filtering
             
             # Format
-            t_fmt = tournament.format.value if tournament.format else "other"
-            if allowed_formats is not None:
+            t_fmt_raw = tournament.format
+            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
+            if allowed_formats: # Only filter if list is not empty
                 if t_fmt not in allowed_formats:
                     # Fallback: check if macro is in allowed? 
                     # Assuming allowed_formats is exhaustive list of specific formats
@@ -119,32 +164,48 @@ def aggregate_card_stats(
             if mode == "pilots":
                 list_faction = xws.get("faction", "unknown")
                 # Faction Filter (Applies to List Faction or Pilot Faction? Usually List Faction for Pilots tab filter)
-                if faction_filter and faction_filter != "all":
+                if allowed_factions:
                     # Normalize list faction
-                    if Faction.from_xws(list_faction).value != faction_filter:
+                    current_faction = Faction.from_xws(list_faction).value
+                    if current_faction not in allowed_factions:
                         continue
                 
                 for p in xws.get("pilots", []):
                     pid = p.get("id") or p.get("name")
                     if not pid: continue
                     
+                    # Ship Filter
+                    if ship_search_terms:
+                        p_info = all_pilots.get(pid, {})
+                        p_ship = p_info.get("ship", "").lower()
+                        # Check if matches ANY term
+                        # Strict match or substring? User said "input di più valori".
+                        # Suggest matching behavior: substring ok? Or user expects precise filter?
+                        # Given "x-wing, y-wing", likely expects match.
+                        match_ship = False
+                        for term in ship_search_terms:
+                            if term in p_ship:
+                                match_ship = True
+                                break
+                        if not match_ship: continue
+
+                    # Initiative Filter
+                    if allowed_initiatives:
+                         p_info = all_pilots.get(pid, {})
+                         p_init = p_info.get("initiative")
+                         if p_init not in allowed_initiatives:
+                             continue
+
                     # Search Text Filter
                     if text_filter:
-                        p_name = get_pilot_name(pid).lower()
-                        # Also search in ability/text? We don't have ability text easily available in simple loads, 
-                        # but we can try if we had it. "nome oppure nell'effetto dell'upgrade"
-                        # For pilots, effect is in 'ability' usually.
                         p_info = all_pilots.get(pid, {})
-                        p_ability = p_info.get("ability", "") if isinstance(p_info.get("ability"), str) else "" # Ability text might be missing or different key
-                        # The xwing-data2 pilot dict usually has 'ability' text.
-                        # Let's check keys in xwing_data.py -> load_all_pilots only grabs specific keys.
-                        # We might need to update load_all_pilots to grab 'text' or 'ability'.
+                        p_name = p_info.get("name", pid).lower()
+                        p_ability = p_info.get("ability", "").lower()
+                        p_ship = p_info.get("ship", "").lower()
                         
-                        # Use cached full info if available, otherwise just name match
-                        match = text_filter in p_name
-                        # If not match, maybe check ship name?
-                        if not match and text_filter in p_info.get("ship", "").lower():
-                            match = True
+                        match = (text_filter in p_name) or \
+                                (text_filter in p_ability) or \
+                                (text_filter in p_ship)
                             
                         if not match: continue
 
@@ -176,20 +237,22 @@ def aggregate_card_stats(
                     # So Upgrade tab might not need faction filter, but maybe beneficial? 
                     # Let's ignore faction filter for upgrades unless requested.
                     
-                    upgrades = p.get("upgrades", {})
+                    upgrades = p.get("upgrades", {}) or {}
                     for u_type, u_list in upgrades.items():
                         
                         # Type Filter
-                        if type_filter and type_filter != "all" and u_type.lower() != type_filter.lower():
+                        if allowed_types and u_type.lower() not in allowed_types:
                             continue
                             
                         for u_xws in u_list:
                             # Search Text
                             if text_filter:
-                                u_name = get_upgrade_name(u_xws).lower()
-                                match = text_filter in u_name
+                                u_info = all_upgrades.get(u_xws, {})
+                                u_name = u_info.get("name", u_xws).lower()
+                                u_text = u_info.get("text", "").lower()
+
+                                match = (text_filter in u_name) or (text_filter in u_text)
                                 if not match: continue
-                                # Effect text search would require loading full upgrade text
                             
                             if u_xws not in stats:
                                 u_info = all_upgrades.get(u_xws, {})
