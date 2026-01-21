@@ -41,6 +41,7 @@ FACTION_COLORS = {
 # 3. TYPOGRAPHY & SHAPES
 # -----------------------------------------------------------------------------
 SANS_FONT = '"Inter", "Segoe UI", "Roboto", sans-serif'
+HEADER_FONT = SANS_FONT # Aliased for backward compatibility/clarity
 MONOSPACE_FONT = '"JetBrains Mono", "Roboto Mono", monospace'
 # Orbitron removed/deprecated for modern look
 
@@ -54,7 +55,7 @@ FACTION_ICONS = {
     "rebelalliance": "xwing-miniatures-font-rebel",
     "galacticempire": "xwing-miniatures-font-empire",
     "scumandvillainy": "xwing-miniatures-font-scum",
-    "resistance": "xwing-miniatures-font-resistance",
+    "resistance": "xwing-miniatures-font-rebel",
     "firstorder": "xwing-miniatures-font-firstorder",
     "galacticrepublic": "xwing-miniatures-font-republic",
     "separatistalliance": "xwing-miniatures-font-separatists",

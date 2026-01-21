@@ -913,6 +913,9 @@ class LongshanksScraper(BaseScraper):
         # 2. Players
         players = self.get_participants(tournament_id)
         
+        if len(players) < 2:
+            raise ValueError(f"Tournament {tournament_id} has fewer than 2 players ({len(players)})")
+        
         # Update player count from actual results
         if players and tournament.player_count == 0:
             tournament.player_count = len(players)

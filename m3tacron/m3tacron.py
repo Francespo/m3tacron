@@ -11,6 +11,7 @@ from .pages.tournaments import tournaments_page
 from .pages.tournament_detail import tournament_detail_page
 
 from .pages.squadrons import squadrons_page
+from .pages.card_analyzer import card_analyzer_page
 from .backend.database import create_db_and_tables
 
 
@@ -48,4 +49,5 @@ app.add_page(tournaments_page, route="/tournaments", title="M3taCron - Tournamen
 app.add_page(tournament_detail_page, route="/tournament/[id]", title="M3taCron - Tournament")
 
 app.add_page(squadrons_page, route="/squadrons", title="M3taCron - Squadrons")
+app.add_page(card_analyzer_page, route="/cards", title="M3taCron - Card Analyzer")
 

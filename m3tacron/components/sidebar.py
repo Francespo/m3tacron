@@ -87,6 +87,7 @@ def sidebar_content() -> rx.Component:
             sidebar_link("DASHBOARD", "/", "home"),
             sidebar_link("TOURNAMENTS", "/tournaments", "database"),
             sidebar_link("SQUADRONS", "/squadrons", "layers"),
+            sidebar_link("CARDS", "/cards", "cpu"),
             width="100%",
             padding="16px 0",
             spacing="1",

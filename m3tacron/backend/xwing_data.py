@@ -11,7 +11,7 @@ from .enums.factions import Faction
 
 # Path to xwing-data2 data directory
 # Structure: m3tacron/backend/xwing_data.py -> go up to m3tacron/ then into data/
-DATA_DIR = Path(__file__).parent.parent.parent / "data" / "xwing-data2" / "data"
+DATA_DIR = Path(__file__).parent.parent.parent / "assets" / "data" / "xwing-data2" / "data"
 
 
 @lru_cache(maxsize=1)

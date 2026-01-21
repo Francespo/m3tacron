@@ -8,6 +8,14 @@ class MacroFormat(str, Enum):
     V2_0 = "2.0"
     OTHER = "other"
 
+    @property
+    def label(self) -> str:
+        """Human-readable format name."""
+        match self:
+            case MacroFormat.V2_5: return "2.5"
+            case MacroFormat.V2_0: return "2.0"
+            case MacroFormat.OTHER: return "Unknown/Other"
+
     def __str__(self) -> str:
         return self.value
 

@@ -478,6 +478,9 @@ class RollbetterScraper(BaseScraper):
         # 2. Players
         players = self.get_participants(tournament_id)
         
+        if len(players) < 2:
+            raise ValueError(f"Tournament {tournament_id} has fewer than 2 players ({len(players)})")
+        
         # 3. Infer Format from Players' XWS
         if not tournament.format:
             # Check up to first 20 players to find a valid format
