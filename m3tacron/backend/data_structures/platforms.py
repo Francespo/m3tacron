@@ -1,9 +1,9 @@
 """
 Platform definitions for tournament sources.
 """
-from enum import Enum
+from enum import StrEnum
 
-class Platform(str, Enum):
+class Platform(StrEnum):
     LONGSHANKS = "longshanks"
     LISTFORTRESS = "listfortress"
     ROLLBETTER = "rollbetter"
@@ -16,5 +16,3 @@ class Platform(str, Enum):
             case Platform.LONGSHANKS: return "Longshanks"
             case Platform.LISTFORTRESS: return "ListFortress"
             case Platform.ROLLBETTER: return "Rollbetter"
-    def __str__(self) -> str:
-        return self.value

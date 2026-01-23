@@ -1,27 +1,26 @@
 """
-M3taCron Tournament Detail Page - Imperial Data Terminal Spec.
+M3taCron Tournament Detail Page.
 """
 import reflex as rx
 from sqlmodel import Session, select, func
 
 from ..components.sidebar import layout
-from ..components.ui import content_panel, stat_card
+from ..components.ui import content_panel as terminal_panel, stat_card
 from ..backend.database import engine
 from ..backend.models import Tournament, PlayerResult, Match
-from ..backend.utils import parse_xws, get_faction_name, normalize_faction
-from ..backend.utils import xws_to_yasb_url, get_xws_string
+from ..backend.utils.xwing_data import parse_xws, get_faction_name, normalize_faction
+from ..backend.utils.yasb import xws_to_yasb_url, get_xws_string
 from ..theme import (
     TERMINAL_BG, BORDER_COLOR, TERMINAL_PANEL, TEXT_PRIMARY, TEXT_SECONDARY,
-    MONOSPACE_FONT, SANS_FONT, TERMINAL_PANEL_STYLE, FACTION_COLORS,
+    MONOSPACE_FONT, SANS_FONT, TERMINAL_PANEL_STYLE, FACTION_COLORS
 )
-from ..ui_utils.factions import get_faction_color
 from ..components.card_tooltip import pilot_card_tooltip, upgrade_card_tooltip
-from ..components.icons import xwing_icon
+from ..ui_utils.factions import faction_icon, get_faction_color
 
 
 class TournamentDetailState(rx.State):
     """State for the Tournament Detail page."""
-    tournament: dict = {}
+    tournament: Tournament | None = None
     players: list[dict] = []
     matches: list[dict] = []
     loading: bool = True
@@ -67,15 +66,7 @@ class TournamentDetailState(rx.State):
                     self.loading = False
                     return
                 
-                self.tournament = {
-                    "id": t.id,
-                    "name": t.name,
-                    "date": t.date.strftime("%Y-%m-%d") if t.date else "Unknown",
-                    "platform": t.platform,
-                    "format": t.format,
-                    "macro_format": t.macro_format,
-                    "url": t.url,
-                }
+                self.tournament = t
                 
                 players = session.exec(select(PlayerResult).where(PlayerResult.tournament_id == tournament_id).order_by(PlayerResult.rank)).all()
                 self.players = []
@@ -93,39 +84,20 @@ class TournamentDetailState(rx.State):
                 
                 matches = session.exec(select(Match).where(Match.tournament_id == tournament_id).order_by(Match.round_number)).all()
                 player_map = {p.id: p.player_name for p in players}
-                self.matches = []
-                for m in matches:
-                    p1_id = m.player1_id
-                    p2_id = m.player2_id
-                    winner_id = m.winner_id
-                    
-                    # Determine result for coloring
-                    # If draw or no winner, "neutral" or "draw"
-                    p1_result = "draw"
-                    p2_result = "draw"
-                    
-                    if winner_id:
-                        if winner_id == p1_id:
-                            p1_result = "win"
-                            p2_result = "loss"
-                        elif winner_id == p2_id:
-                            p1_result = "loss"
-                            p2_result = "win"
-                            
-                    self.matches.append({
-                        "round": m.round_number,
-                        "type": m.round_type,
-                        "player1": player_map.get(m.player1_id, "Unknown"),
-                        "player2": player_map.get(m.player2_id, "Bye") if not m.is_bye else "BYE",
-                        "score1": m.player1_score,
-                        "score2": m.player2_score,
-                        "winner_id": m.winner_id,
-                        "scenario": m.scenario,
-                        "player1_first": m.first_player_id == m.player1_id if m.first_player_id else False,
-                        "player2_first": m.first_player_id == m.player2_id if m.first_player_id else False,
-                        "p1_result": p1_result,
-                        "p2_result": p2_result,
-                    })
+                self.matches = [{
+                    "round": m.round_number,
+                    "type": m.round_type,
+                    "player1": player_map.get(m.player1_id, "Unknown"),
+                    "player2": player_map.get(m.player2_id, "Bye") if not m.is_bye else "BYE",
+                    "player1_id": m.player1_id,
+                    "player2_id": m.player2_id,
+                    "score1": m.player1_score,
+                    "score2": m.player2_score,
+                    "winner_id": m.winner_id,
+                    "scenario": m.scenario,
+                    "player1_first": m.first_player_id == m.player1_id if m.first_player_id else False,
+                    "player2_first": m.first_player_id == m.player2_id if m.first_player_id else False,
+                } for m in matches]
                 
                 self.loading = False
         except Exception as e:
@@ -231,7 +203,6 @@ def render_pilot_card(pilot: dict) -> rx.Component:
     )
 
 
-# faction_icon was here - now using xwing_icon
 
 
 def render_list_modal() -> rx.Component:
@@ -242,7 +213,7 @@ def render_list_modal() -> rx.Component:
                 rx.hstack(
                     # Faction icon + name with color
                     rx.hstack(
-                        xwing_icon(TournamentDetailState.open_list_data["faction_xws"], size="24px", color=get_faction_color(TournamentDetailState.open_list_data["faction_xws"])),
+                        faction_icon(TournamentDetailState.open_list_data["faction_xws"]),
                         rx.text(
                             TournamentDetailState.open_list_data["faction"], 
                             size="4", 
@@ -254,9 +225,9 @@ def render_list_modal() -> rx.Component:
                     ),
                     rx.spacer(),
                     rx.cond(
-                        TournamentDetailState.open_list_data.contains("points"),
-                        rx.text(TournamentDetailState.open_list_data["points"].to_string() + " PTS", font_family=MONOSPACE_FONT),
-                        rx.fragment()
+                         TournamentDetailState.open_list_data.contains("points"),
+                         rx.text(TournamentDetailState.open_list_data["points"].to_string() + " PTS", font_family=MONOSPACE_FONT),
+                         rx.fragment()
                     ),
                     width="100%", align="center"
                 ),
@@ -293,7 +264,6 @@ def render_list_modal() -> rx.Component:
     )
 
 
-# get_faction_color was here - now using theme.get_faction_color
 
 def player_row(player: dict) -> rx.Component:
     return rx.hstack(
@@ -307,7 +277,7 @@ def player_row(player: dict) -> rx.Component:
             rx.text(player["name"], size="2", weight="medium", font_family=MONOSPACE_FONT, color=TEXT_PRIMARY),
             rx.hstack(
                 # Faction Icon + Colored Text
-                xwing_icon(player["faction_xws"], size="14px", color=get_faction_color(player["faction_xws"])),
+                faction_icon(player["faction_xws"], size="14px"),
                 rx.text(
                     player["faction"], 
                     size="1", 
@@ -335,106 +305,101 @@ def player_row(player: dict) -> rx.Component:
     )
 
 
-def get_result_color(result: str | rx.Var) -> str | rx.Var:
-    """Return color for win/loss/draw."""
-    return rx.cond(result == "win", "#4CAF50",  # Green
-           rx.cond(result == "loss", "#F44336",  # Red
-           TEXT_PRIMARY))
-
-
 def match_row(match: dict) -> rx.Component:
     """
-    Revised Match Row Layout:
-    [Round #] [Scenario Column (Fixed)] [Left Player P1] [Score] - [Score] [Right Player P2]
+    Render a match row with:
+    [Round] [Scenario Space] [P1 Name + Score -- Score + P2 Name]
     """
-    return rx.flex(
-        # 1. Round Number (Fixed Width Left)
-        rx.box(
-            rx.text(match["round"], color=TEXT_SECONDARY, size="1", font_family=MONOSPACE_FONT),
-            width="30px",
-            display="flex", align_items="center", justify_content="center",
-            border_right=f"1px solid {BORDER_COLOR}",
-            padding_right="8px"
-        ),
+    # Color logic: Green for winner, Red for loser
+    p1_color = rx.cond(match["winner_id"] == match["player1_id"], "green", "red")
+    p2_color = rx.cond(match["winner_id"] == match["player2_id"], "green", "red")
+    
+    return rx.hstack(
+        # 1. Round Number
+        rx.text(match["round"], color=TEXT_SECONDARY, size="1", font_family=MONOSPACE_FONT, width="30px"),
         
-        # 2. Scenario Column (Fixed Width) - Empty if None but present
+        # 2. Scenario Space (Fixed width, always present)
         rx.box(
             rx.cond(
                 match["scenario"],
-                rx.badge(match["scenario"], variant="outline", size="1", color_scheme="gray", style={"max-width": "100%", "overflow": "hidden", "text-overflow": "ellipsis", "white-space": "nowrap"}),
-                rx.fragment() 
+                rx.badge(match["scenario"], variant="outline", size="1", color_scheme="gray"),
+                rx.fragment()
             ),
-            width="120px",  # Fixed width for alignment
-            padding_left="12px",
-            padding_right="12px",
-            display="flex", align_items="center", justify_content="start",
-            border_right=f"1px solid {BORDER_COLOR}",
+            width="120px", # Fixed space for scenario
+            display="flex",
+            align_items="center",
+            justify_content="center",
         ),
         
-        # 3. Match Details Container (Flex Grow)
-        rx.flex(
-            # Left Side (Player 1)
+        # 3. Match Sub-container
+        rx.hstack(
+            # Player 1 (Left)
             rx.hstack(
-                # First Player Icon (Left of name)
-                rx.cond(
-                     match["player1_first"],
-                     rx.text("♔", color="yellow", size="2"),
-                     rx.box(width="18px") # Spacer
-                ),
+                rx.icon(tag="user", size=14, color=TEXT_SECONDARY), # Icon for P1
                 rx.text(
                     match["player1"], 
                     size="2", 
-                    color=get_result_color(match["p1_result"]), 
+                    color=p1_color, 
                     font_family=MONOSPACE_FONT,
-                    weight="bold",
-                    align="right"
+                    weight="medium",
+                    text_align="left",
+                    width="100%"
                 ),
-                rx.text(match["score1"], size="2", color=TEXT_PRIMARY, font_family=MONOSPACE_FONT),
-                spacing="3", 
-                align="center",
-                justify="end",
-                width="45%" # Take up slightly less than half
+                rx.cond(
+                     match["player1_first"],
+                     rx.badge("1st", variant="solid", color_scheme="yellow", size="1"),
+                     rx.fragment()
+                ),
+                 width="40%", # Allocate space for name
+                 justify="start",
+                 align="center",
+                 spacing="2"
             ),
             
-            # Center Divider/Dash
-            rx.box(
-                 rx.text("-", size="2", color=TEXT_SECONDARY),
-                 width="10%",
-                 display="flex", justify_content="center"
-            ),
-            
-            # Right Side (Player 2)
+            # Scores (Center)
             rx.hstack(
-                rx.text(match["score2"], size="2", color=TEXT_PRIMARY, font_family=MONOSPACE_FONT),
+                rx.text(match["score1"], size="2", color=p1_color, font_family=MONOSPACE_FONT, weight="bold"),
+                rx.text("-", size="2", color=TEXT_SECONDARY),
+                rx.text(match["score2"], size="2", color=p2_color, font_family=MONOSPACE_FONT, weight="bold"),
+                justify="center",
+                width="20%",
+                align="center",
+                spacing="2"
+            ),
+
+            # Player 2 (Right)
+            rx.hstack(
+                rx.cond(
+                     match["player2_first"],
+                     rx.badge("1st", variant="solid", color_scheme="yellow", size="1"),
+                     rx.fragment()
+                ),
                 rx.text(
                     match["player2"], 
                     size="2", 
-                    color=get_result_color(match["p2_result"]),
+                    color=p2_color, 
                     font_family=MONOSPACE_FONT,
-                    weight="bold",
-                    align="left"
+                    weight="medium",
+                    text_align="right",
+                    width="100%"
                 ),
-                # First Player Icon (Right of name)
-                rx.cond(
-                     match["player2_first"],
-                     rx.text("♔", color="yellow", size="2"),
-                     rx.box(width="18px")
-                ),
-                spacing="3",
+                width="40%", # Allocate space for name
+                justify="end",
                 align="center",
-                justify="start",
-                width="45%"
+                spacing="2"
             ),
             
+            flex="1", # Take remaining space
             align="center",
-            width="100%",
-            padding_left="12px"
+            justify="between",
+            style={"background_color": "rgba(255, 255, 255, 0.02)", "border_radius": "4px", "padding": "4px 8px"}
         ),
         
-        width="100%",
-        padding="8px 0px",
-        border_bottom=f"1px solid {BORDER_COLOR}",
-        align="center"
+        width="100%", 
+        padding="8px 12px", 
+        border_bottom=f"1px solid {BORDER_COLOR}", 
+        align="center",
+        spacing="4"
     )
 
 
@@ -451,10 +416,10 @@ def tournament_detail_content() -> rx.Component:
                     rx.hstack(
                         rx.link(rx.button("< BACK", variant="ghost", size="1", style={"font_family": MONOSPACE_FONT}), href="/tournaments"),
                         rx.vstack(
-                            rx.heading(TournamentDetailState.tournament["name"], size="6", font_family=SANS_FONT, weight="bold"),
+                            rx.heading(TournamentDetailState.tournament.name, size="6", font_family=SANS_FONT, weight="bold"),
                             rx.hstack(
-                                rx.badge(TournamentDetailState.tournament["macro_format"], color_scheme="gray"),
-                                rx.text(TournamentDetailState.tournament["date"], size="2", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+                                rx.badge(TournamentDetailState.tournament.macro_format, color_scheme="gray"),
+                                rx.text(TournamentDetailState.tournament.date.to(str), size="2", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
                                 spacing="2",
                             ),
                             align="start", spacing="2",
@@ -467,10 +432,10 @@ def tournament_detail_content() -> rx.Component:
                         margin_bottom="24px",
                     ),
                     rx.grid(
-                        content_panel("RANKINGS", rx.vstack(rx.foreach(TournamentDetailState.players.to(list[dict]), player_row), spacing="0", width="100%")),
+                        terminal_panel("RANKINGS", rx.vstack(rx.foreach(TournamentDetailState.players.to(list[dict]), player_row), spacing="0", width="100%")),
                         rx.cond(
                             TournamentDetailState.matches.length() > 0,
-                            content_panel("MATCHES", rx.vstack(rx.foreach(TournamentDetailState.matches.to(list[dict]), match_row), spacing="0", width="100%")),
+                            terminal_panel("MATCHES", rx.vstack(rx.foreach(TournamentDetailState.matches.to(list[dict]), match_row), spacing="0", width="100%")),
                             rx.fragment(),
                         ),
                         columns="2", spacing="6", width="100%",

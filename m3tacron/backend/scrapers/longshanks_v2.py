@@ -7,7 +7,6 @@ from .base import BaseScraper
 from .longshanks import LongshanksScraper
 from ..models import PlayerResult
 from ..utils import parse_builder_url
-from .web_utils import fetch_xws_from_builder
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,8 @@ class LongshanksScraperV2(LongshanksScraper):
         
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
+            context = browser.new_context()
+            page = context.new_page()
             try:
                 # 1. First, go to main event page to get ranks/scores (metdata)
                 # The /lists/ page often lacks rank/score info, or it's just a list dump.
@@ -160,60 +160,30 @@ class LongshanksScraperV2(LongshanksScraper):
                 
                 lists_data = page.evaluate("""() => {
                     const mappings = [];
+                    // Validated Strategy: Each player is in a 'div.column'
+                    const columns = document.querySelectorAll('div.column');
                     
-                    // 1. Find all player anchors and get their Y position
-                    const players = [];
-                    document.querySelectorAll('a.player_link').forEach(a => {
-                        // On /lists/ page, links often use onclick='pop_user...' instead of href='/player/...'
-                        // So we trust the class 'player_link'
-                        const rect = a.getBoundingClientRect();
-                        // Ensure it's rendered
-                        if (rect.height > 0 || rect.width > 0) {
-                            players.push({
-                                name: a.textContent.trim().replace(/\\s*#\\d+$/, ''),
-                                top: rect.top + window.scrollY
-                            });
-                        }
-                    });
-                    
-                    // 2. Find all Builder links
-                    const allLinks = document.querySelectorAll('a');
-                    allLinks.forEach(a => {
-                        const lowerText = a.textContent.toLowerCase();
-                        const href = a.href.toLowerCase();
-                        const isBuilderLink = lowerText.includes('xws list') || 
-                                            href.includes('yasb.app') || 
-                                            href.includes('launchbaynext.app');
+                    columns.forEach(col => {
+                        // Find player name
+                        const nameEl = col.querySelector('.player_link') || col.querySelector('.name');
+                        if (!nameEl) return;
                         
-                        if (isBuilderLink) {
-                            const rect = a.getBoundingClientRect();
-                            if (rect.height > 0 || rect.width > 0) {
-                                const top = rect.top + window.scrollY;
-                                
-                                // Find closest player ABOVE this link
-                                // Filter players strictly above (p.top < top)
-                                // Then find the one with max p.top (closest)
-                                
-                                let bestP = null;
-                                let minDiff = Infinity;
-                                
-                                for (const p of players) {
-                                    if (p.top <= top) {
-                                        const diff = top - p.top;
-                                        if (diff < minDiff) {
-                                            minDiff = diff;
-                                            bestP = p;
-                                        }
-                                    }
-                                }
-                                
-                                if (bestP) {
-                                    // Found a match
-                                    // De-dupe? Usually 1 list per builder per player
-                                    // We push all found, python side handles overwrites or multiples
-                                    mappings.push({name: bestP.name, link: a.href});
-                                }
+                        let name = nameEl.innerText.trim();
+                        name = name.replace(/\\s*#\\d+$/, '');
+                        
+                        // Find list link: Iterate all links to be safe
+                        const allLinks = col.querySelectorAll('a');
+                        let listLink = null;
+                        for (const a of allLinks) {
+                            const href = a.href.toLowerCase();
+                            if ((href.includes('yasb.app') || href.includes('launchbaynext') || href.includes('xws')) && !href.includes('google')) {
+                                listLink = a.href;
+                                break;
                             }
+                        }
+                        
+                        if (listLink) {
+                            mappings.push({name: name, link: listLink});
                         }
                     });
                     
@@ -238,7 +208,7 @@ class LongshanksScraperV2(LongshanksScraper):
                         # Strategy: If passive failed, go active (FETCH)
                         if not has_pilots and ("yasb.app" in link):
                             logger.info(f"V2: Passive parse incomplete for {pname}, fetching active export...")
-                            fetched_xws = fetch_xws_from_builder(link)
+                            fetched_xws = self._fetch_active_xws(page, link)
                             if fetched_xws:
                                 xws = fetched_xws
                                 # Merge vendor link if lost
@@ -268,3 +238,40 @@ class LongshanksScraperV2(LongshanksScraper):
                 browser.close()
                 
         return participants
+
+    def _fetch_active_xws(self, current_page, url) -> dict | None:
+        """
+        Active fetch using the existing browser context (new tab).
+        Avoids nested sync_playwright calls.
+        """
+        new_page = current_page.context.new_page()
+        try:
+            new_page.goto(url, wait_until="networkidle", timeout=30000)
+            
+            # YASB Logic
+            if "yasb.app" in url:
+                try:
+                   export_locator = new_page.locator("button.view-as-text")
+                   export_locator.first.wait_for(state="attached", timeout=10000)
+                   new_page.evaluate("document.querySelector('button.view-as-text').click()")
+                   
+                   xws_locator = new_page.locator("button.select-xws-view")
+                   xws_locator.first.wait_for(state="attached", timeout=10000)
+                   new_page.evaluate("document.querySelector('button.select-xws-view').click()")
+                   
+                   textarea = new_page.locator("textarea").first
+                   for _ in range(10):
+                       content = textarea.input_value()
+                       if content and len(content) > 10:
+                           return json.loads(content)
+                       new_page.wait_for_timeout(500)
+                except Exception as e:
+                   logger.warning(f"Active fetch failed for {url}: {e}")
+                   return None
+            
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to open builder page {url}: {e}")
+            return None
+        finally:
+            new_page.close()

@@ -2,8 +2,9 @@
 Card Analyzer Page.
 """
 import reflex as rx
-from ..ui_utils.formats import FORMAT_HIERARCHY, get_default_format_selection, get_format_options
 from ..components.format_filter import hierarchical_format_filter, FormatFilterMixin
+from ..ui_utils.pagination import PaginationMixin
+from ..components.pagination import pagination_controls
 # from ..components.multi_filter import collapsible_checkbox_group # Deprecated
 from ..components.sidebar import layout, dashboard_layout
 from ..backend.data_structures.factions import Faction
@@ -18,7 +19,7 @@ from ..components.icons import ship_icon
 from ..components.filter_accordion import filter_accordion
 from ..components.searchable_filter_accordion import searchable_filter_accordion
 
-class CardAnalyzerState(rx.State, FormatFilterMixin):
+class CardAnalyzerState(rx.State, FormatFilterMixin, PaginationMixin):
     """
     State for the Card Analyzer page.
     """
@@ -67,10 +68,6 @@ class CardAnalyzerState(rx.State, FormatFilterMixin):
     # Data
     results: list[dict] = []
     total_count: int = 0
-    
-    # Pagination
-    page: int = 0
-    page_size: int = 24
 
     def toggle_format_macro(self, macro_val: str, checked: bool):
         super().toggle_format_macro(macro_val, checked)
@@ -81,7 +78,7 @@ class CardAnalyzerState(rx.State, FormatFilterMixin):
     def on_mount(self):
         # Initialize selected_formats to True for all if empty
         if not self.selected_formats:
-            self.selected_formats = get_default_format_selection()
+            self.selected_formats = {m.value: True for m in MacroFormat} | {f.value: True for f in Format}
         
         # Initialize other multi-selects to empty (all) or full?
         # Logic is: empty/None = All. 
@@ -93,7 +90,7 @@ class CardAnalyzerState(rx.State, FormatFilterMixin):
     def set_active_tab(self, tab: str):
         self.active_tab = tab
         self.results = []
-        self.page = 0
+        self.current_page = 0
         self.load_data()
         
     def set_sort_mode(self, mode: str):
@@ -102,7 +99,7 @@ class CardAnalyzerState(rx.State, FormatFilterMixin):
         
     def toggle_faction(self, faction: str, checked: bool):
         self.selected_factions[faction] = checked
-        self.page = 0
+        self.current_page = 0
         self.load_data()
 
     def set_ship_search(self, text: str):
@@ -110,22 +107,22 @@ class CardAnalyzerState(rx.State, FormatFilterMixin):
 
     def toggle_ship(self, xws: str, checked: bool):
         self.selected_ships[xws] = checked
-        self.page = 0
+        self.current_page = 0
         self.load_data()
         
     def toggle_initiative(self, init: str, checked: bool):
         self.selected_initiatives[init] = checked
-        self.page = 0
+        self.current_page = 0
         self.load_data()
 
     def toggle_upgrade_type(self, u_type: str, checked: bool):
         self.selected_upgrade_types[u_type] = checked
-        self.page = 0
+        self.current_page = 0
         self.load_data()
 
     def set_text_filter(self, text: str):
         self.text_filter = text
-        self.page = 0
+        self.current_page = 0
         self.load_data() # Debounce? Reflex handles debounce on input usually if configured
         
     def set_date_start(self, date: str):
@@ -144,7 +141,7 @@ class CardAnalyzerState(rx.State, FormatFilterMixin):
 
     def on_filter_change(self):
         """Handle format filter changes."""
-        self.page = 0
+        self.current_page = 0
         self.load_data()
 
     def set_data_source(self, source: str | list[str]):
@@ -191,35 +188,12 @@ class CardAnalyzerState(rx.State, FormatFilterMixin):
                  
         return final_list
     
-    def next_page(self):
-        if self.page < self.total_pages - 1:
-            self.page += 1
-            self.load_data() # Explicit reload needed to slice results correctly if we handle slice in frontend? 
-            # Actually load_data fetches from DB then slices. We should probably just slice?
-            # But load_data() does `self.results = data[start:start + page_size]` 
-            # So we MUST call load_data() or a separate `update_page_slice()`?
-            # Let's call load_data() to be safe, though it might re-fetch.
-            # Optimization: Separate fetch and slice.
-            
-    def prev_page(self):
-        if self.page > 0:
-            self.page -= 1
-            self.load_data()
-            
-    def set_page_input(self, value: str):
-        try:
-            val = int(value)
-            # Input is 1-based, internal is 0-based
-            val -= 1
-            if 0 <= val < self.total_pages:
-                self.page = val
-                self.load_data()
-        except ValueError:
-            pass
-
     @rx.var
-    def total_pages(self) -> int:
-         return (self.total_count + self.page_size - 1) // self.page_size
+    def total_items_count(self) -> int:
+         return self.total_count
+
+    def on_page_change(self):
+        self.load_data()
 
     def load_data(self):
         # Map UI Sort Mode to Backend Sort Mode
@@ -229,12 +203,12 @@ class CardAnalyzerState(rx.State, FormatFilterMixin):
         }
         backend_sort = sort_mapping.get(self.sort_mode, "popularity")
 
-        # Construct Allowed Formats List
+        # Construction Allowed Formats List
         # Iterate selected_formats, if true add to list.
         # Note: Backend expects specific formats, not macros.
         allowed = []
         for k, v in self.selected_formats.items():
-            if v:
+            if v and k in Format._value2member_map_:
                 allowed.append(k)
         
         # If all formats are selected, we can pass None to optimize?
@@ -271,7 +245,7 @@ class CardAnalyzerState(rx.State, FormatFilterMixin):
         
         # Pagination
         # Pagination
-        start = self.page * self.page_size
+        start = self.current_page * self.page_size
         self.results = data[start:start + self.page_size]
 
 def render_filters() -> rx.Component:
@@ -501,27 +475,7 @@ def render_content() -> rx.Component:
         ),
         
         # Pagination
-        rx.hstack(
-            rx.button("<", variant="ghost", on_click=CardAnalyzerState.prev_page, disabled=CardAnalyzerState.page == 0, color_scheme="gray", style={"font_family": MONOSPACE_FONT}),
-            rx.hstack(
-                rx.text("PAGE", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT, size="1"),
-                rx.input(
-                    value=(CardAnalyzerState.page + 1).to(str),
-                    on_change=CardAnalyzerState.set_page_input,
-                    width="40px",
-                    size="1",
-                    style={"text_align": "center", **INPUT_STYLE}
-                ),
-                rx.text(f"OF {CardAnalyzerState.total_pages}", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT, size="1"),
-                align="center",
-                spacing="2"
-            ),
-            rx.button(">", variant="ghost", on_click=CardAnalyzerState.next_page, disabled=CardAnalyzerState.page >= CardAnalyzerState.total_pages - 1, color_scheme="gray", style={"font_family": MONOSPACE_FONT}),
-            justify="center",
-            width="100%",
-            padding_top="20px",
-            spacing="4"
-        ),
+        pagination_controls(CardAnalyzerState),
         
         width="100%",
         padding="20px",

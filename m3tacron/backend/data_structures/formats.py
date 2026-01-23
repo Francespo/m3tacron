@@ -1,9 +1,9 @@
 """
 Game format definitions and logic.
 """
-from enum import Enum
+from enum import StrEnum
 
-class MacroFormat(str, Enum):
+class MacroFormat(StrEnum):
     V2_5 = "2.5"
     V2_0 = "2.0"
     OTHER = "other"
@@ -16,10 +16,15 @@ class MacroFormat(str, Enum):
             case MacroFormat.V2_0: return "2.0"
             case MacroFormat.OTHER: return "Unknown/Other"
 
-    def __str__(self) -> str:
-        return self.value
 
-class Format(str, Enum):
+    def formats(self) -> list[str]:
+        """Return list of corresponding formats."""
+        match self:
+            case MacroFormat.V2_5: return [Format.AMG, Format.XWA, Format.XWA_EPIC]
+            case MacroFormat.V2_0: return [Format.LEGACY_X2PO, Format.LEGACY_XLC, Format.FFG, Format.WILDSPACE, Format.LEGACY_EPIC]
+            case MacroFormat.OTHER: return [Format.OTHER]
+
+class Format(StrEnum):
     # 2.5 Group
     AMG = "amg"
     XWA = "xwa"
@@ -49,8 +54,6 @@ class Format(str, Enum):
             case Format.LEGACY_EPIC: return "Legacy Epic"
             case _: return "Other"
             
-    def __str__(self) -> str:
-        return self.value
             
     @property
     def macro(self) -> MacroFormat:

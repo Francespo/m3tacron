@@ -73,6 +73,59 @@ class RollbetterScraper(BaseScraper):
                 except Exception as e:
                     logger.warning(f"Date extraction failed: {e}")
 
+                except Exception as e:
+                    logger.warning(f"Date extraction failed: {e}")
+
+                # Scrape Location
+                location_data = None
+                try:
+                    # Strategy 1: Icons (wait for them)
+                    try:
+                        page.wait_for_selector(".bi-geo-alt, .fa-map-marker-alt, .fa-map-marker", timeout=3000)
+                    except:
+                        pass
+                        
+                    loc_icon = page.locator(".bi-geo-alt, .fa-map-marker-alt, .fa-map-marker").first
+                    if loc_icon.count() > 0:
+                        full_text = loc_icon.locator("..").inner_text().strip()
+                        if full_text:
+                            # Parse "City, State, Country"
+                            parts = [p.strip() for p in full_text.split(',')]
+                            location_data = {
+                                "name": parts[0],
+                                "city": parts[0],
+                                "state": parts[1] if len(parts) > 1 else None,
+                                "country": parts[2] if len(parts) > 2 else "US"
+                            }
+                    
+                    # Strategy 2: Fallback to text blocks
+                    if not location_data:
+                        try:
+                            page.wait_for_selector("div.overflow-protected", timeout=3000)
+                        except: pass
+                        
+                        blocks = page.locator("div.overflow-protected").all()
+                        # logger.info(f"Checking {len(blocks)} blocks")
+                        for block in blocks:
+                            text = block.inner_text().strip()
+                             # Heuristics
+                            if text in ["Started", "Open", "More", "Show More", "List Fortress", "In Person", "Online"]: continue
+                            if "X-Wing" in text or "Standard" in text or "Legacy" in text or "Round" in text: continue
+                            if ":" in text and ("AM" in text or "PM" in text): continue
+                            
+                            # Candidates: "City, State, Country"
+                            if "," in text and len(text) < 100:
+                                parts = [p.strip() for p in text.split(',')]
+                                location_data = {
+                                    "name": parts[0],
+                                    "city": parts[0],
+                                    "state": parts[1] if len(parts) > 1 else None,
+                                    "country": parts[2] if len(parts) > 2 else "US"
+                                }
+                                break
+                except Exception as e:
+                    logger.warning(f"Location extraction failed: {e}")
+
                 # Player Count
                 # Look for badge "X/Y" e.g. "6/16"
                 player_count = 0
@@ -91,6 +144,7 @@ class RollbetterScraper(BaseScraper):
                     id=int(tournament_id),
                     name=name,
                     date=date_obj.date(),
+                    location=location_data,
                     format=None, # Inferred later
                     player_count=player_count,
                     platform=Platform.ROLLBETTER,

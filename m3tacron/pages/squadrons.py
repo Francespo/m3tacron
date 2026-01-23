@@ -1,5 +1,5 @@
 """
-Squadrons Page - Imperial Data Terminal Spec.
+Squadrons Page.
 """
 import reflex as rx
 from sqlmodel import Session, select
@@ -9,19 +9,23 @@ from ..components.card_tooltip import pilot_card_tooltip
 from ..components.sidebar import layout, dashboard_layout
 from ..backend.database import engine
 from ..backend.models import PlayerResult, Tournament
-from ..ui_utils.formats import FORMAT_HIERARCHY, get_default_format_selection, get_format_options
+from ..backend.data_structures.formats import Format, MacroFormat
 from ..backend.utils import get_squadron_signature, parse_squadron_signature
 from ..backend.data_structures.factions import Faction
 from ..components.format_filter import hierarchical_format_filter, FormatFilterMixin
 from ..components.multi_filter import collapsible_checkbox_group
+from ..ui_utils.pagination import PaginationMixin
+from ..components.pagination import pagination_controls
 from ..theme import (
     FACTION_COLORS, TERMINAL_BG, BORDER_COLOR, TERMINAL_PANEL,
     TEXT_PRIMARY, TEXT_SECONDARY, MONOSPACE_FONT, SANS_FONT, INPUT_STYLE,
     TERMINAL_PANEL_STYLE, RADIUS, FACTION_ICONS
 )
+from ..ui_utils.factions import faction_icon, get_faction_color
 from ..components.icons import ship_icon
 from ..backend.utils import load_all_pilots, get_pilot_info, get_filtered_ships
 from ..components.searchable_filter_accordion import searchable_filter_accordion
+from ..ui_utils.ships import get_ship_icon_name, render_ship_icon_group
 
 
 class SquadronsState(rx.State, FormatFilterMixin):
@@ -35,20 +39,18 @@ class SquadronsState(rx.State, FormatFilterMixin):
     def on_mount(self):
         self.load_squadrons()
 
-    def on_filter_change(self):
-        """Handle format filter changes."""
+    @rx.var
+    def total_items_count(self) -> int:
+        return self.total_squadrons
+
+    def on_page_change(self):
+        """Handle page changes by reloading data."""
         self.load_squadrons()
 
     def toggle_faction(self, faction: str, checked: bool):
         self.selected_factions[faction] = checked
         self.current_page = 0
         self.load_squadrons()
-
-    def toggle_format_macro(self, macro_val: str, checked: bool):
-        super().toggle_format_macro(macro_val, checked)
-
-    def toggle_format_child(self, child_val: str, checked: bool):
-        super().toggle_format_child(child_val, checked)
     
     # New Filters
     date_range_start: str = "" # YYYY-MM-DD
@@ -59,23 +61,10 @@ class SquadronsState(rx.State, FormatFilterMixin):
     # Autocomplete options
     all_ships: list[str] = []
     
-    # Overrides for XWS IDs that don't match the font class names
-    SHIP_ICON_OVERRIDES: dict[str, str] = {
-        "tieininterceptor": "tieinterceptor",
-        "tieadvx1": "tieadvancedx1",
-        "tieadvv1": "tieadvancedv1",
-        "scavengedyt1300lightfreighter": "scavengedyt1300", 
-        "xixt3classlightshuttle": "xiclasslightshuttle",
-        "bwing": "asf01bwing", # legacy check
-        "ywing": "btla4ywing", # legacy check
-    }
     
     squadrons_data: list[dict] = []
     total_squadrons: int = 0
     total_lists: int = 0
-    
-    page_size: int = 20
-    current_page: int = 0
     
     selected_squadron: str = ""
     squadron_details: dict = {}
@@ -146,12 +135,6 @@ class SquadronsState(rx.State, FormatFilterMixin):
         self.sort_mode = value
         self.load_squadrons()
     
-    def next_page(self):
-        self.current_page += 1
-    
-    def prev_page(self):
-        if self.current_page > 0:
-            self.current_page -= 1
     
     def load_squadrons(self):
         with Session(engine) as session:
@@ -173,13 +156,10 @@ class SquadronsState(rx.State, FormatFilterMixin):
                 # Filter by Format
                 # Hierarchy Logic: Check if t_fmt is enabled
                 t_fmt_raw = tournament.format
-                t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
+                t_fmt = str(t_fmt_raw) if t_fmt_raw else "other"
                 
                 if self.selected_formats:
                      if not self.selected_formats.get(t_fmt, False):
-                         # If not exact match, check macro? 
-                         # Usually hierarchy sets exact match keys.
-                         # If key missing, assume false if filters exist.
                          continue
                 # If selected_formats is empty, it means all? Or logic in load ensures it's populated.
                 # If we consider empty = all, then fine. But on mount default populates it.
@@ -318,11 +298,10 @@ class SquadronsState(rx.State, FormatFilterMixin):
                 # Format Ships for UI
                 ship_counts = Counter(ships)
                 ship_ui_list = []
-                for name, count in sorted(ship_counts.items()):
                     raw_xws = ship_map.get(name, "")
                     if not raw_xws:
                         raw_xws = name.lower().replace(" ", "").replace("-", "")
-                    icon_xws = self.SHIP_ICON_OVERRIDES.get(raw_xws, raw_xws)
+                    icon_xws = get_ship_icon_name(raw_xws)
                     
                     ship_ui_list.append({
                         "name": name,
@@ -369,11 +348,10 @@ class SquadronsState(rx.State, FormatFilterMixin):
         faction_color = FACTION_COLORS.get(raw_faction, TEXT_SECONDARY)
         faction_icon = FACTION_ICONS.get(raw_faction, "")
 
-        for name, count in sorted(ship_counts.items()):
             raw_xws = ship_map.get(name, "")
             if not raw_xws:
                 raw_xws = name.lower().replace(" ", "").replace("-", "")
-            icon_xws = self.SHIP_ICON_OVERRIDES.get(raw_xws, raw_xws)
+            icon_xws = get_ship_icon_name(raw_xws)
             
             ship_list.append({
                 "name": name,
@@ -395,8 +373,13 @@ class SquadronsState(rx.State, FormatFilterMixin):
             pilot_variations = Counter()
             
             for result, tournament in rows:
-                # Apply Filters (Reuse logic - simpler if extracted but Inline is fine for now)
-                if self.format_filter != "all" and tournament.macro_format != self.format_filter: continue
+                # Apply Filters
+                t_fmt_raw = tournament.format
+                t_fmt = str(t_fmt_raw) if t_fmt_raw else "other"
+                
+                if self.selected_formats and not self.selected_formats.get(t_fmt, False):
+                    continue
+                    
                 if self.date_range_start and str(tournament.date) < self.date_range_start: continue
                 if self.date_range_end and str(tournament.date) > self.date_range_end: continue
                 
@@ -579,32 +562,10 @@ def render_sidebar_filters() -> rx.Component:
     )
 
 
-def pagination_controls() -> rx.Component:
-    return rx.hstack(
-        rx.button("< PREV", variant="ghost", size="1", on_click=SquadronsState.prev_page, disabled=SquadronsState.current_page == 0, style={"color": TEXT_PRIMARY, "font_family": MONOSPACE_FONT}),
-        rx.text(f"Page {SquadronsState.current_page + 1}", size="2", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
-        rx.button("NEXT >", variant="ghost", size="1", on_click=SquadronsState.next_page, style={"color": TEXT_PRIMARY, "font_family": MONOSPACE_FONT}),
-        spacing="2",
-        align="center",
-    )
+def pagination_controls_squadrons() -> rx.Component:
+    return pagination_controls(SquadronsState)
 
 
-def render_ship_icon_group(ship: dict) -> rx.Component:
-    """Render a group of ship icons for a single chassis (e.g. 3x X-Wing)."""
-    return rx.tooltip(
-        rx.hstack(
-            rx.cond(
-                ship["count"].to(int) > 1,
-                rx.text(f"{ship['count']}x", size="1", color=ship["color"], font_family=MONOSPACE_FONT, weight="bold"),
-                rx.fragment()
-            ),
-            ship_icon(ship["icon"], size="1.2em", color=ship["color"]),
-            spacing="1",
-            align="center",
-            style={"cursor": "help"}
-        ),
-        content=ship["name"]
-    )
 
 
 def squadron_card(squadron: dict) -> rx.Component:
@@ -618,11 +579,7 @@ def squadron_card(squadron: dict) -> rx.Component:
             rx.vstack(
                 # Faction Header with Icon
                 rx.hstack(
-                    rx.cond(
-                        faction_icon_class.to(str) != "",
-                        rx.el.i(class_name=f"xwing-miniatures-font {faction_icon_class.to(str)}", style={"color": faction_color, "font_size": "1.5em", "margin_right": "8px"}),
-                        rx.fragment()
-                    ),
+                    faction_icon(squadron["faction_key"], size="1.5em"),
                     rx.text(squadron["faction"], size="1", color=faction_color, weight="bold", font_family=MONOSPACE_FONT),
                     spacing="2",
                     align="center"
@@ -673,11 +630,7 @@ def render_squadron_detail() -> rx.Component:
             rx.vstack(
                 # Header with Faction Icon
                 rx.hstack(
-                    rx.cond(
-                        SquadronsState.squadron_details["faction_icon"].to(str) != "",
-                        rx.el.i(class_name=SquadronsState.squadron_details["faction_icon"].to(str), style={"color": SquadronsState.squadron_details["faction_color"], "font_size": "2em", "margin_right": "12px"}),
-                        rx.fragment()
-                    ),
+                    faction_icon(SquadronsState.squadron_details["faction_key"], size="2em"),
                     rx.heading(
                         SquadronsState.squadron_details["faction"], 
                         size="5", 
@@ -756,7 +709,7 @@ def squadrons_content() -> rx.Component:
         rx.flex(
             rx.text(f"{SquadronsState.total_squadrons} UNIQUE SQUADRONS", size="2", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
             rx.spacer(),
-            pagination_controls(),
+            pagination_controls_squadrons(),
             width="100%", 
             justify="between", 
             align="center",
@@ -768,7 +721,7 @@ def squadrons_content() -> rx.Component:
             spacing="4",
             width="100%",
         ),
-        rx.hstack(rx.spacer(), pagination_controls(), width="100%", margin_top="24px"),
+        rx.hstack(rx.spacer(), pagination_controls_squadrons(), width="100%", margin_top="24px"),
         align="start",
         width="100%",
         max_width="1200px",

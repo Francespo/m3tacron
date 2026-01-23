@@ -1,9 +1,9 @@
 """
 Faction definitions and utilities.
 """
-from enum import Enum
+from enum import StrEnum
 
-class Faction(str, Enum):
+class Faction(StrEnum):
     """
     X-Wing faction identifiers.
     """
@@ -39,8 +39,6 @@ class Faction(str, Enum):
             case _:
                 return "Unknown"
 
-    def __str__(self) -> str:
-        return self.value
 
     @classmethod
     def from_xws(cls, value: str):

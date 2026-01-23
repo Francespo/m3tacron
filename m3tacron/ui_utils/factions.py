@@ -13,10 +13,30 @@ def get_faction_color(faction_xws: rx.Var | str) -> rx.Var:
         TEXT_SECONDARY
     )
 
-def get_faction_icon(faction_xws: rx.Var | str) -> rx.Var:
-    """Get icon class for a faction ID, supporting both Var and string."""
+def get_faction_icon_class(faction_xws: rx.Var | str) -> rx.Var:
+    """Get icon class suffix for a faction ID."""
     return rx.match(
         faction_xws,
         *[ (k, v) for k, v in FACTION_ICONS.items() ],
         ""
+    )
+
+def faction_icon(faction_xws: rx.Var | str, size: str = "24px") -> rx.Component:
+    """Render a unified faction icon from the X-Wing font."""
+    icon_cls = get_faction_icon_class(faction_xws)
+    color = get_faction_color(faction_xws)
+    
+    return rx.cond(
+        icon_cls != "",
+        rx.html(
+            rx.match(
+                icon_cls,
+                # Special cases if any, otherwise standard mapping
+                *[ (v, f"<i class='xwing-miniatures-font {v}'></i>") for v in FACTION_ICONS.values() ],
+                ""
+            ),
+            font_size=size,
+            color=color
+        ),
+        rx.fragment()
     )

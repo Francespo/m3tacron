@@ -1,9 +1,9 @@
 """
 Data sources for game content.
 """
-from enum import Enum
+from enum import StrEnum
 
-class DataSource(str, Enum):
+class DataSource(StrEnum):
     LEGACY = "legacy"
     XWA = "xwa"
 

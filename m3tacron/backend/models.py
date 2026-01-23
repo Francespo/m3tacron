@@ -10,13 +10,14 @@ Defines:
 import logging
 import reflex as rx
 from sqlmodel import Field, Relationship
-from datetime import datetime, date
+from datetime import date
 from sqlalchemy import JSON, Column, String
 
 from .data_structures.formats import Format
 from .data_structures.platforms import Platform
 from .data_structures.scenarios import Scenario
 from .data_structures.round_types import RoundType
+from .data_structures.location import Location, LocationType
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +28,7 @@ class Tournament(rx.Model, table=True):
     """
     name: str
     date: date
-    city: str | None = Field(default=None)
-    state: str | None = Field(default=None)
+    location: Location | None = Field(default=None, sa_column=Column(LocationType))
     player_count: int = Field(default=0)
     url: str
     
@@ -88,4 +88,3 @@ class Match(rx.Model, table=True):
     winner_id: int | None = Field(default=None)
     first_player_id: int | None = Field(default=None)
     is_bye: bool = Field(default=False)
-

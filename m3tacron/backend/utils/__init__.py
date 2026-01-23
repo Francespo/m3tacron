@@ -1,7 +1,7 @@
 """
 Utility package for M3taCron.
 """
-from .text import normalize_location_string
+
 from .squadron import parse_builder_url, get_squadron_signature, parse_squadron_signature
 from .yasb import xws_to_yasb_url, get_yasb_base_url, get_xws_string
 from .xwing_data import (

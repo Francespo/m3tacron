@@ -9,39 +9,43 @@ from ..backend.database import engine
 from ..components.ui import content_panel, list_row
 from ..components.icons import xwing_icon
 from ..backend.models import Tournament, PlayerResult
-from ..backend.data_structures.formats import Format
-from ..ui_utils.formats import FORMAT_HIERARCHY, get_format_options
+from ..backend.data_structures.formats import Format, MacroFormat
 from ..backend.data_structures.platforms import Platform
+from ..ui_utils.pagination import PaginationMixin
+from ..components.pagination import pagination_controls
 from ..theme import (
     TERMINAL_BG, TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR, 
     MONOSPACE_FONT, SANS_FONT, INPUT_STYLE, FACTION_COLORS
 )
 
 
-class TournamentsState(rx.State):
+class TournamentsState(rx.State, PaginationMixin):
     """State for the Tournaments page."""
     tournaments: list[dict] = []
     search_query: str = ""
     macro_filter: str = "all"
     sub_filter: str = "all"
     
-    # Pagination
-    page_size: int = 20
-    current_page: int = 0
-    
     @rx.var
     def available_sub_formats(self) -> list[list[str]]:
         """Get available sub-formats based on current macro filter."""
+        options = [["All", "all"]]
+        
         if self.macro_filter == "all":
-            # Return all sub-formats (flattened children)
-            return get_format_options()
-        
-        # Find the specific macro format and return its children
-        for macro in FORMAT_HIERARCHY:
-            if macro["value"] == self.macro_filter:
-                return [["All", "all"]] + [[sub["label"], sub["value"]] for sub in macro["children"]]
-        
-        return [["All", "all"]]
+            # Show all specific formats
+            for f in Format:
+                if f != Format.OTHER:
+                    options.append([f.label, f.value])
+        else:
+            # Show formats belonging to the selected macro
+            try:
+                macro = MacroFormat(self.macro_filter)
+                for f in macro.formats():
+                    options.append([f.label, f.value])
+            except ValueError:
+                pass
+                
+        return options
     
     @rx.var
     def filtered_tournaments(self) -> list[dict]:
@@ -54,7 +58,7 @@ class TournamentsState(rx.State):
         
         # Apply sub format filter
         if self.sub_filter != "all":
-            result = [t for t in result if t["sub_format"] == self.sub_filter]
+            result = [t for t in result if t["format"] == self.sub_filter]
         
         # Apply search filter
         if self.search_query:
@@ -71,27 +75,9 @@ class TournamentsState(rx.State):
         return self.filtered_tournaments[start:end]
     
     @rx.var
-    def total_pages(self) -> int:
-        """Calculate total pages."""
-        total = len(self.filtered_tournaments)
-        return (total + self.page_size - 1) // self.page_size if total > 0 else 1
-    
-    @rx.var
-    def has_next(self) -> bool:
-        return self.current_page < self.total_pages - 1
-    
-    @rx.var
-    def has_prev(self) -> bool:
-        return self.current_page > 0
-    
-    def next_page(self):
-        if self.current_page < self.total_pages - 1:
-            self.current_page += 1
-    
-    def prev_page(self):
-        if self.current_page > 0:
-            self.current_page -= 1
-    
+    def total_items_count(self) -> int:
+        return len(self.filtered_tournaments)
+
     def set_page_size(self, size: str):
         self.page_size = int(size)
         self.current_page = 0
@@ -115,14 +101,13 @@ class TournamentsState(rx.State):
                 self.tournaments.append({
                     "id": t.id,
                     "name": t.name,
-                    "date": t.date.strftime("%Y-%m-%d"),
+                    "date": t.date.strftime("%Y-%m-%d") if t.date else "Unknown",
                     "players": player_count,
-                    "format": t.format, # ID
-                    "format_label": (t.format or Format.OTHER).label,
+                    "format": str(t.format) if t.format else "other",
+                    "format_label": Format(t.format).label if t.format else "Other",
                     "macro_format": t.macro_format,
-                    "sub_format": t.format, # Mapped for filter logic compatibility
-                    "platform": t.platform, # ID
-                    "platform_label": Platform(t.platform).label if t.platform in Platform._value2member_map_ else t.platform,
+                    "platform": str(t.platform),
+                    "platform_label": Platform(t.platform).label if t.platform in Platform._value2member_map_ else str(t.platform),
                     "url": t.url,
                 })
     
@@ -234,7 +219,7 @@ def render_filters() -> rx.Component:
         # Format
         filter_select(
             "FORMAT",
-            get_format_options(),
+            [["All", "all"]] + [[m.label, m.value] for m in MacroFormat if m != MacroFormat.OTHER],
             TournamentsState.macro_filter,
             TournamentsState.set_macro_filter,
         ),
@@ -285,34 +270,7 @@ def tournaments_content() -> rx.Component:
                     lambda t, i: tournament_card(t, i)
                 ),
                 # Pagination
-                rx.hstack(
-                    rx.text(
-                        (TournamentsState.current_page + 1).to_string() + " / " + TournamentsState.total_pages.to_string(),
-                        size="2",
-                        color=TEXT_SECONDARY,
-                        font_family=MONOSPACE_FONT
-                    ),
-                    rx.spacer(),
-                    rx.button(
-                        "< PREV",
-                        variant="ghost",
-                        size="1",
-                        on_click=TournamentsState.prev_page,
-                        disabled=~TournamentsState.has_prev,
-                        style={"color": TEXT_PRIMARY, "font_family": MONOSPACE_FONT}
-                    ),
-                    rx.button(
-                        "NEXT >",
-                        variant="ghost",
-                        size="1",
-                        on_click=TournamentsState.next_page,
-                        disabled=~TournamentsState.has_next,
-                        style={"color": TEXT_PRIMARY, "font_family": MONOSPACE_FONT}
-                    ),
-                    width="100%",
-                    padding_top="16px",
-                    border_top=f"1px solid {BORDER_COLOR}"
-                ),
+                pagination_controls(TournamentsState),
                 spacing="0", # Tight list
                 width="100%",
                 class_name="animate-fade-in-up delay-300"

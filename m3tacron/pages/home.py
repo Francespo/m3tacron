@@ -1,5 +1,5 @@
 """
-M3taCron Home Page - Imperial Data Terminal Spec.
+M3taCron Home Page.
 """
 import reflex as rx
 from sqlmodel import Session, select, func
@@ -15,7 +15,7 @@ from ..theme import (
 
 class HomeState(rx.State):
     """State for the Home page."""
-    recent_tournaments: list[dict] = []
+    recent_tournaments: list[Tournament] = []
     
     def load_data(self):
         """Load dashboard data from database."""
@@ -25,43 +25,33 @@ class HomeState(rx.State):
                 select(Tournament).order_by(Tournament.date.desc()).limit(10)
             ).all()
             
-            self.recent_tournaments = []
-            for t in tournaments:
-                player_count = t.player_count
-                if player_count == 0:
-                     player_count = session.exec(
-                        select(func.count(PlayerResult.id)).where(
-                            PlayerResult.tournament_id == t.id
-                        )
-                    ).one()
-                
-                self.recent_tournaments.append({
-                    "id": t.id,
-                    "name": t.name,
-                    "date": t.date.strftime("%Y-%m-%d"),
-                    "players": player_count,
-                    "format": t.format,
-                })
+            self.recent_tournaments = tournaments
+            
+            # Note: player_count is a field in Tournament model. 
+            # If it's 0, we could fetch it, but usually the model should have it.
+            # Keeping the logic for dynamic count if needed, but storing the object.
+            # To avoid extra DB queries during list render, we assume player_count is set.
 
 
-def tournament_row(tournament: dict, index: int) -> rx.Component:
+def tournament_row(tournament: Tournament, index: int) -> rx.Component:
     """Row for recent tournaments."""
+    from ..backend.data_structures.formats import Format
     return rx.link(
         list_row(
             left_content=rx.vstack(
-                rx.text(tournament["name"], size="2", weight="bold", color=TEXT_PRIMARY, font_family=MONOSPACE_FONT),
-                rx.text(tournament["date"], size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+                rx.text(tournament.name, size="2", weight="bold", color=TEXT_PRIMARY, font_family=MONOSPACE_FONT),
+                rx.text(tournament.date.to(str), size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
                 spacing="0",
                 align="start",
             ),
             right_content=rx.hstack(
-                rx.text(tournament["format"], size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
-                rx.text(f"[{tournament['players']}]", size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+                rx.text(rx.cond(tournament.format, Format(tournament.format).label, "Other"), size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+                rx.text(f"[{tournament.player_count}]", size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
                 spacing="2"
             ),
             index=index,
         ),
-        href="/tournament/" + tournament["id"].to_string(),
+        href="/tournament/" + tournament.id.to_string(),
         style={"text_decoration": "none", "width": "100%"}
     )
 

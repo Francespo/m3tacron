@@ -10,7 +10,9 @@ from ..models import Tournament, PlayerResult, Match
 from ..data_structures.formats import Format, infer_format_from_xws
 from ..data_structures.platforms import Platform
 from ..data_structures.round_types import RoundType
+from ..data_structures.round_types import RoundType
 from ..data_structures.scenarios import Scenario
+from ..data_structures.location import Location
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +49,7 @@ class RollbetterScraperV2(BaseScraper):
             page = browser.new_page()
             
             try:
-                page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                page.goto(url, wait_until="networkidle", timeout=60000)
                 
                 # Check validation (throws error if fails)
                 if not self._validate_page(page, tournament_id):
@@ -55,12 +57,54 @@ class RollbetterScraperV2(BaseScraper):
 
                 # Try ListFortress Export
                 lf_data = self._try_listfortress_export(page)
+                
+                # Capture Location from Page (since LF JSON might not have it)
+                location_data = None
+                try:
+                    # Strategy 1: Icons (wait for them)
+                    try:
+                        page.wait_for_selector(".bi-geo-alt, .fa-map-marker-alt, .fa-map-marker", timeout=3000)
+                    except:
+                        pass
+                        
+                    loc_icon = page.locator(".bi-geo-alt, .fa-map-marker-alt, .fa-map-marker").first
+                    if loc_icon.count() > 0:
+                        full_text = loc_icon.locator("..").inner_text().strip()
+                        if full_text:
+                            parts = [p.strip() for p in full_text.split(',')]
+                            location_data = Location.create(
+                                city=parts[0],
+                                country=parts[2] if len(parts) > 2 else "US"
+                            )
+                    
+                    # Strategy 2: Fallback to text blocks
+                    if not location_data:
+                        try:
+                            page.wait_for_selector("div.overflow-protected", timeout=3000)
+                        except: pass
+                        
+                        blocks = page.locator("div.overflow-protected").all()
+                        for block in blocks:
+                            text = block.inner_text().strip()
+                            if text in ["Started", "Open", "More", "Show More", "List Fortress", "In Person", "Online"]: continue
+                            if "X-Wing" in text or "Standard" in text or "Legacy" in text or "Round" in text: continue
+                            if ":" in text and ("AM" in text or "PM" in text): continue
+                            
+                            if "," in text and len(text) < 100:
+                                parts = [p.strip() for p in text.split(',')]
+                                location_data = Location.create(
+                                    city=parts[0],
+                                    country=parts[2] if len(parts) > 2 else "US"
+                                )
+                                break
+                except: pass
+
                 if lf_data:
                     logger.info(f"Using LF JSON for {tournament_id}")
-                    self.cache[tournament_id] = self._parse_from_json(lf_data, tournament_id, url)
+                    self.cache[tournament_id] = self._parse_from_json(lf_data, tournament_id, url, location_data)
                 else:
                      logger.info(f"Fallback HTML for {tournament_id}")
-                     self.cache[tournament_id] = self._scrape_html_fallback(page, tournament_id, url)
+                     self.cache[tournament_id] = self._scrape_html_fallback(page, tournament_id, url, location_data)
                      
             finally:
                 browser.close()
@@ -162,7 +206,7 @@ class RollbetterScraperV2(BaseScraper):
             logger.warning(f"List Fortress export failed or not found: {e}")
             return None
 
-    def _parse_from_json(self, data: dict, tid: str, url: str):
+    def _parse_from_json(self, data: dict, tid: str, url: str, location_data: dict | None = None):
         # ... JSON parsing logic from previous step ...
         # (I will reimplement cleanly here to match cache structure)
         
@@ -176,6 +220,7 @@ class RollbetterScraperV2(BaseScraper):
         players_json = data.get("players", [])
         t = Tournament(
             id=int(tid), name=name, date=date_obj,
+            location=location_data,
             player_count=len(players_json), platform=Platform.ROLLBETTER, url=url, format=Format.OTHER
         )
 
@@ -247,7 +292,7 @@ class RollbetterScraperV2(BaseScraper):
         
         return {'tournament': t, 'players': participants, 'matches': matches}
 
-    def _scrape_html_fallback(self, page, tid, url):
+    def _scrape_html_fallback(self, page, tid, url, location_data: dict | None = None):
         # Re-implementation of HTML scraping
         name = page.locator("h1").first.inner_text().strip()
         
@@ -269,8 +314,12 @@ class RollbetterScraperV2(BaseScraper):
                         player_count = int(parts[0].strip())
                         break
         except: pass
-        
-        t = Tournament(id=int(tid), name=name, date=date_obj.date(), player_count=player_count, platform=Platform.ROLLBETTER, url=url, format=Format.OTHER)
+
+        t = Tournament(
+            id=int(tid), name=name, date=date_obj.date(), 
+            location=location_data,
+            player_count=player_count, platform=Platform.ROLLBETTER, url=url, format=Format.OTHER
+        )
         
         # Ladder
         ladder_data = page.evaluate("""() => {

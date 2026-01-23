@@ -1,9 +1,9 @@
 """
 2.5 Scenarios.
 """
-from enum import Enum
+from enum import StrEnum
 
-class Scenario(str, Enum):
+class Scenario(StrEnum):
     ANCIENT_KNOWLEDGE = "ancient_knowledge"
     ASSAULT_AT_THE_SATELLITE_ARRAY = "assault_at_the_satellite_array"
     ASSAULT_THE_SATELLITE_ARRAY = "assault_the_satellite_array"  # Alternate spelling on some sites
@@ -21,5 +21,3 @@ class Scenario(str, Enum):
             case Scenario.SALVAGE_MISSION: return "Salvage Mission"
             case Scenario.SCRAMBLE_THE_TRANSMISSIONS: return "Scramble the Transmissions"
 
-    def __str__(self) -> str:
-        return self.value

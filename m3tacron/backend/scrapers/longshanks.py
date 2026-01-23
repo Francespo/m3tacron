@@ -151,6 +151,20 @@ class LongshanksScraper(BaseScraper):
                     return { dateStr, playerCount };
                 }""")
                 
+                # Extract Location (often under the details or separate, check simple text search in table or headers)
+                # Usually in the table row with "Location" or "Venue"
+                location_data = page.evaluate("""() => {
+                    const rows = document.querySelectorAll('tr');
+                    for (const row of rows) {
+                        const img = row.querySelector('img');
+                        if (img && (img.alt === 'Location' || img.alt === 'Venue')) {
+                            const cells = row.querySelectorAll('td');
+                            if (cells.length > 1) return cells[1].textContent.trim();
+                        }
+                    }
+                    return null;
+                }""")
+                
                 parsed_date = self._parse_date(event_info.get("dateStr", ""))
                 player_count = event_info.get("playerCount", 0)
                 
@@ -161,6 +175,7 @@ class LongshanksScraper(BaseScraper):
                     id=int(tournament_id),
                     name=name,
                     date=parsed_date.date(),
+                    location={"name": location_data} if location_data else None,
                     format=game_format,
                     player_count=player_count,
                     platform=Platform.LONGSHANKS,
@@ -656,9 +671,15 @@ class LongshanksScraper(BaseScraper):
                             let roundType = "swiss";
                             
                             if (rMatch) {
-                                        const d = val.match(/\\d+/);
-                                        roundNum = d ? parseInt(d[0]) : 1;
-                                    }
+                                const type = rMatch[1].toLowerCase();
+                                const val = rMatch[2];
+                                
+                                if (type === 'round') {
+                                    roundNum = parseInt(val) || 1;
+                                } else {
+                                    roundType = 'cut';
+                                    const d = val.match(/\\d+/);
+                                    roundNum = d ? parseInt(d[0]) : 1;
                                 }
                             }
                             

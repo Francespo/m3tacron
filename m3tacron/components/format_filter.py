@@ -2,7 +2,7 @@
 Hierarchical Format Filter Component.
 """
 import reflex as rx
-from ..ui_utils.formats import FORMAT_HIERARCHY, get_default_format_selection
+from ..backend.data_structures.formats import Format, MacroFormat
 from ..theme import TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR, INPUT_STYLE, MONOSPACE_FONT
 
 class FormatFilterMixin:
@@ -10,16 +10,18 @@ class FormatFilterMixin:
     Mixin for states that need hierarchical format filtering.
     """
     # Map of format/macro value -> boolean
-    selected_formats: dict[str, bool] = get_default_format_selection()
+    selected_formats: dict[str, bool] = {m.value: True for m in MacroFormat} | {f.value: True for f in Format}
 
     def toggle_format_macro(self, macro_val: str, checked: bool):
         """Toggle a macro format and all its children."""
         self.selected_formats[macro_val] = checked
         # Toggle all children
-        for m in FORMAT_HIERARCHY:
-            if m["value"] == macro_val:
-                for child in m["children"]:
-                    self.selected_formats[child["value"]] = checked
+        try:
+            macro = MacroFormat(macro_val)
+            for f in macro.formats():
+                self.selected_formats[f.value] = checked
+        except ValueError:
+            pass
         self.on_filter_change()
 
     def toggle_format_child(self, child_val: str, checked: bool):
@@ -49,7 +51,7 @@ def render_format_item(item: dict, state_var: rx.Var, on_toggle: callable) -> rx
     )
 
 def render_macro_section(
-    macro: dict, 
+    macro: MacroFormat, 
     path_to_selection: rx.Var, 
     on_toggle_macro: callable, 
     on_toggle_child: callable
@@ -59,22 +61,22 @@ def render_macro_section(
     """
     children_components = []
     
-    # Static iteration over children
-    for child in macro["children"]:
+    # Static iteration over children using enum
+    for child in macro.formats():
         children_components.append(
             rx.hstack(
                 rx.checkbox(
-                    checked=path_to_selection[child["value"]],
-                    on_change=lambda val: on_toggle_child(child["value"], val),
+                    checked=path_to_selection[child.value],
+                    on_change=lambda val, c=child.value: on_toggle_child(c, val),
                     color_scheme="gray",
                     size="1",
                 ),
                 rx.text(
-                    child["label"], 
+                    child.label, 
                     size="1", 
                     color=TEXT_PRIMARY,
                     font_family=MONOSPACE_FONT,
-                    on_click=lambda: on_toggle_child(child["value"], ~path_to_selection[child["value"]]),
+                    on_click=lambda c=child.value: on_toggle_child(c, ~path_to_selection[c]),
                     cursor="pointer"
                 ),
                 spacing="2",
@@ -86,13 +88,13 @@ def render_macro_section(
     return rx.accordion.item(
         header=rx.hstack(
             rx.checkbox(
-                checked=path_to_selection[macro["value"]],
-                on_change=lambda val: on_toggle_macro(macro["value"], val),
+                checked=path_to_selection[macro.value],
+                on_change=lambda val, m=macro.value: on_toggle_macro(m, val),
                 size="1", 
                 color_scheme="gray",
             ),
             rx.text(
-                macro["label"], 
+                macro.label, 
                 weight="bold", 
                 size="1", 
                 color=TEXT_SECONDARY,
@@ -109,7 +111,7 @@ def render_macro_section(
             width="100%",
             padding_top="8px"
         ),
-        value=macro["label"], # Value for open state
+        value=macro.label, # Value for open state
         style={
             "background": "transparent", 
             "border": "none",
@@ -126,12 +128,13 @@ def hierarchical_format_filter(
     """
     Main component.
     """
-    # Static iteration over Macros
+    # Static iteration over Macros using enum
     macro_items = []
-    for m in FORMAT_HIERARCHY:
-        macro_items.append(
-            render_macro_section(m, selection_var, on_toggle_macro, on_toggle_child)
-        )
+    for m in MacroFormat:
+        if m != MacroFormat.OTHER:
+            macro_items.append(
+                render_macro_section(m, selection_var, on_toggle_macro, on_toggle_child)
+            )
     
     # Inner Accordion for Macros
     inner_accordion = rx.accordion.root(

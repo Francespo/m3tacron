@@ -1,9 +1,9 @@
 """
 Upgrade types for X-Wing.
 """
-from enum import Enum
+from enum import StrEnum
 
-class UpgradeType(str, Enum):
+class UpgradeType(StrEnum):
     Astromech = "astromech"
     Cannon = "cannon"
     Cargo = "cargo"

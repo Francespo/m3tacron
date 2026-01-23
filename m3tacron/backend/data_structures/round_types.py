@@ -1,9 +1,9 @@
 """
 Tournament round types.
 """
-from enum import Enum
+from enum import StrEnum
 
-class RoundType(str, Enum):
+class RoundType(StrEnum):
     SWISS = "swiss"
     CUT = "cut"
 
@@ -14,5 +14,3 @@ class RoundType(str, Enum):
             case RoundType.SWISS: return "Swiss"
             case RoundType.CUT: return "Cut"
 
-    def __str__(self) -> str:
-        return self.value
