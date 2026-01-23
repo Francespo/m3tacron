@@ -1,5 +1,5 @@
 """
-Reusable UI components for M3taCron pages - Imperial Data Terminal Spec.
+Reusable UI components for M3taCron pages.
 """
 import reflex as rx
 
@@ -42,14 +42,6 @@ def content_panel(title: str, content: rx.Component, icon: str = "activity") -> 
         width="100%",
         height="100%",
     )
-
-# Alias for backwards compatibility
-def terminal_panel(title: str, content: rx.Component, icon: str = "activity") -> rx.Component:
-    return content_panel(title, content, icon)
-
-
-
-
 
 def list_row(
     left_content: rx.Component, 
@@ -120,7 +112,3 @@ def stat_card(title: str, value: rx.Var, subtitle: str = "") -> rx.Component:
         style=TERMINAL_PANEL_STYLE,
         min_width="180px",
     )
-
-# Alias for backwards compatibility
-def glass_panel(title: str, content: rx.Component, icon: str = "activity") -> rx.Component:
-    return terminal_panel(title, content, icon)

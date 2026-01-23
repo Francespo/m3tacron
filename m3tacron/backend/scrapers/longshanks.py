@@ -13,12 +13,11 @@ from playwright.sync_api import sync_playwright
 # Local Imports
 from .base import BaseScraper
 from ..models import Tournament, PlayerResult, Match
-from ..enums.formats import Format, infer_format_from_xws
-from ..enums.factions import Faction
-from ..enums.factions import Faction
-from ..enums.platforms import Platform
-from ..enums.round_types import RoundType
-from ..enums.scenarios import Scenario
+from ..data_structures.formats import Format, infer_format_from_xws
+from ..data_structures.factions import Faction
+from ..data_structures.platforms import Platform
+from ..data_structures.round_types import RoundType
+from ..data_structures.scenarios import Scenario
 
 logger = logging.getLogger(__name__)
 
@@ -96,23 +95,8 @@ class LongshanksScraper(BaseScraper):
     
     def _parse_faction(self, value: str) -> str | None:
         """Parse faction from image alt/src."""
-        value = value.lower()
-        
-        faction_map = {
-            "rebel": "rebelalliance",
-            "empire": "galacticempire",
-            "scum": "scumandvillainy",
-            "resistance": "resistance",
-            "first order": "firstorder",
-            "republic": "galacticrepublic",
-            "separatist": "separatistalliance",
-        }
-        
-        for key, faction in faction_map.items():
-            if key in value:
-                return faction
-        
-        return None
+        faction = Faction.from_xws(value)
+        return faction.value if faction != Faction.UNKNOWN else None
     
     def get_tournament_data(self, tournament_id: str) -> Tournament:
         """
@@ -149,11 +133,11 @@ class LongshanksScraper(BaseScraper):
                         
                         // Event size (e.g. "17 players" or "28 of 36 players")
                         if (alt === 'Event size' || value.includes('player')) {
-                            const outOfMatch = value.match(/(\\d+)\\s*out\\s*of\\s*\\d+/i);
+                            const outOfMatch = value.match(/(\d+)\s*(?:out\s+)?of\s+\d+/i);
                             if (outOfMatch) {
                                 playerCount = parseInt(outOfMatch[1], 10);
                             } else {
-                                const match = value.match(/(\\d+)\\s*player/i);
+                                const match = value.match(/(\d+)\s*player/i);
                                 if (match) playerCount = parseInt(match[1], 10);
                             }
                         }
@@ -220,6 +204,7 @@ class LongshanksScraper(BaseScraper):
                 # Extract player data from div.player elements (Longshanks uses divs, not tables)
                 player_data = page.evaluate("""() => {
                     const results = [];
+                    const seenNames = new Set();
                     // Longshanks uses div.player for each player row (or ranking_row for AJAX loaded)
                     const players = document.querySelectorAll('.player:not(.accordion), .ranking_row');
                     
@@ -260,7 +245,8 @@ class LongshanksScraper(BaseScraper):
                             name = name.replace(/\\s*#\\d+$/, '').trim();
                         }
                         
-                        if (!name) return;
+                        if (!name || seenNames.has(name)) return;
+                        seenNames.add(name);
                         
                         // W/L/D is in a child with class 'stat mono' (usually index 5)
                         // Format: "3 / 0" or "3 / 0 / 0"

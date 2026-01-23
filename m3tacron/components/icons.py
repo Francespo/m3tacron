@@ -9,27 +9,32 @@ Usage:
 import reflex as rx
 
 from ..theme import FACTION_ICONS
+from ..ui_utils.factions import get_faction_color, get_faction_icon
 
 
-def xwing_icon(icon_type: str, size: str = "1.5em", color: str | None = None) -> rx.Component:
+def xwing_icon(icon_type: str | rx.Var, size: str = "1.5em", color: str | rx.Var | None = None) -> rx.Component:
     """
     Render an X-Wing miniatures font icon.
     
     Args:
         icon_type: Icon type (faction XWS ID or icon class suffix)
         size: Font size (e.g., "1.5em", "24px")
-        color: Optional color override
+        color: Optional color override (can be Var or string)
         
     Returns:
         Icon component using xwing-miniatures-font
     """
-    # If icon_type is a Reflex Var, we must assume it's already the correct class
-    # or handle it differently, as we can't look it up in a Python dict.
-    if isinstance(icon_type, rx.Var):
-        icon_class = icon_type
-    else:
-        # Map faction XWS to icon class if needed
-        icon_class = FACTION_ICONS.get(icon_type.lower(), icon_type)
+    # If icon_type is a known faction, get its specific icon class
+    # If it's a Var, get_faction_icon uses rx.match
+    icon_class = get_faction_icon(icon_type)
+    
+    # Fallback: if icon_class is empty (default in match), use icon_type directly
+    # This allows passing direct classes like "rebel" or "empire"
+    final_icon_class_var = rx.cond(
+        icon_class == "",
+        icon_type,
+        icon_class
+    )
     
     style = {
         "font_size": size,
@@ -38,23 +43,14 @@ def xwing_icon(icon_type: str, size: str = "1.5em", color: str | None = None) ->
     if color is not None:
         style["color"] = color
     
-    if isinstance(icon_class, rx.Var):
-        # Reflex Logic
-        return rx.el.i(
-            class_name=rx.cond(
-                icon_class.to(str).contains("xwing-miniatures-font-"),
-                f"xwing-miniatures-font {icon_class}",
-                f"xwing-miniatures-font xwing-miniatures-font-{icon_class}"
-            ),
-            style=style,
-        )
-    else:
-        # Python Logic
-        final_class = f"xwing-miniatures-font {icon_class}" if "xwing-miniatures-font-" in icon_class else f"xwing-miniatures-font xwing-miniatures-font-{icon_class}"
-        return rx.el.i(
-            class_name=final_class,
-            style=style,
-        )
+    return rx.el.i(
+        class_name=rx.cond(
+            final_icon_class_var.to(str).contains("xwing-miniatures-font-"),
+            f"xwing-miniatures-font {final_icon_class_var}",
+            f"xwing-miniatures-font xwing-miniatures-font-{final_icon_class_var}"
+        ),
+        style=style,
+    )
 
 
 def ship_icon(ship_xws: str, size: str = "1.5em", color: str | None = None) -> rx.Component:
@@ -89,23 +85,23 @@ def ship_icon(ship_xws: str, size: str = "1.5em", color: str | None = None) -> r
     )
 
 
-def faction_badge(faction_xws: str, show_name: bool = False) -> rx.Component:
+def faction_badge(faction_xws: str | rx.Var, show_name: bool = False) -> rx.Component:
     """
     Render a faction badge with icon and optional name.
     
     Follows the spec rule: "Never write name if icon can be used"
     By default shows icon only; set show_name=True for accessibility.
     """
-    from ..theme import FACTION_COLORS
-    
-    color = FACTION_COLORS.get(faction_xws.lower(), "#8a8a9a")
+    color = get_faction_color(faction_xws)
     
     if show_name:
-        from ..backend.enums.factions import Faction
-        name = Faction.from_xws(faction_xws).label
+        from ..backend.data_structures.factions import Faction
+        # Note: Faction.from_xws works on strings, so if faction_xws is Var, 
+        # we'd need a frontend-side mapping for the name if we truly wanted it reactive.
+        # But usually faction_badge is used in foreach where we have the string or 
+        # we can pass the name separately. For now, keep icon reactive.
         return rx.hstack(
             xwing_icon(faction_xws, size="1.2em", color=color),
-            rx.text(name, size="2", color=color),
             spacing="1",
             align="center",
         )

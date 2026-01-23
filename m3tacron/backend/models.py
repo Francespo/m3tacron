@@ -13,10 +13,10 @@ from sqlmodel import Field, Relationship
 from datetime import datetime, date
 from sqlalchemy import JSON, Column, String
 
-from .enums.formats import get_format, Format
-from .enums.platforms import Platform
-from .enums.scenarios import Scenario
-from .enums.round_types import RoundType
+from .data_structures.formats import Format
+from .data_structures.platforms import Platform
+from .data_structures.scenarios import Scenario
+from .data_structures.round_types import RoundType
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,8 @@ class Tournament(rx.Model, table=True):
     """
     name: str
     date: date
+    city: str | None = Field(default=None)
+    state: str | None = Field(default=None)
     player_count: int = Field(default=0)
     url: str
     
@@ -38,7 +40,7 @@ class Tournament(rx.Model, table=True):
     @property
     def macro_format(self) -> str:
         """Infer macro format from the specific format."""
-        return get_format(self.format or "").macro.value
+        return (self.format or Format.OTHER).macro.value
 
 
 class PlayerResult(rx.Model, table=True):

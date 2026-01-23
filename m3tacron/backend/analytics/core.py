@@ -1,79 +1,20 @@
 """
 Card Analytics - Aggregation Logic for Pilots and Upgrades.
 """
-from collections import Counter
 from sqlmodel import Session, select
-
-from .database import engine
-from .models import PlayerResult, Tournament
-from .xwing_data import get_pilot_name, get_upgrade_name, get_pilot_info, load_all_pilots, load_all_upgrades
-from .enums.factions import Faction
-from .enums.formats import Format, MacroFormat
-
-def filter_query(query, filters: dict):
-    """
-    Apply filters to the query.
-    filters:Dictionary containing:
-        - formats: list[str] (e.g. ["2.5", "amg"]) -> hierarchical logic handled by caller or simple list
-        - date_start: str (YYYY-MM-DD)
-        - date_end: str (YYYY-MM-DD)
-    """
-    if not filters:
-        return query
-
-    # Date Filters (Applied on Tournament)
-    if filters.get("date_start"):
-        query = query.where(Tournament.date >= filters["date_start"])
-    if filters.get("date_end"):
-        query = query.where(Tournament.date <= filters["date_end"])
-        
-    return query
-
-def check_format_filter(tournament: Tournament, format_selection: dict[str, bool] | None) -> bool:
-    """
-    Check if a tournament matches the hierarchical format filter.
-    format_selection: dict mapping format/macro values to boolean (active)
-                      e.g. {"2.5": True, "amg": True, "2.0": False}
-    """
-    if not format_selection:
-        return True # specific format filter behavior: empty means all? or none? usually all.
-    
-    # Check Macro Format
-    macro = tournament.macro_format
-    
-    # If Macro is explicitly False, we might still include specific children if they are True?
-    # Requirement: "Attivare il toggle principale significa che tutti i sotto-formati corrispondenti sono inclusi"
-    # So if Macro is True, satisfy.
-    # But user can select "soltanto un sotto-formato".
-    # So: if Macro is True AND (subformat is not explicitly False?) -> Actually, standard hierarchical filter:
-    # A tournament has a specific 'format'.
-    # We check if that specific format is enabled.
-    
-    t_format_val = tournament.format.value if tournament.format else "other"
-    
-    # Check if specific format is enabled
-    is_enabled = format_selection.get(t_format_val)
-    
-    # If text format not found directly, check macro?
-    # The UI will likely pass a flat list of ALL allowed specific formats, 
-    # OR a mixed dict.
-    # Simplest approach: The UI calculates the effective allowed list of specific formats.
-    # But here we might receive the raw toggle state.
-    
-    # Let's assume the UI resolves logic and passes a set of ALLOWED FORMAT STRINGS.
-    # If format_selection is a list/set of strings:
-    if isinstance(format_selection, (list, set)):
-        return t_format_val in format_selection
-        
-    # If dict (toggles)
-    return format_selection.get(t_format_val, False)
-
+from ..database import engine
+from ..models import PlayerResult, Tournament
+from ..utils import get_pilot_name, get_upgrade_name, get_pilot_info, load_all_pilots, load_all_upgrades, load_all_ships
+from ..data_structures.factions import Faction
+from ..data_structures.formats import Format, MacroFormat
+from ..data_structures.data_source import DataSource
+from .filters import filter_query
 
 def aggregate_card_stats(
     filters: dict,
     sort_mode: str = "popularity", # popularity, win_rate
     mode: str = "pilots", # pilots, upgrades
-    data_source: str = "xwa" # xwa, legacy
+    data_source: DataSource = DataSource.XWA
 ) -> list[dict]:
     """
     Aggregate statistics for pilots or upgrades.
@@ -100,12 +41,7 @@ def aggregate_card_stats(
         ship_filter = filters.get("ship")
         initiative_filter = filters.get("initiative")
         
-        # Pre-process initiative filter (e.g., "3" or "3+")
-        # Pre-process initiative filter (list[str] or single string "all")
-        # Filters now come as list[str] of allowed values. "all" is not used if list is provided, default to empty/all behavior.
-        # But legacy call might still pass string "all".
-        # Let's handle both.
-        
+        # Pre-process initiative filter
         allowed_initiatives = set()
         if initiative_filter and initiative_filter != "all":
             if isinstance(initiative_filter, list):
@@ -120,10 +56,16 @@ def aggregate_card_stats(
                  except ValueError:
                      pass
         
-        # Ship Filter Logic (Comma Separated)
-        ship_search_terms = []
+        # Ship Filter Logic
+        allowed_ships = set()
         if ship_filter and ship_filter != "all":
-            ship_search_terms = [s.strip().lower() for s in ship_filter.split(",") if s.strip()]
+            if isinstance(ship_filter, list):
+                allowed_ships = set(ship_filter)
+            else:
+                 # Legacy CSV string support
+                 parts = [s.strip().lower() for s in ship_filter.split(",") if s.strip()]
+                 # If usage requires handling string legacy, we keep it logic-less here or implement if needed.
+                 pass
 
         # Faction Filter Logic
         allowed_factions = set()
@@ -143,29 +85,22 @@ def aggregate_card_stats(
 
         for result, tournament in rows:
             # Python-level Filtering
-            
-            # Format
             t_fmt_raw = tournament.format
             t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
-            if allowed_formats: # Only filter if list is not empty
+            if allowed_formats: 
                 if t_fmt not in allowed_formats:
-                    # Fallback: check if macro is in allowed? 
-                    # Assuming allowed_formats is exhaustive list of specific formats
                     continue
 
             xws = result.list_json
             if not xws or not isinstance(xws, dict): continue
             
             # Process List
-            # Calculate wins/games for this result
             wins = result.swiss_wins + result.cut_wins
             games = wins + result.swiss_losses + result.cut_losses + result.swiss_draws
             
             if mode == "pilots":
                 list_faction = xws.get("faction", "unknown")
-                # Faction Filter (Applies to List Faction or Pilot Faction? Usually List Faction for Pilots tab filter)
                 if allowed_factions:
-                    # Normalize list faction
                     current_faction = Faction.from_xws(list_faction).value
                     if current_faction not in allowed_factions:
                         continue
@@ -175,15 +110,19 @@ def aggregate_card_stats(
                     if not pid: continue
                     
                     # Ship Filter
-                    if ship_search_terms:
+                    if allowed_ships:
+                         p_info = all_pilots.get(pid, {})
+                         p_ship_xws = p_info.get("ship_xws", "") 
+                         if p_ship_xws not in allowed_ships:
+                             continue
+                             
+                    # Legacy String Search
+                    elif isinstance(ship_filter, str) and ship_filter and ship_filter != "all":
                         p_info = all_pilots.get(pid, {})
                         p_ship = p_info.get("ship", "").lower()
-                        # Check if matches ANY term
-                        # Strict match or substring? User said "input di più valori".
-                        # Suggest matching behavior: substring ok? Or user expects precise filter?
-                        # Given "x-wing, y-wing", likely expects match.
+                        terms = [s.strip().lower() for s in ship_filter.split(",") if s.strip()]
                         match_ship = False
-                        for term in ship_search_terms:
+                        for term in terms:
                             if term in p_ship:
                                 match_ship = True
                                 break
@@ -228,15 +167,7 @@ def aggregate_card_stats(
                     s["games"] += games
                     
             elif mode == "upgrades":
-                # Upgrade Logic
-                # Needs to iterate all pilots, then all upgrades
                 for p in xws.get("pilots", []):
-                    # We don't filter by Pilot Faction per se, but user might want to?
-                    # Request says "Per le migliorie... filtrare per tipo". 
-                    # Faction filter is mentioned for pilots ("Per i piloti c'è bisogno di un filtro per fazione").
-                    # So Upgrade tab might not need faction filter, but maybe beneficial? 
-                    # Let's ignore faction filter for upgrades unless requested.
-                    
                     upgrades = p.get("upgrades", {}) or {}
                     for u_type, u_list in upgrades.items():
                         
@@ -281,10 +212,8 @@ def aggregate_card_stats(
             
         # Sorting
         if sort_mode == "win_rate":
-            # Sort by WR desc, then games desc
             results.sort(key=lambda x: (x["games"] > 5, x["win_rate"], x["count"]), reverse=True)
         else: # popularity
             results.sort(key=lambda x: x["count"], reverse=True)
             
         return results
-

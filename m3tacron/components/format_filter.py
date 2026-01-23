@@ -2,24 +2,35 @@
 Hierarchical Format Filter Component.
 """
 import reflex as rx
-from ..backend.enums.formats import FORMAT_HIERARCHY
+from ..ui_utils.formats import FORMAT_HIERARCHY, get_default_format_selection
 from ..theme import TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR, INPUT_STYLE, MONOSPACE_FONT
 
-class FormatFilterState(rx.State):
+class FormatFilterMixin:
     """
-    Sub-state for format filter logic needs to be integrated into the parent state usually,
-    but here we can define components that take event handlers.
-    
-    Data structure expected:
-    - selected_formats: dict[str, bool] - mapping of format values to boolean.
-    
-    If a macro key is True, it implies all children are effectively selected unless unchecked?
-    Usually simpler: Toggle independently.
-    Logic:
-    - Toggle Macro: Select/Deselect ALL children.
-    - Toggle Child: Toggle specific child. If all selected -> Macro selected. If mixed -> Macro indeterminate (or just simple check).
+    Mixin for states that need hierarchical format filtering.
     """
-    pass
+    # Map of format/macro value -> boolean
+    selected_formats: dict[str, bool] = get_default_format_selection()
+
+    def toggle_format_macro(self, macro_val: str, checked: bool):
+        """Toggle a macro format and all its children."""
+        self.selected_formats[macro_val] = checked
+        # Toggle all children
+        for m in FORMAT_HIERARCHY:
+            if m["value"] == macro_val:
+                for child in m["children"]:
+                    self.selected_formats[child["value"]] = checked
+        self.on_filter_change()
+
+    def toggle_format_child(self, child_val: str, checked: bool):
+        """Toggle a specific format child."""
+        self.selected_formats[child_val] = checked
+        # Optional: update macro indeterminate state logic could go here
+        self.on_filter_change()
+
+    def on_filter_change(self):
+        """Hook for sub-classes to handle filter changes."""
+        pass
 
 def render_format_item(item: dict, state_var: rx.Var, on_toggle: callable) -> rx.Component:
     """
@@ -44,7 +55,7 @@ def render_macro_section(
     on_toggle_child: callable
 ) -> rx.Component:
     """
-    Render a macro format section with children using Python iteration.
+    Render a macro format section as an accordion item.
     """
     children_components = []
     
@@ -54,68 +65,110 @@ def render_macro_section(
             rx.hstack(
                 rx.checkbox(
                     checked=path_to_selection[child["value"]],
-                    on_change=lambda val: on_toggle_child(child["value"], val, macro["value"]),
+                    on_change=lambda val: on_toggle_child(child["value"], val),
                     color_scheme="gray",
                     size="1",
                 ),
-                rx.text(child["label"], size="1", color=TEXT_SECONDARY),
-                spacing="1",
+                rx.text(
+                    child["label"], 
+                    size="1", 
+                    color=TEXT_PRIMARY,
+                    font_family=MONOSPACE_FONT,
+                    on_click=lambda: on_toggle_child(child["value"], ~path_to_selection[child["value"]]),
+                    cursor="pointer"
+                ),
+                spacing="2",
                 align="center",
                 padding_left="8px"
             )
         )
 
-    return rx.vstack(
-        # Macro Header
-        rx.hstack(
+    return rx.accordion.item(
+        header=rx.hstack(
             rx.checkbox(
                 checked=path_to_selection[macro["value"]],
                 on_change=lambda val: on_toggle_macro(macro["value"], val),
-                size="2", 
+                size="1", 
                 color_scheme="gray",
             ),
-            rx.text(macro["label"], weight="bold", size="2", color=TEXT_PRIMARY),
+            rx.text(
+                macro["label"], 
+                weight="bold", 
+                size="1", 
+                color=TEXT_SECONDARY,
+                font_family=MONOSPACE_FONT,
+                letter_spacing="1px"
+            ),
             spacing="2",
             align="center",
             width="100%",
-            padding_y="4px",
-            border_bottom=f"1px solid {BORDER_COLOR}"
         ),
-        # Children
-        rx.vstack(
+        content=rx.vstack(
             *children_components,
-            spacing="2",
+            spacing="1",
             width="100%",
-            padding_y="8px"
+            padding_top="8px"
         ),
-        spacing="1",
-        width="100%",
-        align="start"
+        value=macro["label"], # Value for open state
+        style={
+            "background": "transparent", 
+            "border": "none",
+            "_hover": {"background": "transparent"}
+        }
     )
 
 def hierarchical_format_filter(
     selection_var: rx.Var, 
     on_toggle_macro: callable, 
-    on_toggle_child: callable
+    on_toggle_child: callable,
+    label: str = "Formats"
 ) -> rx.Component:
     """
     Main component.
     """
     # Static iteration over Macros
-    macro_components = []
+    macro_items = []
     for m in FORMAT_HIERARCHY:
-        macro_components.append(
+        macro_items.append(
             render_macro_section(m, selection_var, on_toggle_macro, on_toggle_child)
         )
     
-    return rx.scroll_area(
-        rx.vstack(
-            *macro_components,
-            spacing="4",
-            width="100%",
+    # Inner Accordion for Macros
+    inner_accordion = rx.accordion.root(
+        *macro_items,
+        type="multiple",
+        collapsible=True,
+        width="100%",
+        color_scheme="gray",
+        variant="ghost"
+    )
+
+    # Outer Accordion Item (The "Wrapper")
+    return rx.accordion.root(
+        rx.accordion.item(
+            header=rx.text(
+                label, 
+                size="1", 
+                weight="bold", 
+                color=TEXT_SECONDARY, 
+                font_family=MONOSPACE_FONT,
+                letter_spacing="1px"
+            ),
+            content=rx.box(
+                inner_accordion,
+                width="100%",
+                padding_left="8px"
+            ),
+            value="main",
+            style={
+                "background": "transparent", 
+                "border": "none",
+                "_hover": {"background": "transparent"}
+            }
         ),
-        max_height="300px", 
-        type="always",
-        scrollbars="vertical",
-        style={"padding_right": "10px"} 
+        type="multiple",
+        collapsible=True,
+        width="100%",
+        color_scheme="gray", 
+        variant="ghost"
     )

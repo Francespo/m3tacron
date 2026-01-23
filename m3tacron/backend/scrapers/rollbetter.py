@@ -16,12 +16,12 @@ from playwright.sync_api import sync_playwright
 # Local Imports
 from .base import BaseScraper
 from ..models import Tournament, PlayerResult, Match
-from ..enums.formats import Format, infer_format_from_xws
-from ..enums.factions import Faction
-from ..enums.factions import Faction
-from ..enums.platforms import Platform
-from ..enums.round_types import RoundType
-from ..enums.scenarios import Scenario
+from ..data_structures.formats import Format, infer_format_from_xws
+from ..data_structures.factions import Faction
+from ..data_structures.factions import Faction
+from ..data_structures.platforms import Platform
+from ..data_structures.round_types import RoundType
+from ..data_structures.scenarios import Scenario
 
 logger = logging.getLogger(__name__)
 
@@ -368,7 +368,7 @@ class RollbetterScraper(BaseScraper):
                                     val = txt.split("Scenario:")[1].strip()
                                     val = val.split("\n")[0].strip()
                                     
-                                    from m3tacron.backend.enums.scenarios import Scenario
+                                    from m3tacron.backend.data_structures.scenarios import Scenario
                                     for s in Scenario:
                                         if s.label.lower() == val.lower():
                                             current_scenario = s
@@ -436,7 +436,7 @@ class RollbetterScraper(BaseScraper):
                         is_bye = (m_dat['p2'] == "Bye")
                         
                         # Match Round Type
-                        # from m3tacron.backend.enums.matches import RoundType # Already imported at top
+                        # from m3tacron.backend.data_structures.matches import RoundType # Already imported at top
                         current_round_type = RoundType.SWISS
                         lower_name = round_name.lower()
                         if "cut" in lower_name or "top" in lower_name or "final" in lower_name or "bracket" in lower_name:

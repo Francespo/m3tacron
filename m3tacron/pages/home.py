@@ -5,7 +5,7 @@ import reflex as rx
 from sqlmodel import Session, select, func
 
 from ..components.sidebar import layout
-from ..components.ui import terminal_panel, list_row
+from ..components.ui import content_panel, list_row
 from ..backend.database import engine
 from ..backend.models import Tournament, PlayerResult
 from ..theme import (
@@ -96,7 +96,7 @@ def home_content() -> rx.Component:
         
         # Tournaments Table
         rx.vstack(
-            terminal_panel(
+            content_panel(
                 "Recent Activity",
                 rx.vstack(
                     rx.foreach(

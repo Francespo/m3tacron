@@ -9,10 +9,10 @@ from ..components.card_tooltip import pilot_card_tooltip
 from ..components.sidebar import layout, dashboard_layout
 from ..backend.database import engine
 from ..backend.models import PlayerResult, Tournament
-from ..backend.enums.formats import FORMAT_HIERARCHY, get_format
-from ..backend.squadron_utils import get_squadron_signature, parse_squadron_signature
-from ..backend.enums.factions import Faction
-from ..components.format_filter import hierarchical_format_filter
+from ..ui_utils.formats import FORMAT_HIERARCHY, get_default_format_selection, get_format_options
+from ..backend.utils import get_squadron_signature, parse_squadron_signature
+from ..backend.data_structures.factions import Faction
+from ..components.format_filter import hierarchical_format_filter, FormatFilterMixin
 from ..components.multi_filter import collapsible_checkbox_group
 from ..theme import (
     FACTION_COLORS, TERMINAL_BG, BORDER_COLOR, TERMINAL_PANEL,
@@ -20,47 +20,35 @@ from ..theme import (
     TERMINAL_PANEL_STYLE, RADIUS, FACTION_ICONS
 )
 from ..components.icons import ship_icon
-from ..backend.xwing_data import load_all_pilots, get_pilot_info
+from ..backend.utils import load_all_pilots, get_pilot_info, get_filtered_ships
+from ..components.searchable_filter_accordion import searchable_filter_accordion
 
 
-class SquadronsState(rx.State):
+class SquadronsState(rx.State, FormatFilterMixin):
     """State for the Squadrons browser page."""
     # Multi-Select Filters
-    selected_formats: dict[str, bool] = {}
     selected_factions: dict[str, bool] = {}
     
     # Static Options
-    faction_options: list[list[str]] = [["Rebel Alliance", "Rebel Alliance"], ["Galactic Empire", "Galactic Empire"], ["Scum and Villainy", "Scum and Villainy"], ["Resistance", "Resistance"], ["First Order", "First Order"], ["Galactic Republic", "Galactic Republic"], ["Separatist Alliance", "Separatist Alliance"]]
+    faction_options: list[list[str]] = [[f.label, f.value] for f in Faction if f != Faction.UNKNOWN]
 
     def on_mount(self):
-        # Default Formats to All if empty
-        if not self.selected_formats:
-             for macro in FORMAT_HIERARCHY:
-                self.selected_formats[macro["value"]] = True
-                for child in macro["children"]:
-                    self.selected_formats[child["value"]] = True
         self.load_squadrons()
 
-    # Format Filter Logic
-    def toggle_format_macro(self, macro_val: str, checked: bool):
-        self.selected_formats[macro_val] = checked
-        # Toggle all children
-        for m in FORMAT_HIERARCHY:
-            if m["value"] == macro_val:
-                for child in m["children"]:
-                    self.selected_formats[child["value"]] = checked
-        self.load_squadrons()
-
-    def toggle_format_child(self, child_val: str, checked: bool, macro_val: str):
-        self.selected_formats[child_val] = checked
-        if not checked:
-            self.selected_formats[macro_val] = False
+    def on_filter_change(self):
+        """Handle format filter changes."""
         self.load_squadrons()
 
     def toggle_faction(self, faction: str, checked: bool):
         self.selected_factions[faction] = checked
         self.current_page = 0
         self.load_squadrons()
+
+    def toggle_format_macro(self, macro_val: str, checked: bool):
+        super().toggle_format_macro(macro_val, checked)
+
+    def toggle_format_child(self, child_val: str, checked: bool):
+        super().toggle_format_child(child_val, checked)
     
     # New Filters
     date_range_start: str = "" # YYYY-MM-DD
@@ -95,12 +83,57 @@ class SquadronsState(rx.State):
     current_rich_ships: list[dict] = []
     
 
+    # Ship Filter
+    ship_search_query: str = ""
+    selected_ships: dict[str, bool] = {}
+     
+    @rx.var
+    def available_ships(self) -> list[list[str]]:
+        """
+        Get compatible ships based on selected factions and search query.
+        Returns: [[Label, Value], ...]
+        """
+        # 1. Get filtered list from backend
+        # selected_factions keys where value is True
+        active_factions = [k for k,v in self.selected_factions.items() if v]
+        # XWS data uses normalized keys? In toggle_faction we use values from opts.
+        # Faction options are [Label, 'Rebel Alliance']. 
+        # xwing_data.get_filtered_ships expects XWS faction strings usually?
+        # Let's check xwing_data.
+        # xwing_data.get_filtered_ships -> checks `ship["factions"]` which are usually mixed or labels?
+        # In load_all_ships: ships_map[xws]["factions"].add(data.get("faction") or current_faction)
+        # These are usually the strings from JSON, e.g. "Rebel Alliance".
+        # So passing "Rebel Alliance" (Value from frontend) should work.
         
-    def set_ship_filter(self, value: str):
-        self.ship_filter = value
+        # We need to map our frontend Faction Enum Values to what xwing_data expects?
+        # Frontend: "Rebel Alliance". Backend: seems to store "Rebel Alliance".
+        
+        # Let's clean up:
+        factions_input = active_factions if active_factions else None
+        
+        ships = get_filtered_ships(factions_input)
+        
+        # 2. Convert to options
+        options = []
+        q = self.ship_search_query.lower()
+        
+        for s in ships:
+            label = s["name"]
+            val = s["name"] # Use Name as value for simplicity in UI state key
+            
+            if not q or q in label.lower():
+                options.append([label, val])
+                
+        return options
+
+    def set_ship_search_query(self, value: str):
+        self.ship_search_query = value
+
+    def toggle_ship(self, value: str, checked: bool):
+        self.selected_ships[value] = checked
         self.current_page = 0
         self.load_squadrons()
-        
+
     def set_date_range_start(self, value: str):
         self.date_range_start = value
         self.load_squadrons()
@@ -199,10 +232,13 @@ class SquadronsState(rx.State):
                     if current_fac_val not in active_factions:
                         continue
                 
-                # Filter by Ship (Search)
-                if self.ship_filter:
-                    search_term = self.ship_filter.lower()
-                    if not any(search_term in s.lower() for s in ships):
+                # Filter by Ship (Multi-Select OR)
+                # If selected_ships has active entries, current list must contain at least one.
+                active_ships = [k for k,v in self.selected_ships.items() if v]
+                if active_ships:
+                    # Check intersection
+                    # Squad ships are in `ships` list (names)
+                    if set(active_ships).isdisjoint(ships):
                         continue
                 
                 # Collect valid ships for autocomplete (only from visible results? or all? Let's do all visible)
@@ -416,7 +452,7 @@ class SquadronsState(rx.State):
 
 def format_filter_select() -> rx.Component:
     """Format filter dropdown using label/value pairs."""
-    options = [["All", "all"]] + [[item["label"], item["value"]] for item in FORMAT_HIERARCHY]
+    options = get_format_options()
     return rx.select.root(
         rx.select.trigger(placeholder="Format", style=INPUT_STYLE),
         rx.select.content(
@@ -433,7 +469,7 @@ def format_filter_select() -> rx.Component:
 
 def faction_filter_select() -> rx.Component:
     """Faction filter dropdown using label/value pairs."""
-    from ..backend.enums.factions import Faction
+    from ..backend.data_structures.factions import Faction
     options = [["All", "all"]] + [[f.label, f.value] for f in Faction if f != Faction.UNKNOWN]
     return rx.select.root(
         rx.select.trigger(placeholder="Faction", style=INPUT_STYLE),
@@ -450,25 +486,7 @@ def faction_filter_select() -> rx.Component:
         size="2",
     )
 
-def ship_filter_input() -> rx.Component:
-    return rx.box(
-        rx.input(
-            placeholder="Search Ship... (e.g. X-wing)",
-            value=SquadronsState.ship_filter,
-            on_change=SquadronsState.set_ship_filter,
-            style=INPUT_STYLE,
-            list="ships-datalist",
-            width="100%",
-            color_scheme="gray",
-        ),
-        rx.el.datalist(
-            rx.foreach(
-                SquadronsState.all_ships,
-                lambda s: rx.el.option(value=s)
-            ),
-            id="ships-datalist"
-        )
-    )
+
 
 def date_filter_inputs() -> rx.Component:
     return rx.hstack(
@@ -523,11 +541,13 @@ def render_sidebar_filters() -> rx.Component:
         rx.divider(border_color=BORDER_COLOR),
 
         # Search Ship
-        rx.vstack(
-             rx.text("Ship Chassis", size="1", color=TEXT_SECONDARY),
-             ship_filter_input(),
-             width="100%",
-             spacing="1"
+        searchable_filter_accordion(
+            "Ship Chassis",
+            SquadronsState.available_ships,
+            SquadronsState.selected_ships,
+            SquadronsState.toggle_ship,
+            SquadronsState.ship_search_query,
+            SquadronsState.set_ship_search_query
         ),
 
         # Date
@@ -539,17 +559,11 @@ def render_sidebar_filters() -> rx.Component:
         ),
 
         # Format
-        rx.box(
-            rx.text("Formats", size="1", color=TEXT_SECONDARY, margin_bottom="4px"),
-            hierarchical_format_filter(
-                SquadronsState.selected_formats,
-                SquadronsState.toggle_format_macro,
-                SquadronsState.toggle_format_child
-            ),
-            width="100%",
-            padding="8px",
-            border=f"1px solid {BORDER_COLOR}",
-            border_radius=RADIUS
+        hierarchical_format_filter(
+            SquadronsState.selected_formats,
+            SquadronsState.toggle_format_macro,
+            SquadronsState.toggle_format_child,
+            label="Formats"
         ),
         
         # Faction

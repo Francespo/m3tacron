@@ -1,16 +1,17 @@
 """
-M3taCron Tournaments Page - Imperial Data Terminal Spec.
+M3taCron Tournaments Page.
 """
 import reflex as rx
 from sqlmodel import Session, select, func
 
 from ..components.sidebar import layout, dashboard_layout
 from ..backend.database import engine
-from ..components.ui import terminal_panel, list_row
+from ..components.ui import content_panel, list_row
 from ..components.icons import xwing_icon
 from ..backend.models import Tournament, PlayerResult
-from ..backend.enums.formats import FORMAT_HIERARCHY, get_format
-from ..backend.enums.platforms import Platform
+from ..backend.data_structures.formats import Format
+from ..ui_utils.formats import FORMAT_HIERARCHY, get_format_options
+from ..backend.data_structures.platforms import Platform
 from ..theme import (
     TERMINAL_BG, TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR, 
     MONOSPACE_FONT, SANS_FONT, INPUT_STYLE, FACTION_COLORS
@@ -33,11 +34,7 @@ class TournamentsState(rx.State):
         """Get available sub-formats based on current macro filter."""
         if self.macro_filter == "all":
             # Return all sub-formats (flattened children)
-            sub_formats = []
-            for macro in FORMAT_HIERARCHY:
-                for sub in macro["children"]:
-                    sub_formats.append([sub["label"], sub["value"]])
-            return [["All", "all"]] + sub_formats
+            return get_format_options()
         
         # Find the specific macro format and return its children
         for macro in FORMAT_HIERARCHY:
@@ -121,7 +118,7 @@ class TournamentsState(rx.State):
                     "date": t.date.strftime("%Y-%m-%d"),
                     "players": player_count,
                     "format": t.format, # ID
-                    "format_label": get_format(t.format).label,
+                    "format_label": (t.format or Format.OTHER).label,
                     "macro_format": t.macro_format,
                     "sub_format": t.format, # Mapped for filter logic compatibility
                     "platform": t.platform, # ID
@@ -237,7 +234,7 @@ def render_filters() -> rx.Component:
         # Format
         filter_select(
             "FORMAT",
-            [["All", "all"]] + [[item["label"], item["value"]] for item in FORMAT_HIERARCHY],
+            get_format_options(),
             TournamentsState.macro_filter,
             TournamentsState.set_macro_filter,
         ),

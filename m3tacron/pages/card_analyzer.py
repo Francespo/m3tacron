@@ -2,19 +2,23 @@
 Card Analyzer Page.
 """
 import reflex as rx
-from ..backend.card_analytics import aggregate_card_stats
-from ..backend.enums.formats import FORMAT_HIERARCHY
-from ..components.format_filter import hierarchical_format_filter
-from ..components.multi_filter import collapsible_checkbox_group
+from ..ui_utils.formats import FORMAT_HIERARCHY, get_default_format_selection, get_format_options
+from ..components.format_filter import hierarchical_format_filter, FormatFilterMixin
+# from ..components.multi_filter import collapsible_checkbox_group # Deprecated
 from ..components.sidebar import layout, dashboard_layout
-from ..backend.enums.factions import Faction
+from ..backend.data_structures.factions import Faction
+from ..backend.data_structures.upgrade_types import UpgradeType
+from ..backend.data_structures.data_source import DataSource
+from ..backend.utils import load_all_ships
 from ..theme import (
     TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR, TERMINAL_PANEL, TERMINAL_PANEL_STYLE,
     HEADER_FONT, MONOSPACE_FONT, SANS_FONT, INPUT_STYLE, RADIUS, FACTION_COLORS
 )
 from ..components.icons import ship_icon
+from ..components.filter_accordion import filter_accordion
+from ..components.searchable_filter_accordion import searchable_filter_accordion
 
-class CardAnalyzerState(rx.State):
+class CardAnalyzerState(rx.State, FormatFilterMixin):
     """
     State for the Card Analyzer page.
     """
@@ -26,16 +30,20 @@ class CardAnalyzerState(rx.State):
     date_range_end: str = ""
     text_filter: str = ""
     
-    # Format Filter State (Hierarchical)
-    # Map of format_value -> boolean. 
-    # Must initialize with Defaults? Or empty = all?
-    # Let's initialize all to True for better UX (show everything by default)
-    selected_formats: dict[str, bool] = {}
     
     # Pilot Specific
     # Map of value -> boolean
     selected_factions: dict[str, bool] = {}
-    ship_filter: str = "" # Comma separated
+    
+    # Ship Filter (Searchable Multi-select)
+    ship_search_text: str = ""
+    # We use a dict for selection just like other filters. 
+    # Key = XWS ID (value), Value = True/False.
+    selected_ships: dict[str, bool] = {} 
+    
+    # Legacy string filter (deprecated in UI but kept for compatibility logic/url?)
+    # ship_filter: str = "" # Comma separated -> We replace this with selected_ships logic.
+    
     selected_initiatives: dict[str, bool] = {}
     
     # Upgrade Specific
@@ -44,10 +52,14 @@ class CardAnalyzerState(rx.State):
     # Static info for filters
     faction_options: list[list[str]] = [["Rebel Alliance", "Rebel Alliance"], ["Galactic Empire", "Galactic Empire"], ["Scum and Villainy", "Scum and Villainy"], ["Resistance", "Resistance"], ["First Order", "First Order"], ["Galactic Republic", "Galactic Republic"], ["Separatist Alliance", "Separatist Alliance"]]
     initiative_options: list[list[str]] = [[str(i), str(i)] for i in range(7)]
-    upgrade_type_options: list[list[str]] = [[t, t] for t in ["Talent", "Force", "System", "Cannon", "Turret", "Torpedo", "Missile", "Crew", "Gunner", "Astromech", "Device", "Illicit", "Modification", "Title", "Configuration", "Sensor", "Tech"]]
+    
+    @rx.var
+    def upgrade_type_options(self) -> list[list[str]]:
+        return [[t.label, t.value] for t in UpgradeType]
+    
     
     # Sorting
-    sort_mode: str = "popularity"
+    sort_mode: str = "Popularity"
     
     # Data Source (XWA vs Legacy)
     data_source: str = "xwa" # xwa, legacy
@@ -59,14 +71,17 @@ class CardAnalyzerState(rx.State):
     # Pagination
     page: int = 0
     page_size: int = 24
+
+    def toggle_format_macro(self, macro_val: str, checked: bool):
+        super().toggle_format_macro(macro_val, checked)
+
+    def toggle_format_child(self, child_val: str, checked: bool):
+        super().toggle_format_child(child_val, checked)
     
     def on_mount(self):
         # Initialize selected_formats to True for all if empty
         if not self.selected_formats:
-            for macro in FORMAT_HIERARCHY:
-                self.selected_formats[macro["value"]] = True
-                for child in macro["children"]:
-                    self.selected_formats[child["value"]] = True
+            self.selected_formats = get_default_format_selection()
         
         # Initialize other multi-selects to empty (all) or full?
         # Logic is: empty/None = All. 
@@ -90,11 +105,14 @@ class CardAnalyzerState(rx.State):
         self.page = 0
         self.load_data()
 
-    def set_ship_filter(self, ship: str):
-        self.ship_filter = ship
+    def set_ship_search(self, text: str):
+        self.ship_search_text = text
+
+    def toggle_ship(self, xws: str, checked: bool):
+        self.selected_ships[xws] = checked
         self.page = 0
         self.load_data()
-
+        
     def toggle_initiative(self, init: str, checked: bool):
         self.selected_initiatives[init] = checked
         self.page = 0
@@ -118,43 +136,99 @@ class CardAnalyzerState(rx.State):
         self.date_range_end = date
         self.load_data()
         
+    @rx.var
+    def all_ships(self) -> list[dict]:
+        """Load all ships based on data source. Cached by backend lru_cache."""
+        source_enum = DataSource(self.data_source) if isinstance(self.data_source, str) else self.data_source
+        return load_all_ships(source_enum)
+
+    def on_filter_change(self):
+        """Handle format filter changes."""
+        self.page = 0
+        self.load_data()
+
     def set_data_source(self, source: str | list[str]):
         if isinstance(source, list):
             source = source[0]
-        self.data_source = source
-        self.load_data()
-        
-    # Format Filter Logic
-    def toggle_format_macro(self, macro_val: str, checked: bool):
-        self.selected_formats[macro_val] = checked
-        # Toggle all children
-        # Find children for this macro
-        # (Need to traverse FORMAT_HIERARCHY)
-        for m in FORMAT_HIERARCHY:
-            if m["value"] == macro_val:
-                for child in m["children"]:
-                    self.selected_formats[child["value"]] = checked
+        # Store as string for UI state simplicity if needed, but backend needs Enum
+        # Segmented control returns string value.
+        self.data_source = source 
         self.load_data()
 
-    def toggle_format_child(self, child_val: str, checked: bool, macro_val: str):
-        self.selected_formats[child_val] = checked
-        # If unchecked, uncheck macro? If checked, check macro if all checked?
-        # Simple rule: if unchecked, uncheck macro.
-        if not checked:
-            self.selected_formats[macro_val] = False
+    @rx.var
+    def available_ships(self) -> list[list[str]]:
+        """
+        Filter ships based on:
+        1. Selected Factions (Dependency)
+        2. Search Text
+        
+        Returns list of [name, xws] for the filter component.
+        """
+        ships = self.all_ships
+        
+        # 1. Faction Filter
+        active_factions = {k for k, v in self.selected_factions.items() if v}
+        
+        filtered_by_faction = []
+        if not active_factions:
+            filtered_by_faction = ships
         else:
-            # Check if all siblings valid?
-            pass 
-        self.load_data()
+            def norm(s): return s.lower().replace(" ", "").replace("-", "")
+            norm_active = {norm(f) for f in active_factions}
+            
+            for s in ships:
+                s_factions_norm = {norm(f) for f in s["factions"]}
+                if not s_factions_norm.isdisjoint(norm_active):
+                    filtered_by_faction.append(s)
+                    
+        # 2. Search Text
+        final_list = []
+        query = self.ship_search_text.lower()
+        
+        for s in filtered_by_faction:
+            if query in s["name"].lower():
+                 final_list.append([s["name"], s["xws"]])
+                 
+        return final_list
     
     def next_page(self):
-        self.page += 1
-        
+        if self.page < self.total_pages - 1:
+            self.page += 1
+            self.load_data() # Explicit reload needed to slice results correctly if we handle slice in frontend? 
+            # Actually load_data fetches from DB then slices. We should probably just slice?
+            # But load_data() does `self.results = data[start:start + page_size]` 
+            # So we MUST call load_data() or a separate `update_page_slice()`?
+            # Let's call load_data() to be safe, though it might re-fetch.
+            # Optimization: Separate fetch and slice.
+            
     def prev_page(self):
         if self.page > 0:
             self.page -= 1
+            self.load_data()
+            
+    def set_page_input(self, value: str):
+        try:
+            val = int(value)
+            # Input is 1-based, internal is 0-based
+            val -= 1
+            if 0 <= val < self.total_pages:
+                self.page = val
+                self.load_data()
+        except ValueError:
+            pass
+
+    @rx.var
+    def total_pages(self) -> int:
+         return (self.total_count + self.page_size - 1) // self.page_size
 
     def load_data(self):
+        # Map UI Sort Mode to Backend Sort Mode
+        sort_mapping = {
+            "Popularity": "popularity",
+            "Win Rate": "win_rate"
+        }
+        backend_sort = sort_mapping.get(self.sort_mode, "popularity")
+
         # Construct Allowed Formats List
         # Iterate selected_formats, if true add to list.
         # Note: Backend expects specific formats, not macros.
@@ -166,10 +240,12 @@ class CardAnalyzerState(rx.State):
         # If all formats are selected, we can pass None to optimize?
         # Or just pass the list.
         
+        
         # Prepare multi-select lists
         active_factions = [k for k, v in self.selected_factions.items() if v]
         active_initiatives = [k for k, v in self.selected_initiatives.items() if v]
         active_upgrade_types = [k for k, v in self.selected_upgrade_types.items() if v]
+        active_ships = [k for k, v in self.selected_ships.items() if v]
 
         filters = {
             "allowed_formats": allowed,
@@ -177,12 +253,19 @@ class CardAnalyzerState(rx.State):
             "date_end": self.date_range_end,
             "search_text": self.text_filter,
             "faction": active_factions,
-            "ship": self.ship_filter, 
+            "ship": active_ships, # List of XWS IDs
             "initiative": active_initiatives,
             "upgrade_type": active_upgrade_types
         }
         
-        data = aggregate_card_stats(filters, self.sort_mode, self.active_tab, self.data_source)
+        # ... (inside load_data)
+        # Convert data_source string to Enum
+        try:
+            ds_enum = DataSource(self.data_source)
+        except ValueError:
+            ds_enum = DataSource.XWA
+
+        data = aggregate_card_stats(filters, backend_sort, self.active_tab, ds_enum)
         
         self.total_count = len(data)
         
@@ -270,7 +353,7 @@ def render_filters() -> rx.Component:
             CardAnalyzerState.active_tab == "pilots",
             rx.vstack(
                 # Faction
-                collapsible_checkbox_group(
+                filter_accordion(
                     "Factions",
                     CardAnalyzerState.faction_options,
                     CardAnalyzerState.selected_factions,
@@ -278,31 +361,17 @@ def render_filters() -> rx.Component:
                 ),
                 
                 # Ship 
-                rx.vstack(
-                    rx.text("Ship Chassis", size="1", color=TEXT_SECONDARY),
-                     rx.input(
-                        placeholder="e.g. X-wing, Y-wing",
-                        value=CardAnalyzerState.ship_filter,
-                        on_change=CardAnalyzerState.set_ship_filter,
-                        style=INPUT_STYLE,
-                        width="100%",
-                        list="ships-datalist-card" 
-                    ),
-                    # Datalist could be added if requested, but simple Text Input supports CSV better natively
-                    rx.el.datalist(
-                        rx.foreach(
-                            # We could create a list of all ships here if needed, or leave it standard
-                            ["X-wing", "Y-wing", "A-wing", "TIE Fighter", "TIE Interceptor"], 
-                            lambda s: rx.el.option(value=s)
-                        ),
-                        id="ships-datalist-card"
-                    ),
-                    width="100%",
-                    spacing="1"
+                searchable_filter_accordion(
+                    "Ships",
+                    CardAnalyzerState.available_ships,
+                    CardAnalyzerState.selected_ships,
+                    CardAnalyzerState.toggle_ship,
+                    CardAnalyzerState.ship_search_text,
+                    CardAnalyzerState.set_ship_search
                 ),
                 
                 # Initiative
-                collapsible_checkbox_group(
+                filter_accordion(
                     "Initiative",
                     CardAnalyzerState.initiative_options,
                     CardAnalyzerState.selected_initiatives,
@@ -312,7 +381,7 @@ def render_filters() -> rx.Component:
                 width="100%"
             ),
             # Upgrade Filters
-            collapsible_checkbox_group(
+            filter_accordion(
                 "Upgrade Type",
                 CardAnalyzerState.upgrade_type_options,
                 CardAnalyzerState.selected_upgrade_types,
@@ -433,9 +502,21 @@ def render_content() -> rx.Component:
         
         # Pagination
         rx.hstack(
-            rx.button("< PREVIOUS", variant="ghost", on_click=CardAnalyzerState.prev_page, disabled=CardAnalyzerState.page == 0, color_scheme="gray", style={"font_family": MONOSPACE_FONT}),
-            rx.text(f"PAGE {CardAnalyzerState.page + 1}", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
-            rx.button("NEXT >", variant="ghost", on_click=CardAnalyzerState.next_page, color_scheme="gray", style={"font_family": MONOSPACE_FONT}),
+            rx.button("<", variant="ghost", on_click=CardAnalyzerState.prev_page, disabled=CardAnalyzerState.page == 0, color_scheme="gray", style={"font_family": MONOSPACE_FONT}),
+            rx.hstack(
+                rx.text("PAGE", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT, size="1"),
+                rx.input(
+                    value=(CardAnalyzerState.page + 1).to(str),
+                    on_change=CardAnalyzerState.set_page_input,
+                    width="40px",
+                    size="1",
+                    style={"text_align": "center", **INPUT_STYLE}
+                ),
+                rx.text(f"OF {CardAnalyzerState.total_pages}", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT, size="1"),
+                align="center",
+                spacing="2"
+            ),
+            rx.button(">", variant="ghost", on_click=CardAnalyzerState.next_page, disabled=CardAnalyzerState.page >= CardAnalyzerState.total_pages - 1, color_scheme="gray", style={"font_family": MONOSPACE_FONT}),
             justify="center",
             width="100%",
             padding_top="20px",

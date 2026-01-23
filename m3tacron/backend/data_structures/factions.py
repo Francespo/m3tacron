@@ -43,18 +43,35 @@ class Faction(str, Enum):
         return self.value
 
     @classmethod
-    def from_xws(cls, value):
+    def from_xws(cls, value: str):
         """
         Convert raw XWS faction string to Faction enum.
+        Handles labels, XWS IDs, and common aliases.
         """
         if not value:
             return cls.UNKNOWN
             
         # Normalize: lowercase and remove spaces/dashes
-        # Why: XWS data can be inconsistent
         normalized = value.lower().replace(" ", "").replace("-", "")
         
+        # Check direct value match
         for faction in cls:
             if faction.value == normalized:
                 return faction
+        
+        # Check common aliases/partial matches
+        alias_map = {
+            "rebel": cls.REBEL,
+            "empire": cls.EMPIRE,
+            "scum": cls.SCUM,
+            "separatist": cls.SEPARATIST,
+            "republic": cls.REPUBLIC,
+            "firstorder": cls.FIRST_ORDER,
+            "resistance": cls.RESISTANCE,
+        }
+        
+        for alias, faction in alias_map.items():
+            if alias in normalized:
+                return faction
+                
         return cls.UNKNOWN

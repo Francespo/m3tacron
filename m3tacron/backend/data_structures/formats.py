@@ -63,13 +63,6 @@ class Format(str, Enum):
             case _:
                 return MacroFormat.OTHER
 
-def get_format(value: str) -> Format:
-    """Safe format retrieval."""
-    try:
-        return Format(value)
-    except ValueError:
-        return Format.OTHER
-
 def infer_format_from_xws(xws: dict) -> Format:
     """
     Infer format ID from XWS data.
@@ -118,13 +111,3 @@ def infer_format_from_xws(xws: dict) -> Format:
         
     return Format.OTHER
 
-# Dynamic hierarchy for UI consumption
-FORMAT_HIERARCHY = []
-for macro in MacroFormat:
-    children = [f for f in Format if f.macro == macro]
-    if children:
-        FORMAT_HIERARCHY.append({
-            "label": macro.value, # Macro label is same as value for now
-            "value": macro.value,
-            "children": [{"label": f.label, "value": f.value} for f in children]
-        })
