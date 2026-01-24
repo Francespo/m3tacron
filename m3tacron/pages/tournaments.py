@@ -19,7 +19,7 @@ from ..theme import (
 )
 
 
-class TournamentsState(rx.State, PaginationMixin):
+class TournamentsState(PaginationMixin):
     """State for the Tournaments page."""
     tournaments: list[dict] = []
     search_query: str = ""
@@ -135,13 +135,15 @@ def tournament_card(tournament: dict, index: int) -> rx.Component:
                      font_family=MONOSPACE_FONT
                  ),
                  rx.hstack(
-                    rx.text(f"[{tournament['format_label']}]", size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+                    rx.badge(tournament["format_label"], variant="soft", color_scheme="gray"),
                     rx.text(tournament["date"], size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+                    rx.spacer(),
+                    rx.text(tournament["platform_label"], size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
                     spacing="2",
-                    align="center"
-                 ),
-                 spacing="0",
-                 align="start"
+                    width="100%",
+                ),
+                spacing="0",
+                align="start"
             ),
             right_content=rx.hstack(
                 rx.vstack(

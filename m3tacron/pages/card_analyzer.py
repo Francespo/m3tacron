@@ -10,7 +10,9 @@ from ..components.sidebar import layout, dashboard_layout
 from ..backend.data_structures.factions import Faction
 from ..backend.data_structures.upgrade_types import UpgradeType
 from ..backend.data_structures.data_source import DataSource
+from ..backend.data_structures.formats import Format, MacroFormat
 from ..backend.utils import load_all_ships
+from ..backend.analytics.core import aggregate_card_stats
 from ..theme import (
     TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR, TERMINAL_PANEL, TERMINAL_PANEL_STYLE,
     HEADER_FONT, MONOSPACE_FONT, SANS_FONT, INPUT_STYLE, RADIUS, FACTION_COLORS
@@ -19,7 +21,7 @@ from ..components.icons import ship_icon
 from ..components.filter_accordion import filter_accordion
 from ..components.searchable_filter_accordion import searchable_filter_accordion
 
-class CardAnalyzerState(rx.State, FormatFilterMixin, PaginationMixin):
+class CardAnalyzerState(FormatFilterMixin):
     """
     State for the Card Analyzer page.
     """
@@ -311,10 +313,8 @@ def render_filters() -> rx.Component:
         # 5. Format Filter
         rx.box(
             rx.text("Formats", size="1", color=TEXT_SECONDARY, margin_bottom="4px"),
-            hierarchical_format_filter(
-                CardAnalyzerState.selected_formats,
-                CardAnalyzerState.toggle_format_macro,
-                CardAnalyzerState.toggle_format_child
+            rx.vstack(
+                hierarchical_format_filter(CardAnalyzerState),
             ),
             width="100%",
             padding="8px",

@@ -28,7 +28,7 @@ from ..components.searchable_filter_accordion import searchable_filter_accordion
 from ..ui_utils.ships import get_ship_icon_name, render_ship_icon_group
 
 
-class SquadronsState(rx.State, FormatFilterMixin):
+class SquadronsState(FormatFilterMixin):
     """State for the Squadrons browser page."""
     # Multi-Select Filters
     selected_factions: dict[str, bool] = {}
@@ -298,6 +298,7 @@ class SquadronsState(rx.State, FormatFilterMixin):
                 # Format Ships for UI
                 ship_counts = Counter(ships)
                 ship_ui_list = []
+                for name, count in sorted(ship_counts.items()):
                     raw_xws = ship_map.get(name, "")
                     if not raw_xws:
                         raw_xws = name.lower().replace(" ", "").replace("-", "")
@@ -348,6 +349,7 @@ class SquadronsState(rx.State, FormatFilterMixin):
         faction_color = FACTION_COLORS.get(raw_faction, TEXT_SECONDARY)
         faction_icon = FACTION_ICONS.get(raw_faction, "")
 
+        for name, count in sorted(ship_counts.items()):
             raw_xws = ship_map.get(name, "")
             if not raw_xws:
                 raw_xws = name.lower().replace(" ", "").replace("-", "")
@@ -543,11 +545,9 @@ def render_sidebar_filters() -> rx.Component:
 
         # Format
         hierarchical_format_filter(
-            SquadronsState.selected_formats,
-            SquadronsState.toggle_format_macro,
-            SquadronsState.toggle_format_child,
-            label="Formats"
-        ),
+        SquadronsState,
+        label="Formats"
+    ),
         
         # Faction
         collapsible_checkbox_group(

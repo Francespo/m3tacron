@@ -9,7 +9,7 @@ Usage:
 import reflex as rx
 
 from ..theme import FACTION_ICONS
-from ..ui_utils.factions import get_faction_color, get_faction_icon
+from ..ui_utils.factions import get_faction_color, get_faction_icon_class
 
 
 def xwing_icon(icon_type: str | rx.Var, size: str = "1.5em", color: str | rx.Var | None = None) -> rx.Component:
@@ -25,8 +25,8 @@ def xwing_icon(icon_type: str | rx.Var, size: str = "1.5em", color: str | rx.Var
         Icon component using xwing-miniatures-font
     """
     # If icon_type is a known faction, get its specific icon class
-    # If it's a Var, get_faction_icon uses rx.match
-    icon_class = get_faction_icon(icon_type)
+    # If it's a Var, get_faction_icon_class uses rx.match
+    icon_class = get_faction_icon_class(icon_type)
     
     # Fallback: if icon_class is empty (default in match), use icon_type directly
     # This allows passing direct classes like "rebel" or "empire"

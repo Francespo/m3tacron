@@ -45,7 +45,7 @@ def tournament_row(tournament: Tournament, index: int) -> rx.Component:
                 align="start",
             ),
             right_content=rx.hstack(
-                rx.text(rx.cond(tournament.format, Format(tournament.format).label, "Other"), size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+                rx.text(tournament.format_label, size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
                 rx.text(f"[{tournament.player_count}]", size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
                 spacing="2"
             ),

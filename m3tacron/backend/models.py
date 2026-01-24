@@ -40,7 +40,29 @@ class Tournament(rx.Model, table=True):
     @property
     def macro_format(self) -> str:
         """Infer macro format from the specific format."""
-        return (self.format or Format.OTHER).macro.value
+        if not self.format: return "other"
+        try:
+            return Format(self.format).macro.value
+        except ValueError:
+            return "other"
+
+    @property
+    def format_label(self) -> str:
+        """Human-readable format name."""
+        if not self.format: return "Other"
+        try:
+            return Format(self.format).label
+        except ValueError:
+            return "Other"
+
+    @property
+    def platform_label(self) -> str:
+        """Human-readable platform name."""
+        if not self.platform: return "Unknown"
+        try:
+            return Platform(self.platform).label
+        except ValueError:
+            return "Unknown"
 
 
 class PlayerResult(rx.Model, table=True):

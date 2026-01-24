@@ -5,7 +5,9 @@ import reflex as rx
 from ..backend.data_structures.formats import Format, MacroFormat
 from ..theme import TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR, INPUT_STYLE, MONOSPACE_FONT
 
-class FormatFilterMixin:
+from ..ui_utils.pagination import PaginationMixin
+
+class FormatFilterMixin(PaginationMixin):
     """
     Mixin for states that need hierarchical format filtering.
     """
@@ -14,6 +16,7 @@ class FormatFilterMixin:
 
     def toggle_format_macro(self, macro_val: str, checked: bool):
         """Toggle a macro format and all its children."""
+        if isinstance(checked, rx.Var) or isinstance(macro_val, rx.Var): return []
         self.selected_formats[macro_val] = checked
         # Toggle all children
         try:
@@ -22,17 +25,18 @@ class FormatFilterMixin:
                 self.selected_formats[f.value] = checked
         except ValueError:
             pass
-        self.on_filter_change()
+        return self.on_filter_change()
 
     def toggle_format_child(self, child_val: str, checked: bool):
         """Toggle a specific format child."""
+        if isinstance(checked, rx.Var) or isinstance(child_val, rx.Var): return []
         self.selected_formats[child_val] = checked
         # Optional: update macro indeterminate state logic could go here
-        self.on_filter_change()
+        return self.on_filter_change()
 
     def on_filter_change(self):
         """Hook for sub-classes to handle filter changes."""
-        pass
+        return []
 
 def render_format_item(item: dict, state_var: rx.Var, on_toggle: callable) -> rx.Component:
     """
@@ -52,13 +56,12 @@ def render_format_item(item: dict, state_var: rx.Var, on_toggle: callable) -> rx
 
 def render_macro_section(
     macro: MacroFormat, 
-    path_to_selection: rx.Var, 
-    on_toggle_macro: callable, 
-    on_toggle_child: callable
+    state: any,
 ) -> rx.Component:
     """
     Render a macro format section as an accordion item.
     """
+    path_to_selection = state.selected_formats
     children_components = []
     
     # Static iteration over children using enum
@@ -67,7 +70,7 @@ def render_macro_section(
             rx.hstack(
                 rx.checkbox(
                     checked=path_to_selection[child.value],
-                    on_change=lambda val, c=child.value: on_toggle_child(c, val),
+                    on_change=lambda val: state.toggle_format_child(child.value, val),
                     color_scheme="gray",
                     size="1",
                 ),
@@ -76,7 +79,7 @@ def render_macro_section(
                     size="1", 
                     color=TEXT_PRIMARY,
                     font_family=MONOSPACE_FONT,
-                    on_click=lambda c=child.value: on_toggle_child(c, ~path_to_selection[c]),
+                    on_click=lambda: state.toggle_format_child(child.value, ~path_to_selection[child.value]),
                     cursor="pointer"
                 ),
                 spacing="2",
@@ -89,7 +92,7 @@ def render_macro_section(
         header=rx.hstack(
             rx.checkbox(
                 checked=path_to_selection[macro.value],
-                on_change=lambda val, m=macro.value: on_toggle_macro(m, val),
+                on_change=lambda val: state.toggle_format_macro(macro.value, val),
                 size="1", 
                 color_scheme="gray",
             ),
@@ -120,9 +123,7 @@ def render_macro_section(
     )
 
 def hierarchical_format_filter(
-    selection_var: rx.Var, 
-    on_toggle_macro: callable, 
-    on_toggle_child: callable,
+    state: any,
     label: str = "Formats"
 ) -> rx.Component:
     """
@@ -133,7 +134,7 @@ def hierarchical_format_filter(
     for m in MacroFormat:
         if m != MacroFormat.OTHER:
             macro_items.append(
-                render_macro_section(m, selection_var, on_toggle_macro, on_toggle_child)
+                render_macro_section(m, state)
             )
     
     # Inner Accordion for Macros

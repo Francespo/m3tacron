@@ -13,7 +13,7 @@ def pagination_controls(state: any) -> rx.Component:
     """
     return rx.hstack(
         rx.text(
-            (state.current_page + 1).to_string() + " / " + state.total_pages.to_string(),
+            state.current_page + 1, " / ", state.total_pages,
             size="2",
             color=TEXT_SECONDARY,
             font_family=MONOSPACE_FONT
