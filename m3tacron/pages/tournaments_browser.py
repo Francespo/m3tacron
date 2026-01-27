@@ -292,7 +292,7 @@ def tournaments_content() -> rx.Component:
     )
 
 
-def tournaments_page() -> rx.Component:
+def tournaments_browser_page() -> rx.Component:
     """The Tournaments page wrapped in the layout."""
     return layout(
         dashboard_layout(

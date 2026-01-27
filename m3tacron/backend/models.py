@@ -46,24 +46,6 @@ class Tournament(rx.Model, table=True):
         except ValueError:
             return "other"
 
-    @property
-    def format_label(self) -> str:
-        """Human-readable format name."""
-        if not self.format: return "Other"
-        try:
-            return Format(self.format).label
-        except ValueError:
-            return "Other"
-
-    @property
-    def platform_label(self) -> str:
-        """Human-readable platform name."""
-        if not self.platform: return "Unknown"
-        try:
-            return Platform(self.platform).label
-        except ValueError:
-            return "Unknown"
-
 
 class PlayerResult(rx.Model, table=True):
     """

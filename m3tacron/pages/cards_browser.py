@@ -20,6 +20,7 @@ from ..theme import (
 from ..components.icons import ship_icon
 from ..components.filter_accordion import filter_accordion
 from ..components.searchable_filter_accordion import searchable_filter_accordion
+from ..components.initiative_grid import initiative_grid
 
 class CardAnalyzerState(FormatFilterMixin):
     """
@@ -87,7 +88,7 @@ class CardAnalyzerState(FormatFilterMixin):
         # So we can leave them empty.
         
         # Trigger initial load
-        self.load_data()
+        return self.load_data()
         
     def set_active_tab(self, tab: str):
         self.active_tab = tab
@@ -253,9 +254,9 @@ class CardAnalyzerState(FormatFilterMixin):
 def render_filters() -> rx.Component:
     """Render the sidebar filters."""
     return rx.vstack(
-        # 1. Data Source
+        # 1. Card Images Source
         rx.vstack(
-            rx.text("Data Source", size="1", color=TEXT_SECONDARY),
+            rx.text("CARD IMAGES SOURCE", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
             rx.segmented_control.root(
                 rx.segmented_control.item("XWA", value="xwa"),
                 rx.segmented_control.item("Legacy", value="legacy"),
@@ -268,99 +269,109 @@ def render_filters() -> rx.Component:
             width="100%"
         ),
 
-        # 2. Sort
-        rx.vstack(
-            rx.text("Sort By", size="1", color=TEXT_SECONDARY),
-            rx.select(
-                ["Popularity", "Win Rate"],
-                value=CardAnalyzerState.sort_mode,
-                on_change=CardAnalyzerState.set_sort_mode,
-                style=INPUT_STYLE,
-                width="100%",
-                color_scheme="gray",
-            ),
-            spacing="1",
-            width="100%"
-        ),
-
         rx.divider(border_color=BORDER_COLOR),
-        rx.text("FILTERS", size="1", weight="bold", letter_spacing="1px", color=TEXT_SECONDARY),
 
-        # 3. Search
-        rx.input(
-            placeholder="Search Name / Effect...",
-            value=CardAnalyzerState.text_filter,
-            on_change=CardAnalyzerState.set_text_filter,
-            style=INPUT_STYLE,
-            width="100%",
-            color_scheme="gray",
-        ),
+        # 2. Tournament Data Filters (Group Header)
+        rx.text("TOURNAMENT FILTERS", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
         
-        # 4. Date Range
+        # Date Range
         rx.vstack(
-            rx.text("Date Range", size="1", color=TEXT_SECONDARY),
+            rx.text("Date Range", size="1", weight="bold", color=TEXT_SECONDARY),
             rx.vstack(
                 rx.input(type="date", value=CardAnalyzerState.date_range_start, on_change=CardAnalyzerState.set_date_start, style=INPUT_STYLE, width="100%"),
                 rx.text("to", size="1", color=TEXT_SECONDARY, text_align="center"),
                 rx.input(type="date", value=CardAnalyzerState.date_range_end, on_change=CardAnalyzerState.set_date_end, style=INPUT_STYLE, width="100%"),
                 spacing="1",
-                width="100%"
+                width="100%",
+                padding="8px",
+                border=f"1px solid {BORDER_COLOR}",
+                border_radius=RADIUS
             ),
             spacing="1",
             width="100%"
         ),
 
-        # 5. Format Filter
+        # Format Filter
         rx.box(
-            rx.text("Formats", size="1", color=TEXT_SECONDARY, margin_bottom="4px"),
-            rx.vstack(
-                hierarchical_format_filter(CardAnalyzerState),
-            ),
+            hierarchical_format_filter(CardAnalyzerState),
             width="100%",
-            padding="8px",
-            border=f"1px solid {BORDER_COLOR}",
-            border_radius=RADIUS
         ),
         
-        # 6. Context Specific Filters
-        rx.cond(
-            CardAnalyzerState.active_tab == "pilots",
+        # 3. Filters Header
+        rx.vstack(
+            rx.text("CARD FILTERS", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
+            
+            # Sort By (Moved here)
             rx.vstack(
-                # Faction
-                filter_accordion(
-                    "Factions",
-                    CardAnalyzerState.faction_options,
-                    CardAnalyzerState.selected_factions,
-                    CardAnalyzerState.toggle_faction
+                rx.text("Sort By", size="1", weight="bold", letter_spacing="1px", color=TEXT_SECONDARY),
+                rx.select(
+                    ["Popularity", "Win Rate"],
+                    value=CardAnalyzerState.sort_mode,
+                    on_change=CardAnalyzerState.set_sort_mode,
+                    style=INPUT_STYLE,
+                    width="100%",
+                    color_scheme="gray",
                 ),
-                
-                # Ship 
-                searchable_filter_accordion(
-                    "Ships",
-                    CardAnalyzerState.available_ships,
-                    CardAnalyzerState.selected_ships,
-                    CardAnalyzerState.toggle_ship,
-                    CardAnalyzerState.ship_search_text,
-                    CardAnalyzerState.set_ship_search
-                ),
-                
-                # Initiative
-                filter_accordion(
-                    "Initiative",
-                    CardAnalyzerState.initiative_options,
-                    CardAnalyzerState.selected_initiatives,
-                    CardAnalyzerState.toggle_initiative
-                ),
-                spacing="3",
+                spacing="1",
                 width="100%"
             ),
-            # Upgrade Filters
-            filter_accordion(
-                "Upgrade Type",
-                CardAnalyzerState.upgrade_type_options,
-                CardAnalyzerState.selected_upgrade_types,
-                CardAnalyzerState.toggle_upgrade_type
-            )
+
+            # Text Search
+            rx.vstack(
+                rx.text("Text Search", size="1", weight="bold", color=TEXT_SECONDARY),
+                rx.input(
+                    placeholder="Search Name / Effect...",
+                    value=CardAnalyzerState.text_filter,
+                    on_change=CardAnalyzerState.set_text_filter,
+                    style=INPUT_STYLE,
+                    width="100%",
+                    color_scheme="gray",
+                ),
+                spacing="1",
+                width="100%"
+            ),
+
+            rx.cond(
+                CardAnalyzerState.active_tab == "pilots",
+                rx.vstack(
+                    # Faction
+                    filter_accordion(
+                        "Factions",
+                        CardAnalyzerState.faction_options,
+                        CardAnalyzerState.selected_factions,
+                        CardAnalyzerState.toggle_faction
+                    ),
+                    
+                    # Ship 
+                    searchable_filter_accordion(
+                        "Ships",
+                        CardAnalyzerState.available_ships,
+                        CardAnalyzerState.selected_ships,
+                        CardAnalyzerState.toggle_ship,
+                        CardAnalyzerState.ship_search_text,
+                        CardAnalyzerState.set_ship_search
+                    ),
+                    
+                    # Initiative Grid
+                    initiative_grid(
+                        "Initiative",
+                        CardAnalyzerState.selected_initiatives,
+                        CardAnalyzerState.toggle_initiative
+                    ),
+                    spacing="3",
+                    width="100%"
+                ),
+                # Upgrade Filters
+                filter_accordion(
+                    "Upgrade Type",
+                    CardAnalyzerState.upgrade_type_options,
+                    CardAnalyzerState.selected_upgrade_types,
+                    CardAnalyzerState.toggle_upgrade_type
+                )
+            ),
+            width="100%",
+            align_items="start",
+            spacing="3"
         ),
         
         spacing="4",
@@ -374,73 +385,81 @@ def pilot_card(p: dict) -> rx.Component:
     normalized_faction = p["faction"].to(str).lower().replace(" ", "").replace("-", "")
     color = FACTION_COLORS.get(normalized_faction, TEXT_SECONDARY)
     
-    return rx.box(
-        rx.vstack(
-            rx.cond(
-                p["image"].to(str) != "",
-                rx.image(src=p["image"].to(str), width="100%", height="auto", border_radius="12px", max_height="300px", object_fit="contain"),
-                rx.box(rx.text("NO IMAGE", color=TEXT_SECONDARY, size="1"), height="200px", width="100%", bg="rgba(255,255,255,0.05)", border_radius="12px", display="flex", align_items="center", justify_content="center")
-            ),
+    return rx.link(
+        rx.box(
             rx.vstack(
-                rx.text(p["name"].to(str), weight="bold", color=TEXT_PRIMARY, size="3", text_align="center"),
-                rx.text(p["ship"].to(str), size="1", color=color, font_family=MONOSPACE_FONT, text_align="center"),
-                rx.hstack(
-                    rx.badge(p["count"].to(str) + " LISTS", color_scheme="gray", variant="solid", radius="full"),
-                    rx.badge(p["win_rate"].to(float).to(int).to(str) + "% WR", color_scheme=rx.cond(p["win_rate"].to(float) >= 50, "green", "orange"), variant="solid", radius="full"),
-                    spacing="2",
-                    justify="center",
-                    width="100%"
+                rx.cond(
+                    p["image"].to(str) != "",
+                    rx.image(src=p["image"].to(str), width="100%", height="auto", border_radius="12px", max_height="300px", object_fit="contain"),
+                    rx.box(rx.text("NO IMAGE", color=TEXT_SECONDARY, size="1"), height="200px", width="100%", bg="rgba(255,255,255,0.05)", border_radius="12px", display="flex", align_items="center", justify_content="center")
                 ),
+                rx.vstack(
+                    rx.text(p["name"].to(str), weight="bold", color=TEXT_PRIMARY, size="3", text_align="center"),
+                    rx.text(p["ship"].to(str), size="1", color=color, font_family=MONOSPACE_FONT, text_align="center"),
+                    rx.hstack(
+                        rx.badge(p["count"].to(str) + " LISTS", color_scheme="gray", variant="solid", radius="full"),
+                        rx.badge(p["win_rate"].to(float).to(int).to(str) + "% WR", color_scheme=rx.cond(p["win_rate"].to(float) >= 50, "green", "orange"), variant="solid", radius="full"),
+                        spacing="2",
+                        justify="center",
+                        width="100%"
+                    ),
+                    width="100%",
+                    padding="8px",
+                    align="center",
+                    spacing="2"
+                ),
+                spacing="0",
                 width="100%",
-                padding="8px",
-                align="center",
-                spacing="2"
+                align="center"
             ),
-            spacing="0",
+            padding="12px",
+            style=TERMINAL_PANEL_STYLE,
+            border_radius=RADIUS,
             width="100%",
-            align="center"
+            transition="transform 0.2s",
+            _hover={"transform": "translateY(-4px)"}
         ),
-        padding="12px",
-        style=TERMINAL_PANEL_STYLE,
-        border_radius=RADIUS,
-        width="100%",
-        transition="transform 0.2s",
-        _hover={"transform": "translateY(-4px)"}
+        href="/pilot/" + p["xws"].to_string(),
+        width="100%"
     )
 
 def upgrade_card(u: dict) -> rx.Component:
-    return rx.box(
-        rx.vstack(
-            rx.cond(
-                u["image"].to(str) != "",
-                rx.image(src=u["image"].to(str), width="100%", height="auto", border_radius="12px", max_height="250px", object_fit="contain"),
-                rx.box(rx.text("NO IMAGE", color=TEXT_SECONDARY, size="1"), height="150px", width="100%", bg="rgba(255,255,255,0.05)", border_radius="12px", display="flex", align_items="center", justify_content="center")
-            ),
+    return rx.link(
+        rx.box(
             rx.vstack(
-                rx.text(u["name"].to(str), weight="bold", color=TEXT_PRIMARY, size="2", text_align="center"),
-                rx.text(u["type"].to(str), size="1", color="cyan", font_family=MONOSPACE_FONT, text_align="center"),
-                rx.hstack(
-                    rx.badge(u["count"].to(str) + " USED", color_scheme="gray", variant="solid", radius="full"),
-                    rx.badge(u["win_rate"].to(float).to(int).to(str) + "% WR", color_scheme=rx.cond(u["win_rate"].to(float) >= 50, "green", "orange"), variant="solid", radius="full"),
-                    spacing="2",
-                    justify="center",
-                    width="100%"
+                rx.cond(
+                    u["image"].to(str) != "",
+                    rx.image(src=u["image"].to(str), width="100%", height="auto", border_radius="12px", max_height="250px", object_fit="contain"),
+                    rx.box(rx.text("NO IMAGE", color=TEXT_SECONDARY, size="1"), height="150px", width="100%", bg="rgba(255,255,255,0.05)", border_radius="12px", display="flex", align_items="center", justify_content="center")
                 ),
+                rx.vstack(
+                    rx.text(u["name"].to(str), weight="bold", color=TEXT_PRIMARY, size="2", text_align="center"),
+                    rx.text(u["type"].to(str), size="1", color="cyan", font_family=MONOSPACE_FONT, text_align="center"),
+                    rx.hstack(
+                        rx.badge(u["count"].to(str) + " USED", color_scheme="gray", variant="solid", radius="full"),
+                        rx.badge(u["win_rate"].to(float).to(int).to(str) + "% WR", color_scheme=rx.cond(u["win_rate"].to(float) >= 50, "green", "orange"), variant="solid", radius="full"),
+                        spacing="2",
+                        justify="center",
+                        width="100%"
+                    ),
+                    width="100%",
+                    padding="8px",
+                    align="center",
+                    spacing="2"
+                ),
+                spacing="0",
                 width="100%",
-                padding="8px",
-                align="center",
-                spacing="2"
+                align="center"
             ),
-            spacing="0",
+            padding="12px",
+            style=TERMINAL_PANEL_STYLE,
+            border_radius=RADIUS,
             width="100%",
-            align="center"
+            transition="transform 0.2s",
+            _hover={"transform": "translateY(-4px)"}
         ),
-        padding="12px",
-        style=TERMINAL_PANEL_STYLE,
-        border_radius=RADIUS,
-        width="100%",
-        transition="transform 0.2s",
-        _hover={"transform": "translateY(-4px)"}
+        href="/upgrade/" + u["xws"].to_string(),
+        width="100%"
     )
 
 def render_content() -> rx.Component:
@@ -482,10 +501,11 @@ def render_content() -> rx.Component:
         align="start"
     )
 
-def card_analyzer_page() -> rx.Component:
+def cards_browser_page() -> rx.Component:
     return layout(
         dashboard_layout(
              render_filters(),
              render_content()
-        )
+        ),
+        on_mount=CardAnalyzerState.on_mount
     )

@@ -39,43 +39,57 @@ def searchable_filter_accordion(
     """
     return rx.accordion.root(
         rx.accordion.item(
-            header=rx.text(
-                label, 
-                size="1", 
-                weight="bold", 
-                color=TEXT_SECONDARY, 
-                font_family=MONOSPACE_FONT, 
-                letter_spacing="1px"
-            ),
-            content=rx.vstack(
-                # Search Bar
-                rx.input(
-                    placeholder="Search...",
-                    value=search_text,
-                    on_change=set_search_text,
-                    size="1",
-                    style={**INPUT_STYLE, "border": "none", "border_bottom": f"1px solid {BORDER_COLOR}", "border_radius": "0"},
-                    width="100%",
-                    margin_bottom="8px"
-                ),
-                # Options List
-                rx.scroll_area(
-                    rx.vstack(
-                        rx.foreach(
-                            options,
-                            lambda opt: checkbox_row(opt[0], opt[1], state_map, on_toggle)
-                        ),
-                        spacing="1",
-                        width="100%"
+            rx.accordion.header(
+                rx.accordion.trigger(
+                    rx.text(
+                        label, 
+                        size="1", 
+                        weight="bold", 
+                        color=TEXT_SECONDARY, 
+                        font_family=MONOSPACE_FONT, 
+                        letter_spacing="1px"
                     ),
-                    max_height="200px",
-                    type="always",
-                    scrollbars="vertical",
-                    style={"padding_right": "10px"} 
-                ),
-                width="100%",
-                padding_left="8px",
-                padding_top="8px"
+                    rx.accordion.icon(),
+                    align_items="center",
+                    display="flex",
+                    justify_content="space-between",
+                    width="100%",
+                    padding_y="8px",
+                    padding_x="0px",
+                    _hover={"background": "transparent", "opacity": 0.8},
+                )
+            ),
+            rx.accordion.content(
+                rx.vstack(
+                    # Search Bar
+                    rx.input(
+                        placeholder="Search...",
+                        value=search_text,
+                        on_change=set_search_text,
+                        size="1",
+                        style={**INPUT_STYLE, "border": "none", "border_bottom": f"1px solid {BORDER_COLOR}", "border_radius": "0"},
+                        width="100%",
+                        margin_bottom="8px"
+                    ),
+                    # Options List
+                    rx.scroll_area(
+                        rx.vstack(
+                            rx.foreach(
+                                options,
+                                lambda opt: checkbox_row(opt[0], opt[1], state_map, on_toggle)
+                            ),
+                            spacing="1",
+                            width="100%"
+                        ),
+                        max_height="200px",
+                        type="always",
+                        scrollbars="vertical",
+                        style={"padding_right": "10px"} 
+                    ),
+                    width="100%",
+                    padding_left="8px",
+                    padding_top="0px"
+                )
             ),
             value=label,
             style={

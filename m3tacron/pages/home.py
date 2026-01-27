@@ -15,43 +15,46 @@ from ..theme import (
 
 class HomeState(rx.State):
     """State for the Home page."""
-    recent_tournaments: list[Tournament] = []
+    recent_tournaments: list[dict] = []
     
     def load_data(self):
         """Load dashboard data from database."""
+        from ..backend.data_structures.formats import Format
         with Session(engine) as session:
             # Get recent tournaments
             tournaments = session.exec(
                 select(Tournament).order_by(Tournament.date.desc()).limit(10)
             ).all()
             
-            self.recent_tournaments = tournaments
-            
-            # Note: player_count is a field in Tournament model. 
-            # If it's 0, we could fetch it, but usually the model should have it.
-            # Keeping the logic for dynamic count if needed, but storing the object.
-            # To avoid extra DB queries during list render, we assume player_count is set.
+            self.recent_tournaments = []
+            for t in tournaments:
+                self.recent_tournaments.append({
+                    "id": t.id,
+                    "name": t.name,
+                    "date": t.date.strftime("%Y-%m-%d") if t.date else "Unknown",
+                    "format": t.format.value if hasattr(t.format, "value") else str(t.format),
+                    "format_label": Format(t.format).label if t.format else "Other",
+                    "player_count": t.player_count
+                })
 
-
-def tournament_row(tournament: Tournament, index: int) -> rx.Component:
+def tournament_row(tournament: dict, index: int) -> rx.Component:
     """Row for recent tournaments."""
-    from ..backend.data_structures.formats import Format
     return rx.link(
         list_row(
             left_content=rx.vstack(
-                rx.text(tournament.name, size="2", weight="bold", color=TEXT_PRIMARY, font_family=MONOSPACE_FONT),
-                rx.text(tournament.date.to(str), size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+                rx.text(tournament["name"], size="2", weight="bold", color=TEXT_PRIMARY, font_family=MONOSPACE_FONT),
+                rx.text(tournament["date"], size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
                 spacing="0",
                 align="start",
             ),
             right_content=rx.hstack(
-                rx.text(tournament.format_label, size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
-                rx.text(f"[{tournament.player_count}]", size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+                rx.text(tournament["format_label"], size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+                rx.text(f"[{tournament['player_count']}]", size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
                 spacing="2"
             ),
             index=index,
         ),
-        href="/tournament/" + tournament.id.to_string(),
+        href="/tournament/" + tournament["id"].to_string(),
         style={"text_decoration": "none", "width": "100%"}
     )
 

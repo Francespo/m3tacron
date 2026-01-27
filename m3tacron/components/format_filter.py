@@ -89,32 +89,50 @@ def render_macro_section(
         )
 
     return rx.accordion.item(
-        header=rx.hstack(
-            rx.checkbox(
-                checked=path_to_selection[macro.value],
-                on_change=lambda val: state.toggle_format_macro(macro.value, val),
-                size="1", 
-                color_scheme="gray",
-            ),
-            rx.text(
-                macro.label, 
-                weight="bold", 
-                size="1", 
-                color=TEXT_SECONDARY,
-                font_family=MONOSPACE_FONT,
-                letter_spacing="1px"
-            ),
-            spacing="2",
-            align="center",
-            width="100%",
+        rx.accordion.header(
+            rx.hstack(
+                rx.checkbox(
+                    checked=path_to_selection[macro.value],
+                    on_change=lambda val: state.toggle_format_macro(macro.value, val),
+                    size="1", 
+                    color_scheme="gray",
+                    margin_right="8px"
+                ),
+                rx.accordion.trigger(
+                    rx.hstack(
+                        rx.text(
+                            macro.label, 
+                            weight="bold", 
+                            size="1", 
+                            color=TEXT_SECONDARY,
+                            font_family=MONOSPACE_FONT,
+                            letter_spacing="1px"
+                        ),
+                        rx.accordion.icon(),
+                        width="100%",
+                        justify="between",
+                        align="center"
+                    ),
+                    width="100%",
+                    padding_y="4px",
+                    padding_x="0px",
+                    _hover={"background": "transparent"},
+                ),
+                align="center",
+                width="100%",
+                spacing="0"
+            )
         ),
-        content=rx.vstack(
-            *children_components,
-            spacing="1",
-            width="100%",
-            padding_top="8px"
+        rx.accordion.content(
+             rx.vstack(
+                *children_components,
+                spacing="1",
+                width="100%",
+                padding_top="0px", # Remove top padding to fix vertical spacing
+                padding_left="24px" # Indent children to align with text
+            )
         ),
-        value=macro.label, # Value for open state
+        value=macro.label,
         style={
             "background": "transparent", 
             "border": "none",
@@ -132,10 +150,9 @@ def hierarchical_format_filter(
     # Static iteration over Macros using enum
     macro_items = []
     for m in MacroFormat:
-        if m != MacroFormat.OTHER:
-            macro_items.append(
-                render_macro_section(m, state)
-            )
+        macro_items.append(
+            render_macro_section(m, state)
+        )
     
     # Inner Accordion for Macros
     inner_accordion = rx.accordion.root(
@@ -150,18 +167,33 @@ def hierarchical_format_filter(
     # Outer Accordion Item (The "Wrapper")
     return rx.accordion.root(
         rx.accordion.item(
-            header=rx.text(
-                label, 
-                size="1", 
-                weight="bold", 
-                color=TEXT_SECONDARY, 
-                font_family=MONOSPACE_FONT,
-                letter_spacing="1px"
+            rx.accordion.header(
+                rx.accordion.trigger(
+                    rx.text(
+                        label, 
+                        size="1", 
+                        weight="bold", 
+                        color=TEXT_SECONDARY, 
+                        font_family=MONOSPACE_FONT,
+                        letter_spacing="1px"
+                    ),
+                    rx.accordion.icon(),
+                    align_items="center",
+                    display="flex",
+                    justify_content="space-between",
+                    width="100%",
+                    padding_y="8px",
+                    padding_x="0px",
+                    _hover={"background": "transparent"},
+                )
             ),
-            content=rx.box(
-                inner_accordion,
-                width="100%",
-                padding_left="8px"
+            rx.accordion.content(
+                rx.box(
+                    inner_accordion,
+                    width="100%",
+                    padding_left="8px",
+                    padding_top="0px"
+                )
             ),
             value="main",
             style={

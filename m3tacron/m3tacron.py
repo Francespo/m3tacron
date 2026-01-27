@@ -7,11 +7,11 @@ import reflex as rx
 
 from rxconfig import config
 from .pages.home import home_page
-from .pages.tournaments import tournaments_page
+from .pages.tournaments_browser import tournaments_browser_page
 from .pages.tournament_detail import tournament_detail_page
 
-from .pages.squadrons import squadrons_page
-from .pages.card_analyzer import card_analyzer_page
+from .pages.squadrons_browser import squadrons_browser_page
+from .pages.cards_browser import cards_browser_page
 from .backend.database import create_db_and_tables
 
 
@@ -46,9 +46,17 @@ app = rx.App(
 
 # Register pages
 app.add_page(home_page, route="/", title="M3taCron - Meta Snapshot")
-app.add_page(tournaments_page, route="/tournaments", title="M3taCron - Tournaments")
+app.add_page(tournaments_browser_page, route="/tournaments", title="M3taCron - Tournaments Browser")
 app.add_page(tournament_detail_page, route="/tournament/[id]", title="M3taCron - Tournament")
 
-app.add_page(squadrons_page, route="/squadrons", title="M3taCron - Squadrons")
-app.add_page(card_analyzer_page, route="/cards", title="M3taCron - Card Analyzer")
+# from .pages.squadrons_browser import squadrons_browser_page
+from .pages.cards_browser import cards_browser_page
+
+app.add_page(squadrons_browser_page, route="/squadrons", title="M3taCron - Squadrons Browser")
+app.add_page(cards_browser_page, route="/cards", title="M3taCron - Cards Browser")
+
+from .pages.pilot_detail import pilot_detail_page
+from .pages.upgrade_detail import upgrade_detail_page
+app.add_page(pilot_detail_page, route="/pilot/[id]", title="M3taCron - Pilot Detail")
+app.add_page(upgrade_detail_page, route="/upgrade/[id]", title="M3taCron - Upgrade Detail")
 

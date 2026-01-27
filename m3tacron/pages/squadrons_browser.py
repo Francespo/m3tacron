@@ -729,7 +729,7 @@ def squadrons_content() -> rx.Component:
         padding_bottom="60px"
     )
 
-def squadrons_page() -> rx.Component:
+def squadrons_browser_page() -> rx.Component:
     return layout(
         rx.fragment(
             dashboard_layout(

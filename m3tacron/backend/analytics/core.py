@@ -41,6 +41,13 @@ def aggregate_card_stats(
         ship_filter = filters.get("ship")
         initiative_filter = filters.get("initiative")
         
+        # New Context Filters
+        filter_pilot_id = filters.get("pilot_id")
+        if filter_pilot_id: filter_pilot_id = filter_pilot_id.strip('"').strip("'")
+        
+        filter_upgrade_id = filters.get("upgrade_id")
+        if filter_upgrade_id: filter_upgrade_id = filter_upgrade_id.strip('"').strip("'")
+        
         # Pre-process initiative filter
         allowed_initiatives = set()
         if initiative_filter and initiative_filter != "all":
@@ -109,6 +116,18 @@ def aggregate_card_stats(
                     pid = p.get("id") or p.get("name")
                     if not pid: continue
                     
+                    # Context Filter: Upgrade ID
+                    # If we are looking for pilots that use a specific upgrade
+                    if filter_upgrade_id:
+                        has_upgrade = False
+                        upgrades = p.get("upgrades", {}) or {}
+                        for u_list in upgrades.values():
+                            if filter_upgrade_id in u_list:
+                                has_upgrade = True
+                                break
+                        if not has_upgrade:
+                            continue
+
                     # Ship Filter
                     if allowed_ships:
                          p_info = all_pilots.get(pid, {})
@@ -168,7 +187,27 @@ def aggregate_card_stats(
                     
             elif mode == "upgrades":
                 for p in xws.get("pilots", []):
+                    pid = p.get("id") or p.get("name")
+                    
+                    # Context Filter: Pilot ID
+                    # If we are looking for upgrades on a specific pilot
+                    if filter_pilot_id:
+                        if pid != filter_pilot_id:
+                            continue
+                    
                     upgrades = p.get("upgrades", {}) or {}
+                    
+                    # Context Filter: Upgrade ID
+                    # If we are looking for Paired Upgrades (upgrades in the same loadout as the target upgrade)
+                    if filter_upgrade_id:
+                        has_target_upgrade = False
+                        for u_list in upgrades.values():
+                            if filter_upgrade_id in u_list:
+                                has_target_upgrade = True
+                                break
+                        if not has_target_upgrade:
+                            continue
+
                     for u_type, u_list in upgrades.items():
                         
                         # Type Filter
@@ -176,6 +215,10 @@ def aggregate_card_stats(
                             continue
                             
                         for u_xws in u_list:
+                            # Skip self if looking for paired upgrades
+                            if filter_upgrade_id and u_xws == filter_upgrade_id:
+                                continue
+
                             # Search Text
                             if text_filter:
                                 u_info = all_upgrades.get(u_xws, {})
@@ -190,7 +233,7 @@ def aggregate_card_stats(
                                 stats[u_xws] = {
                                     "name": u_info.get("name", u_xws),
                                     "xws": u_xws,
-                                    "type": u_type, # This might vary if an upgrade has multiple sides/types? simple for now
+                                    "type": u_type.replace("-", " ").replace("_", " ").title(), # Format human readable label
                                     "count": 0, "wins": 0, "games": 0,
                                     "image": u_info.get("image", ""),
                                     "cost": u_info.get("cost", 0)
@@ -203,12 +246,28 @@ def aggregate_card_stats(
 
         # Post-Processing
         results = []
-        for v in stats.values():
-            if v["games"] > 0:
-                v["win_rate"] = (v["wins"] / v["games"]) * 100
+        for xws_id, s_data in stats.items():
+            if s_data["games"] > 0:
+                win_rate = (s_data["wins"] / s_data["games"]) * 100
             else:
-                v["win_rate"] = 0.0
-            results.append(v)
+                win_rate = 0.0
+
+            # Ensure we aren't returning raw XWS if name exists in stats
+            name = s_data.get("name", xws_id)
+            if not name or name == xws_id:
+                # Fallback lookup if stats construction missed it
+                if mode == "pilots":
+                    info = all_pilots.get(xws_id, {})
+                else: 
+                     # mode == "upgrades" or "tech" etc.
+                    info = all_upgrades.get(xws_id, {})
+                name = info.get("name", xws_id)
+            
+            # Enrich data
+            s_data["name"] = name
+            s_data["win_rate"] = round(win_rate, 1)
+            
+            results.append(s_data)
             
         # Sorting
         if sort_mode == "win_rate":

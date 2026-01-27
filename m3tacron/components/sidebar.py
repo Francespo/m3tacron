@@ -187,7 +187,7 @@ def mobile_header() -> rx.Component:
     )
 
 
-def layout(page_content: rx.Component) -> rx.Component:
+def layout(page_content: rx.Component, **kwargs) -> rx.Component:
     """Layout wrapper."""
     return rx.box(
         sidebar(),
@@ -203,6 +203,7 @@ def layout(page_content: rx.Component) -> rx.Component:
             background=TERMINAL_BG,
             style={"position": "relative"}
         ),
+        **kwargs
     )
 
 def dashboard_layout(filters_sidebar: rx.Component, main_content: rx.Component) -> rx.Component:
