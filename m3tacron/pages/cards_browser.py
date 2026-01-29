@@ -14,6 +14,7 @@ from ..backend.data_structures.formats import Format, MacroFormat
 from ..backend.utils import load_all_ships
 from ..backend.analytics.core import aggregate_card_stats
 from ..backend.data_structures.sorting_order import SortingCriteria, SortDirection
+from ..backend.data_structures.view_mode import ViewMode
 from ..theme import (
     TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR, TERMINAL_PANEL, TERMINAL_PANEL_STYLE,
     HEADER_FONT, MONOSPACE_FONT, SANS_FONT, INPUT_STYLE, RADIUS, FACTION_COLORS
@@ -56,11 +57,15 @@ class CardAnalyzerState(FormatFilterMixin):
     selected_upgrade_types: dict[str, bool] = {}
     
     # Static info for filters
-    faction_options: list[list[str]] = [["Rebel Alliance", "Rebel Alliance"], ["Galactic Empire", "Galactic Empire"], ["Scum and Villainy", "Scum and Villainy"], ["Resistance", "Resistance"], ["First Order", "First Order"], ["Galactic Republic", "Galactic Republic"], ["Separatist Alliance", "Separatist Alliance"]]
+    faction_options: list[list[str]] = [[f.label, f.value] for f in Faction if f != Faction.UNKNOWN]
     initiative_options: list[list[str]] = [[str(i), str(i)] for i in range(7)]
     
     # --- NEW ADDITIONS FOR ADVANCED MODE ---
-    mode: str = "basic" # basic, advanced
+    mode: str = ViewMode.BASIC.value
+    
+    @rx.var
+    def active_mode(self) -> str:
+        return self.mode
     
     # numeric filters (min/max)
     points_min: int = 0
@@ -89,14 +94,23 @@ class CardAnalyzerState(FormatFilterMixin):
     
     # Initiative range (replaces grid)
     init_min: int = 0
-    init_max: int = 6
+    init_max: int = 8
     
     # Base sizes - empty dict means no filter (all sizes)
     base_sizes: dict[str, bool] = {}
+
+    # Epic Content
+    include_epic: bool = False
     
     def set_mode(self, mode: str | list[str]):
         if isinstance(mode, list):
             mode = mode[0]
+    def set_mode(self, mode: str | list[str]):
+        if isinstance(mode, list):
+            mode = mode[0]
+        # Ensure valid mode
+        if mode not in [m.value for m in ViewMode]:
+            mode = ViewMode.BASIC.value
         self.mode = mode
 
     def set_points_min(self, val: str):
@@ -185,6 +199,10 @@ class CardAnalyzerState(FormatFilterMixin):
         self.base_sizes[size] = checked
         self.load_data()
 
+    def set_include_epic(self, val: bool):
+        self.include_epic = val
+        self.load_data()
+
     
     @rx.var
     def upgrade_type_options(self) -> list[list[str]]:
@@ -223,6 +241,9 @@ class CardAnalyzerState(FormatFilterMixin):
 
     # Data
     results: list[dict] = []
+    
+    # Cache for full filtered results
+    _all_results_cached: list[dict] = []
 
 
     
@@ -261,7 +282,12 @@ class CardAnalyzerState(FormatFilterMixin):
         self.load_data()
         
     def toggle_faction(self, faction: str, checked: bool):
-        self.selected_factions[faction] = checked
+        # Removing yield toast to ensure reliable state update
+        # print(f"DEBUG: toggle_faction called for {faction} -> {checked}")
+        new_factions = self.selected_factions.copy()
+        new_factions[faction] = checked
+        self.selected_factions = new_factions
+        
         self.current_page = 0
         self.load_data()
 
@@ -269,17 +295,26 @@ class CardAnalyzerState(FormatFilterMixin):
         self.ship_search_text = text
 
     def toggle_ship(self, xws: str, checked: bool):
-        self.selected_ships[xws] = checked
+        new_ships = self.selected_ships.copy()
+        new_ships[xws] = checked
+        self.selected_ships = new_ships
+        
         self.current_page = 0
         self.load_data()
         
     def toggle_initiative(self, init: str, checked: bool):
-        self.selected_initiatives[init] = checked
+        new_inits = self.selected_initiatives.copy()
+        new_inits[init] = checked
+        self.selected_initiatives = new_inits
+        
         self.current_page = 0
         self.load_data()
 
     def toggle_upgrade_type(self, u_type: str, checked: bool):
-        self.selected_upgrade_types[u_type] = checked
+        new_types = self.selected_upgrade_types.copy()
+        new_types[u_type] = checked
+        self.selected_upgrade_types = new_types
+        
         self.current_page = 0
         self.load_data()
 
@@ -303,7 +338,44 @@ class CardAnalyzerState(FormatFilterMixin):
         return load_all_ships(source_enum)
 
     def on_filter_change(self):
-        """Handle format filter changes."""
+        """Handle format filter changes. Overrides FormatFilterMixin hook."""
+        self.current_page = 0
+        self.load_data()
+
+    def toggle_format_macro(self, macro_val: str):
+        """Toggle a macro format. Overrides mixin for proper reactivity."""
+        from ..backend.data_structures.formats import MacroFormat
+        
+        # Logic: If checked or indeterminate -> Uncheck all. If unchecked -> Check all.
+        current_state = self.macro_states.get(macro_val, "unchecked")
+        
+        target_checked = True
+        if current_state == "checked" or current_state == "indeterminate":
+            target_checked = False
+            
+        new_formats = self.selected_formats.copy()
+        # Update children
+        try:
+            macro = MacroFormat(macro_val)
+            for f in macro.formats():
+                new_formats[f.value] = target_checked
+        except ValueError:
+            pass
+            
+        # Update macro itself
+        new_formats[macro_val] = target_checked
+        
+        self.selected_formats = new_formats
+        self.current_page = 0
+        self.load_data()
+
+    def toggle_format_child(self, child_val: str):
+        """Toggle a specific format child. Overrides mixin for proper reactivity."""
+        checked = not self.selected_formats.get(child_val, False)
+
+        new_formats = self.selected_formats.copy()
+        new_formats[child_val] = checked
+        self.selected_formats = new_formats
         self.current_page = 0
         self.load_data()
 
@@ -376,19 +448,67 @@ class CardAnalyzerState(FormatFilterMixin):
         return final_list
     
 
+
     def on_page_change(self):
-        self.load_data()
+        """Handle page change by slicing existing results."""
+        self.update_view()
+
+    def next_page(self):
+        """Handle next page click."""
+        # Calculate total pages
+        total_pages = (self.total_items_count + self.page_size - 1) // self.page_size if self.total_items_count > 0 else 1
+        if self.current_page < total_pages - 1:
+            self.current_page += 1
+            self.update_view()
+            
+    def prev_page(self):
+        """Handle prev page click."""
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_view()
+
+    def jump_to_page(self, val: str):
+        """Handle manual page input."""
+        try:
+            p = int(val)
+            idx = p - 1
+            total_pages = (self.total_items_count + self.page_size - 1) // self.page_size if self.total_items_count > 0 else 1
+            if 0 <= idx < total_pages:
+                self.current_page = idx
+                self.update_view()
+        except ValueError:
+            pass
+
+    def handle_page_submit(self, key: str):
+        """Handle Enter key in pagination input."""
+        if key == "Enter":
+            self.update_view()
+
+    def update_view(self):
+        """Slice the full dataset for the current page."""
+        start = self.current_page * self.page_size
+        end = start + self.page_size
+        self.results = self._all_results_cached[start:end]
+
+
 
     def load_data(self):
+        """
+        Full data reload:
+        1. Aggregates stats from DB based on filters.
+        2. Sorts data.
+        3. Updates cache.
+        4. Resets pagination to 0.
+        5. Updates view.
+        """
         criteria = SortingCriteria.from_label(self.sort_metric)
         direction = SortDirection(self.sort_direction)
 
+        print(f"DEBUG: load_data called. Source: {self.data_source}")
+
         # Construction Allowed Formats List
-        # Iterate selected_formats, if true add to list.
-        # Note: Backend expects specific formats, not macros.
         allowed = []
         for k, v in self.selected_formats.items():
-
             # Check if k is a valid Format value (exclude macros)
             is_valid_format = False
             for f in Format:
@@ -398,10 +518,6 @@ class CardAnalyzerState(FormatFilterMixin):
             
             if v and is_valid_format:
                 allowed.append(k)
-        
-        # If all formats are selected, we can pass None to optimize?
-        # Or just pass the list.
-        
         
         # Prepare multi-select lists
         active_factions = [k for k, v in self.selected_factions.items() if v]
@@ -437,10 +553,10 @@ class CardAnalyzerState(FormatFilterMixin):
             "is_limited": self.is_limited,
             "is_not_limited": self.is_not_limited,
             "base_sizes": self.base_sizes,
+            "include_epic": self.include_epic,
         }
-        print(f"DEBUG: Active Filters: {filters}")
+        # print(f"DEBUG: Active Filters: {filters}")
         
-        # ... (inside load_data)
         # Convert data_source string to Enum
         try:
             ds_enum = DataSource(self.data_source)
@@ -449,14 +565,11 @@ class CardAnalyzerState(FormatFilterMixin):
 
         data = aggregate_card_stats(filters, criteria, direction, self.active_tab, ds_enum)
         
+        self._all_results_cached = data
         self.total_items_count = len(data)
+        self.current_page = 0
         
-        # Pagination
-        # Pagination
-        start = self.current_page * self.page_size
-        end = start + self.page_size
-        print(f"DEBUG: load_data page={self.current_page}, start={start}, end={end}, total={len(data)}")
-        self.results = data[start:end]
+        self.update_view()
 
 def render_filters() -> rx.Component:
     """Render the sidebar filters."""
@@ -470,6 +583,12 @@ def render_filters() -> rx.Component:
                 value=CardAnalyzerState.data_source,
                 on_change=CardAnalyzerState.set_data_source,
                 width="100%",
+                color_scheme="gray",
+            ),
+            rx.checkbox(
+                "Include Epic Content",
+                checked=CardAnalyzerState.include_epic,
+                on_change=CardAnalyzerState.set_include_epic,
                 color_scheme="gray",
             ),
             spacing="1",
@@ -510,8 +629,8 @@ def render_filters() -> rx.Component:
                 rx.text("CARD FILTERS", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
                 rx.spacer(),
                 rx.segmented_control.root(
-                    rx.segmented_control.item("Basic", value="basic"),
-                    rx.segmented_control.item("Advanced", value="advanced"),
+                    rx.segmented_control.item("Basic", value=ViewMode.BASIC.value),
+                    rx.segmented_control.item("Advanced", value=ViewMode.ADVANCED.value),
                     value=CardAnalyzerState.mode,
                     on_change=CardAnalyzerState.set_mode,
                     size="1",
@@ -553,13 +672,13 @@ def render_filters() -> rx.Component:
 
             # --- BASIC MODE CONTENT ---
             rx.cond(
-                CardAnalyzerState.mode == "basic",
+                CardAnalyzerState.mode == ViewMode.BASIC.value,
                 rx.vstack(
                     # Text Search
                     rx.vstack(
                         rx.text("Text Search", size="1", weight="bold", color=TEXT_SECONDARY),
                         rx.input(
-                            placeholder="search name / ability / ship",
+                            placeholder="Search card text",
                             value=CardAnalyzerState.text_filter,
                             on_change=CardAnalyzerState.set_text_filter,
                             style=INPUT_STYLE,
@@ -583,7 +702,7 @@ def render_filters() -> rx.Component:
                             
                             # Ship 
                             searchable_filter_accordion(
-                                "Ships",
+                                "Chassis",
                                 CardAnalyzerState.available_ships,
                                 CardAnalyzerState.selected_ships,
                                 CardAnalyzerState.toggle_ship,
@@ -611,7 +730,7 @@ def render_filters() -> rx.Component:
             
             # --- ADVANCED MODE CONTENT ---
             rx.cond(
-                CardAnalyzerState.mode == "advanced",
+                CardAnalyzerState.mode == ViewMode.ADVANCED.value,
                 advanced_filters(CardAnalyzerState)
             ),
             
