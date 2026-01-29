@@ -1,0 +1,51 @@
+{
+  "New York, NY": {
+    "city": "New York",
+    "country": "United States"
+  },
+  "Mox Boarding House, Seattle": {
+    "city": "Seattle",
+    "country": "United States"
+  },
+  "The Game Store, London, UK": null,
+  "LomzaPoland": null,
+  "Hala Kultury w LomzyPoland": null,
+  "Virtual": {
+    "city": "Bologna",
+    "country": "Italia"
+  },
+  "Ankeny, Iowa, US": {
+    "city": "Ankeny",
+    "country": "United States"
+  },
+  "Amsterdam, Noord-Holland, NL": {
+    "city": "Amsterdam",
+    "country": "Nederland"
+  },
+  "Gosford, New South Wales, AU": {
+    "city": "Gosford",
+    "country": "Australia"
+  },
+  "Philadelphia, Pennsylvania, US": {
+    "city": "Philadelphia",
+    "country": "United States"
+  },
+  "Fairview Heights, Illinois, US": {
+    "city": "Fairview Heights",
+    "country": "United States"
+  },
+  "Leicester, Leicester, GB": {
+    "city": "Leicester",
+    "country": "United Kingdom"
+  },
+  "Lomza, Poland": {
+    "city": "\u0141om\u017ca",
+    "country": "Polska",
+    "continent": null
+  },
+  "GB": {
+    "city": "Unknown",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  }
+}

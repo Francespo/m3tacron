@@ -28,7 +28,7 @@ class Tournament(rx.Model, table=True):
     """
     name: str
     date: date
-    location: Location | None = Field(default=None, sa_column=Column(LocationType))
+    location: Location | None = Field(default=Location(city="Unknown", country="Unknown", continent="Unknown"), sa_column=Column(LocationType))
     player_count: int = Field(default=0)
     url: str
     
@@ -36,33 +36,6 @@ class Tournament(rx.Model, table=True):
     format: Format | None = Field(default=None, sa_column=Column(String))
     
     results: list["PlayerResult"] = Relationship(back_populates="tournament")
-    
-    @property
-    def macro_format(self) -> str:
-        """Infer macro format from the specific format."""
-        if not self.format: return "other"
-        try:
-            return Format(self.format).macro.value
-        except ValueError:
-            return "other"
-
-    @property
-    def format_label(self) -> str:
-        """Human-readable format name."""
-        if not self.format: return "Other"
-        try:
-            return Format(self.format).label
-        except ValueError:
-            return "Other"
-
-    @property
-    def platform_label(self) -> str:
-        """Human-readable platform name."""
-        if not self.platform: return "Unknown"
-        try:
-            return Platform(self.platform).label
-        except ValueError:
-            return "Unknown"
 
 
 class PlayerResult(rx.Model, table=True):
@@ -70,24 +43,21 @@ class PlayerResult(rx.Model, table=True):
     A player's performance in a tournament.
     """
     tournament_id: int = Field(foreign_key="tournament.id")
-    player_name: str
-    rank: int
-    swiss_rank: int | None = None
-    
-    # Detailed Results
-    swiss_wins: int = Field(default=0)
-    swiss_losses: int = Field(default=0)
+    player_name: str = Field()
+    swiss_rank: int = Field(default=0)
+    swiss_points: int = Field(default=-1)
+    swiss_wins: int = Field(default=-1)
+    swiss_losses: int = Field(default=-1)
     swiss_draws: int = Field(default=0)
-    cut_wins: int = Field(default=0)
-    cut_losses: int = Field(default=0)
+    cut_rank: int | None = Field(default=None)
+    cut_points: int | None = Field(default=None)
+    cut_wins: int | None = Field(default=None)
+    cut_losses: int | None = Field(default=None)
+    cut_draws: int | None = Field(default=None)
     
     list_json: dict = Field(default={}, sa_column=Column(JSON))
-    points_at_event: int = 0
     
     tournament: Tournament | None = Relationship(back_populates="results")
-
-    class Config:
-        arbitrary_types_allowed = True
 
 
 class Match(rx.Model, table=True):
@@ -101,11 +71,11 @@ class Match(rx.Model, table=True):
     round_type: RoundType = Field(default=RoundType.SWISS, sa_column=Column(String))
     scenario: Scenario | None = Field(default=None, sa_column=Column(String))
     
-    player1_id: int = Field(foreign_key="playerresult.id")
+    player1_id: int | None = Field(default=None, foreign_key="playerresult.id")
     player2_id: int | None = Field(default=None, foreign_key="playerresult.id")
     
-    player1_score: int = Field(default=0)
-    player2_score: int = Field(default=0)
+    player1_score: int = Field(default=-1)
+    player2_score: int = Field(default=-1)
     
     winner_id: int | None = Field(default=None)
     first_player_id: int | None = Field(default=None)

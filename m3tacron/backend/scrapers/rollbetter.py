@@ -1,559 +1,569 @@
-"""
-RollBetter Scraper Implementation (Playwright).
 
-This module implements the scraping logic for rollbetter.gg using Playwright,
-as the public API is unreliable or non-existent for many tournaments.
-"""
 import json
 import logging
 import re
 from datetime import datetime
-
-from urllib.parse import unquote
-
 from playwright.sync_api import sync_playwright
 
-# Local Imports
 from .base import BaseScraper
 from ..models import Tournament, PlayerResult, Match
 from ..data_structures.formats import Format, infer_format_from_xws
-from ..data_structures.factions import Faction
-from ..data_structures.factions import Faction
 from ..data_structures.platforms import Platform
 from ..data_structures.round_types import RoundType
+from ..data_structures.round_types import RoundType
 from ..data_structures.scenarios import Scenario
+from ..data_structures.location import Location
 
 logger = logging.getLogger(__name__)
 
+# Game System URLs for reference
+XWING_25AMG_URL = "https://rollbetter.gg/games/5"
+XWING_25XWA_URL = "https://rollbetter.gg/games/17"
+XWING_20_URL = "https://rollbetter.gg/games/4"
+
 class RollbetterScraper(BaseScraper):
     """
-    Scraper for RollBetter.gg tournaments using Playwright.
+    Improved RollBetter Scraper (V2).
     """
     
     BASE_URL = "https://rollbetter.gg"
+    
+    def __init__(self):
+        super().__init__()
+        self.cache = {} # Map ID -> dict (full data)
 
-    def get_tournament_data(self, tournament_id: str) -> Tournament:
-        """
-        Scrape high-level tournament metadata from the main page.
-        """
-        url = f"{self.BASE_URL}/tournaments/{tournament_id}"
-        
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
+    def _parse_date(self, text: str) -> datetime:
+        try:
+            match = re.search(r"([A-Za-z]{3})\s+(\d{1,2}),\s+(\d{4})", text)
+            if match:
+                return datetime.strptime(match.group(0), "%b %d, %Y")
+        except:
+            pass
+        return datetime.now()
+    def _parse_int(self, val: str) -> int:
+        try:
+            return int(str(val).strip())
+        except (ValueError, AttributeError):
+            return 0
+
+    def _ensure_data(self, tournament_id: str):
+        """Load data if not in cache."""
+        if tournament_id in self.cache:
+            return
+
+        error_trace = None
+        for attempt in range(3):
             try:
-                page.goto(url, wait_until="domcontentloaded")
-                # Wait for title to appear
-                page.wait_for_selector("h1", timeout=10000)
+                # Scrape ListFortress JSON from Rollbetter
+                url = f"{self.BASE_URL}/tournaments/{tournament_id}"
                 
-                # Scrape Title
-                name = page.locator("h1").first.inner_text().strip()
-                
-                # Scrape Date
-                date_obj = datetime.now()
-                try:
-                    # Look for calendar icon
-                    # The date is usually in the parent or next sibling of .fa-calendar
-                    if page.locator(".bi-calendar, .fa-calendar").count() > 0:
-                        icon = page.locator(".bi-calendar, .fa-calendar").first
-                        # Try parent text
-                        parent_text = icon.locator("..").inner_text()
-                        # Regex for date
-                        match = re.search(r"([A-Za-z]{3})\s+(\d{1,2}),\s+(\d{4})", parent_text)
-                        if match:
-                             date_str = match.group(0)
-                             date_obj = datetime.strptime(date_str, "%b %d, %Y")
-                    # Fallback: Body regex
-                    else:
-                        body_text = page.locator("body").inner_text()
-                        match = re.search(r"([A-Za-z]{3})\s+(\d{1,2}),\s+(\d{4})", body_text)
-                        if match:
-                             date_str = match.group(0)
-                             date_obj = datetime.strptime(date_str, "%b %d, %Y")
-                except Exception as e:
-                    logger.warning(f"Date extraction failed: {e}")
-
-                except Exception as e:
-                    logger.warning(f"Date extraction failed: {e}")
-
-                # Scrape Location
-                location_data = None
-                try:
-                    # Strategy 1: Icons (wait for them)
-                    try:
-                        page.wait_for_selector(".bi-geo-alt, .fa-map-marker-alt, .fa-map-marker", timeout=3000)
-                    except:
-                        pass
-                        
-                    loc_icon = page.locator(".bi-geo-alt, .fa-map-marker-alt, .fa-map-marker").first
-                    if loc_icon.count() > 0:
-                        full_text = loc_icon.locator("..").inner_text().strip()
-                        if full_text:
-                            # Parse "City, State, Country"
-                            parts = [p.strip() for p in full_text.split(',')]
-                            location_data = {
-                                "name": parts[0],
-                                "city": parts[0],
-                                "state": parts[1] if len(parts) > 1 else None,
-                                "country": parts[2] if len(parts) > 2 else "US"
-                            }
+                with sync_playwright() as p:
+                    browser = p.chromium.launch(headless=True)
+                    page = browser.new_page()
+                    page.goto(url, wait_until="load", timeout=60000)
                     
-                    # Strategy 2: Fallback to text blocks
-                    if not location_data:
+                    # Wait for data load
+                    page.wait_for_timeout(3000)
+                    
+                    # Check for validation (throws error if fails)
+                    if not self._validate_page(page, tournament_id):
+                        raise ValueError("Tournament failed validation")
+
+                    # Try ListFortress Export Logic directly here
+                    lf_data = None
+                    triggered = False
+                    
+                    # 1. Look for Export Button (Dropdown)
+                    try:
+                        export_btn = page.locator("button:has-text('Export')")
+                        if export_btn.count() > 0 and export_btn.first.is_visible():
+                            export_btn.first.click()
+                            page.wait_for_timeout(500)
+                    except: pass
+                    
+                    # 2. Look for "List Fortress" link/button
+                    lf_btn = page.locator("a:has-text('List Fortress'), button:has-text('List Fortress')")
+                    if lf_btn.count() > 0:
+                        logger.info(f"Found List Fortress export button for {tournament_id}")
+                        lf_btn.first.click()
+                        triggered = True
+                    else:
+                        # Fallback: maybe just "JSON" or "Export JSON"
+                        json_btn = page.locator("a:has-text('JSON'), button:has-text('JSON')")
+                        if json_btn.count() > 0:
+                             json_btn.first.click()
+                             triggered = True
+                    
+                    if triggered:
+                        logger.info("Triggered JSON calculation...")
+                        # Wait for the modal and the "Calculate" button if needed (sometimes auto triggers)
+                        
+                        # Sometimes we need to click "Calculate" inside modal
+                        calc_btn = page.locator("button:has-text('Calculate List Fortress JSON')")
                         try:
-                            page.wait_for_selector("div.overflow-protected", timeout=3000)
+                            if calc_btn.count() > 0:
+                                calc_btn.first.click()
+                                page.wait_for_timeout(1000)
+                        except: pass
+
+                        page.wait_for_timeout(2000) # Wait for modal population
+                        
+                        # Extract from Modal
+                        if page.locator("div.modal-content textarea").count() > 0:
+                             lf_data = page.locator("div.modal-content textarea").first.input_value()
+                        elif page.locator("textarea.copy-target").count() > 0:
+                             lf_data = page.locator("textarea.copy-target").first.input_value()
+                        elif page.locator("textarea").count() > 0:
+                             # Generic textarea if only one
+                             lf_data = page.locator("textarea").first.input_value()
+                        
+                        # Close modal
+                        page.keyboard.press("Escape")
+                    
+                    if lf_data:
+                        logger.info(f"Using LF JSON for {tournament_id} (Length: {len(lf_data)})")
+                        self.cache[tournament_id] = self._parse_from_json_v2(json.loads(lf_data) if isinstance(lf_data, str) else lf_data, tid=tournament_id, url=url)
+                        
+                        # Fix Name from H1 if JSON was generic
+                        try:
+                            h1_text = page.locator("h1").first.inner_text().strip()
+                            if h1_text and "Rollbetter Event" in self.cache[tournament_id]['tournament'].name:
+                                 self.cache[tournament_id]['tournament'].name = h1_text
                         except: pass
                         
-                        blocks = page.locator("div.overflow-protected").all()
-                        # logger.info(f"Checking {len(blocks)} blocks")
-                        for block in blocks:
-                            text = block.inner_text().strip()
-                             # Heuristics
-                            if text in ["Started", "Open", "More", "Show More", "List Fortress", "In Person", "Online"]: continue
-                            if "X-Wing" in text or "Standard" in text or "Legacy" in text or "Round" in text: continue
-                            if ":" in text and ("AM" in text or "PM" in text): continue
+                        # Now scrape UI for Location and Detailed Matches
+                        try:
+                            location_data = self._extract_location(page)
+                            if location_data:
+                                self.cache[tournament_id]['tournament'].location = location_data
                             
-                            # Candidates: "City, State, Country"
-                            if "," in text and len(text) < 100:
-                                parts = [p.strip() for p in text.split(',')]
-                                location_data = {
-                                    "name": parts[0],
-                                    "city": parts[0],
-                                    "state": parts[1] if len(parts) > 1 else None,
-                                    "country": parts[2] if len(parts) > 2 else "US"
-                                }
-                                break
-                except Exception as e:
-                    logger.warning(f"Location extraction failed: {e}")
-
-                # Player Count
-                # Look for badge "X/Y" e.g. "6/16"
-                player_count = 0
-                try:
-                    badges = page.locator(".badge").all_inner_texts()
-                    for b in badges:
-                        if "/" in b:
-                             parts = b.split("/")
-                             if parts[0].strip().isdigit():
-                                 player_count = int(parts[0].strip())
-                                 break
-                except Exception as e:
-                    logger.warning(f"Count extraction failed: {e}")
-
-                return Tournament(
-                    id=int(tournament_id),
-                    name=name,
-                    date=date_obj.date(),
-                    location=location_data,
-                    format=None, # Inferred later
-                    player_count=player_count,
-                    platform=Platform.ROLLBETTER,
-                    url=url
-                )
+                            matches = self._scrape_detailed_matches(page, tournament_id)
+                            if matches:
+                                self.cache[tournament_id]['matches'] = matches
+                        except Exception as e:
+                            logger.warning(f"UI detail scrape failed for {tournament_id}: {e}")
+                        
+                        return # Success!
+                    
+                    # If we got here, we failed to get data
+                    logger.warning(f"Attempt {attempt+1}: Failed to extract LF JSON.")
+                    
             except Exception as e:
-                logger.error(f"Failed to scrape tournament {tournament_id}: {e}")
-                raise e
-            finally:
-                browser.close()
+                logger.error(f"Attempt {attempt+1} Error for {tournament_id}: {e}")
+                error_trace = e
+                # Retry loop continues
+        
+        logger.error(f"Failed to scrape LF data for {tournament_id} after 3 attempts.")
+        if error_trace:
+             import traceback
+             traceback.print_exc()
+        # Raise so worker knows it failed
+        raise ValueError("Failed to ensure data")
+
+    def get_tournament_data(self, tournament_id: str) -> Tournament:
+        self._ensure_data(tournament_id)
+        return self.cache[tournament_id]['tournament']
 
     def get_participants(self, tournament_id: str) -> list[PlayerResult]:
-        """
-        Scrape players and lists.
-        """
-        ladder_url = f"{self.BASE_URL}/tournaments/{tournament_id}"
-        lists_url = f"{self.BASE_URL}/tournaments/{tournament_id}/lists"
-        
-        participants_map: dict[str, PlayerResult] = {}
-        
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
-            try:
-                # 1. LADDER
-                page.goto(ladder_url, wait_until="domcontentloaded")
-                try: page.wait_for_selector("table tr", timeout=5000)
-                except: pass
-                
-                ladder_data = page.evaluate("""() => {
-                    const rows = Array.from(document.querySelectorAll("table tr"));
-                    const headers = Array.from(document.querySelectorAll("table th"));
-                    let wdlIndex = headers.findIndex(h => h.innerText.includes("W/D/L"));
-                    if (wdlIndex === -1) wdlIndex = 5; 
-                    
-                    const players = [];
-                    for (const row of rows) {
-                        const nameEl = row.querySelector(".fancy-link") || row.querySelector("a[href*='/player/']");
-                        if (!nameEl) continue;
-                        const name = nameEl.innerText.trim();
-                        const cells = row.querySelectorAll("td");
-                        let rank = 0, points = 0;
-                        if (cells.length > 0) rank = parseInt(cells[0].innerText) || 0;
-                        if (cells.length > 4) points = parseInt(cells[4].innerText) || 0;
-                        
-                        let wins = 0, losses = 0, draws = 0;
-                        if (cells.length > wdlIndex) {
-                             const parts = cells[wdlIndex].innerText.trim().split("/");
-                             if (parts.length === 3) {
-                                  wins = parseInt(parts[0])||0; draws = parseInt(parts[1])||0; losses = parseInt(parts[2])||0;
-                             }
-                        }
-                        players.push({name, rank, points, wins, losses, draws});
-                    }
-                    return players;
-                }""")
-                
-                for d in ladder_data:
-                    participants_map[d["name"]] = PlayerResult(
-                        tournament_id=int(tournament_id),
-                        player_name=d["name"],
-                        list_json={},
-                        rank=d["rank"],
-                        swiss_rank=d["rank"],
-                        points_at_event=d["points"],
-                        swiss_wins=d["wins"],
-                        swiss_losses=d["losses"],
-                        swiss_draws=d["draws"]
-                    )
-                logger.info(f"Ladder: Found {len(participants_map)} players.")
-
-                # 2. LISTS
-                page.goto(lists_url, wait_until="domcontentloaded")
-                
-                # Check if hidden
-                if page.get_by_text("Lists are hidden").count() > 0:
-                    logger.warning(f"Lists are explicitly hidden for tournament {tournament_id}.")
-                else:
-                    page_num = 1
-                    matched_total = 0
-                    
-                    while True:
-                        logger.info(f"Scraping Lists Page {page_num}...")
-                        try:
-                            # Wait for ANY content that might have lists
-                            page.wait_for_selector("button", timeout=4000)
-                        except:
-                             pass
-
-                        page_lists = page.evaluate("""async (names) => {
-                            const results = [];
-                            // Target specific XWS buttons or generic fallback
-                            const buttons = Array.from(document.querySelectorAll("button"))
-                                            .filter(b => b.innerText.includes("Copy XWS") || b.innerText.includes("Export XWS"));
-                            
-                            let lastCopied = null;
-                            const originalWrite = navigator.clipboard.writeText;
-                            navigator.clipboard.writeText = async (t) => { lastCopied = t; };
-
-                            const players = names; // Injected variable? No, need to pass it.
-                            
-                            for (const btn of buttons) {
-                                let current = btn;
-                                let bestXws = null;
-                                let matchedName = null;
-                                
-                                btn.click();
-                                await new Promise(r => setTimeout(r, 10));
-                                if (lastCopied) {
-                                    try { bestXws = JSON.parse(lastCopied); } catch(e){}
-                                    lastCopied = null;
-                                }
-                                if (!bestXws) continue;
-
-                                // Traverse up to find name
-                                let temp = btn;
-                                for(let i=0; i<6; i++) {
-                                     if(!temp) break;
-                                     
-                                     // 1. Check Previous Sibling (Header)
-                                     if (temp.previousElementSibling) {
-                                          const sibText = temp.previousElementSibling.innerText;
-                                          for (const p of players) {
-                                               if (sibText.includes(p)) {
-                                                    matchedName = p;
-                                                    break;
-                                               }
-                                          }
-                                     }
-                                     if (matchedName) break;
-
-                                     // 2. Check Container Text (Wrapper)
-                                     // Be careful not to match "Search" or huge grids
-                                     // Only check if length is reasonable? Or just check inclusion.
-                                     // If we are at a high level (Grid), it might contain ALL names.
-                                     // But usually "Search | IRIS | ..." means IRIS is first.
-                                     // We verify strict containment. 
-                                     
-                                     // NOTE: Checking container text is risky if it contains multiple players.
-                                     // But if we are deeper than the Grid, it is safe.
-                                     // We can trust Sibling Check more.
-                                     
-                                     // Let's rely on Sibling Check primarily?
-                                     // What if Name is inside the wrapper?
-                                     
-                                     // Check Inner Text
-                                     const txt = temp.innerText;
-                                     // Optimization: Only check if txt length is not huge
-                                     if (txt.length < 500) {
-                                         for (const p of players) {
-                                             if (txt.includes(p)) {
-                                                  matchedName = p;
-                                                  break;
-                                             }
-                                         }
-                                     }
-                                     if (matchedName) break;
-                                     
-                                     temp = temp.parentElement;
-                                }
-                                
-                                if (matchedName) {
-                                     results.push({name: matchedName, xws: bestXws});
-                                }
-                            }
-                            navigator.clipboard.writeText = originalWrite;
-                            return results;
-                        }""", sorted(participants_map.keys(), key=len, reverse=True))
-                        
-                        logger.info(f"Raw lists found on page {page_num}: {len(page_lists)}")
-                        
-                        names_desc = sorted(participants_map.keys(), key=len, reverse=True)
-                        
-                        for item in page_lists:
-                            if not item.get("name"): continue
-                            
-                            p_name = item["name"]
-                            if p_name in participants_map:
-                                participants_map[p_name].list_json = item["xws"]
-                                matched_total += 1
-                        
-                        # Pagination
-                        next_loc = page.locator("ul.pagination li.page-item:not(.disabled) a[aria-label='Next'], ul.pagination li.page-item:not(.disabled) a:has-text('›')")
-                        if next_loc.count() > 0 and next_loc.first.is_visible():
-                            next_loc.first.click()
-                            page.wait_for_timeout(2000)
-                            page_num += 1
-                        else:
-                            break
-                    
-                    logger.info(f"Lists: Matched {matched_total} XWS lists.")
-
-            except Exception as e:
-                logger.error(f"Error scraping participants: {e}")
-            finally:
-                browser.close()
-        return list(participants_map.values())
+        self._ensure_data(tournament_id)
+        players = self.cache[tournament_id]['players']
+        if not players:
+            logger.warning(f"Rollbetter: No players found for {tournament_id} even after ensure_data.")
+        return players
 
     def get_matches(self, tournament_id: str) -> list[Match]:
-        """
-        Scrape matches.
-        """
-        url = f"{self.BASE_URL}/tournaments/{tournament_id}"
-        matches = []
+        self._ensure_data(tournament_id)
+        return self.cache[tournament_id]['matches']
+
+    # Validation (same as before)
+    def _validate_page(self, page, tournament_id) -> bool:
+        body_text = page.inner_text("body")
         
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
+        # 1. Game System
+        h1_text = page.locator("h1").first.inner_text()
+        
+        is_xwing_title = "x-wing" in h1_text.lower()
+        
+        if "Marvel Crisis Protocol" in body_text and not is_xwing_title:
+             # Only reject if title is NOT X-Wing
+             logger.warning(f"Tournament {tournament_id} seems to be Marvel Crisis Protocol. Skipping.")
+             return False
+             
+        if "Star Wars: Legion" in body_text and not is_xwing_title:
+             logger.warning(f"Tournament {tournament_id} seems to be Legion. Skipping.")
+             return False
+            
+        if "X-Wing" not in body_text and "Miniatures Game" not in body_text and not is_xwing_title:
+             logger.warning(f"Tournament {tournament_id} missing 'X-Wing' identifier in Body or Title. Skipping.")
+             return False
+
+        # Date
+        date_obj = datetime.now()
+        try:
+            calendar_icon = page.locator(".bi-calendar, .fa-calendar").first
+            if calendar_icon.count() > 0:
+                 parent = calendar_icon.locator("..").inner_text()
+                 date_obj = self._parse_date(parent)
+            
+            # Allow "Today" as valid (<=)
+            if date_obj.date() > datetime.now().date():
+                logger.warning(f"Tournament {tournament_id} is in the future ({date_obj.date()}). Skipping.")
+                return False
+        except: pass
+            
+        # Count
+        player_count = 0
+        try:
+            badges = page.locator(".badge").all_inner_texts()
+            for b in badges:
+                if "/" in b:
+                    parts = b.split("/")
+                    if parts[0].strip().isdigit():
+                        player_count = int(parts[0].strip())
+                        break
+            if player_count <= 1:
+                logger.warning(f"Tournament {tournament_id} has insufficient players. Skipping.")
+                return False
+        except: pass
+            
+        return True
+
+    def _extract_location(self, page) -> dict | None:
+        from ..utils.geocoding import resolve_location
+        from ..data_structures.location import Location
+        location_data = None
+        try:
+            # Strategy 0: Check for "Online" badge/indicator first
+            body_text = page.inner_text("body")
+            # If "Online" badge exists and no physical address elements, use Virtual
+            online_indicators = ["Event Type: Online", "Online Event", "Online Tournament"]
+            if any(ind in body_text for ind in online_indicators):
+                return Location.create(city="Virtual", country="Virtual", continent="Virtual")
+            
+            # Also check if there's a specific "Online" badge class near the header
             try:
-                page.goto(url, wait_until="domcontentloaded")
+                online_badge = page.locator("span.badge:has-text('Online'), div:has-text('Online')").first
+                if online_badge.count() > 0:
+                    badge_text = online_badge.inner_text().strip()
+                    if badge_text == "Online":
+                        return Location.create(city="Virtual", country="Virtual", continent="Virtual")
+            except: pass
+
+            # Strategy 1: Icons (wait for them)
+            try:
+                page.wait_for_selector(".bi-geo-alt, .fa-map-marker-alt, .fa-map-marker", timeout=3000)
+            except:
+                pass
                 
-                # Navigate to Rounds
+            loc_icon = page.locator(".bi-geo-alt, .fa-map-marker-alt, .fa-map-marker").first
+            if loc_icon.count() > 0:
+                full_text = loc_icon.locator("..").inner_text().strip()
+                if full_text:
+                    # Use new geocoding logic
+                    location_data = resolve_location(full_text)
+            
+            # Strategy 2: Fallback to text blocks
+            if not location_data:
                 try:
-                    page.locator("a.nav-link:has-text('Rounds'), button.nav-link:has-text('Rounds')").first.click()
-                    page.wait_for_timeout(2000) # Wait for component load
-                except:
-                    logger.warning("No Rounds tab.")
-                    return []
-
-                # Filter TABS by Allowlist (Safer)
-                possible_tabs = page.locator("button.nav-link.no-wrap-tab").all()
-                valid_tabs = []
+                    page.wait_for_selector("div.overflow-protected", timeout=3000)
+                except: pass
                 
-                # We only want tabs that look like tournament rounds
-                allowed_prefixes = ["Round", "Top", "Cut", "Final", "Bracket", "Swiss", "Group"]
-                
-                logger.info(f"Total potential tabs found: {len(possible_tabs)}")
-                
-                for t in possible_tabs:
-                    txt = t.inner_text().strip()
-                    if txt == "Rounds": continue
+                blocks = page.locator("div.overflow-protected").all()
+                for block in blocks:
+                    text = block.inner_text().strip()
+                    if text in ["Started", "Open", "More", "Show More", "List Fortress", "In Person"]: continue
+                    # Handle "Online" explicitly - aggressively
+                    if "online" in text.lower():
+                        return Location.create(city="Virtual", country="Virtual", continent="Virtual")
+                    if "X-Wing" in text or "Standard" in text or "Legacy" in text or "Round" in text: continue
+                    if ":" in text and ("AM" in text or "PM" in text): continue
                     
-                    # Check prefix
-                    is_valid = False
-                    for prefix in allowed_prefixes:
-                        if txt.startswith(prefix) or txt == prefix: # Exact or prefix
-                            is_valid = True
+                    if len(text) < 100:
+                        # Try to resolve any short text block that might be a location
+                        loc = resolve_location(text)
+                        if loc:
+                            location_data = loc
                             break
-                    
-                    if is_valid:
-                        valid_tabs.append(t)
-                        logger.info(f"  [Use] {txt}")
-                    else:
-                        logger.info(f"  [Skip] {txt}")
-                
-                logger.info(f"Valid Rounds found: {len(valid_tabs)}")
-                
-                # If no tabs found, maybe it's just a single page? Check if there's a table.
-                if not valid_tabs and page.locator("table").count() > 0:
-                     logger.info("No tabs found, checking for existing table as single round.")
-                     valid_tabs = [None] # Mock a 'Round 1' tab for loop
+        except Exception as e: 
+            logger.warning(f"Location extraction failed: {e}")
+            pass
+        return location_data
 
-                for i, tab in enumerate(valid_tabs):
-                    if tab:
-                        round_name = tab.inner_text().strip()
-                        logger.info(f"Scraping Round {i+1}: {round_name}")
-                        tab.click()
-                        page.wait_for_timeout(1000)
-                    else:
-                        round_name = "Round 1"
-                        logger.info("Scraping default view as Round 1")
+    # _try_listfortress_export removed as logic moved into _ensure_data retry loop
+
+
+    def _parse_from_json_v2(self, data: dict, tid: str, url: str):
+        """
+        New JSON parser that only handles Tournament metadata and Players.
+        Matches are handled by _scrape_detailed_matches.
+        """
+        # Use title from JSON or fallback to page title (needs to be passed or stored)
+        # Note: Rollbetter V2 often has empty title in LF JSON.
+        name = data.get("title")
+        if not name or "Rollbetter Event" in name:
+            # Fallback to cached name if available or generic
+            # We can't easily access cache here because we return the dict to put IN cache.
+            # But the caller has the H1. Ideally we pass H1 to this function.
+            # For now, let's trust the caller to update it or duplicate logic.
+            # UPDATE: We will update the name in _ensure_data AFTER parsing if JSON name is bad.
+            name = f"Rollbetter Event {tid}"
+
+        date_str = data.get("date", "")
+        formatted_date = datetime.now().date()
+        if date_str:
+            try: formatted_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            except: pass
+        
+        import os
+        print(f"DEBUG: Scraper file: {os.path.abspath(__file__)}")
+        print(f"DEBUG: JSON Keys: {list(data.keys())}")
+        
+        # Players
+        players_json = data.get("players", []) or data.get("participants", []) or data.get("standings", [])
+        print(f"DEBUG: Found {len(players_json)} players in JSON")
+        t = Tournament(
+            id=int(tid), name=name, date=formatted_date,
+            player_count=len(players_json), platform=Platform.ROLLBETTER, url=url, format=Format.OTHER
+        )
+
+        participants = []
+        for p in players_json:
+            raw_list = p.get("list", {})
+            list_json = {}
+        results = []
+        try:
+            for player in players_json:
+                raw_list = player.get("list", {})
+                list_json = {}
+                if isinstance(raw_list, str) and raw_list.strip():
+                    try: list_json = json.loads(raw_list)
+                    except: pass
+                elif isinstance(raw_list, dict):
+                    list_json = raw_list
+                
+                # Rollbetter JSON typically has: rank, wins, losses, draws, points
+                # Use these as Swiss stats (and general stats if no cut)
+                # Helper for safe int casting
+                def safe_int(val, default=-1):
+                    if val is None: return default
+                    try: return int(val)
+                    except: return default
+
+                # Rollbetter JSON typically has: rank, wins, losses, draws, points
+                # Use these as Swiss stats (and general stats if no cut)
+                player_rank = safe_int(player.get("rank"), 0)
+                if isinstance(player.get("rank"), dict):
+                    # Handle nested rank object: {"swiss": 1, "elimination": 2}
+                    pr_dict = player.get("rank")
+                    player_rank = safe_int(pr_dict.get("swiss", pr_dict.get("elimination", 0)), 0)
+                
+                swiss_wins = safe_int(player.get("wins"), -1)
+                swiss_losses = safe_int(player.get("losses"), -1)
+                swiss_draws = safe_int(player.get("draws"), 0)
+                # Points can be "points" or "tournament_points"
+                swiss_points = safe_int(player.get("points"), safe_int(player.get("tournament_points"), -1))
+                
+                pr = PlayerResult(
+                    tournament_id=int(tid),
+                    player_name=player.get("name", "Unknown"),
+                    swiss_rank=player_rank,
+                    swiss_points=swiss_points,
+                    swiss_wins=swiss_wins,
+                    swiss_losses=swiss_losses,
+                    swiss_draws=swiss_draws,
+                    list_json=list_json
+                )
+                
+                results.append(pr)
+        except Exception as e:
+            logger.error(f"Error checking LF data for {tid}: {e}")
+            import traceback
+            traceback.print_exc()
+            # We still want to allow scraping other data, but players might be empty if we rely on JSON
+        
+        # Format Inference
+        f = Format.OTHER
+        for p in results[:10]:
+            if p.list_json and p.list_json.get("pilots"):
+                inferred = infer_format_from_xws(p.list_json)
+                if inferred != Format.OTHER:
+                    f = inferred; break
+        t.format = f
+        
+        return {'tournament': t, 'players': results, 'matches': []}
+
+    def _scrape_detailed_matches(self, page, tid: str) -> list[Match]:
+        """
+        Scrape matches from the 'Rounds' tab.
+        """
+        matches = []
+        try:
+            # 1. Go to Rounds tab
+            rounds_tab = page.locator("button[id$='-tab-rounds']").first
+            if rounds_tab.count() == 0:
+                logger.warning("Rounds tab not found.")
+                return []
+            
+            rounds_tab.click()
+            logger.info("Clicked Rounds tab. Waiting for sub-tabs...")
+            page.wait_for_timeout(2000) # Slightly longer wait
+            
+            # 2. Find all round sub-tabs
+            import re
+            round_btns = page.get_by_role("tab", name=re.compile(r"Round \d+", re.IGNORECASE)).all()
+            
+            if not round_btns:
+                logger.info("Found no 'Round' role tabs, trying generic buttons...")
+                all_btns = page.locator("button").all()
+                round_btns = [b for b in all_btns if "Round" in (b.inner_text() or "")]
+            
+            if not round_btns:
+                logger.warning("No round buttons found.")
+                return []
+
+            logger.info(f"Found {len(round_btns)} rounds to scrape.")
+            
+            for r_idx, btn in enumerate(round_btns):
+                try:
+                    btn_text = btn.inner_text()
+                    logger.info(f"Scraping {btn_text}...")
+                    
+                    round_type = RoundType.SWISS
+                    if "Top" in btn_text or "Elimination" in btn_text or "Cut" in btn_text:
+                        round_type = RoundType.CUT
+                        
+                    btn.click()
+                    page.wait_for_timeout(2000) 
                     
                     # Extract Scenario
-                    # Scope to the active tab pane to avoid grabbing hidden text from other rounds
-                    current_scenario = None
-                    try:
-                        # Find the active tab pane. 
-                        # Usually .tab-content > .tab-pane.active
-                        active_pane = page.locator(".tab-pane.active")
-                        if active_pane.count() > 0:
-                            scenario_el = active_pane.locator("div:has-text('Scenario:')").first
-                            if scenario_el.count() > 0 and scenario_el.is_visible():
-                                txt = scenario_el.inner_text()
-                                if "Scenario:" in txt:
-                                    val = txt.split("Scenario:")[1].strip()
-                                    val = val.split("\n")[0].strip()
-                                    
-                                    from m3tacron.backend.data_structures.scenarios import Scenario
-                                    for s in Scenario:
-                                        if s.label.lower() == val.lower():
-                                            current_scenario = s
-                                            logger.info(f"Found Scenario: {s.label}")
-                                            break
-                    except Exception as e:
-                        logger.warning(f"Could not extract scenario: {e}")
-
-                    # Scrape Table
-                    try:
-                        rows = page.locator("table tr").all()
-                    except:
-                        rows = []
+                    scenario_text = ""
+                    scenario_el = page.locator("div:has-text('Scenario:'), p:has-text('Scenario:'), b:has-text('Scenario:')").last
+                    if scenario_el.count() > 0:
+                        text = scenario_el.inner_text().strip()
+                        if "Scenario:" in text:
+                            scenario_text = text.split("Scenario:")[1].strip()
+                    
+                    # Map Scenario Enum
+                    scenario_val = None
+                    if scenario_text:
+                        s_norm = scenario_text.lower().replace(" ", "_")
+                        for s in Scenario:
+                            if s.value == s_norm: scenario_val = s; break
+                    
+                    # Extract Matches
+                    # Find the table that contains 'Player' or 'Result'
+                    table = page.locator("table:has(th:has-text('Result')), table:has(td:has-text('Win'))").last
+                    if table.count() == 0:
+                        logger.warning(f"No match table found for round {r_idx+1}")
+                        continue
                         
-                    # Use generic scraping
-                    rr_data = page.evaluate("""() => {
-                        const rows = Array.from(document.querySelectorAll("table tr"));
-                        const matches = [];
-                        for (let i=0; i<rows.length; i++) {
-                            const r = rows[i];
-                            const next = r.nextElementSibling;
+                    # New Logic: Iterate rows and look for pairs based on rowspan
+                    # Rollbetter Structure: 
+                    # Row 1 (Top): [Table# rowspan=2] [P1 Name] [Result] [EP] [Score/MP]
+                    # Row 2 (Bot): [P2 Name] [Result] [EP] [Score/MP]
+                    
+                    # Convert to ElementHandle for query_selector_all support
+                    table_el = table.element_handle()
+                    if not table_el:
+                         logger.warning(f"Could not get element handle for table round {r_idx+1}")
+                         continue
+                         
+                    rows = table_el.query_selector_all("tbody tr")
+                    if not rows:
+                         rows = table_el.query_selector_all("tr")
+                         
+                    i = 0
+                    while i < len(rows):
+                        row1 = rows[i]
+                        # Skip headers if encountered (usually index 0, handled by logic or data attributes)
+                        if row1.query_selector("th"):
+                            i += 1
+                            continue
+
+                        cells1 = row1.query_selector_all("td")
+                        if not cells1: 
+                            i += 1
+                            continue
                             
-                            // Check if this looks like a match row 
-                            // Rollbetter matches are typically pairs of rows (one per player)
-                            if (!next) continue;
+                        # Check for rowspan on the first cell (Table #)
+                        first_cell_attr = cells1[0].get_attribute("rowspan")
+                        is_paired = first_cell_attr == "2"
+                        
+                        if is_paired and i + 1 < len(rows):
+                            row2 = rows[i+1]
+                            cells2 = row2.query_selector_all("td")
                             
-                            // Extract Names
-                            const get_name = (el) => {
-                                 let n = el.querySelector(".fancy-link") || el.querySelector("a[href*='/player/']");
-                                 return n ? n.innerText.trim() : null;
-                            };
+                            # Extract P1 (Row 1)
+                            # Offset: cell 0 is Table#, cell 1 is Name, 2 is Result, 3 is EP, 4 is Score
                             
-                            const p1 = get_name(r);
-                            const p2 = get_name(next);
-                            
-                            if (p1 && p2) {
-                                // Scores
-                                const getScore = (el) => {
-                                    const cells = el.querySelectorAll("td");
-                                    if (cells.length > 4) return parseInt(cells[4].innerText)||0;
-                                    return 0;
-                                };
-                                const s1 = getScore(r);
-                                const s2 = getScore(next);
+                            if len(cells1) >= 5:
+                                p1_name = cells1[1].inner_text().strip()
+                                p1_res = cells1[2].inner_text().strip().lower() # "win" or "loss"
+                                p1_score = self._parse_int(cells1[4].inner_text())
+                            else:
+                                p1_name = "Unknown"
+                                p1_score = 0
+                                p1_res = ""
+
+                            # Extract P2 (Row 2) which has NO Table# cell
+                            # Indices shifted: cell 0 is Name, 1 is Result, 2 is EP, 3 is Score
+                            if len(cells2) >= 4:
+                                p2_name = cells2[0].inner_text().strip()
+                                p2_res = cells2[1].inner_text().strip().lower()
+                                p2_score = self._parse_int(cells2[3].inner_text())
+                            else:
+                                p2_name = "Unknown"
+                                p2_score = 0
+                                p2_res = ""
                                 
-                                // Winner
-                                const isWin = (el) => el.innerText.includes("Win") || !!el.querySelector(".bi-check-circle-fill");
-                                const p1Win = isWin(r);
-                                const p2Win = isWin(next);
-                                
-                                matches.push({p1, p2, p1Win, p2Win, s1, s2});
+                            # Refine Winner
+                            winner_name = None
+                            if "win" in p1_res: winner_name = p1_name
+                            elif "win" in p2_res: winner_name = p2_name
+                            
+                            # Detect Bye
+                            is_bye = False
+                            if "bye" in str(p2_name).lower() or not p2_name or p2_name == "Unknown":
+                                 is_bye = True
+                                 p2_name = None 
+                            
+                            m_dict = {
+                                "round_number": r_idx + 1,
+                                "round_type": round_type,
+                                "scenario": scenario_val,
+                                "player1_score": p1_score,
+                                "player2_score": p2_score,
+                                "is_bye": is_bye,
+                                "p1_name_temp": p1_name,
+                                "p2_name_temp": p2_name,
+                                "winner_name_temp": winner_name
                             }
-                        }
-                        return matches;
-                    }""")
-                    
-                    seen_matches = set()
-                    
-                    for m_dat in rr_data:
-                        # Composite key
-                        key = tuple(sorted([m_dat['p1'], m_dat['p2']]))
-                        if key in seen_matches: continue
-                        seen_matches.add(key)
-                        
-                        is_bye = (m_dat['p2'] == "Bye")
-                        
-                        # Match Round Type
-                        # from m3tacron.backend.data_structures.matches import RoundType # Already imported at top
-                        current_round_type = RoundType.SWISS
-                        lower_name = round_name.lower()
-                        if "cut" in lower_name or "top" in lower_name or "final" in lower_name or "bracket" in lower_name:
-                             current_round_type = RoundType.CUT
-
-                        m = Match(
-                            tournament_id=int(tournament_id),
-                            round_number=i+1, 
-                            round_type=current_round_type,
-                            scenario=current_scenario, # New Field
-                            player1_id=0, player2_id=0, winner_id=0,
-                            player1_score=m_dat['s1'],
-                            player2_score=m_dat['s2'],
-                            is_bye=is_bye
-                        )
-                        m.p1_name_temp = m_dat['p1']
-                        m.p2_name_temp = m_dat['p2']
-                        if m_dat['p1Win']: m.winner_name_temp = m_dat['p1']
-                        elif m_dat['p2Win']: m.winner_name_temp = m_dat['p2']
-                        
-                        matches.append(m)
-
-            except Exception as e:
-                logger.error(f"Error scraping matches: {e}")
-            finally:
-                browser.close()
+                            matches.append(m_dict)
+                            
+                            i += 2 # Skip the second row of the pair
+                            
+                        else:
+                            # Single or Bye row
+                            if len(cells1) >= 2:
+                                p1_name = cells1[1].inner_text().strip()
+                                m_dict = {
+                                    "round_number": r_idx + 1,
+                                    "round_type": round_type,
+                                    "scenario": scenario_val,
+                                    "player1_score": 0,
+                                    "player2_score": 0,
+                                    "is_bye": True,
+                                    "p1_name_temp": p1_name,
+                                    "p2_name_temp": None,
+                                    "winner_name_temp": p1_name
+                                }
+                                matches.append(m_dict)
+                            i += 1
+                except Exception as round_err:
+                    logger.warning(f"Error scraping round {r_idx+1}: {round_err}")
+            
+        except Exception as e:
+            logger.warning(f"Detailed match scrape failed: {e}")
+            
         return matches
 
-    def run_full_scrape(
-        self, 
-        tournament_id: str
-    ) -> tuple[Tournament, list[PlayerResult], list[Match]]:
-        """
-        Execute a complete scrape, inferring format from XWS.
-        """
-        # 1. Metadata
-        tournament = self.get_tournament_data(tournament_id)
-        
-        # 2. Players
-        players = self.get_participants(tournament_id)
-        
-        if len(players) < 2:
-            raise ValueError(f"Tournament {tournament_id} has fewer than 2 players ({len(players)})")
-        
-        # 3. Infer Format from Players' XWS
-        if not tournament.format:
-            # Check up to first 20 players to find a valid format
-            # Prioritize players who actually have lists
-            for p in players[:20]:
-                if p.list_json:
-                    format_enum = infer_format_from_xws(p.list_json)
-                    if format_enum != Format.OTHER:
-                        tournament.format = format_enum
-                        logger.info(f"Inferred format {format_enum.value} from player {p.player_name}")
-                        break
-            
-            # If still None
-            if not tournament.format:
-                logger.warning(f"Could not infer format for {tournament_id}, defaulting to Other")
-
-                tournament.format = Format.OTHER
-
-        # 4. Matches
-        matches = self.get_matches(tournament_id)
-        
-        return tournament, players, matches
