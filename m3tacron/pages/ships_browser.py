@@ -281,29 +281,9 @@ def render_filters() -> rx.Component:
         # Ship Filters Section
         rx.text("SHIP FILTERS", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
         
-        # Faction Filter
-        filter_accordion(
-            "Factions",
-            ShipsBrowserState.faction_options,
-            ShipsBrowserState.selected_factions,
-            ShipsBrowserState.toggle_faction
-        ),
-        
-        # Chassis Filter
-        searchable_filter_accordion(
-            "Chassis",
-            ShipsBrowserState.available_ships,
-            ShipsBrowserState.selected_ships,
-            ShipsBrowserState.toggle_ship,
-            ShipsBrowserState.ship_search_text,
-            ShipsBrowserState.set_ship_search
-        ),
-        
-        rx.divider(border_color=BORDER_COLOR),
-        
-        # Sort By
+        # Sort By (inside SHIP FILTERS)
         rx.vstack(
-            rx.text("SORT BY", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
+            rx.text("Sort By", size="1", weight="bold", color=TEXT_SECONDARY),
             rx.hstack(
                 rx.select(
                     ShipsBrowserState.sort_metric_options,
@@ -330,6 +310,24 @@ def render_filters() -> rx.Component:
             ),
             spacing="1",
             width="100%"
+        ),
+        
+        # Faction Filter
+        filter_accordion(
+            "Factions",
+            ShipsBrowserState.faction_options,
+            ShipsBrowserState.selected_factions,
+            ShipsBrowserState.toggle_faction
+        ),
+        
+        # Chassis Filter
+        searchable_filter_accordion(
+            "Chassis",
+            ShipsBrowserState.available_ships,
+            ShipsBrowserState.selected_ships,
+            ShipsBrowserState.toggle_ship,
+            ShipsBrowserState.ship_search_text,
+            ShipsBrowserState.set_ship_search
         ),
         
         spacing="4",
@@ -365,8 +363,8 @@ def ship_card(s: dict) -> rx.Component:
             rx.vstack(
                 # Ship Icon (Extra Large, centered)
                 rx.box(
-                    ship_icon(s["ship_xws"].to(str), size="6em", color=faction_color),
-                    padding="24px",
+                    ship_icon(s["ship_xws"].to(str), size="10em", color=faction_color),
+                    padding="32px",
                     display="flex",
                     justify_content="center",
                     align_items="center",
