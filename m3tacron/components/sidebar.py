@@ -103,7 +103,7 @@ def sidebar_content(collapsed: rx.Var = False) -> rx.Component:
                         font_family=MONOSPACE_FONT,
                     ),
                 ),
-                align="center" if collapsed else "start",
+                align=rx.cond(collapsed, "center", "start"),
                 spacing="0"
             ),
             padding=rx.cond(collapsed, "24px 8px", "24px 16px"),
@@ -126,7 +126,7 @@ def sidebar_content(collapsed: rx.Var = False) -> rx.Component:
             ),
             width="100%",
             display="flex",
-            justify_content=rx.cond(collapsed, "center", "end"),
+            justify=rx.cond(collapsed, "center", "end"),
             padding="8px",
         ),
         
