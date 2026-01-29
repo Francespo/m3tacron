@@ -40,8 +40,8 @@ class SquadronsState(FormatFilterMixin):
         self.load_squadrons()
 
     @rx.var
-    def total_items_count(self) -> int:
-        return self.total_squadrons
+    def total_pages_squadrons(self) -> int:
+        return (self.total_items_count + self.page_size - 1) // self.page_size if self.total_items_count > 0 else 1
 
     def on_page_change(self):
         """Handle page changes by reloading data."""
@@ -63,7 +63,6 @@ class SquadronsState(FormatFilterMixin):
     
     
     squadrons_data: list[dict] = []
-    total_squadrons: int = 0
     total_lists: int = 0
     
     selected_squadron: str = ""
@@ -280,7 +279,7 @@ class SquadronsState(FormatFilterMixin):
                 # Default: Popularity
                 processed_list.sort(key=lambda x: x["count"], reverse=True)
 
-            self.total_squadrons = len(processed_list)
+            self.total_items_count = len(processed_list)
             
             # Pagination
             start = self.current_page * self.page_size
@@ -707,7 +706,7 @@ def squadrons_content() -> rx.Component:
             width="100%"
         ),
         rx.flex(
-            rx.text(f"{SquadronsState.total_squadrons} UNIQUE SQUADRONS", size="2", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+            rx.text(f"{SquadronsState.total_items_count} UNIQUE SQUADRONS", size="2", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
             rx.spacer(),
             pagination_controls_squadrons(),
             width="100%", 

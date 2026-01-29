@@ -41,6 +41,7 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                             "artwork": pilot.get("artwork", ""),
                             "initiative": pilot.get("initiative", 0),
                             "cost": pilot.get("cost", 0),
+                            "loadout": pilot.get("loadout", 0),
                             "ability": pilot.get("ability", ""),
                         }
             except Exception:

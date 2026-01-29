@@ -9,10 +9,12 @@ from ..data_structures.factions import Faction
 from ..data_structures.formats import Format, MacroFormat
 from ..data_structures.data_source import DataSource
 from .filters import filter_query
+from ..data_structures.sorting_order import SortingCriteria, SortDirection
 
 def aggregate_card_stats(
     filters: dict,
-    sort_mode: str = "popularity", # popularity, win_rate
+    sort_criteria: SortingCriteria = SortingCriteria.POPULARITY,
+    sort_direction: SortDirection = SortDirection.DESCENDING,
     mode: str = "pilots", # pilots, upgrades
     data_source: DataSource = DataSource.XWA
 ) -> list[dict]:
@@ -48,7 +50,7 @@ def aggregate_card_stats(
         filter_upgrade_id = filters.get("upgrade_id")
         if filter_upgrade_id: filter_upgrade_id = filter_upgrade_id.strip('"').strip("'")
         
-        # Pre-process initiative filter
+        # Pre-process filters for optimization
         allowed_initiatives = set()
         if initiative_filter and initiative_filter != "all":
             if isinstance(initiative_filter, list):
@@ -63,18 +65,14 @@ def aggregate_card_stats(
                  except ValueError:
                      pass
         
-        # Ship Filter Logic
         allowed_ships = set()
         if ship_filter and ship_filter != "all":
             if isinstance(ship_filter, list):
                 allowed_ships = set(ship_filter)
             else:
-                 # Legacy CSV string support
                  parts = [s.strip().lower() for s in ship_filter.split(",") if s.strip()]
-                 # If usage requires handling string legacy, we keep it logic-less here or implement if needed.
                  pass
 
-        # Faction Filter Logic
         allowed_factions = set()
         if faction_filter and faction_filter != "all":
              if isinstance(faction_filter, list):
@@ -82,7 +80,6 @@ def aggregate_card_stats(
              else:
                  allowed_factions = {faction_filter}
         
-        # Upgrade Type Logic
         allowed_types = set()
         if type_filter and type_filter != "all":
             if isinstance(type_filter, list):
@@ -90,11 +87,215 @@ def aggregate_card_stats(
             else:
                 allowed_types = {type_filter.lower()}
 
+        # Advanced Filters
+        points_min = filters.get("points_min", 0)
+        points_max = filters.get("points_max", 200)
+        loadout_min = filters.get("loadout_min", 0)
+        loadout_max = filters.get("loadout_max", 99)
+        
+        hull_min = filters.get("hull_min", 0)
+        hull_max = filters.get("hull_max", 20)
+        
+        shields_min = filters.get("shields_min", 0)
+        shields_max = filters.get("shields_max", 20)
+        
+        agility_min = filters.get("agility_min", 0)
+        agility_max = filters.get("agility_max", 10)
+        
+        is_unique = filters.get("is_unique", False)
+        is_not_unique = filters.get("is_not_unique", False)
+
+        # INITIALIZE STATS WITH ALL CARDS
+        # This ensures we show cards with 0 usage.
+        if mode == "pilots":
+            for pid, p_info in all_pilots.items():
+                p_cost = p_info.get("cost", 0)
+                p_loadout = p_info.get("loadout", 0)
+                
+                # --- Advanced Numeric Filters ---
+                if p_cost < points_min or p_cost > points_max:
+                    continue
+                    
+                if data_source == DataSource.XWA:
+                    if p_loadout < loadout_min or p_loadout > loadout_max:
+                        continue
+                        
+                # Ship Stats Filters
+                # p_info includes flattened ship stats usually, or we need to look up ship
+                # Assuming load_all_pilots flattens crucial stats or we have them.
+                # If not, we might need to rely on 'ship' key to look up stats?
+                # Usually load_all_pilots merges ship stats. Let's check keys if we encounter issues.
+                # Standard keys: 'initiative', 'cost', 'loadout'.
+                # Stats keys might be nested in 'ship_stats' or 'stats'? 
+                # Checking hypothetical structure. If keys missing, we skip filter or default to 0.
+                # Based on typical xwing-data2, stats are usually under 'ship' -> 'stats'.
+                # But 'load_all_pilots' helper might flatten.
+                # Let's assume standard xwing-data2 pilot json structure if not flattened:
+                # But we are iterating `all_pilots` which is a processed dict.
+                # Safe bet: check if keys exist, else skip filter (or fail open).
+                # Actually, Hull/Shields/Agility are SHIP properties.
+                
+                # We need to ensure we can access these.
+                # If `load_all_pilots` doesn't provide them, we might be in trouble.
+                # See `utils.py` logic later if needed. For now assume they are available or accessible.
+                # Try to access them as top level or 'stats' dict.
+                
+                stats_block = p_info.get("stats", {}) # e.g. {"agility": 2, "hull": 3, "shields": 2}
+                # Fallback if flat
+                p_hull = stats_block.get("hull") if stats_block else p_info.get("hull")
+                p_shields = stats_block.get("shields") if stats_block else p_info.get("shields")
+                p_agility = stats_block.get("agility") if stats_block else p_info.get("agility")
+                
+                # If stats are missing (e.g. unknown format), we treat as valid or filter? 
+                # Let's treat as 0 if missing for comparison, but if missing it shouldn't match "range 3-3".
+                # Defaulting to 0 is risky if we filter "from 0 to X".
+                # If None, we skip the check? No, user wants to filter.
+                
+                if p_hull is not None:
+                     if p_hull < hull_min or p_hull > hull_max: continue
+                if p_shields is not None:
+                     if p_shields < shields_min or p_shields > shields_max: continue
+                if p_agility is not None:
+                     if p_agility < agility_min or p_agility > agility_max: continue
+
+                
+                # Misc Filters
+                # Unique: limited > 0? or specific field "is_unique"?
+                # Usually "limited" key. 0 = unlimited. > 0 = unique/limited.
+                # Or "unique" boolean.
+                p_unique = p_info.get("limited", 0) > 0
+                
+                # Logic:
+                # If "Is unique" checked -> Show ONLY unique
+                # If "Is not unique" checked -> Show ONLY non-unique
+                # If BOTH checked -> Show BOTH (Logic: (Unique AND Yes) OR (NotUnique AND Yes) -> effectively all?)
+                # Usually these are exclusive or additive?
+                # "Misc: [ ] Is unique [ ] Is not unique"
+                # If I check "Is unique", I want uniques.
+                # If I check both, I probably want both (No filter).
+                # If I check neither, I want both (No filter).
+                # So we only filter if ONE is checked.
+                if is_unique and not is_not_unique:
+                    if not p_unique: continue
+                if is_not_unique and not is_unique:
+                    if p_unique: continue
+
+
+                # Apply Static Filters (Faction, Ship, Initiative, Text) at initialization
+                
+                # Faction Filter
+                if allowed_factions:
+                    p_faction = p_info.get("faction", "")
+                    if p_faction not in allowed_factions:
+                        continue
+
+                # Ship Filter
+                p_ship_xws = p_info.get("ship_xws", "")
+                if allowed_ships and p_ship_xws not in allowed_ships:
+                     continue
+                
+                # Legacy String Search Ship Filter
+                if isinstance(ship_filter, str) and ship_filter and ship_filter != "all":
+                    p_ship_name = p_info.get("ship", "").lower()
+                    terms = [s.strip().lower() for s in ship_filter.split(",") if s.strip()]
+                    match_ship = False
+                    for term in terms:
+                        if term in p_ship_name:
+                            match_ship = True
+                            break
+                    if not match_ship: continue
+
+                # Initiative Filter
+                p_init = p_info.get("initiative")
+                if allowed_initiatives and p_init not in allowed_initiatives:
+                    continue
+
+                # Text Filter
+                if text_filter:
+                    p_name = p_info.get("name", pid).lower()
+                    p_ability = p_info.get("ability", "").lower()
+                    p_ship_name = p_info.get("ship", "").lower()
+                    
+                    match = (text_filter in p_name) or \
+                            (text_filter in p_ability) or \
+                            (text_filter in p_ship_name)
+                    if not match: continue
+
+                stats[pid] = {
+                    "name": p_info.get("name", pid),
+                    "xws": pid,
+                    "count": 0, "wins": 0, "games": 0,
+                    "faction": p_info.get("faction", ""), 
+                    "ship": p_info.get("ship", ""),
+                    "ship_icon": p_info.get("ship_icon", ""),
+                    "image": p_info.get("image", ""),
+                    "cost": p_info.get("cost", 0),
+                    "loadout": p_info.get("loadout", 0)
+                }
+        
+        elif mode == "upgrades":
+             for u_xws, u_info in all_upgrades.items():
+                
+                u_cost = u_info.get("cost", 0)
+                # Parse cost if it's variable (dict)? handled by loader usually?
+                # Assuming int for now.
+                if isinstance(u_cost, dict):
+                    # Variable cost... treat as 0 or avg?
+                    # Skip check for variable cost or use a default?
+                    # Let's skip check if cost is complex, or try to get min/max.
+                     pass 
+                else:
+                    if u_cost < points_min or u_cost > points_max:
+                        continue
+                
+                # NOTE: all_upgrades from legacy xwing-data2 usually has 'sides' list with 'type'.
+                types = set()
+                sides = u_info.get("sides", [])
+                if sides and isinstance(sides, list):
+                    for side in sides:
+                        if "type" in side:
+                            types.add(side["type"].lower())
+                else:
+                    # Fallback if flat structure
+                    if "type" in u_info:
+                        types.add(u_info["type"].lower())
+
+                if allowed_types:
+                    if types.isdisjoint(allowed_types):
+                        continue
+
+                # Text Filter
+                if text_filter:
+                    u_name = u_info.get("name", u_xws).lower()
+                    u_text = ""
+                    # aggregating text from sides
+                    if sides:
+                        for side in sides:
+                            u_text += " " + side.get("ability", "").lower()
+                    else:
+                        u_text = u_info.get("text", "").lower()
+
+                    match = (text_filter in u_name) or (text_filter in u_text)
+                    if not match: continue
+
+                # Resolve display type (use first match or default)
+                display_type = list(types)[0].title() if types else "Unknown"
+
+                stats[u_xws] = {
+                    "name": u_info.get("name", u_xws),
+                    "xws": u_xws,
+                    "type": display_type,
+                    "count": 0, "wins": 0, "games": 0,
+                    "image": u_info.get("image", ""),
+                    "cost": u_info.get("cost", 0)
+                }
+
         for result, tournament in rows:
             # Python-level Filtering
             t_fmt_raw = tournament.format
             t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
-            if allowed_formats: 
+            
+            if allowed_formats is not None: 
                 if t_fmt not in allowed_formats:
                     continue
 
@@ -107,6 +308,11 @@ def aggregate_card_stats(
             
             if mode == "pilots":
                 list_faction = xws.get("faction", "unknown")
+                
+                # Faction check for LIST context (already handled for individual stats init)
+                # But we must only process lists that match the faction filter to count usage correctly?
+                # Actually, if we filter by Faction X, we only want usage in Faction X lists?
+                # Usually YES.
                 if allowed_factions:
                     current_faction = Faction.from_xws(list_faction).value
                     if current_faction not in allowed_factions:
@@ -117,7 +323,6 @@ def aggregate_card_stats(
                     if not pid: continue
                     
                     # Context Filter: Upgrade ID
-                    # If we are looking for pilots that use a specific upgrade
                     if filter_upgrade_id:
                         has_upgrade = False
                         upgrades = p.get("upgrades", {}) or {}
@@ -128,77 +333,31 @@ def aggregate_card_stats(
                         if not has_upgrade:
                             continue
 
-                    # Ship Filter
-                    if allowed_ships:
-                         p_info = all_pilots.get(pid, {})
-                         p_ship_xws = p_info.get("ship_xws", "") 
-                         if p_ship_xws not in allowed_ships:
-                             continue
-                             
-                    # Legacy String Search
-                    elif isinstance(ship_filter, str) and ship_filter and ship_filter != "all":
-                        p_info = all_pilots.get(pid, {})
-                        p_ship = p_info.get("ship", "").lower()
-                        terms = [s.strip().lower() for s in ship_filter.split(",") if s.strip()]
-                        match_ship = False
-                        for term in terms:
-                            if term in p_ship:
-                                match_ship = True
-                                break
-                        if not match_ship: continue
-
-                    # Initiative Filter
-                    if allowed_initiatives:
-                         p_info = all_pilots.get(pid, {})
-                         p_init = p_info.get("initiative")
-                         if p_init not in allowed_initiatives:
-                             continue
-
-                    # Search Text Filter
-                    if text_filter:
-                        p_info = all_pilots.get(pid, {})
-                        p_name = p_info.get("name", pid).lower()
-                        p_ability = p_info.get("ability", "").lower()
-                        p_ship = p_info.get("ship", "").lower()
-                        
-                        match = (text_filter in p_name) or \
-                                (text_filter in p_ability) or \
-                                (text_filter in p_ship)
-                            
-                        if not match: continue
-
-                    if pid not in stats:
-                        p_info = all_pilots.get(pid, {})
-                        stats[pid] = {
-                            "name": p_info.get("name", pid),
-                            "xws": pid,
-                            "count": 0, "wins": 0, "games": 0,
-                            "faction": p_info.get("faction", list_faction), # Pilot faction
-                            "ship": p_info.get("ship", ""),
-                            "ship_icon": p_info.get("ship_icon", ""),
-                            "image": p_info.get("image", ""),
-                            "cost": p_info.get("cost", 0)
-                        }
-                    
-                    s = stats[pid]
-                    s["count"] += 1
-                    s["wins"] += wins
-                    s["games"] += games
+                    # If pid is in stats, update it
+                    if pid in stats:
+                        s = stats[pid]
+                        s["count"] += 1
+                        s["wins"] += wins
+                        s["games"] += games
+                    else:
+                        # This implies it wasn't in all_pilots OR it was filtered out by static filters.
+                        # If it was filtered out, we shouldn't count it.
+                        # If it wasn't in all_pilots (unknown card?), we ignore it to be safe (or add it?)
+                        # We ignore it to enforce using valid data.
+                        pass
                     
             elif mode == "upgrades":
                 for p in xws.get("pilots", []):
                     pid = p.get("id") or p.get("name")
                     
                     # Context Filter: Pilot ID
-                    # If we are looking for upgrades on a specific pilot
                     if filter_pilot_id:
                         if pid != filter_pilot_id:
                             continue
                     
                     upgrades = p.get("upgrades", {}) or {}
                     
-                    # Context Filter: Upgrade ID
-                    # If we are looking for Paired Upgrades (upgrades in the same loadout as the target upgrade)
+                    # Context Filter: Upgrade ID (Paired)
                     if filter_upgrade_id:
                         has_target_upgrade = False
                         for u_list in upgrades.values():
@@ -209,70 +368,58 @@ def aggregate_card_stats(
                             continue
 
                     for u_type, u_list in upgrades.items():
-                        
-                        # Type Filter
+                         # We don't filter by u_type here rigidly if the card exists in stats 
+                         # (because stats init handled type logic).
+                         # But checking helps optimization.
                         if allowed_types and u_type.lower() not in allowed_types:
-                            continue
+                             continue
                             
                         for u_xws in u_list:
-                            # Skip self if looking for paired upgrades
                             if filter_upgrade_id and u_xws == filter_upgrade_id:
                                 continue
 
-                            # Search Text
-                            if text_filter:
-                                u_info = all_upgrades.get(u_xws, {})
-                                u_name = u_info.get("name", u_xws).lower()
-                                u_text = u_info.get("text", "").lower()
-
-                                match = (text_filter in u_name) or (text_filter in u_text)
-                                if not match: continue
-                            
-                            if u_xws not in stats:
-                                u_info = all_upgrades.get(u_xws, {})
-                                stats[u_xws] = {
-                                    "name": u_info.get("name", u_xws),
-                                    "xws": u_xws,
-                                    "type": u_type.replace("-", " ").replace("_", " ").title(), # Format human readable label
-                                    "count": 0, "wins": 0, "games": 0,
-                                    "image": u_info.get("image", ""),
-                                    "cost": u_info.get("cost", 0)
-                                }
-                            
-                            s = stats[u_xws]
-                            s["count"] += 1
-                            s["wins"] += wins
-                            s["games"] += games
+                            if u_xws in stats:
+                                s = stats[u_xws]
+                                s["count"] += 1
+                                s["wins"] += wins
+                                s["games"] += games
 
         # Post-Processing
         results = []
         for xws_id, s_data in stats.items():
             if s_data["games"] > 0:
                 win_rate = (s_data["wins"] / s_data["games"]) * 100
+                s_data["win_rate"] = round(win_rate, 1)
             else:
-                win_rate = 0.0
+                s_data["win_rate"] = "NA" # String sentinel for UI
 
-            # Ensure we aren't returning raw XWS if name exists in stats
-            name = s_data.get("name", xws_id)
-            if not name or name == xws_id:
-                # Fallback lookup if stats construction missed it
-                if mode == "pilots":
-                    info = all_pilots.get(xws_id, {})
-                else: 
-                     # mode == "upgrades" or "tech" etc.
-                    info = all_upgrades.get(xws_id, {})
-                name = info.get("name", xws_id)
-            
-            # Enrich data
-            s_data["name"] = name
-            s_data["win_rate"] = round(win_rate, 1)
+            # Ensure display name fallback
+            if not s_data.get("name"):
+                 s_data["name"] = xws_id
             
             results.append(s_data)
             
         # Sorting
-        if sort_mode == "win_rate":
-            results.sort(key=lambda x: (x["games"] > 5, x["win_rate"], x["count"]), reverse=True)
-        else: # popularity
-            results.sort(key=lambda x: x["count"], reverse=True)
+        reverse = (sort_direction == SortDirection.DESCENDING)
+        
+        # Helper for NA winrate
+        def winrate_sort_key(x):
+            wr = x["win_rate"]
+            if wr == "NA":
+                return -1.0 # Treat as lowest
+            return float(wr)
+
+        if sort_criteria == SortingCriteria.WINRATE:
+            results.sort(key=lambda x: (winrate_sort_key(x), x["games"]), reverse=reverse)
+        elif sort_criteria == SortingCriteria.COST:
+             results.sort(key=lambda x: (x["cost"], x["count"]), reverse=reverse)
+        elif sort_criteria == SortingCriteria.GAMES:
+             results.sort(key=lambda x: x["games"], reverse=reverse)
+        elif sort_criteria == SortingCriteria.LOADOUT:
+             results.sort(key=lambda x: (x.get("loadout", 0), x["count"]), reverse=reverse)
+        elif sort_criteria == SortingCriteria.NAME:
+             results.sort(key=lambda x: x["name"], reverse=reverse)
+        else: # Popularity (Default)
+             results.sort(key=lambda x: x["count"], reverse=reverse)
             
         return results

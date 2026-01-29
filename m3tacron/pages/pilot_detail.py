@@ -12,6 +12,7 @@ from ..backend.data_structures.data_source import DataSource
 from ..backend.data_structures.formats import Format, MacroFormat
 from ..backend.utils import load_all_pilots
 from ..backend.analytics.core import aggregate_card_stats
+from ..backend.data_structures.sorting_order import SortingCriteria, SortDirection
 from ..backend.analytics.charts import get_card_usage_history
 from ..theme import (
     TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR, TERMINAL_PANEL, TERMINAL_PANEL_STYLE,
@@ -40,7 +41,8 @@ class PilotDetailState(FormatFilterMixin):
     text_filter: str = ""
     
     # Sorting
-    sort_mode: str = "Popularity"
+    sort_metric: str = "Popularity"
+    sort_direction: str = "desc"
     
     # Data Source (XWA vs Legacy)
     data_source: str = "xwa" # xwa, legacy
@@ -50,7 +52,6 @@ class PilotDetailState(FormatFilterMixin):
     
     # Data
     results: list[dict] = []
-    total_count: int = 0
     
     # Chart Data
     chart_data: list[dict] = []
@@ -58,6 +59,18 @@ class PilotDetailState(FormatFilterMixin):
     @rx.var
     def upgrade_type_options(self) -> list[list[str]]:
         return [[t.label, t.value] for t in UpgradeType]
+
+    @rx.var
+    def sort_metric_options(self) -> list[str]:
+        """Available metrics."""
+        opts = [
+            "Cost",
+            "Games",
+            "Name",
+            "Popularity",
+            "Win Rate"
+        ]
+        return opts
     
     @rx.var
     def chart_series_list(self) -> list[dict]:
@@ -120,11 +133,8 @@ class PilotDetailState(FormatFilterMixin):
         if not self.pilot_xws: return
 
         # Map UI Sort Mode to Backend Sort Mode
-        sort_mapping = {
-            "Popularity": "popularity",
-            "Win Rate": "win_rate"
-        }
-        backend_sort = sort_mapping.get(self.sort_mode, "popularity")
+        criteria = SortingCriteria.from_label(self.sort_metric)
+        direction = SortDirection(self.sort_direction)
 
         # Construction Allowed Formats List
         allowed = []
@@ -151,9 +161,9 @@ class PilotDetailState(FormatFilterMixin):
             ds_enum = DataSource.XWA
 
         # 1. Load Upgrade Stats
-        data = aggregate_card_stats(filters, backend_sort, "upgrades", ds_enum)
+        data = aggregate_card_stats(filters, criteria, direction, "upgrades", ds_enum)
         
-        self.total_count = len(data)
+        self.total_items_count = len(data)
         
         # Pagination
         start = self.current_page * self.page_size
@@ -173,9 +183,13 @@ class PilotDetailState(FormatFilterMixin):
                 self.comparison_selection.append(xws)
         self.load_data()
 
-    def set_sort_mode(self, mode: str):
-        self.sort_mode = mode
-        self.load_data()
+    def set_sort_metric(self, metric: str):
+         self.sort_metric = metric
+         self.load_data()
+
+    def toggle_sort_direction(self):
+         self.sort_direction = "asc" if self.sort_direction == "desc" else "desc"
+         self.load_data()
         
     def toggle_upgrade_type(self, u_type: str, checked: bool):
         self.selected_upgrade_types[u_type] = checked
@@ -216,9 +230,9 @@ class PilotDetailState(FormatFilterMixin):
 def render_filters() -> rx.Component:
     """Render the sidebar filters (Context: Pilot Details)."""
     return rx.vstack(
-        # 1. Card Images Source
+        # 1. Content Source
         rx.vstack(
-            rx.text("CARD IMAGES SOURCE", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
+            rx.text("GAME CONTENT SOURCE", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
             rx.segmented_control.root(
                 rx.segmented_control.item("XWA", value="xwa"),
                 rx.segmented_control.item("Legacy", value="legacy"),
@@ -266,13 +280,29 @@ def render_filters() -> rx.Component:
             # Sort By
             rx.vstack(
                 rx.text("Sort By", size="1", weight="bold", letter_spacing="1px", color=TEXT_SECONDARY),
-                rx.select(
-                    ["Popularity", "Win Rate"],
-                    value=PilotDetailState.sort_mode,
-                    on_change=PilotDetailState.set_sort_mode,
-                    style=INPUT_STYLE,
+                rx.hstack(
+                     rx.select(
+                        PilotDetailState.sort_metric_options,
+                        value=PilotDetailState.sort_metric,
+                        on_change=PilotDetailState.set_sort_metric,
+                        style=INPUT_STYLE,
+                        flex="1",
+                        color_scheme="gray",
+                    ),
+                    rx.icon_button(
+                        rx.cond(
+                            PilotDetailState.sort_direction == "asc",
+                            rx.icon(tag="arrow-up"),
+                            rx.icon(tag="arrow-down")
+                        ),
+                        on_click=PilotDetailState.toggle_sort_direction,
+                        variant="soft",
+                        color_scheme="gray",
+                        size="2",
+                        width="40px"
+                    ),
                     width="100%",
-                    color_scheme="gray",
+                    spacing="2"
                 ),
                 spacing="1",
                 width="100%"
@@ -327,9 +357,11 @@ def upgrade_card_item(u: dict) -> rx.Component:
                 rx.hstack(
                     rx.badge(u["count"].to(str) + " USED", color_scheme="gray", variant="solid", radius="full"),
                     rx.badge(u["win_rate"].to(float).to(int).to(str) + "% WR", color_scheme=rx.cond(u["win_rate"].to(float) >= 50, "green", "orange"), variant="solid", radius="full"),
+                    rx.badge(u["cost"].to(str) + " PTS", color_scheme="blue", variant="solid", radius="full"),
                     spacing="2",
                     justify="center",
-                    width="100%"
+                    width="100%",
+                    wrap="wrap"
                 ),
                 rx.button(
                     rx.cond(is_selected, "REMOVE COMPARISON", "COMPARE"),

@@ -51,12 +51,15 @@ app.add_page(tournament_detail_page, route="/tournament/[id]", title="M3taCron -
 
 # from .pages.squadrons_browser import squadrons_browser_page
 from .pages.cards_browser import cards_browser_page
+from .pages.ships_browser import ships_browser_page
 
 app.add_page(squadrons_browser_page, route="/squadrons", title="M3taCron - Squadrons Browser")
 app.add_page(cards_browser_page, route="/cards", title="M3taCron - Cards Browser")
+app.add_page(ships_browser_page, route="/ships", title="M3taCron - Ships Browser")
 
 from .pages.pilot_detail import pilot_detail_page
 from .pages.upgrade_detail import upgrade_detail_page
 app.add_page(pilot_detail_page, route="/pilot/[id]", title="M3taCron - Pilot Detail")
 app.add_page(upgrade_detail_page, route="/upgrade/[id]", title="M3taCron - Upgrade Detail")
+
 
