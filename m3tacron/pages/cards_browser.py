@@ -78,11 +78,21 @@ class CardAnalyzerState(FormatFilterMixin):
     agility_min: int = 0
     agility_max: int = 10
     
-    # booleans
-    is_unique: bool = False
-    is_not_unique: bool = False
+    # booleans for Limited/Unique
+    is_unique: bool = False  # limited == 1
+    is_limited: bool = False  # limited != 0
+    is_not_limited: bool = False  # limited == 0
     
-    base_sizes: dict[str, bool] = {"Small": True, "Medium": True, "Large": True} # Default all true? Or none?
+    # Attack range
+    attack_min: int = 0
+    attack_max: int = 10
+    
+    # Initiative range (replaces grid)
+    init_min: int = 0
+    init_max: int = 6
+    
+    # Base sizes - empty dict means no filter (all sizes)
+    base_sizes: dict[str, bool] = {}
     
     def set_mode(self, mode: str | list[str]):
         if isinstance(mode, list):
@@ -143,8 +153,32 @@ class CardAnalyzerState(FormatFilterMixin):
         self.is_unique = val
         self.load_data()
 
-    def set_is_not_unique(self, val: bool):
-        self.is_not_unique = val
+    def set_is_limited(self, val: bool):
+        self.is_limited = val
+        self.load_data()
+
+    def set_is_not_limited(self, val: bool):
+        self.is_not_limited = val
+        self.load_data()
+        
+    def set_attack_min(self, val: str):
+        try: self.attack_min = int(val)
+        except ValueError: pass
+        self.load_data()
+
+    def set_attack_max(self, val: str):
+        try: self.attack_max = int(val)
+        except ValueError: pass
+        self.load_data()
+        
+    def set_init_min(self, val: str):
+        try: self.init_min = int(val)
+        except ValueError: pass
+        self.load_data()
+
+    def set_init_max(self, val: str):
+        try: self.init_max = int(val)
+        except ValueError: pass
         self.load_data()
 
     def toggle_base_size(self, size: str, checked: bool):
@@ -381,25 +415,28 @@ class CardAnalyzerState(FormatFilterMixin):
             "date_end": self.date_range_end,
             "search_text": self.text_filter,
             "faction": active_factions,
-            "ship": active_ships, # List of XWS IDs
+            "ship": active_ships,
             "initiative": active_initiatives,
             "upgrade_type": active_upgrade_types,
-            
-            # Advanced Filters (Passing anyway, backend will ignore if unused or we can condition them)
-            # Actually, backend IS `aggregate_card_stats`. We need to update it to handle these?
-            # Or just ignore them for now if backend isn't ready?
-            # The prompt says implementation plan includes `advanced_filters.py`, 
-            # but I should have updated backend to accept these ranges. 
-            # I updated backend for logic "Show All", but maybe not for hull/shields filtering yet?
-            # The user said "wire up advanced filters" in task.
-            # I will pass them in filter dict.
+            # Advanced Filters
             "points_min": self.points_min,
             "points_max": self.points_max,
             "loadout_min": self.loadout_min,
             "loadout_max": self.loadout_max,
+            "hull_min": self.hull_min,
+            "hull_max": self.hull_max,
+            "shields_min": self.shields_min,
+            "shields_max": self.shields_max,
+            "agility_min": self.agility_min,
+            "agility_max": self.agility_max,
+            "attack_min": self.attack_min,
+            "attack_max": self.attack_max,
+            "init_min": self.init_min,
+            "init_max": self.init_max,
             "is_unique": self.is_unique,
-            "is_not_unique": self.is_not_unique,
-            # ... and so on.
+            "is_limited": self.is_limited,
+            "is_not_limited": self.is_not_limited,
+            "base_sizes": self.base_sizes,
         }
         print(f"DEBUG: Active Filters: {filters}")
         
@@ -522,7 +559,7 @@ def render_filters() -> rx.Component:
                     rx.vstack(
                         rx.text("Text Search", size="1", weight="bold", color=TEXT_SECONDARY),
                         rx.input(
-                            placeholder="Search Name / Effect...",
+                            placeholder="search name / ability / ship",
                             value=CardAnalyzerState.text_filter,
                             on_change=CardAnalyzerState.set_text_filter,
                             style=INPUT_STYLE,
@@ -637,6 +674,7 @@ def pilot_card(p: dict) -> rx.Component:
             style=TERMINAL_PANEL_STYLE,
             border_radius=RADIUS,
             width="100%",
+            min_height="380px",
             transition="transform 0.2s",
             _hover={"transform": "translateY(-4px)"}
         ),
@@ -658,8 +696,7 @@ def upgrade_card(u: dict) -> rx.Component:
                     rx.text(u["type"].to(str), size="1", color="cyan", font_family=MONOSPACE_FONT, text_align="center"),
                     rx.hstack(
                         rx.badge(u["count"].to(str) + " USED", color_scheme="gray", variant="solid", radius="full"),
-                        rx.badge(u["count"].to(str) + " USED", color_scheme="gray", variant="solid", radius="full"),
-                        rx.badge(u["games"].to(str) + " GAMES", color_scheme="gray", variant="solid", radius="full"), # NEW
+                        rx.badge(u["games"].to(str) + " GAMES", color_scheme="gray", variant="solid", radius="full"),
                         rx.cond(
                             u["win_rate"].to(str) == "NA",
                             rx.badge("NA WR", color_scheme="gray", variant="solid", radius="full"),
@@ -684,6 +721,7 @@ def upgrade_card(u: dict) -> rx.Component:
             style=TERMINAL_PANEL_STYLE,
             border_radius=RADIUS,
             width="100%",
+            min_height="350px",
             transition="transform 0.2s",
             _hover={"transform": "translateY(-4px)"}
         ),

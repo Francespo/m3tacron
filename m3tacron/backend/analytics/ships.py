@@ -24,7 +24,11 @@ def aggregate_ship_stats(
     Aggregate statistics for ships grouped by faction.
     
     Args:
-        filters: Dict with optional keys: allowed_formats, date_start, date_end
+        filters: Dict with optional keys:
+            - allowed_formats: list of format strings
+            - date_start, date_end: date range strings
+            - faction: list of faction labels to filter by
+            - ship: list of ship XWS to filter by
         sort_criteria: How to sort results (POPULARITY, WINRATE, GAMES)
         sort_direction: ASC or DESC
         data_source: XWA or Legacy
@@ -62,7 +66,7 @@ def aggregate_ship_stats(
             # Normalize faction to xws format
             try:
                 faction_enum = Faction.from_xws(faction)
-                faction_xws = faction_enum.xws
+                faction_xws = faction_enum.xws  
                 faction_display = faction_enum.value
             except (ValueError, AttributeError):
                 faction_xws = faction.lower().replace(" ", "")
@@ -152,6 +156,28 @@ def aggregate_ship_stats(
                 "games": games,
             })
         
+        # Apply faction filter (filter by faction label)
+        faction_filter = filters.get("faction", [])
+        if faction_filter:
+            # Normalize faction labels for comparison
+            def norm_faction(f): 
+                return f.lower().replace(" ", "").replace("-", "")
+            norm_filter = {norm_faction(f) for f in faction_filter}
+            
+            filtered_results = []
+            for r in results:
+                # Match against faction label or xws
+                r_faction_norm = norm_faction(r["faction"])
+                r_faction_xws_norm = norm_faction(r["faction_xws"])
+                if r_faction_norm in norm_filter or r_faction_xws_norm in norm_filter:
+                    filtered_results.append(r)
+            results = filtered_results
+        
+        # Apply ship filter (filter by ship XWS)
+        ship_filter = filters.get("ship", [])
+        if ship_filter:
+            results = [r for r in results if r["ship_xws"] in ship_filter]
+        
         # Sorting
         reverse = (sort_direction == SortDirection.DESCENDING)
         
@@ -169,3 +195,4 @@ def aggregate_ship_stats(
             results.sort(key=lambda x: x["popularity"], reverse=reverse)
         
         return results
+

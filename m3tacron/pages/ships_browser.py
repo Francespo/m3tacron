@@ -9,6 +9,7 @@ from ..ui_utils.pagination import PaginationMixin
 from ..components.pagination import pagination_controls
 from ..components.sidebar import layout, dashboard_layout
 from ..backend.data_structures.data_source import DataSource
+from ..backend.data_structures.factions import Faction
 from ..backend.data_structures.formats import Format, MacroFormat
 from ..backend.analytics.ships import aggregate_ship_stats
 from ..backend.data_structures.sorting_order import SortingCriteria, SortDirection
@@ -18,6 +19,21 @@ from ..theme import (
 )
 from ..components.icons import ship_icon
 from ..ui_utils.factions import faction_icon, get_faction_color
+from ..components.filter_accordion import filter_accordion
+from ..components.searchable_filter_accordion import searchable_filter_accordion
+from ..backend.utils import load_all_ships
+
+
+# Faction label mapping for display
+FACTION_LABELS = {
+    "rebelalliance": "Rebel Alliance",
+    "galacticempire": "Galactic Empire",
+    "scumandvillainy": "Scum and Villainy",
+    "resistance": "Resistance",
+    "firstorder": "First Order",
+    "galacticrepublic": "Galactic Republic",
+    "separatistalliance": "Separatist Alliance",
+}
 
 
 class ShipsBrowserState(FormatFilterMixin):
@@ -27,15 +43,71 @@ class ShipsBrowserState(FormatFilterMixin):
     ships: list[dict] = []
     
     # Sorting
-    sort_metric: str = "Popularity"  # Popularity, Win Rate, Games
+    sort_metric: str = "Popularity"
     sort_direction: str = "desc"
     
     # Data Source
     data_source: str = "xwa"
     
+    # Date Range Filters
+    date_range_start: str = ""
+    date_range_end: str = ""
+    
+    # Ship Filters
+    selected_factions: dict[str, bool] = {}
+    selected_ships: dict[str, bool] = {}
+    ship_search_text: str = ""
+    
+    # Static faction options
+    faction_options: list[list[str]] = [
+        ["Rebel Alliance", "Rebel Alliance"],
+        ["Galactic Empire", "Galactic Empire"],
+        ["Scum and Villainy", "Scum and Villainy"],
+        ["Resistance", "Resistance"],
+        ["First Order", "First Order"],
+        ["Galactic Republic", "Galactic Republic"],
+        ["Separatist Alliance", "Separatist Alliance"]
+    ]
+    
     @rx.var
     def sort_metric_options(self) -> list[str]:
         return ["Games", "Popularity", "Win Rate"]
+    
+    @rx.var
+    def all_ships(self) -> list[dict]:
+        """Load all ships based on data source."""
+        source_enum = DataSource(self.data_source) if isinstance(self.data_source, str) else self.data_source
+        return load_all_ships(source_enum)
+    
+    @rx.var
+    def available_ships(self) -> list[list[str]]:
+        """Filter ships based on selected factions and search text."""
+        ships = self.all_ships
+        
+        # 1. Faction Filter
+        active_factions = {k for k, v in self.selected_factions.items() if v}
+        
+        filtered_by_faction = []
+        if not active_factions:
+            filtered_by_faction = ships
+        else:
+            def norm(s): return s.lower().replace(" ", "").replace("-", "")
+            norm_active = {norm(f) for f in active_factions}
+            
+            for s in ships:
+                s_factions_norm = {norm(f) for f in s["factions"]}
+                if not s_factions_norm.isdisjoint(norm_active):
+                    filtered_by_faction.append(s)
+        
+        # 2. Search Text
+        final_list = []
+        query = self.ship_search_text.lower()
+        
+        for s in filtered_by_faction:
+            if query in s["name"].lower():
+                final_list.append([s["name"], s["xws"]])
+        
+        return final_list
     
     def set_sort_metric(self, metric: str):
         self.sort_metric = metric
@@ -43,6 +115,27 @@ class ShipsBrowserState(FormatFilterMixin):
     
     def toggle_sort_direction(self):
         self.sort_direction = "asc" if self.sort_direction == "desc" else "desc"
+        self.load_data()
+    
+    def set_date_start(self, date: str):
+        self.date_range_start = date
+        self.load_data()
+    
+    def set_date_end(self, date: str):
+        self.date_range_end = date
+        self.load_data()
+    
+    def toggle_faction(self, faction: str, checked: bool):
+        self.selected_factions[faction] = checked
+        self.current_page = 0
+        self.load_data()
+    
+    def set_ship_search(self, text: str):
+        self.ship_search_text = text
+    
+    def toggle_ship(self, xws: str, checked: bool):
+        self.selected_ships[xws] = checked
+        self.current_page = 0
         self.load_data()
     
     def on_mount(self):
@@ -98,8 +191,16 @@ class ShipsBrowserState(FormatFilterMixin):
             if v and is_valid_format:
                 allowed.append(k)
         
+        # Build faction filter
+        active_factions = [k for k, v in self.selected_factions.items() if v]
+        active_ships = [k for k, v in self.selected_ships.items() if v]
+        
         filters = {
             "allowed_formats": allowed,
+            "date_start": self.date_range_start,
+            "date_end": self.date_range_end,
+            "faction": active_factions,
+            "ship": active_ships,
         }
         
         try:
@@ -140,10 +241,62 @@ def render_filters() -> rx.Component:
         # Tournament Filters
         rx.text("TOURNAMENT FILTERS", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
         
+        # Date Range
+        rx.vstack(
+            rx.text("Date Range", size="1", weight="bold", color=TEXT_SECONDARY),
+            rx.vstack(
+                rx.input(
+                    type="date",
+                    value=ShipsBrowserState.date_range_start,
+                    on_change=ShipsBrowserState.set_date_start,
+                    style=INPUT_STYLE,
+                    width="100%"
+                ),
+                rx.text("to", size="1", color=TEXT_SECONDARY, text_align="center"),
+                rx.input(
+                    type="date",
+                    value=ShipsBrowserState.date_range_end,
+                    on_change=ShipsBrowserState.set_date_end,
+                    style=INPUT_STYLE,
+                    width="100%"
+                ),
+                spacing="1",
+                width="100%",
+                padding="8px",
+                border=f"1px solid {BORDER_COLOR}",
+                border_radius=RADIUS
+            ),
+            spacing="1",
+            width="100%"
+        ),
+        
         # Format Filter
         rx.box(
             hierarchical_format_filter(ShipsBrowserState),
             width="100%",
+        ),
+        
+        rx.divider(border_color=BORDER_COLOR),
+        
+        # Ship Filters Section
+        rx.text("SHIP FILTERS", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
+        
+        # Faction Filter
+        filter_accordion(
+            "Factions",
+            ShipsBrowserState.faction_options,
+            ShipsBrowserState.selected_factions,
+            ShipsBrowserState.toggle_faction
+        ),
+        
+        # Chassis Filter
+        searchable_filter_accordion(
+            "Chassis",
+            ShipsBrowserState.available_ships,
+            ShipsBrowserState.selected_ships,
+            ShipsBrowserState.toggle_ship,
+            ShipsBrowserState.ship_search_text,
+            ShipsBrowserState.set_ship_search
         ),
         
         rx.divider(border_color=BORDER_COLOR),
@@ -186,18 +339,34 @@ def render_filters() -> rx.Component:
     )
 
 
+def get_faction_label(faction_xws: rx.Var) -> rx.Var:
+    """Get human-readable label for faction XWS."""
+    return rx.match(
+        faction_xws,
+        ("rebelalliance", "Rebel Alliance"),
+        ("galacticempire", "Galactic Empire"),
+        ("scumandvillainy", "Scum and Villainy"),
+        ("resistance", "Resistance"),
+        ("firstorder", "First Order"),
+        ("galacticrepublic", "Galactic Republic"),
+        ("separatistalliance", "Separatist Alliance"),
+        "Unknown"
+    )
+
+
 def ship_card(s: dict) -> rx.Component:
     """Render a single ship card."""
     faction_xws = s["faction_xws"].to(str)
     faction_color = get_faction_color(faction_xws)
+    faction_label = get_faction_label(faction_xws)
     
     return rx.link(
         rx.box(
             rx.vstack(
-                # Ship Icon (Large, centered)
+                # Ship Icon (Extra Large, centered)
                 rx.box(
-                    ship_icon(s["ship_xws"].to(str), size="4em", color=faction_color),
-                    padding="16px",
+                    ship_icon(s["ship_xws"].to(str), size="6em", color=faction_color),
+                    padding="24px",
                     display="flex",
                     justify_content="center",
                     align_items="center",
@@ -207,12 +376,12 @@ def ship_card(s: dict) -> rx.Component:
                 # Ship Name + Faction
                 rx.vstack(
                     rx.hstack(
-                        faction_icon(faction_xws, size="1.2em"),
+                        faction_icon(faction_xws, size="1.4em"),
                         rx.text(
                             s["ship_name"].to(str),
                             weight="bold",
                             color=TEXT_PRIMARY,
-                            size="3",
+                            size="4",
                             text_align="center"
                         ),
                         spacing="2",
@@ -220,10 +389,10 @@ def ship_card(s: dict) -> rx.Component:
                         align="center",
                     ),
                     rx.text(
-                        s["faction"].to(str),
-                        size="1",
+                        faction_label,
+                        size="2",
                         color=faction_color,
-                        font_family=MONOSPACE_FONT,
+                        font_family=SANS_FONT,
                         text_align="center"
                     ),
                     spacing="1",
@@ -268,17 +437,18 @@ def ship_card(s: dict) -> rx.Component:
                 spacing="3",
                 width="100%",
                 align="center",
-                padding="8px"
+                padding="12px"
             ),
-            padding="12px",
+            padding="16px",
             style=TERMINAL_PANEL_STYLE,
             border_radius=RADIUS,
             width="100%",
+            min_height="280px",
             transition="transform 0.2s",
             _hover={"transform": "translateY(-4px)"}
         ),
         # Link to cards browser with ship and faction filters
-        href=rx.Var.create(f"/cards?ship=") + s["ship_xws"].to(str) + rx.Var.create("&faction=") + s["faction_xws"].to(str),
+        href=rx.Var.create(f"/cards?ship=") + s["ship_xws"].to(str) + rx.Var.create("&faction=") + s["faction"].to(str),
         width="100%"
     )
 

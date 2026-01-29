@@ -102,8 +102,19 @@ def aggregate_card_stats(
         agility_min = filters.get("agility_min", 0)
         agility_max = filters.get("agility_max", 10)
         
-        is_unique = filters.get("is_unique", False)
-        is_not_unique = filters.get("is_not_unique", False)
+        attack_min = filters.get("attack_min", 0)
+        attack_max = filters.get("attack_max", 10)
+        
+        init_min = filters.get("init_min", 0)
+        init_max = filters.get("init_max", 6)
+        
+        # Limited/Unique filters
+        is_unique = filters.get("is_unique", False)  # limited == 1
+        is_limited = filters.get("is_limited", False)  # limited != 0
+        is_not_limited = filters.get("is_not_limited", False)  # limited == 0
+        
+        # Base Size filter: dict of size -> bool
+        base_sizes = filters.get("base_sizes", {})
 
         # INITIALIZE STATS WITH ALL CARDS
         # This ensures we show cards with 0 usage.
@@ -140,45 +151,54 @@ def aggregate_card_stats(
                 # See `utils.py` logic later if needed. For now assume they are available or accessible.
                 # Try to access them as top level or 'stats' dict.
                 
-                stats_block = p_info.get("stats", {}) # e.g. {"agility": 2, "hull": 3, "shields": 2}
-                # Fallback if flat
-                p_hull = stats_block.get("hull") if stats_block else p_info.get("hull")
-                p_shields = stats_block.get("shields") if stats_block else p_info.get("shields")
-                p_agility = stats_block.get("agility") if stats_block else p_info.get("agility")
+                # Ship stats (now flattened in pilots.py)
+                p_hull = p_info.get("hull")
+                p_shields = p_info.get("shields")
+                p_agility = p_info.get("agility")
+                p_attack = p_info.get("attack")
+                p_size = p_info.get("size", "Small")
+                p_limited = p_info.get("limited", 0)
                 
-                # If stats are missing (e.g. unknown format), we treat as valid or filter? 
-                # Let's treat as 0 if missing for comparison, but if missing it shouldn't match "range 3-3".
-                # Defaulting to 0 is risky if we filter "from 0 to X".
-                # If None, we skip the check? No, user wants to filter.
-                
+                # Stat range filters (skip if value is None)
                 if p_hull is not None:
-                     if p_hull < hull_min or p_hull > hull_max: continue
+                    if p_hull < hull_min or p_hull > hull_max: continue
                 if p_shields is not None:
-                     if p_shields < shields_min or p_shields > shields_max: continue
+                    if p_shields < shields_min or p_shields > shields_max: continue
                 if p_agility is not None:
-                     if p_agility < agility_min or p_agility > agility_max: continue
-
+                    if p_agility < agility_min or p_agility > agility_max: continue
+                if p_attack is not None:
+                    if p_attack < attack_min or p_attack > attack_max: continue
                 
-                # Misc Filters
-                # Unique: limited > 0? or specific field "is_unique"?
-                # Usually "limited" key. 0 = unlimited. > 0 = unique/limited.
-                # Or "unique" boolean.
-                p_unique = p_info.get("limited", 0) > 0
+                # Initiative Range Filter (replaces grid)
+                p_init = p_info.get("initiative", 0)
+                if p_init < init_min or p_init > init_max:
+                    continue
                 
-                # Logic:
-                # If "Is unique" checked -> Show ONLY unique
-                # If "Is not unique" checked -> Show ONLY non-unique
-                # If BOTH checked -> Show BOTH (Logic: (Unique AND Yes) OR (NotUnique AND Yes) -> effectively all?)
-                # Usually these are exclusive or additive?
-                # "Misc: [ ] Is unique [ ] Is not unique"
-                # If I check "Is unique", I want uniques.
-                # If I check both, I probably want both (No filter).
-                # If I check neither, I want both (No filter).
-                # So we only filter if ONE is checked.
-                if is_unique and not is_not_unique:
-                    if not p_unique: continue
-                if is_not_unique and not is_unique:
-                    if p_unique: continue
+                # Base Size Filter
+                # Only filter if at least one size is explicitly set to True
+                active_sizes = [s for s, v in base_sizes.items() if v]
+                if active_sizes:
+                    # Normalize size comparison
+                    size_map = {"S": "Small", "M": "Medium", "L": "Large", "H": "Huge"}
+                    allowed_sizes = {size_map.get(s, s) for s in active_sizes}
+                    if p_size not in allowed_sizes:
+                        continue
+                
+                # Limited/Unique Filters
+                # is_unique: limited == 1
+                # is_limited: limited != 0 (1, 2, or 3)
+                # is_not_limited: limited == 0 (generic)
+                # If multiple are checked, treat as OR (additive)
+                if is_unique or is_limited or is_not_limited:
+                    match = False
+                    if is_unique and p_limited == 1:
+                        match = True
+                    if is_limited and p_limited != 0:
+                        match = True
+                    if is_not_limited and p_limited == 0:
+                        match = True
+                    if not match:
+                        continue
 
 
                 # Apply Static Filters (Faction, Ship, Initiative, Text) at initialization
@@ -205,10 +225,12 @@ def aggregate_card_stats(
                             break
                     if not match_ship: continue
 
-                # Initiative Filter
-                p_init = p_info.get("initiative")
-                if allowed_initiatives and p_init not in allowed_initiatives:
-                    continue
+                # Initiative Filter (legacy grid support - skip if using range)
+                # Range filter already applied above, this is for backwards compat if grid is used
+                if allowed_initiatives:
+                    p_init_check = p_info.get("initiative")
+                    if p_init_check not in allowed_initiatives:
+                        continue
 
                 # Text Filter
                 if text_filter:
