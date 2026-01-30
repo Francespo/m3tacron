@@ -106,7 +106,7 @@ def aggregate_card_stats(
         attack_max = filters.get("attack_max", 10)
         
         init_min = filters.get("init_min", 0)
-        init_max = filters.get("init_max", 6)
+        init_max = filters.get("init_max", 8)
         
         # Limited/Unique filters
         is_unique = filters.get("is_unique", False)  # limited == 1
@@ -120,8 +120,15 @@ def aggregate_card_stats(
         # This ensures we show cards with 0 usage.
         if mode == "pilots":
             for pid, p_info in all_pilots.items():
-                p_cost = p_info.get("cost", 0)
-                p_loadout = p_info.get("loadout", 0)
+                try:
+                    p_cost = int(p_info.get("cost", 0) or 0)
+                except (ValueError, TypeError):
+                    p_cost = 0
+                    
+                try:
+                    p_loadout = int(p_info.get("loadout", 0) or 0)
+                except (ValueError, TypeError):
+                    p_loadout = 0
                 
                 # --- Advanced Numeric Filters ---
                 if p_cost < points_min or p_cost > points_max:
@@ -132,12 +139,58 @@ def aggregate_card_stats(
                         continue
                         
                 # Ship Stats Filters
-                # p_info includes flattened ship stats usually, or we need to look up ship
-                # Assuming load_all_pilots flattens crucial stats or we have them.
-                # If not, we might need to rely on 'ship' key to look up stats?
-                # Usually load_all_pilots merges ship stats. Let's check keys if we encounter issues.
-                # Standard keys: 'initiative', 'cost', 'loadout'.
-                # Stats keys might be nested in 'ship_stats' or 'stats'? 
+                # Use safe default for filter checks
+                # Default Logic: Show if standard OR extended OR wildspace is True.
+                # If include_epic is True, show if epic is True (regardless of others).
+                # If include_epic is False, DO NOT show if ONLY epic is True.
+                
+                is_std = p_info.get("standard", False)
+                is_ext = p_info.get("extended", False)
+                is_wild = p_info.get("wildspace", False)
+                is_epic = p_info.get("epic", False)
+                
+                include_epic_content = filters.get("include_epic", False)
+
+                # Strict Format Visibility Filter
+                is_std = p_info.get("standard", False)
+                is_ext = p_info.get("extended", False)
+                is_wild = p_info.get("wildspace", False)
+                is_epic = p_info.get("epic", False)
+                
+                show_card = False
+                
+                # Check against allowed formats from filter
+                # allowed_formats contains strings from Format enum (e.g. 'xwa', 'amg', 'wildspace')
+                if allowed_formats:
+                     # 2.5 / Standard / Extended Logic
+                     # 'xwa' and 'amg' usually imply Standard/Extended legality
+                     if "xwa" in allowed_formats or "amg" in allowed_formats:
+                         if is_std or is_ext:
+                             show_card = True
+                             
+                     # Wild Space
+                     if "wildspace" in allowed_formats and is_wild:
+                         show_card = True
+                         
+                     # Epic
+                     if ("xwa_epic" in allowed_formats or "legacy_epic" in allowed_formats) and is_epic:
+                         show_card = True
+
+                     # Legacy Logic (Fallthrough for Legacy Data Source)
+                     if data_source == DataSource.LEGACY:
+                         # Assume legacy cards are valid if legacy formats are selected
+                         legacy_keys = {"legacy_x2po", "legacy_xlc", "ffg"}
+                         if not legacy_keys.isdisjoint(allowed_formats):
+                             show_card = True
+                else:
+                    # No formats selected? Should imply showing nothing? 
+                    # Or fallback to showing everything? 
+                    # Ideally nothing.
+                    pass 
+
+                if not show_card:
+                    continue
+
                 # Checking hypothetical structure. If keys missing, we skip filter or default to 0.
                 # Based on typical xwing-data2, stats are usually under 'ship' -> 'stats'.
                 # But 'load_all_pilots' helper might flatten.
@@ -152,22 +205,26 @@ def aggregate_card_stats(
                 # Try to access them as top level or 'stats' dict.
                 
                 # Ship stats (now flattened in pilots.py)
-                p_hull = p_info.get("hull")
-                p_shields = p_info.get("shields")
-                p_agility = p_info.get("agility")
-                p_attack = p_info.get("attack")
+                try: p_hull = int(p_info.get("hull") or 0)
+                except: p_hull = 0
+                
+                try: p_shields = int(p_info.get("shields") or 0)
+                except: p_shields = 0
+                
+                try: p_agility = int(p_info.get("agility") or 0)
+                except: p_agility = 0
+                
+                try: p_attack = int(p_info.get("attack") or 0)
+                except: p_attack = 0
+                
                 p_size = p_info.get("size", "Small")
                 p_limited = p_info.get("limited", 0)
                 
                 # Stat range filters (skip if value is None)
-                if p_hull is not None:
-                    if p_hull < hull_min or p_hull > hull_max: continue
-                if p_shields is not None:
-                    if p_shields < shields_min or p_shields > shields_max: continue
-                if p_agility is not None:
-                    if p_agility < agility_min or p_agility > agility_max: continue
-                if p_attack is not None:
-                    if p_attack < attack_min or p_attack > attack_max: continue
+                if p_hull < hull_min or p_hull > hull_max: continue
+                if p_shields < shields_min or p_shields > shields_max: continue
+                if p_agility < agility_min or p_agility > agility_max: continue
+                if p_attack < attack_min or p_attack > attack_max: continue
                 
                 # Initiative Range Filter (replaces grid)
                 p_init = p_info.get("initiative", 0)
@@ -206,7 +263,11 @@ def aggregate_card_stats(
                 # Faction Filter
                 if allowed_factions:
                     p_faction = p_info.get("faction", "")
-                    if p_faction not in allowed_factions:
+                    # Robust check: normalize both
+                    p_f_norm = p_faction.lower().replace(" ", "").replace("-", "")
+                    allowed_norm = {f.lower().replace(" ", "").replace("-", "") for f in allowed_factions}
+                    
+                    if p_f_norm not in allowed_norm:
                         continue
 
                 # Ship Filter
@@ -237,10 +298,12 @@ def aggregate_card_stats(
                     p_name = p_info.get("name", pid).lower()
                     p_ability = p_info.get("ability", "").lower()
                     p_ship_name = p_info.get("ship", "").lower()
+                    p_caption = p_info.get("caption", "").lower()
                     
                     match = (text_filter in p_name) or \
                             (text_filter in p_ability) or \
-                            (text_filter in p_ship_name)
+                            (text_filter in p_ship_name) or \
+                            (text_filter in p_caption)
                     if not match: continue
 
                 stats[pid] = {
@@ -258,17 +321,43 @@ def aggregate_card_stats(
         elif mode == "upgrades":
              for u_xws, u_info in all_upgrades.items():
                 
-                u_cost = u_info.get("cost", 0)
-                # Parse cost if it's variable (dict)? handled by loader usually?
-                # Assuming int for now.
-                if isinstance(u_cost, dict):
-                    # Variable cost... treat as 0 or avg?
-                    # Skip check for variable cost or use a default?
-                    # Let's skip check if cost is complex, or try to get min/max.
-                     pass 
+                try:
+                    u_cost = int(u_info.get("cost", 0) or 0)
+                except (ValueError, TypeError):
+                    u_cost = 0
+
+                if u_cost < points_min or u_cost > points_max:
+                    continue
+            
+                # Strict Format Visibility Filter (Upgrades)
+                is_std = u_info.get("standard", False)
+                is_ext = u_info.get("extended", False)
+                is_wild = u_info.get("wildspace", False)
+                is_epic = u_info.get("epic", False)
+                
+                show_card = False
+                
+                # Check against allowed formats
+                if allowed_formats:
+                     if "xwa" in allowed_formats or "amg" in allowed_formats:
+                         if is_std or is_ext:
+                             show_card = True
+                             
+                     if "wildspace" in allowed_formats and is_wild:
+                         show_card = True
+                         
+                     if ("xwa_epic" in allowed_formats or "legacy_epic" in allowed_formats) and is_epic:
+                         show_card = True
+
+                     if data_source == DataSource.LEGACY:
+                         legacy_keys = {"legacy_x2po", "legacy_xlc", "ffg"}
+                         if not legacy_keys.isdisjoint(allowed_formats):
+                             show_card = True
                 else:
-                    if u_cost < points_min or u_cost > points_max:
-                        continue
+                    pass 
+
+                if not show_card:
+                    continue
                 
                 # NOTE: all_upgrades from legacy xwing-data2 usually has 'sides' list with 'type'.
                 types = set()
