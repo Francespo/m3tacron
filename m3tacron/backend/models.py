@@ -77,6 +77,5 @@ class Match(rx.Model, table=True):
     player1_score: int = Field(default=-1)
     player2_score: int = Field(default=-1)
     
-    winner_id: int | None = Field(default=None)
-    first_player_id: int | None = Field(default=None)
+    winner_id: int | None = Field(default=None) # -1 if draw
     is_bye: bool = Field(default=False)

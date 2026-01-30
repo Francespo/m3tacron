@@ -15,29 +15,15 @@ sys.path.append(str(Path(__file__).parent))
 from m3tacron.backend.models import Tournament, PlayerResult, Match
 
 # DB Setup
-DB_FILE = "results_standardized_v3.db"
+DB_FILE = "test_results.db"
 DATABASE_URL = f"sqlite:///{DB_FILE}"
 
 def get_engine():
     return create_engine(DATABASE_URL)
 
 URLS = [
-    "https://rollbetter.gg/tournaments/2557",
-    "https://rollbetter.gg/tournaments/2509",
-    "https://rollbetter.gg/tournaments/2491",
-    "https://rollbetter.gg/tournaments/2518",
-    "https://rollbetter.gg/tournaments/2400",
-    "https://rollbetter.gg/tournaments/2563",
-    "https://rollbetter.gg/tournaments/2530",
-    "https://rollbetter.gg/tournaments/2409",
-    "https://rollbetter.gg/tournaments/2444",
-    
-    "https://xwing.longshanks.org/event/31565/",
-    "https://xwing.longshanks.org/event/30230/",
-    "https://xwing.longshanks.org/event/23226/",
-    "https://xwing-legacy.longshanks.org/event/30317/",
-    "https://xwing-legacy.longshanks.org/event/30504/",
-    "https://xwing-legacy.longshanks.org/event/29602"
+    "https://xwing.longshanks.org/event/29346/",
+    "https://xwing-legacy.longshanks.org/event/28919/"
 ]
 
 def init_db():
@@ -61,17 +47,16 @@ def run_orchestrator():
     
     for url in URLS:
         print(f"\n>>> Dispatching worker for: {url}")
-        try:
-            # Run worker as subprocess
-            result = subprocess.run(
-                ["python", "batch_worker.py", url],
-                capture_output=False, 
-                check=True
-            )
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Worker failed for {url} with exit code {e.returncode}")
-        except Exception as e:
-            print(f"❌ Orchestrator error: {e}")
+        
+        # Run worker as subprocess
+        result = subprocess.run(
+            ["python", "batch_worker.py", url, "test"],
+            capture_output=False, 
+            check=False
+        )
+        
+        if result.returncode != 0:
+            print(f"❌ Worker failed for {url} with exit code {result.returncode}")
 
 if __name__ == "__main__":
     run_orchestrator()

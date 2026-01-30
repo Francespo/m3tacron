@@ -574,131 +574,119 @@ class LongshanksScraper(BaseScraper):
     
     def get_matches(self, tournament_id: str) -> list[dict]:
         """
-        Scrape matches from the Games tab by iterating through all rounds.
+        Scrape matches from the Games tab.
+        Returns a list of dictionaries with match data.
         """
         matches = []
-        url = f"{self.base_url}/event/{tournament_id}/?tab=games"
+        url = f"{self.base_url}/event/{tournament_id}/"
         
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
             try:
-                logger.info(f"Navigating to Games: {url}")
-                page.goto(url, wait_until="networkidle", timeout=60000)
+                logger.info(f"Scraping matches from {url}")
+                page.goto(url, wait_until="networkidle", timeout=30000)
                 
                 # Cookie cleanup
                 page.add_style_tag(content="#cookie_permission { display: none !important; }")
-                page.wait_for_timeout(1000)
-
-                # Get all rounds from the selector
-                selector = page.query_selector("#round_selector")
-                if not selector:
-                    logger.warning("No #round_selector found. Attempting to scrape current view only.")
-                    rounds = [None]
-                else:
-                    rounds = page.evaluate(r"""() => {
-                        const sel = document.getElementById('round_selector');
-                        return Array.from(sel.options).map(o => ({ value: o.value, text: o.text }));
-                    }""")
                 
-                for round_info in rounds:
-                    if round_info:
-                        logger.info(f"Loading Round: {round_info['text']} (Value: {round_info['value']})")
-                        # Use evaluate to avoid visibility checks
-                        page.evaluate(rf"""() => {{
-                            const sel = document.getElementById('round_selector');
-                            if (sel) {{
-                                sel.value = '{round_info['value']}';
-                                sel.dispatchEvent(new Event('change'));
-                                if (window.load_round) load_round({tournament_id}, '{round_info['value']}');
-                            }}
-                        }}""")
-                        # Wait for content to change
-                        page.wait_for_timeout(2000)
+                # Navigate to Games tab
+                games_tab = page.query_selector("#tab_games, a[href*='tab=games']")
+                if games_tab:
+                    games_tab.click()
+                    page.wait_for_timeout(2000)
+                
+                # USE JS to scrape all visible matches
+                # This covers the "All matches on one page" case which is common for completed events
+                # and avoids complex round iterator logic that was fragile.
+                
+                matches_data = page.evaluate(r"""() => {
+                    const results = [];
+                    const items = document.querySelectorAll('.item, .results');
                     
-                    # Scrape games for this round
-                    round_matches = page.evaluate(r"""() => {
-                        const results = [];
-                        const games = document.querySelectorAll('.game');
-                        
-                        // Extract scenario from round title if possible
-                        // Usually it's in a div like .item or a header above the games
-                        const roundTitleEl = document.querySelector('.item.active');
-                        const scenarioText = roundTitleEl ? roundTitleEl.innerText : "";
-                        
-                        games.forEach(game => {
-                            const players = game.querySelectorAll('.player');
-                            if (players.length < 2) return;
+                    let currentRound = 1;
+                    
+                    items.forEach(el => {
+                        if (el.classList.contains('item')) {
+                            const txt = el.innerText;
+                            const m = txt.match(/Round\s+(\d+)/i);
+                            if (m) {
+                                currentRound = parseInt(m[1]);
+                            } else if (txt.toLowerCase().includes("top")) {
+                                currentRound = 100; // Cut
+                            }
+                        } else if (el.classList.contains('results')) {
+                            const players = el.querySelectorAll('.player');
+                            if (players.length < 2) return; 
 
-                            const parsePlayer = (pDiv) => {
-                                const nameEl = pDiv.querySelector('.player_link, .name');
-                                const scoreEl = pDiv.querySelector('.score');
-                                return {
-                                    name: nameEl ? nameEl.innerText.trim() : "Unknown",
-                                    score: scoreEl ? parseInt(scoreEl.innerText) || 0 : 0,
-                                    isWinner: pDiv.classList.contains('winner'),
-                                    isFirst: scoreEl && window.getComputedStyle(scoreEl).textDecoration.includes('underline')
-                                };
+                            const p1Div = players[0]; // Left
+                            const p2Div = players[1]; // Right
+                            
+                            const parsePlayer = (div) => {
+                                 const link = div.querySelector('.player_link');
+                                 const idSpan = div.querySelector('.id_number');
+                                 const scDiv = div.querySelector('.score.vp');
+                                 
+                                 let score = 0;
+                                 if (scDiv) score = parseInt(scDiv.innerText) || 0;
+                                 
+                                 let isFirst = false;
+                                 if (scDiv) {
+                                     const style = window.getComputedStyle(scDiv);
+                                     if (style.textDecoration.includes('underline')) isFirst = true;
+                                 }
+                                 
+                                 return {
+                                     name: link ? link.innerText.trim() : "Unknown",
+                                     id: idSpan ? idSpan.innerText.replace('#', '').trim() : null,
+                                     isWinner: div.classList.contains('winner'),
+                                     score: score,
+                                     first: isFirst
+                                 };
                             };
-
-                            const p1 = parsePlayer(players[0]);
-                            const p2 = parsePlayer(players[1]);
+                            
+                            const p1 = parsePlayer(p1Div);
+                            const p2 = parsePlayer(p2Div);
+                            
+                            let fpIdx = -1;
+                            if (p1.first) fpIdx = 0;
+                            else if (p2.first) fpIdx = 1;
 
                             results.push({
+                                round_number: currentRound,
                                 p1_name: p1.name,
-                                p1_score: p1.score,
                                 p2_name: p2.name,
+                                p1_score: p1.score,
                                 p2_score: p2.score,
-                                winner_name: p1.isWinner ? p1.name : (p2.isWinner ? p2.name : p1.name), // Fallback
-                                first_player_index: p1.isFirst ? 0 : (p2.isFirst ? 1 : -1),
-                                scenario_text: scenarioText
+                                winner_name: p1.isWinner ? p1.name : (p2.isWinner ? p2.name : null),
+                                first_player_index: fpIdx
                             });
-                        });
-                        return results;
-                    }""")
-                    
-                    # Convert to app format
-                    r_num = 1
-                    if round_info:
-                        # Parse round number from text (e.g., "Round 3")
-                        m = re.search(r"Round\s+(\d+)", round_info["text"], re.I)
-                        if m: r_num = int(m.group(1))
-                        elif "final" in round_info["text"].lower(): r_num = 100
-                        elif "top" in round_info["text"].lower(): r_num = 50 # Heuristic
-                    
-                    for m in round_matches:
-                        matches.append({
-                            "round_number": r_num,
-                            "round_type": "Swiss" if r_num < 20 else "Cut",
-                            "player1_score": m["p1_score"],
-                            "player2_score": m["p2_score"],
-                            "p1_name_temp": m["p1_name"],
-                            "p2_name_temp": m["p2_name"],
-                            "is_bye": False,
-                            "winner_name_temp": m["winner_name"],
-                            "first_player_index": m["first_player_index"],
-                            "scenario": self._parse_scenario(m["scenario_text"])
-                        })
+                        }
+                    });
+                    return results;
+                }""")
                 
-                logger.info(f"Total matches scraped: {len(matches)}")
-
+                for m in matches_data:
+                    matches.append({
+                        "round_number": m['round_number'],
+                        "round_type": "Swiss" if m['round_number'] < 20 else "Cut",
+                        "player1_score": m['p1_score'],
+                        "player2_score": m['p2_score'],
+                        "p1_name_temp": m['p1_name'],
+                        "p2_name_temp": m['p2_name'],
+                        "is_bye": False,
+                        "winner_name_temp": m['winner_name'],
+                        "first_player_index": m['first_player_index'],
+                        "scenario": None
+                    })
+                    
             except Exception as e:
                 logger.error(f"Error scraping matches: {e}")
             finally:
                 browser.close()
                 
         return matches
-
-    def _parse_scenario(self, text: str) -> str | None:
-        """Helper to extract Scenario enum name from text."""
-        if not text: return None
-        text = text.lower()
-        from ..data_structures.scenarios import Scenario
-        for s in Scenario:
-            if s.value != "unknown" and s.value.replace("_", " ") in text:
-                return s.value
-        return None
-
+    
     def run_full_scrape(
         self, 
         tournament_id: str,
