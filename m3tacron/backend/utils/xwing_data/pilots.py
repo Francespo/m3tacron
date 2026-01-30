@@ -62,6 +62,11 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                             "attack": stats_flat.get("attack"),
                             "size": ship_size,
                             "limited": pilot.get("limited", 0),
+                            # Formats
+                            "standard": pilot.get("standard", False),
+                            "extended": pilot.get("extended", False),
+                            "wildspace": pilot.get("wildspace", False),
+                            "epic": pilot.get("epic", False),
                         }
             except Exception:
                 continue

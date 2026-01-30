@@ -20,6 +20,7 @@ def pagination_controls(state: any) -> rx.Component:
                 width="50px",
                 size="1",
                 style={"text_align": "center", "font_family": MONOSPACE_FONT},
+                on_key_down=state.handle_page_submit,
                 debounce_timeout=600  # Debounce to avoid jumping while typing
             ),
             rx.text("of", state.total_pages, color=TEXT_SECONDARY, size="2", font_family=MONOSPACE_FONT),

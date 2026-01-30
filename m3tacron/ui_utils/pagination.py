@@ -29,22 +29,15 @@ class PaginationMixin(rx.State):
 
     def next_page(self):
         """Handle next page click."""
-        # Inspection check: if current_page is a Var, it will fail comparison or have no value
-        print(f"DEBUG: next_page called. current_page={self.current_page} (type={type(self.current_page)})")
         if isinstance(self.current_page, (int, float)):
             self.current_page += 1
-            print(f"DEBUG: next_page incremented. new page={self.current_page}")
             return self.on_page_change()
-        else:
-             print("DEBUG: current_page is not int/float!")
         return []
 
     def prev_page(self):
         """Handle prev page click."""
-        print(f"DEBUG: prev_page called. current_page={self.current_page} (type={type(self.current_page)})")
         if isinstance(self.current_page, (int, float)) and self.current_page > 0:
             self.current_page -= 1
-            print(f"DEBUG: prev_page decremented. new page={self.current_page}")
             return self.on_page_change()
         return []
 
@@ -53,6 +46,11 @@ class PaginationMixin(rx.State):
         if isinstance(self.current_page, rx.Var): return []
         self.current_page = page
         return self.on_page_change()
+
+    def handle_page_submit(self, key: str):
+        """Handle Enter key in pagination input."""
+        if key == "Enter":
+            return self.on_page_change()
 
     def jump_to_page(self, page_str: str):
         """Handle manual page input."""

@@ -42,6 +42,11 @@ def load_all_upgrades(source: DataSource = DataSource.XWA) -> dict:
                         "image": image,
                         "cost": upgrade.get("cost", {}).get("value", 0) if isinstance(upgrade.get("cost"), dict) else 0,
                         "text": text,
+                        # Formats
+                        "standard": upgrade.get("standard", False),
+                        "extended": upgrade.get("extended", False),
+                        "wildspace": upgrade.get("wildspace", False),
+                        "epic": upgrade.get("epic", False),
                     }
         except Exception:
             continue

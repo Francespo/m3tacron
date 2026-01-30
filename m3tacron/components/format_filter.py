@@ -59,7 +59,7 @@ class FormatFilterMixin(PaginationMixin):
         new_formats[macro_val] = target_checked
         
         self.selected_formats = new_formats
-        return self.on_filter_change()
+        self.on_filter_change()
 
     def toggle_format_child(self, child_val: str):
         """Toggle a specific format child."""
@@ -68,7 +68,7 @@ class FormatFilterMixin(PaginationMixin):
         new_formats = self.selected_formats.copy()
         new_formats[child_val] = checked
         self.selected_formats = new_formats
-        return self.on_filter_change()
+        self.on_filter_change()
 
     def on_filter_change(self):
         """Hook for sub-classes to handle filter changes."""

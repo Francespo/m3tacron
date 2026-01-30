@@ -17,7 +17,7 @@ def advanced_filters(state) -> rx.Component:
         rx.box(
             rx.text("Text Search", weight="bold", size="1", color=TEXT_SECONDARY),
             rx.input(
-                placeholder="search name / ability / ship",
+                placeholder="Search card text",
                 value=state.text_filter,
                 on_change=state.set_text_filter,
                 style=INPUT_STYLE,
@@ -38,7 +38,7 @@ def advanced_filters(state) -> rx.Component:
         rx.cond(
             state.active_tab == "pilots",
             searchable_filter_accordion(
-                "Ships",
+                "Chassis",
                 state.available_ships,
                 state.selected_ships,
                 state.toggle_ship,
@@ -105,8 +105,8 @@ def advanced_filters(state) -> rx.Component:
                 rx.checkbox("Unique", checked=state.is_unique, on_change=state.set_is_unique),
                 rx.checkbox("Limited", checked=state.is_limited, on_change=state.set_is_limited),
                 rx.checkbox("Generic", checked=state.is_not_limited, on_change=state.set_is_not_limited),
-                spacing="3",
-                wrap="wrap"
+                spacing="5",
+                wrap="nowrap"
             ),
             spacing="1",
             width="100%"
