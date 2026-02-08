@@ -281,7 +281,7 @@ def render_filters() -> rx.Component:
         # Ship Filters Section
         rx.text("SHIP FILTERS", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
         
-        # Sort By (inside SHIP FILTERS)
+        # Sort By (top of SHIP FILTERS)
         rx.vstack(
             rx.text("Sort By", size="1", weight="bold", color=TEXT_SECONDARY),
             rx.hstack(
@@ -361,47 +361,43 @@ def ship_card(s: dict) -> rx.Component:
     return rx.link(
         rx.box(
             rx.vstack(
-                # Ship Icon (Extra Large, centered)
-                rx.box(
-                    ship_icon(s["ship_xws"].to(str), size="10em", color=faction_color),
-                    padding="32px",
-                    display="flex",
-                    justify_content="center",
-                    align_items="center",
+                # Ship Icon Container (Centered)
+                rx.center(
+                    ship_icon(s["ship_xws"].to(str), size="150px", color=faction_color),
                     width="100%",
+                    height="180px",
                 ),
                 
-                # Ship Name + Faction
+                # Info Stack (Centered)
                 rx.vstack(
-                    rx.hstack(
-                        faction_icon(faction_xws, size="1.4em"),
-                        rx.text(
-                            s["ship_name"].to(str),
-                            weight="bold",
-                            color=TEXT_PRIMARY,
-                            size="4",
-                            text_align="center"
-                        ),
-                        spacing="2",
-                        justify="center",
-                        align="center",
+                    rx.text(
+                        s["ship_name"].to(str),
+                        weight="bold",
+                        color=TEXT_PRIMARY,
+                        size="5",
+                        text_align="center",
+                        line_height="1.2"
                     ),
                     rx.text(
                         faction_label,
                         size="2",
                         color=faction_color,
                         font_family=SANS_FONT,
-                        text_align="center"
+                        text_align="center",
+                        weight="bold",
                     ),
-                    spacing="1",
+                    faction_icon(faction_xws, size="2em"),
+                    spacing="3",
                     align="center",
                     width="100%",
                 ),
                 
+                rx.spacer(),
+                
                 # Stats Badges
                 rx.hstack(
                     rx.badge(
-                        s["popularity"].to(str) + " LISTS",
+                        s["popularity"].to(str) + " COUNT",
                         color_scheme="gray",
                         variant="solid",
                         radius="full"
@@ -429,25 +425,30 @@ def ship_card(s: dict) -> rx.Component:
                     spacing="2",
                     justify="center",
                     width="100%",
-                    wrap="wrap"
+                    wrap="wrap",
+                    padding_top="12px",
                 ),
                 
                 spacing="3",
-                width="100%",
                 align="center",
-                padding="12px"
+                width="100%",
+                height="100%",
+                padding="24px",
             ),
-            padding="16px",
-            style=TERMINAL_PANEL_STYLE,
-            border_radius=RADIUS,
+            bg=rx.color("gray", 2),
+            border=f"1px solid {BORDER_COLOR}",
+            border_radius="12px",
+            height="460px",
             width="100%",
-            min_height="280px",
-            transition="transform 0.2s",
-            _hover={"transform": "translateY(-4px)"}
+            transition="all 0.2s ease",
+            _hover={
+                "border_color": faction_color,
+                "bg": rx.color("gray", 3),
+                "transform": "translateY(-4px)",
+            },
         ),
-        # Link to cards browser with ship and faction filters
-        href=rx.Var.create(f"/cards?ship=") + s["ship_xws"].to(str) + rx.Var.create("&faction=") + s["faction"].to(str),
-        width="100%"
+        href=rx.to_str(f"/cards?ship={s['ship_xws'].to(str)}&faction={faction_xws}"),
+        text_decoration="none",
     )
 
 

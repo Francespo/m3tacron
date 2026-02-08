@@ -81,7 +81,7 @@ def aggregate_ship_stats(
                     "faction_xws": faction_xws,
                     "wins": 0,
                     "games": 0,
-                    "lists": set(),  # Track unique lists by (tournament_id, player_name)
+                    "count": 0,
                 }
         
         # Aggregate stats from tournament data
@@ -122,22 +122,45 @@ def aggregate_ship_stats(
                 
                 if not ship_xws:
                     continue
+
+                # Legality check to match Cards Browser visibility
+                is_std = p_info.get("standard", False)
+                is_ext = p_info.get("extended", False)
+                is_wild = p_info.get("wildspace", False)
+                is_epic = p_info.get("epic", False)
+                
+                show_pilot = False
+                if allowed_formats:
+                    if "xwa" in allowed_formats or "amg" in allowed_formats:
+                        if is_std or is_ext:
+                            show_pilot = True
+                    if "wildspace" in allowed_formats and is_wild:
+                        show_pilot = True
+                    if ("xwa_epic" in allowed_formats or "legacy_epic" in allowed_formats) and is_epic:
+                        show_pilot = True
+                    
+                    if data_source == DataSource.LEGACY:
+                        legacy_keys = {"legacy_x2po", "legacy_xlc", "ffg"}
+                        if not legacy_keys.isdisjoint(allowed_formats):
+                            show_pilot = True
+                else:
+                    # Fallback visibility if no formats selected (match Cards page)
+                    show_pilot = is_std or is_ext or is_wild
+                
+                if not show_pilot:
+                    continue
                 
                 key = (ship_xws, faction_xws)
                 if key in ship_stats:
-                    # Add wins/games for each pilot instance
+                    # Add counts for each pilot instance
                     ship_stats[key]["wins"] += wins
                     ship_stats[key]["games"] += games
-                    ships_in_list.add(key)
-            
-            # Count unique lists per ship
-            for key in ships_in_list:
-                ship_stats[key]["lists"].add(list_id)
+                    ship_stats[key]["count"] += 1
         
         # Build results
         results = []
         for key, data in ship_stats.items():
-            popularity = len(data["lists"])
+            popularity = data["count"]
             games = data["games"]
             wins = data["wins"]
             
