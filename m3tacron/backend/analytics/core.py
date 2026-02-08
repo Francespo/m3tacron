@@ -243,14 +243,14 @@ def aggregate_card_stats(
                 
                 # Limited/Unique Filters
                 # is_unique: limited == 1
-                # is_limited: limited != 0 (1, 2, or 3)
+                # is_limited: limited > 1 (2 or 3)
                 # is_not_limited: limited == 0 (generic)
                 # If multiple are checked, treat as OR (additive)
                 if is_unique or is_limited or is_not_limited:
                     match = False
                     if is_unique and p_limited == 1:
                         match = True
-                    if is_limited and p_limited != 0:
+                    if is_limited and p_limited > 1:
                         match = True
                     if is_not_limited and p_limited == 0:
                         match = True
