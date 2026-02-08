@@ -12,11 +12,20 @@ def pagination_controls(state: any) -> rx.Component:
         state: The state class (should inherit from PaginationMixin).
     """
     return rx.hstack(
-        rx.text(
-            state.current_page + 1, " / ", state.total_pages,
-            size="2",
-            color=TEXT_SECONDARY,
-            font_family=MONOSPACE_FONT
+        rx.hstack(
+            rx.text("Page", color=TEXT_SECONDARY, size="2", font_family=MONOSPACE_FONT),
+            rx.input(
+                value=(state.current_page + 1).to_string(),
+                on_change=state.jump_to_page,
+                width="50px",
+                size="1",
+                style={"text_align": "center", "font_family": MONOSPACE_FONT},
+                on_key_down=state.handle_page_submit,
+                debounce_timeout=600  # Debounce to avoid jumping while typing
+            ),
+            rx.text("of", state.total_pages, color=TEXT_SECONDARY, size="2", font_family=MONOSPACE_FONT),
+            spacing="2",
+            align="center"
         ),
         rx.spacer(),
         rx.button(

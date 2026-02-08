@@ -10,12 +10,8 @@ class PaginationMixin(rx.State):
     """
     page_size: int = 20
     current_page: int = 0
+    total_items_count: int = 0
     
-    @rx.var
-    def total_items_count(self) -> int:
-        """Total items to paginate. Should be overridden by subclasses."""
-        return 0
-
     @rx.var
     def total_pages(self) -> int:
         """Calculate total pages."""
@@ -33,23 +29,16 @@ class PaginationMixin(rx.State):
 
     def next_page(self):
         """Handle next page click."""
-        try:
-            # Inspection check: if current_page is a Var, it will fail comparison or have no value
-            if isinstance(self.current_page, (int, float)):
-                self.current_page += 1
-                return self.on_page_change()
-        except Exception:
-            pass
+        if isinstance(self.current_page, (int, float)):
+            self.current_page += 1
+            return self.on_page_change()
         return []
 
     def prev_page(self):
         """Handle prev page click."""
-        try:
-            if isinstance(self.current_page, (int, float)) and self.current_page > 0:
-                self.current_page -= 1
-                return self.on_page_change()
-        except Exception:
-            pass
+        if isinstance(self.current_page, (int, float)) and self.current_page > 0:
+            self.current_page -= 1
+            return self.on_page_change()
         return []
 
     def set_current_page(self, page: int):
@@ -57,6 +46,23 @@ class PaginationMixin(rx.State):
         if isinstance(self.current_page, rx.Var): return []
         self.current_page = page
         return self.on_page_change()
+
+    def handle_page_submit(self, key: str):
+        """Handle Enter key in pagination input."""
+        if key == "Enter":
+            return self.on_page_change()
+
+    def jump_to_page(self, page_str: str):
+        """Handle manual page input."""
+        try:
+            p = int(page_str)
+            # Convert 1-based input to 0-based index
+            idx = p - 1
+            if 0 <= idx < self.total_pages:
+                self.current_page = idx
+                return self.on_page_change()
+        except ValueError:
+            pass
 
     def on_page_change(self):
         """Hook for sub-classes to handle page changes (e.g. reload data)."""

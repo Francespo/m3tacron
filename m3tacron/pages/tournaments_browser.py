@@ -47,9 +47,8 @@ class TournamentsState(PaginationMixin):
                 
         return options
     
-    @rx.var
-    def filtered_tournaments(self) -> list[dict]:
-        """Filters tournaments based on search query and format filters."""
+    def _get_filtered(self) -> list[dict]:
+        """Internal helper for filtering."""
         result = self.tournaments
         
         # Apply macro format filter
@@ -66,6 +65,11 @@ class TournamentsState(PaginationMixin):
             result = [t for t in result if query in t["name"].lower()]
         
         return result
+
+    @rx.var
+    def filtered_tournaments(self) -> list[dict]:
+        """Filters tournaments based on search query and format filters."""
+        return self._get_filtered()
     
     @rx.var
     def paginated_tournaments(self) -> list[dict]:
@@ -74,10 +78,6 @@ class TournamentsState(PaginationMixin):
         end = start + self.page_size
         return self.filtered_tournaments[start:end]
     
-    @rx.var
-    def total_items_count(self) -> int:
-        return len(self.filtered_tournaments)
-
     def set_page_size(self, size: str):
         self.page_size = int(size)
         self.current_page = 0
@@ -110,16 +110,20 @@ class TournamentsState(PaginationMixin):
                     "platform_label": Platform(t.platform).label if t.platform in Platform._value2member_map_ else str(t.platform),
                     "url": t.url,
                 })
+            self.total_items_count = len(self._get_filtered())
     
     def set_search(self, value: str):
         self.search_query = value
+        self.total_items_count = len(self._get_filtered())
     
     def set_macro_filter(self, value: str):
         self.macro_filter = value
         self.sub_filter = "all"
+        self.total_items_count = len(self._get_filtered())
     
     def set_sub_filter(self, value: str):
         self.sub_filter = value
+        self.total_items_count = len(self._get_filtered())
 
 
 def tournament_card(tournament: dict, index: int) -> rx.Component:
@@ -292,7 +296,7 @@ def tournaments_content() -> rx.Component:
     )
 
 
-def tournaments_page() -> rx.Component:
+def tournaments_browser_page() -> rx.Component:
     """The Tournaments page wrapped in the layout."""
     return layout(
         dashboard_layout(

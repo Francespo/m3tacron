@@ -9,28 +9,42 @@ from ..theme import (
 )
 
 
-def sidebar_link(text: str, href: str, icon: str) -> rx.Component:
+class SidebarState(rx.State):
+    """State for sidebar collapsibility."""
+    is_collapsed: bool = False
+    
+    def toggle_sidebar(self):
+        self.is_collapsed = not self.is_collapsed
+
+
+def sidebar_link(text: str, href: str, icon: str, collapsed: rx.Var = False) -> rx.Component:
     """Navigation link - Console Menu style."""
     is_active = rx.State.router.page.path == href
     
     return rx.link(
         rx.hstack(
             rx.icon(icon, size=18, color=rx.cond(is_active, TEXT_PRIMARY, TEXT_SECONDARY)),
-            rx.text(
-                text, 
-                size="2", 
-                weight="medium", 
-                color=rx.cond(is_active, TEXT_PRIMARY, TEXT_SECONDARY),
-                font_family=SANS_FONT,
-            ),
-            # Active Indicator (Bracket)
+            # Only show text when not collapsed
             rx.cond(
-                is_active,
+                collapsed,
+                rx.fragment(),
+                rx.text(
+                    text, 
+                    size="2", 
+                    weight="medium", 
+                    color=rx.cond(is_active, TEXT_PRIMARY, TEXT_SECONDARY),
+                    font_family=SANS_FONT,
+                ),
+            ),
+            # Active Indicator (Bracket) - only when expanded
+            rx.cond(
+                is_active & ~collapsed,
                 rx.text("<", color=TEXT_PRIMARY, font_family=MONOSPACE_FONT),
                 rx.fragment()
             ),
             width="100%",
-            padding="12px 16px",
+            padding=rx.cond(collapsed, "12px 0", "12px 16px"),
+            justify=rx.cond(collapsed, "center", "start"),
             background=rx.cond(
                 is_active, 
                 "rgba(255, 255, 255, 0.05)", 
@@ -54,40 +68,75 @@ def sidebar_link(text: str, href: str, icon: str) -> rx.Component:
     )
 
 
-def sidebar_content() -> rx.Component:
+def sidebar_content(collapsed: rx.Var = False) -> rx.Component:
     """The sidebar navigation content."""
     return rx.vstack(
         # Header / Brand
         rx.box(
             rx.vstack(
-                rx.text(
-                    "M3TACRON",
-                    size="5",
-                    weight="bold",
-                    color=TEXT_PRIMARY,
-                    font_family=SANS_FONT,
-                    letter_spacing="-0.02em",
+                rx.cond(
+                    collapsed,
+                    rx.text(
+                        "M3",
+                        size="4",
+                        weight="bold",
+                        color=TEXT_PRIMARY,
+                        font_family=SANS_FONT,
+                        letter_spacing="-0.02em",
+                    ),
+                    rx.text(
+                        "M3TACRON",
+                        size="5",
+                        weight="bold",
+                        color=TEXT_PRIMARY,
+                        font_family=SANS_FONT,
+                        letter_spacing="-0.02em",
+                    ),
                 ),
-                rx.text(
-                    "v2.0.0",
-                    size="1",
-                    color=TEXT_SECONDARY,
-                    font_family=MONOSPACE_FONT,
+                rx.cond(
+                    collapsed,
+                    rx.fragment(),
+                    rx.text(
+                        "v2.0.0",
+                        size="1",
+                        color=TEXT_SECONDARY,
+                        font_family=MONOSPACE_FONT,
+                    ),
                 ),
-                align="start",
+                align=rx.cond(collapsed, "center", "start"),
                 spacing="0"
             ),
-            padding="24px 16px",
+            padding=rx.cond(collapsed, "24px 8px", "24px 16px"),
             border_bottom=f"1px solid {BORDER_COLOR}",
             width="100%"
         ),
         
+        # Collapse Toggle Button
+        rx.box(
+            rx.icon_button(
+                rx.cond(
+                    collapsed,
+                    rx.icon("chevron-right", size=16),
+                    rx.icon("chevron-left", size=16)
+                ),
+                on_click=SidebarState.toggle_sidebar,
+                variant="ghost",
+                color_scheme="gray",
+                size="1",
+            ),
+            width="100%",
+            display="flex",
+            justify=rx.cond(collapsed, "center", "end"),
+            padding="8px",
+        ),
+        
         # Navigation
         rx.vstack(
-            sidebar_link("DASHBOARD", "/", "home"),
-            sidebar_link("TOURNAMENTS", "/tournaments", "database"),
-            sidebar_link("SQUADRONS", "/squadrons", "layers"),
-            sidebar_link("CARDS", "/cards", "cpu"),
+            sidebar_link("DASHBOARD", "/", "home", collapsed),
+            sidebar_link("TOURNAMENTS", "/tournaments", "database", collapsed),
+            sidebar_link("SQUADRONS", "/squadrons", "layers", collapsed),
+            sidebar_link("SHIPS", "/ships", "rocket", collapsed),
+            sidebar_link("CARDS", "/cards", "cpu", collapsed),
             width="100%",
             padding="16px 0",
             spacing="1",
@@ -95,29 +144,33 @@ def sidebar_content() -> rx.Component:
         
         rx.spacer(),
         
-        # Footer
-        rx.box(
-            rx.vstack(
-                rx.text(
-                    "M3taCron Analytics",
-                    size="1",
-                    color=TEXT_SECONDARY,
-                    font_family=SANS_FONT,
-                    text_align="center",
+        # Footer (hidden when collapsed)
+        rx.cond(
+            collapsed,
+            rx.fragment(),
+            rx.box(
+                rx.vstack(
+                    rx.text(
+                        "M3taCron Analytics",
+                        size="1",
+                        color=TEXT_SECONDARY,
+                        font_family=SANS_FONT,
+                        text_align="center",
+                    ),
+                    rx.text(
+                        "Community Managed",
+                        size="1",
+                        color="#444444",
+                        font_family=SANS_FONT,
+                        text_align="center",
+                    ),
+                    align="center",
+                    spacing="1"
                 ),
-                rx.text(
-                    "Community Managed",
-                    size="1",
-                    color="#444444",
-                    font_family=SANS_FONT,
-                    text_align="center",
-                ),
-                align="center",
-                spacing="1"
+                padding="16px",
+                border_top=f"1px solid {BORDER_COLOR}",
+                width="100%"
             ),
-            padding="16px",
-            border_top=f"1px solid {BORDER_COLOR}",
-            width="100%"
         ),
         
         width="100%",
@@ -128,16 +181,17 @@ def sidebar_content() -> rx.Component:
 
 
 def sidebar() -> rx.Component:
-    """Responsive sidebar component."""
+    """Responsive sidebar component with collapsibility."""
     return rx.box(
-        sidebar_content(),
+        sidebar_content(SidebarState.is_collapsed),
         position="fixed",
         left="0",
         top="0",
-        width="260px",
+        width=rx.cond(SidebarState.is_collapsed, "60px", "260px"),
         height="100vh",
         display=["none", "none", "flex", "flex"],
         z_index="100",
+        transition="width 0.2s ease",
     )
 
 
@@ -156,7 +210,7 @@ def mobile_header() -> rx.Component:
                 rx.drawer.overlay(z_index="99"),
                 rx.drawer.portal(
                     rx.drawer.content(
-                        sidebar_content(),
+                        sidebar_content(False),
                         width="260px",
                         background=TERMINAL_PANEL,
                         z_index="100",
@@ -187,22 +241,28 @@ def mobile_header() -> rx.Component:
     )
 
 
-def layout(page_content: rx.Component) -> rx.Component:
-    """Layout wrapper."""
+def layout(page_content: rx.Component, **kwargs) -> rx.Component:
+    """Layout wrapper with collapsible sidebar."""
     return rx.box(
         sidebar(),
         mobile_header(),
         rx.box(
             page_content,
-            margin_left=["0", "0", "260px", "260px"],
+            margin_left=rx.cond(
+                SidebarState.is_collapsed,
+                ["0", "0", "60px", "60px"],
+                ["0", "0", "260px", "260px"]
+            ),
             margin_top=["60px", "60px", "0", "0"],
             padding="0",
             height="100vh",
             width="auto",
-            overflow="hidden", # Force hidden here
+            overflow="hidden",
             background=TERMINAL_BG,
-            style={"position": "relative"}
+            style={"position": "relative"},
+            transition="margin-left 0.2s ease",
         ),
+        **kwargs
     )
 
 def dashboard_layout(filters_sidebar: rx.Component, main_content: rx.Component) -> rx.Component:
@@ -219,14 +279,14 @@ def dashboard_layout(filters_sidebar: rx.Component, main_content: rx.Component) 
             border_right=f"1px solid {BORDER_COLOR}",
             padding="24px",
             background=TERMINAL_BG,
-            class_name="scrollbar-thin" # Custom class for styling if needed
+            class_name="scrollbar-thin"
         ),
         # Main Content Column
         rx.box(
             main_content,
             flex="1",
             height="100%",
-            overflow_y="auto", # Content scrolls independently
+            overflow_y="auto",
             padding="24px",
             background=TERMINAL_BG,
             class_name="scrollbar-thin"
@@ -235,5 +295,5 @@ def dashboard_layout(filters_sidebar: rx.Component, main_content: rx.Component) 
         width="100%",
         height="100%",
         overflow="hidden",
-        style={"box_shadow": "none", "border": "none"} # Remove any persistent glows
+        style={"box_shadow": "none", "border": "none"}
     )

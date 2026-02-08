@@ -26,6 +26,18 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                 ship_name = ship_data.get("name", "Unknown Ship")
                 ship_icon = ship_data.get("icon", "")
                 faction = ship_data.get("faction", "")
+                ship_size = ship_data.get("size", "Small")
+                
+                # Parse ship-level stats from stats array
+                ship_stats_raw = ship_data.get("stats", [])
+                stats_flat = {}
+                for s_entry in ship_stats_raw:
+                    stat_type = s_entry.get("type")
+                    if stat_type in ("hull", "shields", "agility"):
+                        stats_flat[stat_type] = s_entry.get("value", 0)
+                    elif stat_type == "attack":
+                        # Take max attack value if multiple arcs
+                        stats_flat["attack"] = max(stats_flat.get("attack", 0), s_entry.get("value", 0))
                 
                 for pilot in ship_data.get("pilots", []):
                     xws_id = pilot.get("xws", "")
@@ -41,7 +53,20 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                             "artwork": pilot.get("artwork", ""),
                             "initiative": pilot.get("initiative", 0),
                             "cost": pilot.get("cost", 0),
+                            "loadout": pilot.get("loadout", 0),
                             "ability": pilot.get("ability", ""),
+                            # Ship stats for filtering
+                            "hull": stats_flat.get("hull"),
+                            "shields": stats_flat.get("shields"),
+                            "agility": stats_flat.get("agility"),
+                            "attack": stats_flat.get("attack"),
+                            "size": ship_size,
+                            "limited": pilot.get("limited", 0),
+                            # Formats
+                            "standard": pilot.get("standard", False),
+                            "extended": pilot.get("extended", False),
+                            "wildspace": pilot.get("wildspace", False),
+                            "epic": pilot.get("epic", False),
                         }
             except Exception:
                 continue
