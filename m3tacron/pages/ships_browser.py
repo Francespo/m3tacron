@@ -370,13 +370,13 @@ def ship_card(s: dict) -> rx.Component:
                             f"xwing-miniatures-ship xwing-miniatures-ship-{s['ship_xws'].to(str)}"
                         ),
                         style={
-                            "font_size": "200px !important",
+                            "font_size": "120px !important",
                             "color": get_faction_color(s["faction_xws"].to(str)),
                             "font_style": "normal",
                         },
                     ),
                     width="100%",
-                    height="220px",
+                    height="140px",
                 ),
                 
                 # Info Stack (Centered)
@@ -398,7 +398,7 @@ def ship_card(s: dict) -> rx.Component:
                         weight="bold",
                     ),
                     faction_icon(faction_xws, size="2em"),
-                    spacing="3",
+                    spacing="2",
                     align="center",
                     width="100%",
                 ),
@@ -437,19 +437,19 @@ def ship_card(s: dict) -> rx.Component:
                     justify="center",
                     width="100%",
                     wrap="wrap",
-                    padding_top="12px",
+                    padding_top="8px",
                 ),
                 
-                spacing="3",
+                spacing="2",
                 align="center",
                 width="100%",
                 height="100%",
-                padding="24px",
+                padding="16px",
             ),
             bg=rx.color("gray", 2),
             border=f"1px solid {BORDER_COLOR}",
             border_radius="12px",
-            height="400px",
+            height="350px",
             width="100%",
             transition="all 0.2s ease",
             _hover={
