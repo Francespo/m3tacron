@@ -447,7 +447,7 @@ def ship_card(s: dict) -> rx.Component:
                 "transform": "translateY(-4px)",
             },
         ),
-        href=rx.to_str(f"/cards?ship={s['ship_xws'].to(str)}&faction={faction_xws}"),
+        href=rx.Var.create("/cards?ship=") + s["ship_xws"].to(str) + rx.Var.create("&faction=") + faction_xws,
         text_decoration="none",
     )
 
