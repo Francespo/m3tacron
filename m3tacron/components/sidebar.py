@@ -279,7 +279,8 @@ def dashboard_layout(filters_sidebar: rx.Component, main_content: rx.Component) 
             border_right=f"1px solid {BORDER_COLOR}",
             padding="24px",
             background=TERMINAL_BG,
-            class_name="scrollbar-thin"
+            class_name="scrollbar-thin",
+            scrollbar_gutter="stable",
         ),
         # Main Content Column
         rx.box(
@@ -289,7 +290,8 @@ def dashboard_layout(filters_sidebar: rx.Component, main_content: rx.Component) 
             overflow_y="auto",
             padding="24px",
             background=TERMINAL_BG,
-            class_name="scrollbar-thin"
+            class_name="scrollbar-thin",
+            scrollbar_gutter="stable",
         ),
         flex_direction=["column", "row"],
         width="100%",
