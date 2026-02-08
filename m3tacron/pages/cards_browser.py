@@ -793,7 +793,7 @@ def pilot_card(p: dict) -> rx.Component:
             style=TERMINAL_PANEL_STYLE,
             border_radius=RADIUS,
             width="100%",
-            min_height="380px",
+            min_height="420px",
             transition="transform 0.2s",
             _hover={"transform": "translateY(-4px)"}
         ),
@@ -840,7 +840,7 @@ def upgrade_card(u: dict) -> rx.Component:
             style=TERMINAL_PANEL_STYLE,
             border_radius=RADIUS,
             width="100%",
-            min_height="350px",
+            min_height="420px",
             transition="transform 0.2s",
             _hover={"transform": "translateY(-4px)"}
         ),
