@@ -363,9 +363,20 @@ def ship_card(s: dict) -> rx.Component:
             rx.vstack(
                 # Ship Icon Container (Centered)
                 rx.center(
-                    ship_icon(s["ship_xws"].to(str), size="150px", color=faction_color),
+                    rx.el.i(
+                        class_name=rx.cond(
+                            s["ship_xws"].to(str).contains("xwing-miniatures-ship-"),
+                            f"xwing-miniatures-ship {s['ship_xws'].to(str)}",
+                            f"xwing-miniatures-ship xwing-miniatures-ship-{s['ship_xws'].to(str)}"
+                        ),
+                        style={
+                            "font_size": "200px !important",
+                            "color": get_faction_color(s["faction_xws"].to(str)),
+                            "font_style": "normal",
+                        },
+                    ),
                     width="100%",
-                    height="180px",
+                    height="220px",
                 ),
                 
                 # Info Stack (Centered)
@@ -397,7 +408,7 @@ def ship_card(s: dict) -> rx.Component:
                 # Stats Badges
                 rx.hstack(
                     rx.badge(
-                        s["popularity"].to(str) + " COUNT",
+                        s["popularity"].to(str) + " LISTS",
                         color_scheme="gray",
                         variant="solid",
                         radius="full"
@@ -438,7 +449,7 @@ def ship_card(s: dict) -> rx.Component:
             bg=rx.color("gray", 2),
             border=f"1px solid {BORDER_COLOR}",
             border_radius="12px",
-            height="460px",
+            height="400px",
             width="100%",
             transition="all 0.2s ease",
             _hover={

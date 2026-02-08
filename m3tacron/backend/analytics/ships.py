@@ -81,7 +81,7 @@ def aggregate_ship_stats(
                     "faction_xws": faction_xws,
                     "wins": 0,
                     "games": 0,
-                    "count": 0,
+                    "lists": set(),  # Track unique lists
                 }
         
         # Aggregate stats from tournament data
@@ -107,6 +107,10 @@ def aggregate_ship_stats(
             
             wins = result.swiss_wins + result.cut_wins
             games = wins + result.swiss_losses + result.cut_losses + result.swiss_draws
+            
+            # Track which ships appeared in this list
+            list_id = (result.tournament_id, result.player_name)
+            ships_in_list = set()
             
             # Track which ships appeared in this list
             list_id = (result.tournament_id, result.player_name)
@@ -152,15 +156,19 @@ def aggregate_ship_stats(
                 
                 key = (ship_xws, faction_xws)
                 if key in ship_stats:
-                    # Add counts for each pilot instance
+                    # Add wins/games for each pilot instance
                     ship_stats[key]["wins"] += wins
                     ship_stats[key]["games"] += games
-                    ship_stats[key]["count"] += 1
+                    ships_in_list.add(key)
+            
+            # Count unique lists per ship
+            for key in ships_in_list:
+                ship_stats[key]["lists"].add(list_id)
         
         # Build results
         results = []
         for key, data in ship_stats.items():
-            popularity = data["count"]
+            popularity = len(data["lists"])
             games = data["games"]
             wins = data["wins"]
             
