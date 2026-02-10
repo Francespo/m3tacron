@@ -11,83 +11,80 @@ from ..components.icons import xwing_icon
 from ..backend.models import Tournament, PlayerResult
 from ..backend.data_structures.formats import Format, MacroFormat
 from ..backend.data_structures.platforms import Platform
-from ..ui_utils.pagination import PaginationMixin
 from ..components.pagination import pagination_controls
+from ..components.content_source_filter import content_source_filter
+from ..components.format_filter import hierarchical_format_filter, FormatFilterMixin
 from ..theme import (
-    TERMINAL_BG, TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR, 
+    TERMINAL_BG, TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR,
     MONOSPACE_FONT, SANS_FONT, INPUT_STYLE, FACTION_COLORS
 )
 
 
-class TournamentsState(PaginationMixin):
-    """State for the Tournaments page."""
+class TournamentsState(FormatFilterMixin):
+    """
+    State for the Tournaments page.
+
+    Inherits FormatFilterMixin -> PaginationMixin(rx.State):
+        - selected_formats, toggle_format_macro/child, set_default_formats_for_source
+        - page_size, current_page, total_items_count, next_page, prev_page
+    """
     tournaments: list[dict] = []
     search_query: str = ""
-    macro_filter: str = "all"
-    sub_filter: str = "all"
-    
-    @rx.var
-    def available_sub_formats(self) -> list[list[str]]:
-        """Get available sub-formats based on current macro filter."""
-        options = [["All", "all"]]
-        
-        if self.macro_filter == "all":
-            # Show all specific formats
-            for f in Format:
-                if f != Format.OTHER:
-                    options.append([f.label, f.value])
-        else:
-            # Show formats belonging to the selected macro
-            try:
-                macro = MacroFormat(self.macro_filter)
-                for f in macro.formats():
-                    options.append([f.label, f.value])
-            except ValueError:
-                pass
-                
-        return options
-    
+
+    # Content source vars (inlined from ContentSourceState to avoid multiple inheritance)
+    data_source: str = "xwa"
+    include_epic: bool = False
+
+    def set_data_source(self, *args):
+        """Handle content source toggle (XWA / Legacy)."""
+        source = args[0]
+        if isinstance(source, list):
+            source = source[0]
+        self.data_source = source
+        self.set_default_formats_for_source(self.data_source)
+        self.current_page = 0
+        self.load_tournaments()
+
+    def set_include_epic(self, val: bool):
+        """Handle epic content toggle."""
+        self.include_epic = val
+
     def _get_filtered(self) -> list[dict]:
-        """Internal helper for filtering."""
+        """Filter loaded tournaments by active format checkboxes and search query."""
         result = self.tournaments
-        
-        # Apply macro format filter
-        if self.macro_filter != "all":
-            result = [t for t in result if t["macro_format"] == self.macro_filter]
-        
-        # Apply sub format filter
-        if self.sub_filter != "all":
-            result = [t for t in result if t["format"] == self.sub_filter]
-        
-        # Apply search filter
+
+        # Collect checked format values (only actual Format enum keys, not macro keys)
+        valid_format_values = {f.value for f in Format}
+        active_formats = [k for k, v in self.selected_formats.items()
+                          if v and k in valid_format_values]
+        if active_formats:
+            result = [t for t in result if t.get("format") in active_formats]
+
+        # Text search
         if self.search_query:
-            query = self.search_query.lower()
-            result = [t for t in result if query in t["name"].lower()]
-        
+            q = self.search_query.lower()
+            result = [t for t in result if q in t["name"].lower()]
+
         return result
 
     @rx.var
     def filtered_tournaments(self) -> list[dict]:
-        """Filters tournaments based on search query and format filters."""
+        """Return filtered tournament list."""
         return self._get_filtered()
-    
+
     @rx.var
     def paginated_tournaments(self) -> list[dict]:
-        """Get current page of filtered tournaments."""
+        """Return current page slice of filtered tournaments."""
         start = self.current_page * self.page_size
         end = start + self.page_size
         return self.filtered_tournaments[start:end]
-    
-    def set_page_size(self, size: str):
-        self.page_size = int(size)
-        self.current_page = 0
-    
+
     def load_tournaments(self):
         """Load all tournaments from database."""
         with Session(engine) as session:
             query = select(Tournament).order_by(Tournament.date.desc())
             tournaments = session.exec(query).all()
-            
+
             self.tournaments = []
             for t in tournaments:
                 player_count = t.player_count
@@ -97,7 +94,7 @@ class TournamentsState(PaginationMixin):
                             PlayerResult.tournament_id == t.id
                         )
                     ).one()
-                
+
                 self.tournaments.append({
                     "id": t.id,
                     "name": t.name,
@@ -111,30 +108,37 @@ class TournamentsState(PaginationMixin):
                     "url": t.url,
                 })
             self.total_items_count = len(self._get_filtered())
-    
+
     def set_search(self, value: str):
+        """Handle search input change."""
         self.search_query = value
+        self.current_page = 0
         self.total_items_count = len(self._get_filtered())
-    
-    def set_macro_filter(self, value: str):
-        self.macro_filter = value
-        self.sub_filter = "all"
+
+    def on_filter_change(self):
+        """Hook from FormatFilterMixin when format checkboxes change."""
+        self.current_page = 0
         self.total_items_count = len(self._get_filtered())
-    
-    def set_sub_filter(self, value: str):
-        self.sub_filter = value
-        self.total_items_count = len(self._get_filtered())
+
+    def on_page_change(self):
+        """Hook from PaginationMixin (no DB reload needed)."""
+        return []
+
+    def on_mount_tournaments(self):
+        """Called on page mount."""
+        self.set_default_formats_for_source(self.data_source)
+        self.load_tournaments()
 
 
 def tournament_card(tournament: dict, index: int) -> rx.Component:
-    """A card displaying tournament info - Terminal ListRow"""
+    """A card displaying tournament info - Terminal ListRow."""
     return rx.link(
         list_row(
             left_content=rx.vstack(
                  rx.text(
-                     tournament["name"], 
-                     size="2", 
-                     weight="bold", 
+                     tournament["name"],
+                     size="2",
+                     weight="bold",
                      color="white",
                      font_family=MONOSPACE_FONT
                  ),
@@ -160,55 +164,28 @@ def tournament_card(tournament: dict, index: int) -> rx.Component:
                 align="center"
             ),
             index=index,
-            border_color=FACTION_COLORS.get("galacticempire", "#333333") # Default schematic color
+            border_color=FACTION_COLORS.get("galacticempire", "#333333")
         ),
         href="/tournament/" + tournament["id"].to_string(),
         style={"text_decoration": "none", "width": "100%"}
     )
 
 
-def filter_select(
-    label: str,
-    options: list[list[str]] | rx.Var,
-    value: rx.Var,
-    on_change: callable,
-) -> rx.Component:
-    """A styled filter select - Terminal style.
-    
-    Args:
-        label: Label text above the select.
-        options: List of [label, value] pairs for options.
-        value: Current selected value (state var).
-        on_change: Handler when selection changes.
-    """
-    return rx.vstack(
-        rx.text(label, size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
-        rx.select.root(
-            rx.select.trigger(style=INPUT_STYLE),
-            rx.select.content(
-                rx.foreach(
-                    options,
-                    lambda opt: rx.select.item(opt[0], value=opt[1])
-                )
-            ),
-            value=value,
-            on_change=on_change,
-            size="2",
-            color_scheme="gray",
-        ),
-        align="start",
-        spacing="1",
-    )
-
 def render_filters() -> rx.Component:
     """Render the sidebar filters for Tournaments."""
     return rx.vstack(
-        rx.text("FILTERS", size="1", weight="bold", letter_spacing="1px", color=TEXT_SECONDARY),
-        
-        # Search
+        # 1. Content Source (XWA / Legacy + Epic toggle)
+        rx.box(
+            content_source_filter(TournamentsState),
+            width="100%"
+        ),
+
+        rx.divider(border_color=BORDER_COLOR),
+
+        # 2. Tournament Name Search
         rx.vstack(
-             rx.text("Search", size="1", color=TEXT_SECONDARY),
-             rx.input(
+            rx.text("Search", size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+            rx.input(
                 placeholder="Search Tournament...",
                 value=TournamentsState.search_query,
                 on_change=TournamentsState.set_search,
@@ -216,38 +193,30 @@ def render_filters() -> rx.Component:
                 style=INPUT_STYLE,
                 color_scheme="gray",
             ),
-             width="100%",
-             spacing="1"
+            width="100%",
+            spacing="1"
         ),
 
         rx.divider(border_color=BORDER_COLOR),
 
-        # Format
-        filter_select(
-            "FORMAT",
-            [["All", "all"]] + [[m.label, m.value] for m in MacroFormat if m != MacroFormat.OTHER],
-            TournamentsState.macro_filter,
-            TournamentsState.set_macro_filter,
+        # 3. Format Filter (hierarchical checkboxes)
+        rx.box(
+            hierarchical_format_filter(TournamentsState),
+            width="100%",
         ),
-        filter_select(
-            "SUB-FORMAT",
-            TournamentsState.available_sub_formats,
-            TournamentsState.sub_filter,
-            TournamentsState.set_sub_filter,
-        ),
-        
+
         spacing="4",
         width="100%",
     )
 
 
 def tournaments_content() -> rx.Component:
-    """The main content for the Tournaments page - Imperial Data Terminal."""
+    """The main content for the Tournaments page."""
     return rx.vstack(
         # Header
         rx.box(
              rx.heading(
-                "Tournaments", 
+                "Tournaments",
                 size="6",
                 font_family=SANS_FONT,
                 weight="bold",
@@ -258,26 +227,26 @@ def tournaments_content() -> rx.Component:
             margin_bottom="24px",
             width="100%"
         ),
-        
-        
-        # Filters removed from here
+
         rx.flex(
-             rx.text(TournamentsState.filtered_tournaments.length().to_string() + " Tournaments", size="2", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+             rx.text(
+                 TournamentsState.filtered_tournaments.length().to_string() + " Tournaments",
+                 size="2", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT
+             ),
              width="100%",
              margin_bottom="16px"
         ),
-        
+
         # Tournament grid
         rx.cond(
             TournamentsState.filtered_tournaments.length() > 0,
             rx.vstack(
                 rx.foreach(
-                    TournamentsState.paginated_tournaments.to(list[dict]), 
+                    TournamentsState.paginated_tournaments.to(list[dict]),
                     lambda t, i: tournament_card(t, i)
                 ),
-                # Pagination
                 pagination_controls(TournamentsState),
-                spacing="0", # Tight list
+                spacing="0",
                 width="100%",
                 class_name="animate-fade-in-up delay-300"
             ),
@@ -288,10 +257,10 @@ def tournaments_content() -> rx.Component:
                 text_align="center",
             ),
         ),
-        
+
         width="100%",
         max_width="1000px",
-        on_mount=TournamentsState.load_tournaments,
+        on_mount=TournamentsState.on_mount_tournaments,
         padding_bottom="60px"
     )
 

@@ -53,24 +53,34 @@ def xwing_icon(icon_type: str | rx.Var, size: str = "1.5em", color: str | rx.Var
     )
 
 
-def ship_icon(ship_xws: str, size: str = "1.5em", color: str | None = None) -> rx.Component:
+# Map common ship names to icon class - default to XWS
+SHIP_ICON_MAP = {
+    "tieininterceptor": "tieinterceptor",
+}
+
+
+def ship_icon(ship_xws: str | rx.Var, size: str = "1.5em", color: str | rx.Var | None = None) -> rx.Component:
     """
     Render a ship icon from xwing-miniatures-font.
     
     Args:
         ship_xws: Ship XWS ID (e.g., "t65xwing", "tielnfighter")
         size: Font size
-        color: Optional color override
+        color: Optional color override (can be Var or string)
         
     Returns:
         Ship icon component
     """
-    # Map common ship names to icon class - default to XWS
-    if isinstance(ship_xws, rx.Var):
-        icon_class = ship_xws.to(str).lower()
-    else:
-        icon_class = ship_xws.lower()
+    # Normalize: lower case and remove prefix if present
+    clean_name = ship_xws.to(str).lower().replace("xwing-miniatures-ship-", "")
     
+    # Use rx.cond for mapping (rx.match requires tuples, dict not supported directly)
+    # Currently only mapping tieininterceptor -> tieinterceptor
+    icon_class = rx.cond(
+        clean_name == "tieininterceptor",
+        "tieinterceptor",
+        clean_name
+    )
     
     style = {
         "font_size": size,

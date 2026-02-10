@@ -108,6 +108,13 @@ def aggregate_card_stats(
         init_min = filters.get("init_min", 0)
         init_max = filters.get("init_max", 8)
         
+        if init_min is not None:
+            try: init_min = int(init_min)
+            except: init_min = 0
+        if init_max is not None:
+             try: init_max = int(init_max)
+             except: init_max = 8
+
         # Limited/Unique filters
         is_unique = filters.get("is_unique", False)  # limited == 1
         is_limited = filters.get("is_limited", False)  # limited != 0
@@ -115,6 +122,15 @@ def aggregate_card_stats(
         
         # Base Size filter: dict of size -> bool
         base_sizes = filters.get("base_sizes", {})
+
+        # Location Filters
+        filter_continents = filters.get("continent", None)
+        filter_countries = filters.get("country", None)
+        filter_cities = filters.get("city", None)
+        
+        allowed_continents = set(filter_continents) if filter_continents else set()
+        allowed_countries = set(filter_countries) if filter_countries else set()
+        allowed_cities = set(filter_cities) if filter_cities else set()
 
         # INITIALIZE STATS WITH ALL CARDS
         # This ensures we show cards with 0 usage.
@@ -243,14 +259,14 @@ def aggregate_card_stats(
                 
                 # Limited/Unique Filters
                 # is_unique: limited == 1
-                # is_limited: limited != 0 (1, 2, or 3)
+                # is_limited: limited > 1 (2 or 3)
                 # is_not_limited: limited == 0 (generic)
                 # If multiple are checked, treat as OR (additive)
                 if is_unique or is_limited or is_not_limited:
                     match = False
                     if is_unique and p_limited == 1:
                         match = True
-                    if is_limited and p_limited != 0:
+                    if is_limited and p_limited > 1:
                         match = True
                     if is_not_limited and p_limited == 0:
                         match = True
@@ -329,6 +345,42 @@ def aggregate_card_stats(
                 if u_cost < points_min or u_cost > points_max:
                     continue
             
+                # --- Faction Filter (New) ---
+                if allowed_factions:
+                    # Extract factions from restrictions
+                    u_restrictions = u_info.get("restrictions", [])
+                    u_factions = set()
+                    for r in u_restrictions:
+                        if "factions" in r:
+                            # Normalize factions in restrictions just in case
+                            for f in r["factions"]:
+                                u_factions.add(f.lower().replace(" ", "").replace("-", ""))
+                    
+                    # Logic: 
+                    # If "unrestricted" is in allowed_factions, match if u_factions is EMPTY.
+                    # If specific factions are in allowed_factions, match if intersection with u_factions is NOT EMPTY.
+                    # Behavior is usually OR (e.g. show "Rebel" OR "Unrestricted" upgrades)
+                    
+                    match_faction = False
+                    
+                    # Check Unrestricted (No faction restrictions)
+                    if "unrestricted" in allowed_factions:
+                        if not u_factions:
+                            match_faction = True
+                            
+                    # Check Specific Factions
+                    # allowed_factions contains normalized strings from frontend (usually)
+                    # We need to ensure allowed_factions are normalized to match u_factions
+                    if not match_faction:
+                        # Filter out "unrestricted" to check actual factions
+                        real_allowed = {f for f in allowed_factions if f != "unrestricted"}
+                        if not u_factions.isdisjoint(real_allowed):
+                            match_faction = True
+                            
+                    if not match_faction:
+                        continue
+
+
                 # Strict Format Visibility Filter (Upgrades)
                 is_std = u_info.get("standard", False)
                 is_ext = u_info.get("extended", False)
@@ -408,6 +460,21 @@ def aggregate_card_stats(
             
             if allowed_formats is not None: 
                 if t_fmt not in allowed_formats:
+                    continue
+
+            # Location Filtering
+            if allowed_continents or allowed_countries or allowed_cities:
+                loc = tournament.location
+                if not loc:
+                    continue
+                
+                if allowed_continents and (not loc.continent or loc.continent not in allowed_continents):
+                    continue
+                    
+                if allowed_countries and (not loc.country or loc.country not in allowed_countries):
+                    continue
+                    
+                if allowed_cities and (not loc.city or loc.city not in allowed_cities):
                     continue
 
             xws = result.list_json

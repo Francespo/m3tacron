@@ -4,7 +4,8 @@ Ships Browser Page.
 Displays all ships with aggregated statistics per faction.
 """
 import reflex as rx
-from ..components.format_filter import hierarchical_format_filter, FormatFilterMixin
+from ..components.content_source_filter import content_source_filter, ContentSourceState
+from ..components.tournament_filters import tournament_filters, TournamentFilterMixin
 from ..ui_utils.pagination import PaginationMixin
 from ..components.pagination import pagination_controls
 from ..components.sidebar import layout, dashboard_layout
@@ -36,8 +37,29 @@ FACTION_LABELS = {
 }
 
 
-class ShipsBrowserState(FormatFilterMixin):
-    """State for the Ships Browser page."""
+class ShipsBrowserState(TournamentFilterMixin):
+    """
+    State for the Ships Browser page.
+    """
+    # Content Source State Logic (Manually Implemented to avoid Mixin conflicts)
+    data_source: str = "xwa" # xwa, legacy
+    include_epic: bool = False
+
+    def set_data_source(self, *args):
+        source = args[0]
+        if isinstance(source, list):
+            source = source[0]
+        self.data_source = source
+        self.on_content_source_change()
+
+    def set_include_epic(self, val: bool):
+        self.include_epic = val
+        self.on_content_source_change()
+
+    def on_content_source_change(self):
+        """Handle content source changes."""
+        self.current_page = 0
+        self.load_data()
     
     # Data
     ships: list[dict] = []
@@ -46,12 +68,12 @@ class ShipsBrowserState(FormatFilterMixin):
     sort_metric: str = "Popularity"
     sort_direction: str = "desc"
     
-    # Data Source
-    data_source: str = "xwa"
+    # Data Source - Handled by ContentSourceState
+    # data_source: str = "xwa"
     
-    # Date Range Filters
-    date_range_start: str = ""
-    date_range_end: str = ""
+    # Date Range Filters - Handled by TournamentFilterMixin
+    # date_range_start: str = ""
+    # date_range_end: str = ""
     
     # Ship Filters
     selected_factions: dict[str, bool] = {}
@@ -117,13 +139,7 @@ class ShipsBrowserState(FormatFilterMixin):
         self.sort_direction = "asc" if self.sort_direction == "desc" else "desc"
         self.load_data()
     
-    def set_date_start(self, date: str):
-        self.date_range_start = date
-        self.load_data()
-    
-    def set_date_end(self, date: str):
-        self.date_range_end = date
-        self.load_data()
+    # Date setters handled by TournamentFilterMixin
     
     def toggle_faction(self, faction: str, checked: bool):
         self.selected_factions[faction] = checked
@@ -138,32 +154,26 @@ class ShipsBrowserState(FormatFilterMixin):
         self.current_page = 0
         self.load_data()
     
+    def set_data_source_override(self, source: str | list[str]):
+        # Overriding to add default format logic manually if needed, 
+        # but ContentSourceState + Hook handles basic set.
+        # This function seems redundant if using Mixin's set_data_source.
+        # However, we need to init formats.
+        pass
+
     def on_mount(self):
-        self.set_data_source(self.data_source)
-    
-    def set_data_source(self, source: str | list[str]):
-        if isinstance(source, list):
-            source = source[0]
-        self.data_source = source
-        
-        # Set default format based on data source
-        new_formats = self.selected_formats.copy()
-        for m in MacroFormat:
-            new_formats[m.value] = False
-            for f in m.formats():
-                new_formats[f.value] = False
-        
-        target_macro = MacroFormat.V2_5 if self.data_source == "xwa" else MacroFormat.V2_0
-        new_formats[target_macro.value] = True
-        for f in target_macro.formats():
-            new_formats[f.value] = True
-        
-        self.selected_formats = new_formats
-        self.current_page = 0
+        self.load_locations()
+        if not self.data_source: self.data_source = "xwa"
+        self.set_default_formats_for_source(self.data_source)
         self.load_data()
     
-    def on_filter_change(self):
-        """Handle format filter changes."""
+    # Hooks
+    def on_content_source_change(self):
+        self.current_page = 0
+        self.set_default_formats_for_source(self.data_source)
+        self.load_data()
+
+    def on_tournament_filter_change(self):
         self.current_page = 0
         self.load_data()
     
@@ -201,6 +211,10 @@ class ShipsBrowserState(FormatFilterMixin):
             "date_end": self.date_range_end,
             "faction": active_factions,
             "ship": active_ships,
+            # Location
+            "continent": [k for k, v in self.selected_continents.items() if v],
+            "country": [k for k, v in self.selected_countries.items() if v],
+            "city": [k for k, v in self.selected_cities.items() if v],
         }
         
         try:
@@ -222,66 +236,25 @@ def render_filters() -> rx.Component:
     """Render the sidebar filters."""
     return rx.vstack(
         # Data Source
-        rx.vstack(
-            rx.text("GAME CONTENT SOURCE", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
-            rx.segmented_control.root(
-                rx.segmented_control.item("XWA", value="xwa"),
-                rx.segmented_control.item("Legacy", value="legacy"),
-                value=ShipsBrowserState.data_source,
-                on_change=ShipsBrowserState.set_data_source,
-                width="100%",
-                color_scheme="gray",
-            ),
-            spacing="1",
+        rx.box(
+            content_source_filter(ShipsBrowserState),
             width="100%"
         ),
         
-        rx.divider(border_color=BORDER_COLOR),
+        rx.divider(border_color=BORDER_COLOR, flex_shrink="0"),
         
         # Tournament Filters
-        rx.text("TOURNAMENT FILTERS", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
-        
-        # Date Range
-        rx.vstack(
-            rx.text("Date Range", size="1", weight="bold", color=TEXT_SECONDARY),
-            rx.vstack(
-                rx.input(
-                    type="date",
-                    value=ShipsBrowserState.date_range_start,
-                    on_change=ShipsBrowserState.set_date_start,
-                    style=INPUT_STYLE,
-                    width="100%"
-                ),
-                rx.text("to", size="1", color=TEXT_SECONDARY, text_align="center"),
-                rx.input(
-                    type="date",
-                    value=ShipsBrowserState.date_range_end,
-                    on_change=ShipsBrowserState.set_date_end,
-                    style=INPUT_STYLE,
-                    width="100%"
-                ),
-                spacing="1",
-                width="100%",
-                padding="8px",
-                border=f"1px solid {BORDER_COLOR}",
-                border_radius=RADIUS
-            ),
-            spacing="1",
+        rx.box(
+            tournament_filters(ShipsBrowserState),
             width="100%"
         ),
         
-        # Format Filter
-        rx.box(
-            hierarchical_format_filter(ShipsBrowserState),
-            width="100%",
-        ),
-        
-        rx.divider(border_color=BORDER_COLOR),
+        rx.divider(border_color=BORDER_COLOR, flex_shrink="0"),
         
         # Ship Filters Section
         rx.text("SHIP FILTERS", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
         
-        # Sort By (inside SHIP FILTERS)
+        # Sort By (top of SHIP FILTERS)
         rx.vstack(
             rx.text("Sort By", size="1", weight="bold", color=TEXT_SECONDARY),
             rx.hstack(
@@ -314,7 +287,7 @@ def render_filters() -> rx.Component:
         
         # Faction Filter
         filter_accordion(
-            "Factions",
+            "Faction",
             ShipsBrowserState.faction_options,
             ShipsBrowserState.selected_factions,
             ShipsBrowserState.toggle_faction
@@ -322,7 +295,7 @@ def render_filters() -> rx.Component:
         
         # Chassis Filter
         searchable_filter_accordion(
-            "Chassis",
+            "Ship Chassis",
             ShipsBrowserState.available_ships,
             ShipsBrowserState.selected_ships,
             ShipsBrowserState.toggle_ship,
@@ -361,42 +334,42 @@ def ship_card(s: dict) -> rx.Component:
     return rx.link(
         rx.box(
             rx.vstack(
-                # Ship Icon (Extra Large, centered)
-                rx.box(
-                    ship_icon(s["ship_xws"].to(str), size="10em", color=faction_color),
-                    padding="32px",
-                    display="flex",
-                    justify_content="center",
-                    align_items="center",
+                # Ship Icon Container (Centered)
+                rx.center(
+                    ship_icon(
+                        s["ship_xws"],
+                        size="120px !important",
+                        color=get_faction_color(s["faction_xws"].to(str)),
+                    ),
                     width="100%",
+                    height="140px",
                 ),
                 
-                # Ship Name + Faction
+                # Info Stack (Centered)
                 rx.vstack(
-                    rx.hstack(
-                        faction_icon(faction_xws, size="1.4em"),
-                        rx.text(
-                            s["ship_name"].to(str),
-                            weight="bold",
-                            color=TEXT_PRIMARY,
-                            size="4",
-                            text_align="center"
-                        ),
-                        spacing="2",
-                        justify="center",
-                        align="center",
+                    rx.text(
+                        s["ship_name"].to(str),
+                        weight="bold",
+                        color=TEXT_PRIMARY,
+                        size="5",
+                        text_align="center",
+                        line_height="1.2"
                     ),
                     rx.text(
                         faction_label,
                         size="2",
                         color=faction_color,
                         font_family=SANS_FONT,
-                        text_align="center"
+                        text_align="center",
+                        weight="bold",
                     ),
-                    spacing="1",
+                    faction_icon(faction_xws, size="2em"),
+                    spacing="2",
                     align="center",
                     width="100%",
                 ),
+                
+                rx.spacer(),
                 
                 # Stats Badges
                 rx.hstack(
@@ -429,25 +402,30 @@ def ship_card(s: dict) -> rx.Component:
                     spacing="2",
                     justify="center",
                     width="100%",
-                    wrap="wrap"
+                    wrap="wrap",
+                    padding_top="8px",
                 ),
                 
-                spacing="3",
-                width="100%",
+                spacing="2",
                 align="center",
-                padding="12px"
+                width="100%",
+                height="100%",
+                padding="16px",
             ),
-            padding="16px",
-            style=TERMINAL_PANEL_STYLE,
-            border_radius=RADIUS,
+            bg=rx.color("gray", 2),
+            border=f"1px solid {BORDER_COLOR}",
+            border_radius="12px",
+            height="350px",
             width="100%",
-            min_height="280px",
-            transition="transform 0.2s",
-            _hover={"transform": "translateY(-4px)"}
+            transition="all 0.2s ease",
+            _hover={
+                "border_color": faction_color,
+                "bg": rx.color("gray", 3),
+                "transform": "translateY(-4px)",
+            },
         ),
-        # Link to cards browser with ship and faction filters
-        href=rx.Var.create(f"/cards?ship=") + s["ship_xws"].to(str) + rx.Var.create("&faction=") + s["faction"].to(str),
-        width="100%"
+        href=rx.Var.create("/cards?ship=") + s["ship_xws"].to(str) + rx.Var.create("&faction=") + faction_xws,
+        text_decoration="none",
     )
 
 

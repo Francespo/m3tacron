@@ -47,6 +47,7 @@ def load_all_upgrades(source: DataSource = DataSource.XWA) -> dict:
                         "extended": upgrade.get("extended", False),
                         "wildspace": upgrade.get("wildspace", False),
                         "epic": upgrade.get("epic", False),
+                        "restrictions": upgrade.get("restrictions", []),
                     }
         except Exception:
             continue

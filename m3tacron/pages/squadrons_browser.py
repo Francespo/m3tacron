@@ -12,7 +12,7 @@ from ..backend.models import PlayerResult, Tournament
 from ..backend.data_structures.formats import Format, MacroFormat
 from ..backend.utils import get_squadron_signature, parse_squadron_signature
 from ..backend.data_structures.factions import Faction
-from ..components.format_filter import hierarchical_format_filter, FormatFilterMixin
+from ..components.tournament_filters import tournament_filters, TournamentFilterMixin
 from ..components.multi_filter import collapsible_checkbox_group
 from ..ui_utils.pagination import PaginationMixin
 from ..components.pagination import pagination_controls
@@ -28,7 +28,7 @@ from ..components.searchable_filter_accordion import searchable_filter_accordion
 from ..ui_utils.ships import get_ship_icon_name, render_ship_icon_group
 
 
-class SquadronsState(FormatFilterMixin):
+class SquadronsState(TournamentFilterMixin):
     """State for the Squadrons browser page."""
     # Multi-Select Filters
     selected_factions: dict[str, bool] = {}
@@ -37,6 +37,10 @@ class SquadronsState(FormatFilterMixin):
     faction_options: list[list[str]] = [[f.label, f.value] for f in Faction if f != Faction.UNKNOWN]
 
     def on_mount(self):
+        self.load_locations()
+        # Initialize default formats if needed (e.g. XWA defaults)
+        # Using V2.5 as default for standard view
+        self.set_default_formats_for_source("xwa")
         self.load_squadrons()
 
     @rx.var
@@ -47,14 +51,18 @@ class SquadronsState(FormatFilterMixin):
         """Handle page changes by reloading data."""
         self.load_squadrons()
 
+    def on_tournament_filter_change(self):
+        self.current_page = 0
+        self.load_squadrons()
+
     def toggle_faction(self, faction: str, checked: bool):
         self.selected_factions[faction] = checked
         self.current_page = 0
         self.load_squadrons()
     
     # New Filters
-    date_range_start: str = "" # YYYY-MM-DD
-    date_range_end: str = ""   # YYYY-MM-DD
+    # date_range_start: str = "" # YYYY-MM-DD - Handled by Mixin
+    # date_range_end: str = ""   # YYYY-MM-DD - Handled by Mixin
     ship_filter: str = ""      # Filter by specific ship name
     sort_mode: str = "popularity" # "popularity" or "win_rate"
     
@@ -122,13 +130,13 @@ class SquadronsState(FormatFilterMixin):
         self.current_page = 0
         self.load_squadrons()
 
-    def set_date_range_start(self, value: str):
-        self.date_range_start = value
-        self.load_squadrons()
+    # def set_date_range_start(self, value: str):
+    #     self.date_range_start = value
+    #     self.load_squadrons()
         
-    def set_date_range_end(self, value: str):
-        self.date_range_end = value
-        self.load_squadrons()
+    # def set_date_range_end(self, value: str):
+    #     self.date_range_end = value
+    #     self.load_squadrons()
         
     def set_sort_mode(self, value: str):
         self.sort_mode = value
@@ -172,6 +180,18 @@ class SquadronsState(FormatFilterMixin):
                     continue
                 if self.date_range_end and str(tournament.date) > self.date_range_end:
                     continue
+
+                # Filter by Location
+                active_continents = [k for k, v in self.selected_continents.items() if v]
+                active_countries = [k for k, v in self.selected_countries.items() if v]
+                active_cities = [k for k, v in self.selected_cities.items() if v]
+                
+                if active_continents or active_countries or active_cities:
+                    loc = tournament.location
+                    if not loc: continue
+                    if active_continents and (not loc.continent or loc.continent not in active_continents): continue
+                    if active_countries and (not loc.country or loc.country not in active_countries): continue
+                    if active_cities and (not loc.city or loc.city not in active_cities): continue
 
                 filtered_rows.append(result)
 
@@ -472,29 +492,6 @@ def faction_filter_select() -> rx.Component:
 
 
 
-def date_filter_inputs() -> rx.Component:
-    return rx.hstack(
-        rx.input(
-            type="date",
-            placeholder="Start Date",
-            value=SquadronsState.date_range_start,
-            on_change=SquadronsState.set_date_range_start,
-            style=INPUT_STYLE,
-            width="130px"
-        ),
-        rx.text("-", color=TEXT_SECONDARY),
-        rx.input(
-            type="date",
-            placeholder="End Date",
-            value=SquadronsState.date_range_end,
-            on_change=SquadronsState.set_date_range_end,
-            style=INPUT_STYLE,
-            width="130px"
-        ),
-        align="center",
-        spacing="2"
-    )
-
 def sort_select() -> rx.Component:
     return rx.select.root(
         rx.select.trigger(placeholder="Sort By", style=INPUT_STYLE),
@@ -522,7 +519,7 @@ def render_sidebar_filters() -> rx.Component:
              spacing="1"
         ),
         
-        rx.divider(border_color=BORDER_COLOR),
+        rx.divider(border_color=BORDER_COLOR, flex_shrink="0"),
 
         # Search Ship
         searchable_filter_accordion(
@@ -534,23 +531,19 @@ def render_sidebar_filters() -> rx.Component:
             SquadronsState.set_ship_search_query
         ),
 
-        # Date
-        rx.vstack(
-            rx.text("Date Range", size="1", color=TEXT_SECONDARY),
-            date_filter_inputs(),
-             width="100%",
-             spacing="1"
-        ),
+        rx.divider(border_color=BORDER_COLOR, flex_shrink="0"),
 
-        # Format
-        hierarchical_format_filter(
-        SquadronsState,
-        label="Formats"
-    ),
+        # Tournament Filters
+        rx.box(
+            tournament_filters(SquadronsState),
+            width="100%"
+        ),
+        
+        rx.divider(border_color=BORDER_COLOR, flex_shrink="0"),
         
         # Faction
         collapsible_checkbox_group(
-            "Factions",
+            "Faction",
             SquadronsState.faction_options,
             SquadronsState.selected_factions,
             SquadronsState.toggle_faction

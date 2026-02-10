@@ -70,6 +70,25 @@ class FormatFilterMixin(PaginationMixin):
         self.selected_formats = new_formats
         self.on_filter_change()
 
+    def set_default_formats_for_source(self, source: str):
+        """Set default format selection based on content source."""
+        # Reset all to False
+        new_sel = {k: False for k in self.selected_formats}
+        
+        keys_to_enable = []
+        if source == "xwa":
+            # AMG, XWA, Wildspace are typical 2.5 formats
+            keys_to_enable = ["amg", "xwa", "wildspace"]
+        elif source == "legacy":
+            # 2.0 Legacy formats
+            keys_to_enable = ["legacy_x2po", "legacy_xlc", "ffg"]
+            
+        for k in keys_to_enable:
+            if k in new_sel:
+                new_sel[k] = True
+                
+        self.selected_formats = new_sel
+
     def on_filter_change(self):
         """Hook for sub-classes to handle filter changes."""
         return []
@@ -178,7 +197,7 @@ def render_macro_section(
 
 def hierarchical_format_filter(
     state: any,
-    label: str = "Formats"
+    label: str = "Format"
 ) -> rx.Component:
     """
     Main component.
