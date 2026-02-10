@@ -1,0 +1,51 @@
+name: Daily Tournament Scraper
+
+on:
+  schedule:
+    # Run at 08:00 UTC (9:00 CET) every day
+    - cron: '0 8 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  scrape-daily:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Needed if we commit DB or push artifacts (optional)
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install playwright sqlmodel reflex
+
+      - name: Install Playwright Browsers
+        run: |
+          playwright install chromium
+          playwright install-deps
+
+      - name: Fetch Yesterday's Events
+        run: |
+          python scripts/fetch_events.py --date yesterday --output events.json
+          cat events.json
+
+      - name: Scrape Events
+        run: |
+          # Use the test database as requested
+          python scripts/scrape_events.py --input events.json --db sqlite:///github_scraped.db
+
+      - name: Upload Scraped DB (Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-scraped-db
+          path: github_scraped.db
+          retention-days: 5
