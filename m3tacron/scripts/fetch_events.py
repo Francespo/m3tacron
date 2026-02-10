@@ -74,7 +74,13 @@ def fetch_longshanks_events(target_date):
                         # Could use the scraper's _parse_date logic if available, but let's keep it simple here
                         # or generic parser
                         # Let's try flexible parsing
-                        event_date_str = event['date']
+                        # Handle date ranges (e.g. "2025-12-15 – 2026-01-20")
+                        # We take the END date because that's when the tournament is complete
+                        if "–" in event_date_str:
+                            event_date_str = event_date_str.split("–")[-1].strip()
+                        elif " - " in event_date_str: # Standard hyphen with spaces just in case
+                            event_date_str = event_date_str.split("-")[-1].strip()
+
                         # Remove ordinal suffixes if any
                         import re
                         clean_date_str = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", event_date_str)
