@@ -14,7 +14,8 @@ def advanced_filters(state) -> rx.Component:
     
     return rx.vstack(
         # Text Search
-        rx.box(
+        # Text Search
+        rx.vstack(
             rx.text("Text Search", weight="bold", size="1", color=TEXT_SECONDARY),
             rx.input(
                 placeholder="Search card text",
@@ -23,13 +24,14 @@ def advanced_filters(state) -> rx.Component:
                 style=INPUT_STYLE,
                 width="100%"
             ),
+            spacing="1",
             width="100%"
         ),
         
         # Factions
         filter_accordion(
-            "Factions",
-            state.faction_options,
+            "Faction",
+            state.faction_display_options,
             state.selected_factions,
             state.toggle_faction
         ),

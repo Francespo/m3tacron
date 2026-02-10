@@ -2,7 +2,8 @@
 Card Analyzer Page.
 """
 import reflex as rx
-from ..components.format_filter import hierarchical_format_filter, FormatFilterMixin
+from ..components.content_source_filter import content_source_filter, ContentSourceState
+from ..components.tournament_filters import tournament_filters, TournamentFilterMixin
 from ..ui_utils.pagination import PaginationMixin
 from ..components.pagination import pagination_controls
 # from ..components.multi_filter import collapsible_checkbox_group # Deprecated
@@ -25,16 +26,32 @@ from ..components.searchable_filter_accordion import searchable_filter_accordion
 from ..components.initiative_grid import initiative_grid
 from ..components.advanced_filters import advanced_filters
 
-class CardAnalyzerState(FormatFilterMixin):
+class CardAnalyzerState(TournamentFilterMixin):
     """
     State for the Card Analyzer page.
     """
+    # Content Source State Logic (Manually Implemented to avoid Mixin conflicts)
+    data_source: str = "xwa" # xwa, legacy
+    include_epic: bool = False
+
+    def set_data_source(self, *args):
+        source = args[0]
+        if isinstance(source, list):
+            source = source[0]
+        self.data_source = source
+        self.on_content_source_change()
+
+    def set_include_epic(self, val: bool):
+        self.include_epic = val
+        self.on_content_source_change()
+
+    def on_content_source_change(self):
+        """Handle content source changes."""
+        self.load_data()
     # Active Tab
     active_tab: str = "pilots" # pilots, upgrades
     
     # Common Filters
-    date_range_start: str = ""
-    date_range_end: str = ""
     text_filter: str = ""
     
     
@@ -59,6 +76,16 @@ class CardAnalyzerState(FormatFilterMixin):
     # Static info for filters
     faction_options: list[list[str]] = [[f.label, f.value] for f in Faction if f != Faction.UNKNOWN]
     initiative_options: list[list[str]] = [[str(i), str(i)] for i in range(7)]
+    
+    @rx.var
+    def faction_display_options(self) -> list[list[str]]:
+        """
+        Return faction options, adding 'Unrestricted' if in upgrades tab.
+        """
+        options = self.faction_options.copy()
+        if self.active_tab == "upgrades":
+            options.append(["Unrestricted", "unrestricted"])
+        return options
     
     # --- NEW ADDITIONS FOR ADVANCED MODE ---
     mode: str = ViewMode.BASIC.value
@@ -100,7 +127,7 @@ class CardAnalyzerState(FormatFilterMixin):
     base_sizes: dict[str, bool] = {}
 
     # Epic Content
-    include_epic: bool = False
+    # include_epic: bool = False
     
     def set_mode(self, mode: str | list[str]):
         if isinstance(mode, list):
@@ -236,8 +263,11 @@ class CardAnalyzerState(FormatFilterMixin):
         self.sort_direction = "asc" if self.sort_direction == "desc" else "desc"
         self.load_data()
     
-    # Data Source (XWA vs Legacy)
-    data_source: str = "xwa" # xwa, legacy
+    # Data Source (XWA vs Legacy) - Handled by ContentSourceState
+    # data_source: str = "xwa" # xwa, legacy
+    
+    # Epic Content - Handled by ContentSourceState
+    # include_epic: bool = False
 
     # Data
     results: list[dict] = []
@@ -245,9 +275,14 @@ class CardAnalyzerState(FormatFilterMixin):
     # Cache for full filtered results
     _all_results_cached: list[dict] = []
 
+    # Location State Logic Handled by TournamentFilterMixin
+
 
     
     def on_mount(self):
+        # Location Filters
+        self.load_locations()
+        
         # Initialize selected_formats to True for all if empty - logic handled in set_data_source now
         # Enforce default format logic based on current data_source (XWA)
         self.set_data_source(self.data_source)
@@ -337,8 +372,20 @@ class CardAnalyzerState(FormatFilterMixin):
         source_enum = DataSource(self.data_source) if isinstance(self.data_source, str) else self.data_source
         return load_all_ships(source_enum)
 
-    def on_filter_change(self):
-        """Handle format filter changes. Overrides FormatFilterMixin hook."""
+
+    # Hooks
+    def on_content_source_change(self):
+        self.current_page = 0
+        self.set_default_formats_for_source(self.data_source)
+        self.load_data()
+
+    def on_tournament_filter_change(self):
+        self.current_page = 0
+        self.load_data()
+        self.set_default_formats_for_source(self.data_source)
+        self.load_data()
+
+    def on_tournament_filter_change(self):
         self.current_page = 0
         self.load_data()
 
@@ -554,6 +601,10 @@ class CardAnalyzerState(FormatFilterMixin):
             "is_not_limited": self.is_not_limited,
             "base_sizes": self.base_sizes,
             "include_epic": self.include_epic,
+            # Location
+            "continent": [k for k, v in self.selected_continents.items() if v],
+            "country": [k for k, v in self.selected_countries.items() if v],
+            "city": [k for k, v in self.selected_cities.items() if v],
         }
         # print(f"DEBUG: Active Filters: {filters}")
         
@@ -575,53 +626,18 @@ def render_filters() -> rx.Component:
     """Render the sidebar filters."""
     return rx.vstack(
         # 1. Content Source
-        rx.vstack(
-            rx.text("GAME CONTENT SOURCE", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
-            rx.segmented_control.root(
-                rx.segmented_control.item("XWA", value="xwa"),
-                rx.segmented_control.item("Legacy", value="legacy"),
-                value=CardAnalyzerState.data_source,
-                on_change=CardAnalyzerState.set_data_source,
-                width="100%",
-                color_scheme="gray",
-            ),
-            rx.checkbox(
-                "Include Epic Content",
-                checked=CardAnalyzerState.include_epic,
-                on_change=CardAnalyzerState.set_include_epic,
-                color_scheme="gray",
-            ),
-            spacing="1",
-            width="100%"
-        ),
-
-        rx.divider(border_color=BORDER_COLOR),
-
-        # 2. Tournament Data Filters (Group Header)
-        rx.text("TOURNAMENT FILTERS", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
-        
-        # Date Range
-        rx.vstack(
-            rx.text("Date Range", size="1", weight="bold", color=TEXT_SECONDARY),
-            rx.vstack(
-                rx.input(type="date", value=CardAnalyzerState.date_range_start, on_change=CardAnalyzerState.set_date_start, style=INPUT_STYLE, width="100%"),
-                rx.text("to", size="1", color=TEXT_SECONDARY, text_align="center"),
-                rx.input(type="date", value=CardAnalyzerState.date_range_end, on_change=CardAnalyzerState.set_date_end, style=INPUT_STYLE, width="100%"),
-                spacing="1",
-                width="100%",
-                padding="8px",
-                border=f"1px solid {BORDER_COLOR}",
-                border_radius=RADIUS
-            ),
-            spacing="1",
-            width="100%"
-        ),
-
-        # Format Filter
         rx.box(
-            hierarchical_format_filter(CardAnalyzerState),
-            width="100%",
+            content_source_filter(CardAnalyzerState),
+            width="100%"
         ),
+
+        
+        rx.divider(border_color=BORDER_COLOR, flex_shrink="0"),
+        
+        # 2. Tournament Filters
+        tournament_filters(CardAnalyzerState),
+        
+        rx.divider(border_color=BORDER_COLOR, flex_shrink="0"),
         
         # 3. Filters Header
         rx.vstack(
@@ -694,7 +710,7 @@ def render_filters() -> rx.Component:
                         rx.vstack(
                             # Faction
                             filter_accordion(
-                                "Factions",
+                                "Faction",
                                 CardAnalyzerState.faction_options,
                                 CardAnalyzerState.selected_factions,
                                 CardAnalyzerState.toggle_faction
@@ -702,7 +718,7 @@ def render_filters() -> rx.Component:
                             
                             # Ship 
                             searchable_filter_accordion(
-                                "Chassis",
+                                "Ship Chassis",
                                 CardAnalyzerState.available_ships,
                                 CardAnalyzerState.selected_ships,
                                 CardAnalyzerState.toggle_ship,

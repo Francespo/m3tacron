@@ -20,22 +20,19 @@ class MacroFormat(StrEnum):
     def formats(self) -> list[str]:
         """Return list of corresponding formats."""
         match self:
-            case MacroFormat.V2_5: return [Format.AMG, Format.XWA, Format.XWA_EPIC]
-            case MacroFormat.V2_0: return [Format.LEGACY_X2PO, Format.LEGACY_XLC, Format.FFG, Format.WILDSPACE, Format.LEGACY_EPIC]
+            case MacroFormat.V2_5: return [Format.AMG, Format.XWA]
+            case MacroFormat.V2_0: return [Format.LEGACY_X2PO, Format.LEGACY_XLC, Format.FFG]
             case MacroFormat.OTHER: return [Format.OTHER]
 
 class Format(StrEnum):
     # 2.5 Group
     AMG = "amg"
     XWA = "xwa"
-    XWA_EPIC = "xwa_epic"
     
     # 2.0 Group
     FFG = "ffg"
     LEGACY_X2PO = "legacy_x2po"
     LEGACY_XLC = "legacy_xlc"
-    WILDSPACE = "wildspace"
-    LEGACY_EPIC = "legacy_epic"
     
     # Other
     OTHER = "other"
@@ -46,12 +43,9 @@ class Format(StrEnum):
         match self:
             case Format.AMG: return "AMG"
             case Format.XWA: return "XWA"
-            case Format.XWA_EPIC: return "XWA Epic"
             case Format.LEGACY_X2PO: return "Legacy (X2PO)"
             case Format.LEGACY_XLC: return "Legacy (XLC)"
             case Format.FFG: return "FFG"
-            case Format.WILDSPACE: return "Wildspace"
-            case Format.LEGACY_EPIC: return "Legacy Epic"
             case _: return "Other"
             
             
@@ -59,9 +53,9 @@ class Format(StrEnum):
     def macro(self) -> MacroFormat:
         """High-level format category."""
         match self:
-            case Format.AMG | Format.XWA | Format.XWA_EPIC:
+            case Format.AMG | Format.XWA:
                 return MacroFormat.V2_5
-            case Format.LEGACY_X2PO | Format.LEGACY_XLC | Format.FFG | Format.WILDSPACE | Format.LEGACY_EPIC:
+            case Format.LEGACY_X2PO | Format.LEGACY_XLC | Format.FFG:
                 return MacroFormat.V2_0
             case _:
                 return MacroFormat.OTHER
@@ -76,19 +70,7 @@ def infer_format_from_xws(xws: dict) -> Format:
     # Check explicit format field
     fmt = xws.get("format", "").upper()
     if fmt == "EPIC":
-        # Determine Epic variant
-        vendor = xws.get("vendor", {})
-        yasb = vendor.get("yasb", {})
-        if yasb:
-            builder = yasb.get("builder", "").lower()
-            combined = f"{builder} {yasb.get('builder_url', '').lower()}"
-            if "yasb.app" in combined: return Format.XWA_EPIC
-            if "legacy" in combined or "xwing-legacy" in combined: return Format.LEGACY_EPIC
-        
-        ruleset = xws.get("ruleset", "").upper()
-        if ruleset in ["LEGACY", "X2PO"]: return Format.LEGACY_EPIC
-        if ruleset == "XWA": return Format.XWA_EPIC
-        return Format.LEGACY_EPIC
+        return Format.OTHER
 
     # Check explicit ruleset
     ruleset = xws.get("ruleset", "").upper()

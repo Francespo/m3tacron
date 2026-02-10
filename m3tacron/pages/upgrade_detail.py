@@ -390,7 +390,7 @@ def render_filters() -> rx.Component:
             # Pilot Filters (Only relevant for Pilots Tab really, but keeping logic simpler)
             # Faction
             filter_accordion(
-                "Factions",
+                "Faction",
                 UpgradeDetailState.faction_options,
                 UpgradeDetailState.selected_factions,
                 UpgradeDetailState.toggle_faction

@@ -29,6 +29,9 @@ def aggregate_ship_stats(
             - date_start, date_end: date range strings
             - faction: list of faction labels to filter by
             - ship: list of ship XWS to filter by
+            - continent: list of continents
+            - country: list of countries
+            - city: list of cities
         sort_criteria: How to sort results (POPULARITY, WINRATE, GAMES)
         sort_direction: ASC or DESC
         data_source: XWA or Legacy
@@ -48,7 +51,14 @@ def aggregate_ship_stats(
         # Load all pilots to build ship-faction mapping
         all_pilots = load_all_pilots(data_source)
         
-        allowed_formats = filters.get("allowed_formats", None)
+        allowed_formats = filters.get("allowed_formats", None) or None
+        allowed_date_start = filters.get("date_start", None)
+        allowed_date_end = filters.get("date_end", None)
+        
+        # Location Filters
+        allowed_continents = set(filters.get("continent", []))
+        allowed_countries = set(filters.get("country", []))
+        allowed_cities = set(filters.get("city", []))
         
         # Build ship stats: key = (ship_xws, faction_xws)
         # Value = {ship_name, ship_xws, faction, faction_xws, wins, games, lists}
@@ -92,6 +102,25 @@ def aggregate_ship_stats(
             
             if allowed_formats is not None and t_fmt not in allowed_formats:
                 continue
+            
+            # Date Filter
+            t_date = str(tournament.date) if tournament.date else ""
+            if allowed_date_start and t_date < allowed_date_start:
+                continue
+            if allowed_date_end and t_date > allowed_date_end:
+                continue
+
+            # Location Filtering
+            if allowed_continents or allowed_countries or allowed_cities:
+                loc = tournament.location
+                if not loc:
+                    continue
+                if allowed_continents and (not loc.continent or loc.continent not in allowed_continents):
+                    continue
+                if allowed_countries and (not loc.country or loc.country not in allowed_countries):
+                    continue
+                if allowed_cities and (not loc.city or loc.city not in allowed_cities):
+                    continue
             
             xws = result.list_json
             if not xws or not isinstance(xws, dict):
