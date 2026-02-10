@@ -22,12 +22,13 @@ def get_yasb_base_url(tournament_format: str | Format) -> str:
         tournament_format = tournament_format.lower()
     
     # Map format to YASB version
-    if tournament_format in [Format.XWA, Format.AMG, Format.XWA_EPIC, "xwa", "amg", "xwa_epic"]:
+    # Map format to YASB version
+    if tournament_format in [Format.XWA, Format.AMG, "xwa", "amg"]:
         return "https://yasb.app"
     elif tournament_format in [Format.LEGACY_XLC, "legacy_xlc"]:
         return "https://lorenzosanti359-beep.github.io/X-wing-builder-madness"
     else:
-        # Legacy X2PO, FFG, Wildspace, Legacy Epic all use xwing-legacy.com
+        # Legacy X2PO, FFG use xwing-legacy.com
         return "https://xwing-legacy.com"
 
 

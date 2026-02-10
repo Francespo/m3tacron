@@ -139,6 +139,22 @@ def resolve_location(query: str) -> Location | None:
     
     LAST_REQUEST_TIME = time.time()
 
+    # Manual Overrides for known problematic venues
+    CUSTOM_OVERRIDES = {
+        "torchlight": Location.create(city="Burlington", country="Canada", continent="North America"),
+        "tts": Location.create(city="Virtual", country="Virtual", continent="Virtual"),
+        "vassal": Location.create(city="Virtual", country="Virtual", continent="Virtual"),
+    }
+    
+    # Check Overrides
+    q_lower = query.lower()
+    for key, loc in CUSTOM_OVERRIDES.items():
+        if key in q_lower:
+             logger.info(f"Geocoding Override: '{query}' -> {loc.city}, {loc.country}")
+             _GEO_CACHE[query] = loc.dict()
+             _save_cache(_GEO_CACHE)
+             return loc
+
     try:
         # Call API
         url = "https://nominatim.openstreetmap.org/search"
@@ -163,8 +179,15 @@ def resolve_location(query: str) -> Location | None:
         result = data[0]
         address = result.get("address", {})
         
-        # Extract City
-        city = address.get("city") or address.get("town") or address.get("village") or address.get("hamlet") or address.get("municipality")
+        # Extract City (Fallback to state/county/region)
+        city = (address.get("city") or 
+                address.get("town") or 
+                address.get("village") or 
+                address.get("hamlet") or 
+                address.get("municipality") or 
+                address.get("state") or 
+                address.get("county") or
+                address.get("region"))
         
         # Extract Country (prefer full name, fallback to code)
         country = address.get("country")
@@ -174,13 +197,26 @@ def resolve_location(query: str) -> Location | None:
             country = COUNTRY_CODE_TO_NAME.get(country_code, country_code.upper())
         
         # Derive Continent (from country code or Nominatim if available)
-        continent = address.get("continent") or _get_continent_from_country(country_code) or _get_continent_from_country(country)
+        continent = address.get("continent")
+        if not continent:
+            continent = _get_continent_from_country(country_code)
+        if not continent and country:
+             continent = _get_continent_from_country(country)
         
-        # Validation
-        if not city and not country:
-            _GEO_CACHE[query] = None
-            _save_cache(_GEO_CACHE)
-            return None
+        # Fallback for known continents of major countries not in map/Nominatim
+        if not continent and country_code in ["us", "ca", "mx"]:
+             continent = "North America"
+        
+        # Validation - Relaxed: Accept if we have a Country, even if City is obscure
+        if not country:
+            # If we have city but no country, that's rare but possible. 
+            # But usually we need country for statistics.
+            # Let's check if we found ANYTHING useful
+            if not city:
+                logger.warning(f"Nominatim returned result but no City/Country for '{query}'")
+                _GEO_CACHE[query] = None
+                _save_cache(_GEO_CACHE)
+                return None
 
         loc_dict = {
             "city": city or "Unknown",
@@ -191,7 +227,7 @@ def resolve_location(query: str) -> Location | None:
         _GEO_CACHE[query] = loc_dict
         _save_cache(_GEO_CACHE)
         
-        return Location.create(city=loc_dict['city'], country=loc_dict['country'], continent=loc_dict.get('continent'))
+        return Location.create(city=loc_dict['city'], country=loc_dict['country'], continent=loc_dict['continent'])
 
     except Exception as e:
         logger.error(f"Geocoding error for '{query}': {e}")

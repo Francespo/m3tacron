@@ -149,6 +149,8 @@ class LongshanksScraper(BaseScraper):
                     let dateStr = '';
                     let playerCount = 0;
                     
+                    let teamCount = 0;
+                
                     const rows = document.querySelectorAll('tr');
                     for (const row of rows) {
                         const img = row.querySelector('img');
@@ -158,14 +160,18 @@ class LongshanksScraper(BaseScraper):
                         const alt = img.alt || '';
                         const value = cells[1]?.textContent?.trim() || '';
                         
-                        // Event size (e.g. "17 players" or "28 of 36 players")
+                        // Event size (e.g. "17 players" or "10 teams (50 players)")
                         if (alt === 'Event size' || value.includes('player')) {
+                            // Team check first
+                            const teamMatch = value.match(/(\\d+)\\s+team/i);
+                            if (teamMatch) teamCount = parseInt(teamMatch[1], 10);
+
                             const outOfMatch = value.match(/(\\d+)\\s*(?:out\\s+)?of\\s+\\d+/i);
                             if (outOfMatch) {
                                 playerCount = parseInt(outOfMatch[1], 10);
                             } else {
-                                const match = value.match(/(\\d+)\\s*player/i);
-                                if (match) playerCount = parseInt(match[1], 10);
+                                const pMatch = value.match(/(\\d+)\\s*player/i);
+                                if (pMatch) playerCount = parseInt(pMatch[1], 10);
                             }
                         }
                         
@@ -175,7 +181,7 @@ class LongshanksScraper(BaseScraper):
                         }
                     }
                     
-                    return { dateStr, playerCount };
+                    return { dateStr, playerCount, teamCount };
                 }""")
                 
                 # Extract Location (often under the details or separate, check simple text search in table or headers)
@@ -236,6 +242,7 @@ class LongshanksScraper(BaseScraper):
                     location=location_obj,
                     format=game_format,
                     player_count=player_count,
+                    team_count=event_info.get("teamCount", 0),
                     platform=Platform.LONGSHANKS,
                     url=url
                 )
@@ -269,298 +276,228 @@ class LongshanksScraper(BaseScraper):
                 except:
                     logger.warning("No .player elements found on Ranking tab.")
                 
-                # JS-based extraction to preserve order of Headers and Players
-                # and avoid slow Playwright element iteration.
-                # Python-native extraction (Preserving Order)
-                data_dump = []
+                # Detection: Check if it's a team event (presence of sub-tabs)
+                is_team_event = page.locator("a#tab_team").count() > 0
                 
-                # Combined selector to get headers AND players in document order
-                # Try specific container first, then fallback
-                elements = page.locator(".main_content h3, .main_content .player").all()
-                if not elements:
-                    elements = page.locator("h3, .player").all()
-
-                for el in elements:
-                    # Determine type
-                    tag = el.evaluate("el => el.tagName.toLowerCase()")
-                    
-                    if tag == 'h3':
-                        data_dump.append({
-                            'type': 'header',
-                            'text': el.text_content() or ''
-                        })
-                        continue
-                    
-                    # It's likely a player row (or verify class)
-                    classes = el.get_attribute("class") or ""
-                    if "player" not in classes: continue
-                    
-                    # Extract Data using Locators
-                    name_el = el.locator(".player_link").first
-                    if name_el.count() == 0: name_el = el.locator(".data").first
-                    name_raw = name_el.text_content() if name_el.count() > 0 else "Unknown"
-
-                    rank_el = el.locator(".rank").first
-                    rank_raw = rank_el.text_content() if rank_el.count() > 0 else "0"
-                    
-                    wins_el = el.locator(".wins").first
-                    wins_txt = wins_el.text_content() if wins_el.count() > 0 else "0"
-                    
-                    loss_el = el.locator(".loss").first
-                    loss_txt = loss_el.text_content() if loss_el.count() > 0 else "0"
-                    
-                    draws_el = el.locator(".draws").first
-                    draws_txt = draws_el.text_content() if draws_el.count() > 0 else "0"
-                    
-                    # Stats
-                    stats_items = []
-                    stat_els = el.locator(".stat").all()
-                    for s in stat_els:
-                        stats_items.append({
-                            'text': s.inner_text().strip() or s.text_content().strip(), # Updated extraction
-                            'title': s.get_attribute("title") or ''
-                        })
-                    list_icon = el.locator("a.list_link.pop").first
-                    xws_raw = list_icon.get_attribute("data-list") if list_icon.count() > 0 else None
-                    
-                    # PID Extraction
-                    pid = None
-                    link = el.locator("a.player_link").first
-                    if link.count() > 0:
-                        onclick = link.get_attribute("onclick")
-                        if onclick:
-                            parts = onclick.split('pop_user(')
-                            if len(parts) > 1:
-                                sub = parts[1].split(',')[0]
-                                import re
-                                pid = re.sub(r"[^0-9]", "", sub)
-                    
-                    if not pid:
-                        id_span = el.locator(".id_number").first
-                        if id_span.count() > 0:
-                            txt = id_span.text_content() or ""
-                            if '#' in txt:
-                                parts = txt.split('#')
-                                if len(parts) > 1:
-                                    import re
-                                    pid = re.sub(r"[^0-9]", "", parts[-1])
-
-                    data_dump.append({
-                        'type': 'player',
-                        'nameRaw': name_raw,
-                        'rankRaw': rank_raw,
-                        'wins': wins_txt,
-                        'loss': loss_txt,
-                        'draw': draws_txt,
-                        'stats': stats_items,
-                        'xws': xws_raw,
-                        'pid': pid
-                    })
+                # We will perform two passes for team events, or one pass for individual events
+                passes = [False] # Individual view (default)
+                if is_team_event:
+                    passes = [True, False] # Team view first, then Individual view
                 
-                current_section = "swiss" # Default
-                participants_dict = {} # Name -> PlayerResult
-                
-                # Iterate the ordered list
-                for item in data_dump:
-                    if item['type'] == 'header':
-                        h_text = item['text'].lower()
-                        if "cut" in h_text or "top" in h_text:
-                            current_section = "cut"
-                        elif "main" in h_text or "swiss" in h_text:
-                            current_section = "swiss"
-                        continue
-                    
-                    if item['type'] != 'player': continue
-                    
-                    # PROCESS PLAYER
-                    try:
-                        name = item.get('nameRaw', 'Unknown').strip()
-                        # Cleanup ID suffix
-                        import re
-                        name = re.sub(r"\s*#\d+$", "", name)
-                        # Name Normalization
-                        name = " ".join(name.split())
+                participants_dict = {} # (Name, is_team) -> PlayerResult
+                member_to_team = {} # PID -> TeamName mapping
+
+                for is_team_pass in passes:
+                    if is_team_event:
+                        if is_team_pass:
+                            # Pass 1: Scrape Teams
+                            page.locator("a#tab_team").click()
+                        else:
+                            # Pass 2: Scrape Individuals
+                            page.locator("a#tab_player").click()
                         
-                        # Ghost/Bye/Drop filtering
-                        name_lower = name.lower()
-                        if "bye" in name_lower or "drop" in name_lower or item.get('pid') == "308":
-                            continue
-                        
-                        # Column header filtering: skip rows where W/L/D
-                        # contain non-numeric text (e.g. "Win", "Loss", "W")
-                        wins_raw = str(item.get('wins', '0')).strip()
-                        loss_raw = str(item.get('loss', '0')).strip()
-                        if not re.match(r'^-?\d+$', wins_raw) or not re.match(r'^-?\d+$', loss_raw):
-                            continue
-                        
-                        # Rank (strip letter prefixes like 'C1', 'R2')
-                        rank = 0
+                        page.wait_for_timeout(2000)
+                        # Wait for rows to refresh from AJAX
                         try:
+                            page.wait_for_selector(".player", timeout=5000)
+                        except: pass
+                    
+                    data_dump = []
+                    # Robust selectors (legacy doesn't have .main_content)
+                    ranking_container = page.locator(".ranking.event, .main_content, body").first
+                    elements = ranking_container.locator("h3, .player").all()
+
+                    for el in elements:
+                        tag = el.evaluate("el => el.tagName.toLowerCase()")
+                        if tag == 'h3':
+                            data_dump.append({'type': 'header', 'text': el.text_content() or ''})
+                            continue
+                        
+                        classes = el.get_attribute("class") or ""
+                        if "player" not in classes: continue
+                        
+                        # Data Extraction
+                        name_el = el.locator(".player_link").first
+                        if name_el.count() == 0: name_el = el.locator(".data").first
+                        name_raw = name_el.text_content() if name_el.count() > 0 else "Unknown"
+
+                        rank_el = el.locator(".rank").first
+                        rank_raw = rank_el.text_content() if rank_el.count() > 0 else "0"
+                        
+                        wins_el = el.locator(".wins").first
+                        wins_txt = wins_el.text_content() if wins_el.count() > 0 else "0"
+                        
+                        loss_el = el.locator(".loss").first
+                        loss_txt = loss_el.text_content() if loss_el.count() > 0 else "0"
+                        
+                        draws_el = el.locator(".draws").first
+                        draws_txt = draws_el.text_content() if draws_el.count() > 0 else "0"
+                        
+                        # Stats
+                        stats_items = []
+                        for s in el.locator(".stat").all():
+                            stats_items.append({
+                                'text': s.inner_text().strip() or s.text_content().strip(),
+                                'title': s.get_attribute("title") or ''
+                            })
+                        
+                        list_icon = el.locator("a.list_link.pop").first
+                        xws_raw = list_icon.get_attribute("data-list") if list_icon.count() > 0 else None
+                        
+                        # PID and Team Mapping
+                        pid = None
+                        team_name = None
+                        if is_team_pass:
+                             # Team View: First link is team, others are players
+                             team_link = el.locator("a[onclick*='pop_team']").first
+                             team_name = team_link.text_content().strip() if team_link.count() > 0 else name_raw
+                             
+                             # Map members
+                             for m_lnk in el.locator("a[onclick*='pop_user']").all():
+                                 onclick = m_lnk.get_attribute("onclick")
+                                 if onclick:
+                                     m_match = re.search(r"pop_user\((\d+)", onclick)
+                                     if m_match:
+                                         member_to_team[m_match.group(1)] = team_name
+                        else:
+                             # Individual View: extract PID
+                             user_link = el.locator("a[onclick*='pop_user']").first
+                             if user_link.count() > 0:
+                                 onclick = user_link.get_attribute("onclick")
+                                 if onclick:
+                                     p_match = re.search(r"pop_user\((\d+)", onclick)
+                                     if p_match: pid = p_match.group(1)
+                             
+                             if not pid:
+                                 id_span = el.locator(".id_number").first
+                                 if id_span.count() > 0:
+                                     txt = id_span.text_content() or ""
+                                     if '#' in txt: pid = re.sub(r"[^0-9]", "", txt.split('#')[-1])
+
+                        data_dump.append({
+                            'type': 'player',
+                            'nameRaw': name_raw,
+                            'rankRaw': rank_raw,
+                            'wins': wins_txt,
+                            'loss': loss_txt,
+                            'draw': draws_txt,
+                            'stats': stats_items,
+                            'xws': xws_raw,
+                            'pid': pid,
+                            'pid': pid,
+                            'team_name': team_name if is_team_pass else member_to_team.get(pid)
+                        })
+                    
+                    # Process data_dump for this pass
+                    current_section = "swiss"
+                    for item in data_dump:
+                        if item['type'] == 'header':
+                            h_text = item['text'].lower()
+                            if "cut" in h_text or "top" in h_text: current_section = "cut"
+                            elif "main" in h_text or "swiss" in h_text: current_section = "swiss"
+                            continue
+                        
+                        if item['type'] != 'player': continue
+                        
+                        try:
+                            name = item.get('nameRaw', 'Unknown').strip()
+                            name = re.sub(r"\s*#\d+$", "", name)
+                            name = " ".join(name.split())
+                            
+                            
+                            pid = item.get('pid')
+                            t_name = item.get('team_name')
+
+                            if "bye" in name.lower() or "drop" in name.lower() or pid == "308":
+                                continue
+                            
+                            # Filter column headers
+                            wins_raw = str(item.get('wins', '0')).strip()
+                            if not re.match(r'^-?\d+$', wins_raw): continue
+                            
                             r_match = re.search(r"(\d+)", str(item.get('rankRaw', '0')))
                             rank = int(r_match.group(1)) if r_match else 0
-                        except: pass
-                        
-                        if rank == 0: continue
-                        
-                        # Format check
-                        is_legacy = "xwing-legacy" in self.base_url
-                        
-                        # W/L/D
-                        def parse_int_clean(val):
-                            try:
-                                return int(str(val).replace('-', '0').strip())
-                            except: return 0
+                            if rank == 0: continue
                             
-                        wins = parse_int_clean(item.get('wins'))
-                        losses = parse_int_clean(item.get('loss'))
-                        draws = parse_int_clean(item.get('draw'))
-                        
-                        # Stats Parsing
-                        tp = 0
-                        vps = 0
-                        score = 0
-                        mov = 0
-                        
-                        # print(f"Stats List Size: {len(item.get('stats', []))}")
-                        for st in item.get('stats', []):
-                            txt = st['text'].strip()
-                            # Normalize text (nbsp, em-dash, etc)
-                            txt = txt.replace('\xa0', ' ').replace('–', '-').replace('—', '-')
+                            wins = int(str(item.get('wins')).replace('-', '0').strip() or 0)
+                            losses = int(str(item.get('loss')).replace('-', '0').strip() or 0)
+                            draws = int(str(item.get('draw')).replace('-', '0').strip() or 0)
                             
-                            # print(f"DEBUG REPR: {repr(txt)}") 
-                            title_lower = st['title'].lower()
+                            tp = 0
+                            vps = 0
+                            score = 0
+                            mov = 0
                             
-                            # Regex 1: "Label Value" (Classic)
-                            pattern1 = r"([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s+(-?\d+(?:\.\d+)?)"
-                            matches = re.findall(pattern1, txt)
-                            
-                            # Regex 2: "Value Label" (Modern?)
-                            if not matches:
-                                pattern2 = r"(-?\d+(?:\.\d+)?)\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)*)"
-                                matches_rev = re.findall(pattern2, txt)
-                                # Swap to (Label, Value)
-                                matches = [(m[1], m[0]) for m in matches_rev]
+                            for st in item.get('stats', []):
+                                txt = st['text'].strip().replace('\xa0', ' ').replace('–', '-').replace('—', '-')
+                                pattern1 = r"([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s+(-?\d+(?:\.\d+)?)"
+                                matches = re.findall(pattern1, txt)
+                                if not matches:
+                                    pattern2 = r"(-?\d+(?:\.\d+)?)\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)*)"
+                                    matches_rev = re.findall(pattern2, txt)
+                                    matches = [(m[1], m[0]) for m in matches_rev]
+                                
+                                for label_raw, val_raw in matches:
+                                    label = label_raw.strip().lower()
+                                    try: val_int = int(float(val_raw))
+                                    except: continue
+                                    if label in ["tp", "tournament points"]: tp = val_int
+                                    elif label in ["mp", "mission points", "vps", "victory points"]: vps = val_int
+                                    elif label in ["mov", "margin of victory"]: mov = val_int
+                                    elif label in ["score", "points"]: score = val_int
+                                
+                                if not matches and st['title']:
+                                    title_lower = st['title'].lower()
+                                    try:
+                                        check_str = txt.replace('.', '', 1).replace('-', '', 1)
+                                        if check_str.isdigit():
+                                            val = int(float(txt))
+                                            if "tournament points" in title_lower or title_lower == "tp": tp = val
+                                            elif "mission points" in title_lower or "victory points" in title_lower or title_lower == "vps": vps = val
+                                            elif "margin of victory" in title_lower or title_lower == "mov": mov = val
+                                    except: pass
 
-                            for label_raw, val_raw in matches:
-                                label = label_raw.strip().lower()
+                            if not tp and (wins or draws): tp = (wins * 3) + (draws * 1)
+                            
+                            final_ep = tp if "xwing-legacy" not in self.base_url else None
+                            final_tb = vps if "xwing-legacy" not in self.base_url else (mov if mov else vps)
+                            
+                            key = name
+                            if key in participants_dict:
+                                pr = participants_dict[key]
+                                if current_section == "cut":
+                                    pr.cut_rank, pr.cut_wins, pr.cut_losses, pr.cut_draws = rank, wins, losses, draws
+                                    pr.cut_event_points, pr.cut_tie_breaker_points = final_ep, final_tb
+                                else:
+                                    pr.swiss_rank, pr.swiss_wins, pr.swiss_losses, pr.swiss_draws = rank, wins, losses, draws
+                                    pr.swiss_event_points, pr.swiss_tie_breaker_points = final_ep, final_tb
+                            else:
+                                pr = PlayerResult(
+                                    tournament_id=int(tournament_id),
+                                    player_name=name,
+                                    team_name=t_name,
+                                    list_json={}
+                                )
+                                if current_section == "cut":
+                                    pr.cut_rank, pr.cut_wins, pr.cut_losses, pr.cut_draws = rank, wins, losses, draws
+                                    pr.cut_event_points, pr.cut_tie_breaker_points = final_ep, final_tb
+                                else:
+                                    pr.swiss_rank, pr.swiss_wins, pr.swiss_losses, pr.swiss_draws = rank, wins, losses, draws
+                                    pr.swiss_event_points, pr.swiss_tie_breaker_points = final_ep, final_tb
+                                participants_dict[key] = pr
+
+                            if item.get('xws'):
                                 try:
-                                    val_int = int(float(val_raw))
-                                except: continue
-
-                                if label in ["tp", "tournament points"]: tp = val_int
-                                elif label in ["mp", "mission points", "vps", "victory points"]: vps = val_int
-                                elif label in ["mov", "margin of victory"]: mov = val_int
-                                elif label in ["score", "points"]: 
-                                    if label == "points": score = val_int
-                                    else: score = val_int # score is score
-
-                            # Fallback if no pair found
-                            if not matches and title_lower:
-                                try:
-                                    check_str = txt.replace('.', '', 1).replace('-', '', 1)
-                                    if check_str.isdigit():
-                                        val = int(float(txt))
-                                        if "tournament points" in title_lower or title_lower == "tp": tp = val
-                                        elif "mission points" in title_lower or "victory points" in title_lower or title_lower == "vps": vps = val
-                                        elif "margin of victory" in title_lower or title_lower == "mov": mov = val
-                                        elif "points" in title_lower: score = val
+                                    xws_json = json.loads(item['xws'])
+                                    participants_dict[key].list_json = xws_json
+                                    if not self.inferred_format:
+                                        from ..data_structures.formats import infer_format_from_xws
+                                        self.inferred_format = infer_format_from_xws(xws_json)
                                 except: pass
-
-                        # Fallback TP
-                        if not tp and (wins or draws):
-                             tp = (wins * 3) + (draws * 1)
-                        
-                        # Mapping
-                        if is_legacy:
-                            final_ep = None
-                            final_tb = mov if mov else vps
-                        else:
-                            final_ep = tp
-                            final_tb = vps
-                            
-                        # === MERGE LOGIC ===
-                        if name in participants_dict:
-                            pr = participants_dict[name]
-                            
-                            if current_section == "cut":
-                                pr.cut_rank = rank
-                                pr.cut_wins = wins
-                                pr.cut_losses = losses
-                                pr.cut_draws = draws
-                                pr.cut_event_points = final_ep
-                                pr.cut_tie_breaker_points = final_tb
-                            else:
-                                # Swiss Section
-                                # Check if existing entry (possibly from Cut) needs Swiss data
-                                # OR if this is a "better" Swiss entry (duplicate case)
-                                
-                                has_existing_swiss = (pr.swiss_rank is not None)
-                                
-                                update_swiss = True
-                                if has_existing_swiss:
-                                    # Heuristic: Prefer the one with more games played?
-                                    old_games = (pr.swiss_wins or 0) + (pr.swiss_losses or 0)
-                                    new_games = wins + losses
-                                    if new_games < old_games:
-                                        update_swiss = False
-                                    elif new_games == old_games:
-                                        # Prefer the one with non-zero stats
-                                        if not final_tb and pr.swiss_tie_breaker_points:
-                                            update_swiss = False
-                                
-                                if update_swiss:
-                                    pr.swiss_rank = rank
-                                    pr.swiss_wins = wins
-                                    pr.swiss_losses = losses
-                                    pr.swiss_draws = draws
-                                    pr.swiss_event_points = final_ep
-                                    pr.swiss_tie_breaker_points = final_tb
-                                    
-                        else:
-                            # New Player
-                            pr = PlayerResult(
-                                tournament_id=int(tournament_id),
-                                player_name=name,
-                                list_json={}
-                            )
-                            # Initialize all fields to avoid NoneType issues
-                            pr.swiss_rank = None
-                            pr.cut_rank = None
-                            
-                            if current_section == "cut":
-                                pr.cut_rank = rank
-                                pr.cut_wins = wins
-                                pr.cut_losses = losses
-                                pr.cut_draws = draws
-                                pr.cut_event_points = final_ep
-                                pr.cut_tie_breaker_points = final_tb
-                            else:
-                                pr.swiss_rank = rank
-                                pr.swiss_wins = wins
-                                pr.swiss_losses = losses
-                                pr.swiss_draws = draws
-                                pr.swiss_event_points = final_ep
-                                pr.swiss_tie_breaker_points = final_tb
-                            
-                            participants_dict[name] = pr
-                            
-                        # XWS Handling (Store locally if present in row)
-                        if item.get('xws'):
-                            try:
-                                xws_json = json.loads(item['xws'])
-                                participants_dict[name].list_json = xws_json
-                                # Inference if needed
-                                if not self.inferred_format:
-                                    from ..data_structures.formats import infer_format_from_xws
-                                    self.inferred_format = infer_format_from_xws(xws_json)
-                            except: pass
-                            
-                    except Exception as loop_e:
-                        logger.warning(f"Error parsing item: {loop_e}")
+                        except Exception as loop_e:
+                            logger.warning(f"Error parsing item: {loop_e}")
 
                 participants = list(participants_dict.values())
-
-                # Extract XWS (Hybrid/Icon logic) - simplified call
                 self._extract_lists_from_icons(page, participants, tournament_id)
                 
             except Exception as e:

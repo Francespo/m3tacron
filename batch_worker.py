@@ -17,8 +17,11 @@ from m3tacron.backend.scrapers.longshanks import LongshanksScraper
 
 DB_PATH = "scraped_data.db"
 # Allow overriding DB path (useful for testing)
-if "test" in sys.argv:
-    DB_PATH = "test_results.db"
+if len(sys.argv) > 2:
+    if sys.argv[2].endswith(".db"):
+        DB_PATH = sys.argv[2]
+    elif "test" in sys.argv:
+        DB_PATH = "test_results.db"
 
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
@@ -33,7 +36,10 @@ def run_url(url: str):
     if "rollbetter.gg" in url:
         scraper = RollbetterScraper()
     elif "longshanks.org" in url:
-        scraper = LongshanksScraper()
+        subdomain = "xwing"
+        if "xwing-legacy" in url:
+            subdomain = "xwing-legacy"
+        scraper = LongshanksScraper(subdomain=subdomain)
     else:
         logger.error(f"Unknown URL type: {url}")
         return
@@ -49,19 +55,20 @@ def run_url(url: str):
         tid = url.rstrip("/").split("/")[-1]
         
         with Session(engine) as session:
-            # 1. SCOPE TOURNAMENT
-            t_data = scraper.get_tournament_data(tid)
-            print(f"Scraped Tournament: {t_data.name} | {t_data.date} | {t_data.location}")
+            # 1. SAVE PLAYERS & BUILD MAP (FIRST for XWS Inference)
+            players = scraper.get_participants(tid)
+            print(f"Scraped {len(players)} players.")
             
-            # Use merge to avoid PK violation if exists
+            # 2. SCOPE TOURNAMENT (Uses inferred format from participants)
+            t_data = scraper.get_tournament_data(tid)
+            print(f"Scraped Tournament: {t_data.name} | {t_data.date} | {t_data.location} | Format: {t_data.format}")
+
             session.merge(t_data)
             session.commit() 
             # Re-fetch to ensure we have the attached object
             t_data = session.get(Tournament, t_data.id)
-            
-            # 2. SAVE PLAYERS & BUILD MAP
-            players = scraper.get_participants(tid)
-            print(f"Scraped {len(players)} players.")
+            # Ensure team_count is persisted if merge didn't catch it or if we want to be explicit
+            # (though session.merge should handle it if t_data has it)
             
             player_map = {} 
             
@@ -76,9 +83,10 @@ def run_url(url: str):
                  
                  p_bound = None
                  if existing:
-                     # Update
+                     existing.team_name = p.team_name
                      existing.swiss_rank = p.swiss_rank
-                     existing.swiss_points = p.swiss_points
+                     existing.swiss_event_points = p.swiss_event_points
+                     existing.swiss_tie_breaker_points = p.swiss_tie_breaker_points
                      existing.swiss_wins = p.swiss_wins
                      existing.swiss_losses = p.swiss_losses
                      existing.swiss_draws = p.swiss_draws
@@ -86,6 +94,8 @@ def run_url(url: str):
                      existing.cut_wins = p.cut_wins
                      existing.cut_losses = p.cut_losses
                      existing.cut_draws = p.cut_draws
+                     existing.cut_event_points = p.cut_event_points
+                     existing.cut_tie_breaker_points = p.cut_tie_breaker_points
                      existing.list_json = p.list_json
                      session.add(existing)
                      session.commit()
@@ -189,11 +199,101 @@ def run_url(url: str):
             session.commit()
             print(f"DONE: Saved {saved_matches} matches to DB.")
 
+            # 4. CALCULATE COMPUTED STATS (MOV/MP)
+            # User requirement: For Rollbetter, calculate MOV manually (Score - OpponentScore) if Legacy.
+            # If 2.5, calculate Sum(Score) which equates to MP.
+            if "rollbetter" in scraper.__class__.__name__.lower():
+                 print("Recalculating Tie Breakers for Rollbetter from Match Data...")
+                 _calculate_and_update_stats(session, t_data)
+            
     except Exception as e:
         logger.error(f"Worker Error: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
+
+def _calculate_and_update_stats(session, tournament):
+    """
+    Recalculate player tie breakers based on match data.
+    Legacy (2.0) -> MOV based on Score Differential (Score - OppScore).
+    Standard (2.5) -> MP based on Score Sum (Score).
+    """
+    try:
+        # Fetch all matches
+        matches = session.exec(select(Match).where(Match.tournament_id == tournament.id)).all()
+        players = session.exec(select(PlayerResult).where(PlayerResult.tournament_id == tournament.id)).all()
+        
+        player_map = {p.id: p for p in players}
+        # Initialize stats
+        tb_stats = {p.id: 0 for p in players}
+        
+        # Determine Calculation Method
+        # Default to Sum (2.5 MP) unless explicitly Legacy
+        from m3tacron.backend.data_structures.formats import Format
+        
+        legacy_formats = [Format.LEGACY_X2PO, Format.LEGACY_XLC, Format.FFG]
+        # Handle if format is string or enum
+        fmt_val = tournament.format
+        if hasattr(fmt_val, "value"): fmt_val = fmt_val.value
+        
+        is_legacy = fmt_val in [f.value for f in legacy_formats]
+        
+        for m in matches:
+            if not m.player1_id or not m.player2_id:
+                continue
+            
+            # Use raw scores
+            s1 = max(0, m.player1_score)
+            s2 = max(0, m.player2_score)
+            
+            if is_legacy:
+                # MOV Calculation: Pure Differential
+                diff = s1 - s2
+                if m.player1_id in tb_stats: tb_stats[m.player1_id] += diff
+                if m.player2_id in tb_stats: tb_stats[m.player2_id] -= diff
+            else:
+                # MP Calculation: Sum of Points
+                if m.player1_id in tb_stats: tb_stats[m.player1_id] += s1
+                if m.player2_id in tb_stats: tb_stats[m.player2_id] += s2
+
+        # Update DB
+        count = 0
+        
+        # Points Config
+        win_pts = 3
+        draw_pts = 1
+        
+        for pid, val in tb_stats.items():
+            if pid in player_map:
+                p = player_map[pid]
+                
+                # Update TB
+                # Only update if it's currently 0 or -1 OR we want to force correctness
+                # User said "tie breakers is a field that must always be filled".
+                # Let's trust our calculation over 0.
+                p.swiss_tie_breaker_points = val
+                
+                # Update EP if missing or 0 (and not Legacy)
+                if not is_legacy:
+                     # Calculate EP from W/L/D (which should be correct from scraper or recalc)
+                     # Recalculate W/L/D from matches?
+                     # We trust the scraper's W/L/D if it exists, but we can verify against matches?
+                     # Simple approach: Use existing W/L/D to compute EP if EP is bad.
+                     
+                     current_ep = p.swiss_event_points if p.swiss_event_points is not None else 0
+                     calc_ep = (p.swiss_wins * win_pts) + (p.swiss_draws * draw_pts)
+                     
+                     if current_ep == 0 or current_ep is None:
+                         p.swiss_event_points = calc_ep
+                
+                session.add(p)
+                count += 1
+        
+        session.commit()
+        print(f"Stats (TB & EP) recalculated for {count} players (Mode: {'Legacy/Diff' if is_legacy else 'Standard/Sum'}).")
+
+    except Exception as e:
+        logger.error(f"Stats Calculation Error: {e}")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

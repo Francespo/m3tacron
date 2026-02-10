@@ -30,6 +30,7 @@ class Tournament(rx.Model, table=True):
     date: date
     location: Location | None = Field(default=Location(city="Unknown", country="Unknown", continent="Unknown"), sa_column=Column(LocationType))
     player_count: int = Field(default=0)
+    team_count: int = Field(default=0)
     url: str
     
     platform: Platform = Field(sa_column=Column(String))
@@ -44,17 +45,19 @@ class PlayerResult(rx.Model, table=True):
     """
     tournament_id: int = Field(foreign_key="tournament.id")
     player_name: str = Field()
-    swiss_rank: int = Field(default=0)
-    swiss_points: int = Field(default=-1)
+    team_name: str | None = Field(default=None)
+    swiss_rank: int = Field(default=-1)
     swiss_wins: int = Field(default=-1)
     swiss_losses: int = Field(default=-1)
     swiss_draws: int = Field(default=0)
+    swiss_event_points: int | None = Field(default=None)
+    swiss_tie_breaker_points: int = Field(default=None)
     cut_rank: int | None = Field(default=None)
-    cut_points: int | None = Field(default=None)
     cut_wins: int | None = Field(default=None)
     cut_losses: int | None = Field(default=None)
     cut_draws: int | None = Field(default=None)
-    
+    cut_event_points: int | None = Field(default=None)
+    cut_tie_breaker_points: int | None = Field(default=None)
     list_json: dict = Field(default={}, sa_column=Column(JSON))
     
     tournament: Tournament | None = Relationship(back_populates="results")
