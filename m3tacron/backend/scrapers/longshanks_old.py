@@ -1,0 +1,751 @@
+"""
+Longshanks Scraper Implementation (Playwright).
+
+Supports X-Wing 2.5 (xwing.longshanks.org) and Legacy 2.0 (xwing-legacy.longshanks.org).
+Extracts tournament data, player results with XWS, and match data.
+"""
+import logging
+import json
+import re
+from datetime import datetime
+
+from playwright.sync_api import sync_playwright
+
+# Local Imports
+from .base import BaseScraper
+from ..models import Tournament, PlayerResult, Match
+from ..data_structures.formats import Format, infer_format_from_xws
+from ..data_structures.factions import Faction
+from ..data_structures.platforms import Platform
+from ..data_structures.round_types import RoundType
+from ..data_structures.scenarios import Scenario
+from ..utils import parse_builder_url
+
+
+logger = logging.getLogger(__name__)
+
+# History URLs for reference
+XWING_25_HISTORY = "https://xwing.longshanks.org/events/history/"
+XWING_20_HISTORY = "https://xwing-legacy.longshanks.org/events/history/"
+
+
+class LongshanksScraper(BaseScraper):
+    """
+    Scraper for Longshanks tournaments using sync Playwright.
+    
+    Supports both X-Wing 2.5 and Legacy 2.0 via the subdomain parameter.
+    """
+    
+    def __init__(self, subdomain: str = "xwing"):
+        """
+        Initialize scraper with subdomain.
+        
+        Args:
+            subdomain: "xwing" for 2.5, "xwing-legacy" for 2.0
+        """
+        self.subdomain = subdomain
+        self.base_url = f"https://{subdomain}.longshanks.org"
+    
+    def _dismiss_cookie_popup(self, page) -> None:
+        """Dismiss cookie consent popup if present."""
+        try:
+            cookie_popup = page.query_selector("#cookie_permission")
+            if cookie_popup:
+                accept_btn = page.query_selector(
+                    "#cookie_permission button, #cookie_permission a.accept"
+                )
+                if accept_btn:
+                    accept_btn.click()
+                    page.wait_for_timeout(500)
+                else:
+                    # Hide via JavaScript
+                    page.evaluate(r"""() => {
+                        const popup = document.getElementById('cookie_permission');
+                        if (popup) popup.style.display = 'none';
+                    }""")
+        except Exception:
+            pass
+    
+    def _parse_date(self, date_str: str) -> datetime:
+        """Parse date string with multiple formats."""
+        if not date_str:
+            return datetime.now()
+        
+        # Remove ordinal suffixes (1st, 2nd, 3rd, 4th)
+        clean_str = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", date_str.strip())
+        
+        # Handle date ranges (e.g. "2026-01-10 â€“ 2026-01-11")
+        if "â€“" in clean_str:
+            clean_str = clean_str.split("â€“")[0].strip()
+        if " - " in clean_str:
+            clean_str = clean_str.split("-")[0].strip()
+        
+        formats = [
+            "%d %b %Y",     # 14 Jan 2024
+            "%d %B %Y",     # 14 January 2024
+            "%Y-%m-%d",     # 2024-01-14
+            "%d/%m/%Y",     # 14/01/2024
+            "%B %d, %Y",    # January 14, 2024
+        ]
+        
+        for fmt in formats:
+            try:
+                return datetime.strptime(clean_str, fmt)
+            except ValueError:
+                continue
+        
+        return datetime.now()
+    
+    def _parse_faction(self, value: str) -> str | None:
+        """Parse faction from image alt/src."""
+        faction = Faction.from_xws(value)
+        return faction.value if faction != Faction.UNKNOWN else None
+    
+    def get_tournament_data(self, tournament_id: str) -> Tournament:
+        """
+        Scrape high-level tournament metadata.
+        """
+        url = f"{self.base_url}/event/{tournament_id}/"
+        
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            try:
+                page.goto(url, wait_until="networkidle", timeout=30000)
+                page.wait_for_timeout(2000)
+                
+                self._dismiss_cookie_popup(page)
+                
+
+                # Scrape Title from h1
+                name_el = page.query_selector("h1")
+                name = name_el.inner_text().strip() if name_el else f"Longshanks Event {tournament_id}"
+                
+                # Validation: Game System
+                # Check for "X-Wing" in the page content (system name usually top left or in table)
+                # We specifically look for the "Game" badge or text
+                game_system_valid = page.evaluate(r"""() => {
+                    const bodyText = document.body.innerText;
+                    // Check for positive confirmation of X-Wing
+                    if (bodyText.includes("X-Wing")) return true;
+                    // Check for negative confirmation of other games
+                    if (bodyText.includes("SW Legion") || bodyText.includes("Star Wars: Legion")) return false;
+                    if (bodyText.includes("Star Wars: Armada")) return false;
+                    if (bodyText.includes("Shatterpoint")) return false;
+                    if (bodyText.includes("Marvel Crisis Protocol")) return false;
+                    if (bodyText.includes("Guild Ball")) return false;
+                    // Default to true if ambiguous but no other game found? 
+                    // No, USER said strict. 
+                    return false;
+                }""")
+                
+                if not game_system_valid:
+                    raise ValueError(f"Tournament {tournament_id} does not appear to be an X-Wing event.")
+                
+                # Extract date and player count from event info table
+                event_info = page.evaluate(r"""() => {
+                    let dateStr = '';
+                    let playerCount = 0;
+                    
+                    const rows = document.querySelectorAll('tr');
+                    for (const row of rows) {
+                        const img = row.querySelector('img');
+                        const cells = row.querySelectorAll('td');
+                        if (!img || cells.length < 2) continue;
+                        
+                        const alt = img.alt || '';
+                        const value = cells[1]?.textContent?.trim() || '';
+                        
+                        // Event size (e.g. "17 players" or "28 of 36 players")
+                        if (alt === 'Event size' || value.includes('player')) {
+                            const outOfMatch = value.match(/(\d+)\s*(?:out\s+)?of\s+\d+/i);
+                            if (outOfMatch) {
+                                playerCount = parseInt(outOfMatch[1], 10);
+                            } else {
+                                const match = value.match(/(\d+)\s*player/i);
+                                if (match) playerCount = parseInt(match[1], 10);
+                            }
+                        }
+                        
+                        // Date
+                        if (alt === 'Date' || value.match(/\d{4}-\d{2}-\d{2}/)) {
+                            if (!dateStr) dateStr = value;
+                        }
+                    }
+                    
+                    return { dateStr, playerCount };
+                }""")
+                
+                # Extract Location (often under the details or separate, check simple text search in table or headers)
+                # Usually in the table row with "Location" or "Venue"
+                location_raw = page.evaluate(r"""() => {
+                    const rows = document.querySelectorAll('tr');
+                    for (const row of rows) {
+                        const img = row.querySelector('img');
+                        if (img && (img.alt === 'Location' || img.alt === 'Venue')) {
+                            const cells = row.querySelectorAll('td');
+                            if (cells.length > 1) return cells[1].textContent.trim();
+                        }
+                    }
+                    return null;
+                }""")
+                
+                if location_raw:
+                    print(f"DEBUG: Longshanks Raw Location: '{location_raw}'")
+                else:
+                    print("DEBUG: Longshanks Raw Location not found in table.")
+
+                # Use resolve_location
+                from ..utils.geocoding import resolve_location
+                location_obj = resolve_location(location_raw) if location_raw else None
+                
+                if not location_obj and location_raw:
+                     print(f"DEBUG: Could not resolve location: '{location_raw}'")
+
+                # Manual Override for known issues (e.g. PSO Lomza mapped to Virtual but is physical)
+                # Check for "lomza" OR "pso" in name if location defaults to Virtual/None
+                name_lower = name.lower()
+                if ("lomza" in name_lower or "pso" in name_lower) and (not location_obj or location_obj.city == "Virtual"):
+                     logger.info(f"Overriding location for {name} to Lomza, Poland")
+                     location_obj = resolve_location("Lomza, Poland")
+
+                parsed_date = self._parse_date(event_info.get("dateStr", ""))
+                player_count = event_info.get("playerCount", 0)
+                
+                # Determine format based on subdomain
+                game_format = Format.XWA if self.subdomain == "xwing" else Format.LEGACY_X2PO
+                
+                return Tournament(
+                    id=int(tournament_id),
+                    name=name,
+                    date=parsed_date.date(),
+                    location=location_obj,
+                    format=game_format,
+                    player_count=player_count,
+                    platform=Platform.LONGSHANKS,
+                    url=url
+                )
+            except Exception as e:
+                logger.error(f"Failed to scrape tournament {tournament_id}: {e}")
+                raise
+            finally:
+                browser.close()
+    
+    def get_participants(self, tournament_id: str) -> list[PlayerResult]:
+        """
+        Scrape players and their lists.
+        """
+        url = f"{self.base_url}/event/{tournament_id}/"
+        participants: list[PlayerResult] = []
+        
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            try:
+                page.goto(url, wait_until="networkidle", timeout=30000)
+                page.wait_for_timeout(2000)
+                
+                self._dismiss_cookie_popup(page)
+                
+                # Check for Squad Tournament and switch to individual players tab
+                try:
+                    # Look for "Team results" tab or "Load standings" with player arg
+                    squad_tab = page.locator("a[onclick*=\"load_standings('player')\"]").first
+                    if squad_tab.count() > 0 and squad_tab.is_visible():
+                         logger.info("Squad Tournament detected: Switching to Individual Players tab")
+                         squad_tab.click()
+                         page.wait_for_load_state("networkidle")
+                         page.wait_for_timeout(2000) # Wait for AJAX load
+                         page.wait_for_selector(".player:not(.accordion), .ranking_row", timeout=5000)
+                except Exception as e:
+                    logger.warning(f"Failed to check/switch squad tabs: {e}")
+
+                # Extract player data from div.player elements (Longshanks uses divs, not tables)
+                player_data = page.evaluate(r"""() => {
+                    const results = [];
+                    const seenNames = new Set();
+                    // Longshanks uses div.player OR .ranking_row
+                    let players = document.querySelectorAll('.player:not(.accordion), .ranking_row');
+                    
+                    if (players.length === 0) {
+                         // Fallback for some layouts: check for any div with class 'player' even if it has other classes
+                         players = document.querySelectorAll('.player');
+                    }
+                    
+                    if (players.length === 0) {
+                        return []; // Return empty list if no players found
+                    }
+                    
+                    players.forEach((playerEl) => {
+                        // Rank is in div.rank
+                        const rankEl = playerEl.querySelector('.rank');
+                        const rank = rankEl ? parseInt(rankEl.textContent.trim()) : 0;
+                        if (isNaN(rank) || rank === 0) return;
+                        
+                        // Data is in div.data with child divs for each field
+                        const dataEl = playerEl.querySelector('.data');
+                        if (!dataEl) return;
+                        
+                        const children = dataEl.children;
+                        
+                        // Name is in first child (div.name), inside .player_link or direct text
+                        let name = '';
+                        let external_id = null;
+                        const nameDiv = children[0];
+                        if (nameDiv) {
+                            const link = nameDiv.querySelector('.player_link, a');
+                            if (link) {
+                                const clone = link.cloneNode(true);
+                                clone.querySelectorAll('span').forEach(s => s.remove());
+                                name = clone.textContent.trim();
+                                
+                                // ID
+                                if (link.href) {
+                                    const parts = link.href.split('/');
+                                    const numeric = parts.filter(p => !isNaN(parseInt(p)) && p.length > 0);
+                                    if (numeric.length > 0) external_id = numeric[numeric.length - 1];
+                                }
+                            } else {
+                                name = nameDiv.textContent.trim();
+                            }
+                            // Clean player ID suffix like "#13326"
+                            name = name.replace(/\s*#\d+$/, '').trim();
+                        }
+                        
+                        if (!name || seenNames.has(name)) return;
+                        seenNames.add(name);
+                        
+                        // W/L/D is in a child with class 'stat mono' (usually index 5)
+                        // Format: "3 / 0" or "3 / 0 / 0"
+                        let wins = 0, losses = 0, draws = 0;
+                        for (let i = 4; i < children.length; i++) {
+                            const text = children[i].textContent.trim();
+                            // Match "3 / 0 / 0" or "3 / 0"
+                            const wldMatch = text.match(/(\d+)\s*\/\s*(\d+)(?:\s*\/\s*(\d+))?/);
+                            if (wldMatch) {
+                                wins = parseInt(wldMatch[1]) || 0;
+                                losses = parseInt(wldMatch[2]) || 0;
+                                draws = wldMatch[3] ? parseInt(wldMatch[3]) : 0;
+                                break;
+                            }
+                        }
+                        
+                        // TP (Tournament Points) is in a child with class containing 'skinny' (index 4)
+                        let points = 0;
+                        for (let i = 3; i < children.length; i++) {
+                            if (children[i].classList.contains('skinny')) {
+                                const pMatch = children[i].textContent.match(/\d+/);
+                                if (pMatch) points = parseInt(pMatch[0]) || 0;
+                                break;
+                            }
+                        }
+                        
+                        // Check for encoded list icon in factions div
+                        const hasListIcon = !!playerEl.querySelector("img[title='Encoded list']");
+                        
+                        // Faction from image
+                        const factionImg = playerEl.querySelector('.factions img.faction, .factions img');
+                        let faction = null;
+                        if (factionImg) {
+                            faction = factionImg.alt || factionImg.src || null;
+                        }
+                        
+                        results.push({
+                            name: name,
+                            external_id: external_id,
+                            rank: rank,
+                            faction: faction,
+                            wins: wins,
+                            losses: losses,
+                            draws: draws,
+                            points: points,
+                            hasListIcon: hasListIcon
+                        });
+                    });
+                    
+                    return results;
+                }""")
+                
+                logger.info(f"Found {len(player_data)} players in results table")
+                
+                # Build participants list
+                for p_data in player_data:
+                    pr = PlayerResult(
+                        tournament_id=int(tournament_id),
+                        player_name=p_data["name"],
+                        swiss_rank=p_data["rank"],
+                        swiss_wins=p_data["wins"],
+                        swiss_losses=p_data["losses"],
+                        swiss_draws=p_data["draws"],
+                        swiss_points=p_data["points"],
+                        list_json={}
+                    )
+                    participants.append(pr)
+                
+                # Extract XWS from encoded list icons
+                self._extract_lists_from_icons(page, participants, tournament_id)
+                
+            except Exception as e:
+                logger.error(f"Error scraping participants: {e}")
+            finally:
+                browser.close()
+        
+        return participants
+    
+    def _extract_lists_from_icons(self, page, participants: list[PlayerResult], tournament_id: str) -> None:
+        """
+        Hybrid extraction logic (V3).
+        Strategia:
+        1. Usa la logica di V1 (pop_user) per estrarre velocemente dal modale.
+        2. Analizza il risultato:
+           - Se Ã¨ un XWS valido -> OK (Fast Path).
+           - Se Ã¨ solo un Link -> Trigger Active Fetch (V2 Logic) in background.
+        """
+        try:
+            # 1. Identifica i giocatori con liste
+            player_ids = page.evaluate(r"""() => {
+                const results = [];
+                const icons = document.querySelectorAll("img[title='Encoded list']");
+                
+                icons.forEach(icon => {
+                    const onclick = icon.getAttribute('onclick') || '';
+                    const match = onclick.match(/pop_user\((\d+),/);
+                    if (!match) return;
+                    
+                    const playerId = match[1];
+                    let name = null;
+                    const playerDiv = icon.closest('.player');
+                    if (playerDiv) {
+                        const dataEl = playerDiv.querySelector('.data');
+                        if (dataEl && dataEl.children[0]) {
+                            const link = dataEl.children[0].querySelector('.player_link, a');
+                            name = link ? link.textContent.trim() : dataEl.children[0].textContent.trim();
+                            name = name.replace(/\s*#\d+$/, '').trim();
+                        }
+                    }
+                    if (name && playerId) {
+                        results.push({id: playerId, name: name});
+                    }
+                });
+                return results;
+            }""")
+            
+            if not player_ids:
+                return
+            
+            logger.info(f"V3: Found {len(player_ids)} potential lists. Starting Hybrid Extraction...")
+            
+            participant_by_name = {p.player_name: p for p in participants}
+            
+            for player in player_ids:
+                player_id = player["id"]
+                player_name = player["name"]
+                
+                if player_name not in participant_by_name:
+                    continue
+                
+                # --- FAST PATH (V1) ---
+                # Apre il modale e legge textarea + link
+                xws_data = page.evaluate(f"""async () => {{
+                    pop_user({player_id}, {tournament_id}, 'list');
+                    for (let i = 0; i < 30; i++) {{ // Reduced timeout for speed
+                        await new Promise(r => setTimeout(r, 100));
+                        const textarea = document.querySelector('textarea#list_{player_id}');
+                        if (textarea && textarea.value) {{
+                             const val = textarea.value;
+                             let link = null;
+                             const yasb = document.querySelector("a[href*='yasb.app']");
+                             const lbn = document.querySelector("a[href*='launchbaynext']");
+                             if (yasb) link = yasb.getAttribute('href');
+                             else if (lbn) link = lbn.getAttribute('href');
+                             
+                             return {{ raw: val, link: link }};
+                        }}
+                    }}
+                    return {{ error: 'timeout' }};
+                }}""")
+                
+                # Chiude modale (V1 cleanup)
+                try: page.keyboard.press("Escape")
+                except: pass
+                
+                final_xws = {}
+                active_fetch_needed = False
+                builder_link = xws_data.get("link")
+                
+                # Analisi contenuto
+                if xws_data.get("raw"):
+                    try:
+                        # Prova a parsare JSON
+                        parsed = json.loads(xws_data["raw"])
+                        if parsed.get("pilots"):
+                             # Ãˆ un XWS valido!
+                             final_xws = parsed
+                             logger.debug(f"V3: Fast path success for {player_name}")
+                        else:
+                             # JSON valido ma vuoto/incompleto?
+                             active_fetch_needed = True
+                    except:
+                        # Non Ã¨ JSON (Ã¨ testo/HTML o vuoto)
+                        active_fetch_needed = True
+                else:
+                    active_fetch_needed = True
+                    
+                # Se il parse locale fallisce, controlliamo se possiamo ricavarlo dal link (Passive Parse)
+                if active_fetch_needed and builder_link:
+                    # Parse URL (Passive)
+                    passive_xws = parse_builder_url(builder_link)
+                    if passive_xws.get("pilots"):
+                        final_xws = passive_xws
+                        active_fetch_needed = False
+                        logger.debug(f"V3: Passive URL parse success for {player_name}")
+                
+                # --- SLOW PATH (V2 Active Fetch) ---
+                if active_fetch_needed and builder_link and "yasb.app" in builder_link:
+                    logger.info(f"V3: Fast/Passive failed for {player_name}. Triggering Active Fetch on {builder_link}...")
+                    fetched = self._fetch_active_xws(page, builder_link)
+                    if fetched:
+                        final_xws = fetched
+                        # Ensure vendor link is preserved
+                        if "vendor" not in final_xws: final_xws["vendor"] = {}
+                        if "yasb" not in final_xws["vendor"]: final_xws["vendor"]["yasb"] = {"link": builder_link}
+                
+                # Salvataggio
+                if final_xws and (final_xws.get("pilots") or final_xws.get("vendor")):
+                    # Merge link if missing
+                    if builder_link:
+                        if "vendor" not in final_xws: final_xws["vendor"] = {}
+                        if "yasb" in builder_link and "yasb" not in final_xws["vendor"]:
+                            final_xws["vendor"]["yasb"] = {"link": builder_link}
+                        elif "launchbay" in builder_link and "lbn" not in final_xws["vendor"]:
+                            final_xws["vendor"]["lbn"] = {"link": builder_link}
+                    
+                    participant_by_name[player_name].list_json = final_xws
+                
+        except Exception as e:
+            logger.error(f"V3 Error: {e}")
+
+    def _fetch_active_xws(self, current_page, url) -> dict | None:
+        """
+        Copia brutale da V2. Apre nuova page e scarica.
+        """
+        new_page = current_page.context.new_page()
+        try:
+            new_page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            
+            if "yasb.app" in url:
+                try:
+                   new_page.wait_for_selector(".loader", state="hidden", timeout=10000)
+                   
+                   # Cookie
+                   try:
+                       cookie_btn = new_page.locator("button:has-text('I understand'), button:has-text('Accept'), .cc-dismiss").first
+                       if cookie_btn.is_visible(): cookie_btn.click(force=True)
+                   except: pass
+
+                   # Export
+                   export_btn = new_page.locator("button.view-as-text").first
+                   export_btn.wait_for(state="attached", timeout=10000)
+                   export_btn.evaluate("el => el.click()") 
+                   
+                   # XWS
+                   xws_btn = new_page.locator("button.select-xws-view").first
+                   xws_btn.wait_for(state="attached", timeout=10000)
+                   xws_btn.evaluate("el => el.click()")
+                   
+                   # Read
+                   textarea = new_page.locator(".modal-body textarea").first
+                   textarea.wait_for(state="attached", timeout=10000)
+                   
+                   for _ in range(20):
+                       content = textarea.evaluate("el => el.value")
+                       if content and len(content) > 10 and content.strip().startswith("{"):
+                           return json.loads(content)
+                       new_page.wait_for_timeout(500)
+                       
+                except Exception as e:
+                   logger.warning(f"V3 Active fetch failed: {e}")
+            
+            return None
+        except:
+            return None
+        finally:
+            new_page.close()
+    
+    def get_matches(self, tournament_id: str) -> list[dict]:
+        """
+        Scrape matches from the Games tab.
+        Returns a list of dictionaries with match data.
+        """
+        matches = []
+        url = f"{self.base_url}/event/{tournament_id}/"
+        
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            try:
+                logger.info(f"Scraping matches from {url}")
+                page.goto(url, wait_until="networkidle", timeout=30000)
+                
+                # Cookie cleanup
+                page.add_style_tag(content="#cookie_permission { display: none !important; }")
+                
+                # Navigate to Games tab
+                games_tab = page.query_selector("#tab_games, a[href*='tab=games']")
+                if games_tab:
+                    games_tab.click()
+                    page.wait_for_timeout(2000)
+                
+                # USE JS to scrape all visible matches
+                # This covers the "All matches on one page" case which is common for completed events
+                # and avoids complex round iterator logic that was fragile.
+                
+                matches_data = page.evaluate(r"""() => {
+                    const results = [];
+                    const items = document.querySelectorAll('.item, .results');
+                    
+                    let currentRound = 1;
+                    
+                    items.forEach(el => {
+                        if (el.classList.contains('item')) {
+                            const txt = el.innerText;
+                            const m = txt.match(/Round\s+(\d+)/i);
+                            if (m) {
+                                currentRound = parseInt(m[1]);
+                            } else if (txt.toLowerCase().includes("top")) {
+                                currentRound = 100; // Cut
+                            }
+                        } else if (el.classList.contains('results')) {
+                            const players = el.querySelectorAll('.player');
+                            if (players.length < 2) return; 
+
+                            const p1Div = players[0]; // Left
+                            const p2Div = players[1]; // Right
+                            
+                            const parsePlayer = (div) => {
+                                 const link = div.querySelector('.player_link');
+                                 const idSpan = div.querySelector('.id_number');
+                                 const scDiv = div.querySelector('.score.vp');
+                                 
+                                 let score = 0;
+                                 if (scDiv) score = parseInt(scDiv.innerText) || 0;
+                                 
+                                 let isFirst = false;
+                                 if (scDiv) {
+                                     const style = window.getComputedStyle(scDiv);
+                                     if (style.textDecoration.includes('underline')) isFirst = true;
+                                 }
+                                 
+                                 return {
+                                     name: link ? link.innerText.trim() : "Unknown",
+                                     id: idSpan ? idSpan.innerText.replace('#', '').trim() : null,
+                                     isWinner: div.classList.contains('winner'),
+                                     score: score,
+                                     first: isFirst
+                                 };
+                            };
+                            
+                            const p1 = parsePlayer(p1Div);
+                            const p2 = parsePlayer(p2Div);
+                            
+                            let fpIdx = -1;
+                            if (p1.first) fpIdx = 0;
+                            else if (p2.first) fpIdx = 1;
+
+                            results.push({
+                                round_number: currentRound,
+                                p1_name: p1.name,
+                                p2_name: p2.name,
+                                p1_score: p1.score,
+                                p2_score: p2.score,
+                                winner_name: p1.isWinner ? p1.name : (p2.isWinner ? p2.name : null),
+                                first_player_index: fpIdx
+                            });
+                        }
+                    });
+                    return results;
+                }""")
+                
+                for m in matches_data:
+                    matches.append({
+                        "round_number": m['round_number'],
+                        "round_type": "Swiss" if m['round_number'] < 20 else "Cut",
+                        "player1_score": m['p1_score'],
+                        "player2_score": m['p2_score'],
+                        "p1_name_temp": m['p1_name'],
+                        "p2_name_temp": m['p2_name'],
+                        "is_bye": False,
+                        "winner_name_temp": m['winner_name'],
+                        "first_player_index": m['first_player_index'],
+                        "scenario": None
+                    })
+                    
+            except Exception as e:
+                logger.error(f"Error scraping matches: {e}")
+            finally:
+                browser.close()
+                
+        return matches
+    
+    def run_full_scrape(
+        self, 
+        tournament_id: str,
+        subdomain: str | None = None
+    ) -> tuple[Tournament, list[PlayerResult], list[Match]]:
+        """
+        Execute a complete scrape, optionally overriding subdomain.
+        
+        Args:
+            tournament_id: The Longshanks event ID
+            subdomain: Optional override for subdomain ("xwing" or "xwing-legacy")
+        """
+        # Allow runtime subdomain override
+        if subdomain:
+            self.subdomain = subdomain
+            self.base_url = f"https://{subdomain}.longshanks.org"
+        
+        # 1. Metadata
+        tournament = self.get_tournament_data(tournament_id)
+        
+        # 2. Players
+        players = self.get_participants(tournament_id)
+        
+        if len(players) < 2:
+            raise ValueError(f"Tournament {tournament_id} has fewer than 2 players ({len(players)})")
+        
+        # Update player count from actual results
+        if players and tournament.player_count == 0:
+            tournament.player_count = len(players)
+        
+        # 3. Infer specific format from XWS if available
+        for pl in players[:20]:
+            if pl.list_json and pl.list_json.get("pilots"):
+                inferred = infer_format_from_xws(pl.list_json)
+                if inferred != Format.OTHER:
+                    tournament.format = inferred
+                    logger.info(f"Inferred format {inferred.value} from player {pl.player_name}")
+                    break
+        
+        # 4. Matches
+        matches = self.get_matches(tournament_id)
+        
+        return tournament, players, matches
+
+
+# Convenience functions for standalone use
+def scrape_longshanks_event(
+    event_id: int | str, 
+    subdomain: str = "xwing"
+) -> tuple[Tournament, list[PlayerResult], list[Match]]:
+    """
+    Convenience function to scrape a single Longshanks event.
+    
+    Args:
+        event_id: The Longshanks event ID
+        subdomain: "xwing" for 2.5, "xwing-legacy" for 2.0
+    
+    Returns:
+        Tuple of (Tournament, list[PlayerResult], list[Match])
+    """
+    scraper = LongshanksScraper(subdomain=subdomain)
+    return scraper.run_full_scrape(str(event_id))

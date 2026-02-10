@@ -105,7 +105,7 @@ class TournamentsState(PaginationMixin):
                     "players": player_count,
                     "format": str(t.format) if t.format else "other",
                     "format_label": Format(t.format).label if t.format else "Other",
-                    "macro_format": t.macro_format,
+                    "macro_format": t.format.macro.value,
                     "platform": str(t.platform),
                     "platform_label": Platform(t.platform).label if t.platform in Platform._value2member_map_ else str(t.platform),
                     "url": t.url,

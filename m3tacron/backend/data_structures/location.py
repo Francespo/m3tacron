@@ -4,13 +4,15 @@ Location data structure.
 import reflex as rx
 from typing import Self
 from sqlalchemy import JSON, TypeDecorator
+from pydantic import BaseModel
 
-class Location(rx.Model, table=False):
+class Location(BaseModel):
     """
     Represents a geographical location with normalized city and state.
     """
     city: str | None = None
     country: str | None = None
+    continent: str | None = None
     
     @staticmethod
     def _normalize(value: str | None) -> str | None:
@@ -29,13 +31,14 @@ class Location(rx.Model, table=False):
         return value
 
     @classmethod
-    def create(cls, city: str | None = None, country: str | None = None) -> Self:
+    def create(cls, city: str | None = None, country: str | None = None, continent: str | None = None) -> Self:
         """
         Factory method to create a Location with normalized values.
         """
         return cls(
             city=cls._normalize(city),
-            country=cls._normalize(country)
+            country=cls._normalize(country),
+            continent=cls._normalize(continent)
         )
 
 

@@ -1,10 +1,11 @@
-"""
+﻿"""
 Longshanks Scraper Implementation (Playwright).
 
 Supports X-Wing 2.5 (xwing.longshanks.org) and Legacy 2.0 (xwing-legacy.longshanks.org).
 Extracts tournament data, player results with XWS, and match data.
 """
 import logging
+import json
 import re
 from datetime import datetime
 
@@ -18,6 +19,8 @@ from ..data_structures.factions import Faction
 from ..data_structures.platforms import Platform
 from ..data_structures.round_types import RoundType
 from ..data_structures.scenarios import Scenario
+from ..utils import parse_builder_url
+
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +45,7 @@ class LongshanksScraper(BaseScraper):
         """
         self.subdomain = subdomain
         self.base_url = f"https://{subdomain}.longshanks.org"
+        self.inferred_format = None
     
     def _dismiss_cookie_popup(self, page) -> None:
         """Dismiss cookie consent popup if present."""
@@ -56,7 +60,7 @@ class LongshanksScraper(BaseScraper):
                     page.wait_for_timeout(500)
                 else:
                     # Hide via JavaScript
-                    page.evaluate("""() => {
+                    page.evaluate(r"""() => {
                         const popup = document.getElementById('cookie_permission');
                         if (popup) popup.style.display = 'none';
                     }""")
@@ -98,9 +102,13 @@ class LongshanksScraper(BaseScraper):
         faction = Faction.from_xws(value)
         return faction.value if faction != Faction.UNKNOWN else None
     
-    def get_tournament_data(self, tournament_id: str) -> Tournament:
+    def get_tournament_data(self, tournament_id: str, inferred_format: Format | None = None) -> Tournament:
         """
         Scrape high-level tournament metadata.
+        
+        Args:
+            tournament_id: Longshanks event ID
+            inferred_format: Format inferred from XWS data (priority over URL detection)
         """
         url = f"{self.base_url}/event/{tournament_id}/"
         
@@ -117,11 +125,32 @@ class LongshanksScraper(BaseScraper):
                 name_el = page.query_selector("h1")
                 name = name_el.inner_text().strip() if name_el else f"Longshanks Event {tournament_id}"
                 
-                # Extract date and player count from event info table
+                # Validation: Game System
+                # Check for "X-Wing" in the page content (system name usually top left or in table)
+                # We specifically look for the "GameBadge" or text
+                game_system_valid = page.evaluate("""() => {
+                    const bodyText = document.body.innerText || "";
+                    if (bodyText.includes("X-Wing")) return true;
+                    if (bodyText.includes("xwing")) return true; 
+                    // Reject if explicitly other games
+                    if (bodyText.includes("Guild Ball")) return false;
+                    // Default to true if ambiguous but no other game found? 
+                    // No, USER said strict. 
+                    return false;
+                }""")
+                
+                if not game_system_valid:
+                    # Relax validation: Just warn instead of failing
+                    logger.warning(f"Tournament {tournament_id} does not appear to explicitly state 'X-Wing' in body. Proceeding anyway.")
+                    # raise ValueError(f"Tournament {tournament_id} does not appear to be an X-Wing event.")
+                
+                # Data Extraction using JS
                 event_info = page.evaluate("""() => {
                     let dateStr = '';
                     let playerCount = 0;
                     
+                    let teamCount = 0;
+                
                     const rows = document.querySelectorAll('tr');
                     for (const row of rows) {
                         const img = row.querySelector('img');
@@ -131,14 +160,18 @@ class LongshanksScraper(BaseScraper):
                         const alt = img.alt || '';
                         const value = cells[1]?.textContent?.trim() || '';
                         
-                        // Event size (e.g. "17 players" or "28 of 36 players")
+                        // Event size (e.g. "17 players" or "10 teams (50 players)")
                         if (alt === 'Event size' || value.includes('player')) {
-                            const outOfMatch = value.match(/(\d+)\s*(?:out\s+)?of\s+\d+/i);
+                            // Team check first
+                            const teamMatch = value.match(/(\\d+)\\s+team/i);
+                            if (teamMatch) teamCount = parseInt(teamMatch[1], 10);
+
+                            const outOfMatch = value.match(/(\\d+)\\s*(?:out\\s+)?of\\s+\\d+/i);
                             if (outOfMatch) {
                                 playerCount = parseInt(outOfMatch[1], 10);
                             } else {
-                                const match = value.match(/(\d+)\s*player/i);
-                                if (match) playerCount = parseInt(match[1], 10);
+                                const pMatch = value.match(/(\\d+)\\s*player/i);
+                                if (pMatch) playerCount = parseInt(pMatch[1], 10);
                             }
                         }
                         
@@ -148,36 +181,68 @@ class LongshanksScraper(BaseScraper):
                         }
                     }
                     
-                    return { dateStr, playerCount };
+                    return { dateStr, playerCount, teamCount };
                 }""")
                 
                 # Extract Location (often under the details or separate, check simple text search in table or headers)
-                # Usually in the table row with "Location" or "Venue"
-                location_data = page.evaluate("""() => {
+                # Look for "Location" label or icon with alt="Location"
+                location_raw = page.evaluate("""() => {
                     const rows = document.querySelectorAll('tr');
                     for (const row of rows) {
                         const img = row.querySelector('img');
                         if (img && (img.alt === 'Location' || img.alt === 'Venue')) {
-                            const cells = row.querySelectorAll('td');
-                            if (cells.length > 1) return cells[1].textContent.trim();
+                            const cell = row.querySelector('td:nth-child(2)');
+                            return cell?.textContent?.trim() || '';
                         }
                     }
-                    return null;
+                    return '';
                 }""")
                 
+                if location_raw:
+                    print(f"DEBUG: Longshanks Raw Location: '{location_raw}'")
+                else:
+                    print("DEBUG: Longshanks Raw Location not found in table.")
+
+                # Use resolve_location
+                from ..utils.geocoding import resolve_location
+                location_obj = resolve_location(location_raw) if location_raw else None
+                
+                if not location_obj and location_raw:
+                     print(f"DEBUG: Could not resolve location: '{location_raw}'")
+
+                # Manual Override for known issues (e.g. PSO Lomza mapped to Virtual but is physical)
+                name_lower = name.lower()
+                if ("lomza" in name_lower or "pso" in name_lower) and (not location_obj or location_obj.city == "Virtual"):
+                     logger.info(f"Overriding location for {name} to Lomza, Poland")
+                     location_obj = resolve_location("Lomza, Poland")
+                
+                if "torchlight" in name_lower:
+                     logger.info(f"Overriding location for {name} to Burlington, Canada")
+                     location_obj = resolve_location("Burlington, Canada")
+
                 parsed_date = self._parse_date(event_info.get("dateStr", ""))
                 player_count = event_info.get("playerCount", 0)
                 
-                # Determine format based on subdomain
-                game_format = Format.XWA if self.subdomain == "xwing" else Format.LEGACY_X2PO
+                # Determine format: Use inferred format if provided, otherwise fall back to internal state or URL
+                game_format = inferred_format or self.inferred_format
+                if game_format:
+                    logger.info(f"Using XWS-inferred format: {game_format.value}")
+                else:
+                    # Fallback to URL-based detection
+                    if "xwing-legacy" in self.base_url:
+                         game_format = Format.LEGACY_XLC
+                    else:
+                         game_format = Format.XWA # Use XWA as more specific default for 2.5 subdomain
+                    logger.info(f"Using URL-based format (no XWS available): {game_format.value}")
                 
                 return Tournament(
                     id=int(tournament_id),
                     name=name,
                     date=parsed_date.date(),
-                    location={"name": location_data} if location_data else None,
+                    location=location_obj,
                     format=game_format,
                     player_count=player_count,
+                    team_count=event_info.get("teamCount", 0),
                     platform=Platform.LONGSHANKS,
                     url=url
                 )
@@ -189,153 +254,250 @@ class LongshanksScraper(BaseScraper):
     
     def get_participants(self, tournament_id: str) -> list[PlayerResult]:
         """
-        Scrape players and their lists.
+        Scrape participants from the Ranking tab (Pure Python).
         """
-        url = f"{self.base_url}/event/{tournament_id}/"
-        participants: list[PlayerResult] = []
+        participants = []
+        # Force navigation to Ranking tab
+        url = f"{self.base_url}/event/{tournament_id}/?tab=ranking"
         
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
             try:
-                page.goto(url, wait_until="networkidle", timeout=30000)
-                page.wait_for_timeout(2000)
+                logger.info(f"Scraping participants from {url}")
+                page.goto(url, wait_until="domcontentloaded", timeout=60000)
                 
-                self._dismiss_cookie_popup(page)
+                # Cookie cleanup
+                page.add_style_tag(content="#cookie_permission { display: none !important; }")
                 
-                # Check for Squad Tournament and switch to individual players tab
+                # Wait for player list
                 try:
-                    # Look for "Team results" tab or "Load standings" with player arg
-                    squad_tab = page.locator("a[onclick*=\"load_standings('player')\"]").first
-                    if squad_tab.count() > 0 and squad_tab.is_visible():
-                         logger.info("Squad Tournament detected: Switching to Individual Players tab")
-                         squad_tab.click()
-                         page.wait_for_load_state("networkidle")
-                         page.wait_for_timeout(2000) # Wait for AJAX load
-                         page.wait_for_selector(".player:not(.accordion), .ranking_row", timeout=5000)
-                except Exception as e:
-                    logger.warning(f"Failed to check/switch squad tabs: {e}")
+                    page.wait_for_selector(".player", timeout=5000)
+                except:
+                    logger.warning("No .player elements found on Ranking tab.")
+                
+                # Detection: Check if it's a team event (presence of sub-tabs)
+                is_team_event = page.locator("a#tab_team").count() > 0
+                
+                # We will perform two passes for team events, or one pass for individual events
+                passes = [False] # Individual view (default)
+                if is_team_event:
+                    passes = [True, False] # Team view first, then Individual view
+                
+                participants_dict = {} # (Name, is_team) -> PlayerResult
+                member_to_team = {} # PID -> TeamName mapping
 
-                # Extract player data from div.player elements (Longshanks uses divs, not tables)
-                player_data = page.evaluate("""() => {
-                    const results = [];
-                    const seenNames = new Set();
-                    // Longshanks uses div.player for each player row (or ranking_row for AJAX loaded)
-                    const players = document.querySelectorAll('.player:not(.accordion), .ranking_row');
+                for is_team_pass in passes:
+                    if is_team_event:
+                        if is_team_pass:
+                            # Pass 1: Scrape Teams
+                            page.locator("a#tab_team").click()
+                        else:
+                            # Pass 2: Scrape Individuals
+                            page.locator("a#tab_player").click()
+                        
+                        page.wait_for_timeout(2000)
+                        # Wait for rows to refresh from AJAX
+                        try:
+                            page.wait_for_selector(".player", timeout=5000)
+                        except: pass
                     
-                    players.forEach((playerEl) => {
-                        // Rank is in div.rank
-                        const rankEl = playerEl.querySelector('.rank');
-                        const rank = rankEl ? parseInt(rankEl.textContent.trim()) : 0;
-                        if (isNaN(rank) || rank === 0) return;
+                    data_dump = []
+                    # Robust selectors (legacy doesn't have .main_content)
+                    ranking_container = page.locator(".ranking.event, .main_content, body").first
+                    elements = ranking_container.locator("h3, .player").all()
+
+                    for el in elements:
+                        tag = el.evaluate("el => el.tagName.toLowerCase()")
+                        if tag == 'h3':
+                            data_dump.append({'type': 'header', 'text': el.text_content() or ''})
+                            continue
                         
-                        // Data is in div.data with child divs for each field
-                        const dataEl = playerEl.querySelector('.data');
-                        if (!dataEl) return;
+                        classes = el.get_attribute("class") or ""
+                        if "player" not in classes: continue
                         
-                        const children = dataEl.children;
+                        # Data Extraction
+                        name_el = el.locator(".player_link").first
+                        if name_el.count() == 0: name_el = el.locator(".data").first
+                        name_raw = name_el.text_content() if name_el.count() > 0 else "Unknown"
+
+                        rank_el = el.locator(".rank").first
+                        rank_raw = rank_el.text_content() if rank_el.count() > 0 else "0"
                         
-                        // Name is in first child (div.name), inside .player_link or direct text
-                        let name = '';
-                        const nameDiv = children[0];
-                        // Extract External ID and Name
-                        let external_id = null;
-                        if (nameDiv) {
-                            const link = nameDiv.querySelector('.player_link, a');
-                            if (link) {
-                                const clone = link.cloneNode(true);
-                                clone.querySelectorAll('span').forEach(s => s.remove());
-                                name = clone.textContent.trim();
+                        wins_el = el.locator(".wins").first
+                        wins_txt = wins_el.text_content() if wins_el.count() > 0 else "0"
+                        
+                        loss_el = el.locator(".loss").first
+                        loss_txt = loss_el.text_content() if loss_el.count() > 0 else "0"
+                        
+                        draws_el = el.locator(".draws").first
+                        draws_txt = draws_el.text_content() if draws_el.count() > 0 else "0"
+                        
+                        # Stats
+                        stats_items = []
+                        for s in el.locator(".stat").all():
+                            stats_items.append({
+                                'text': s.inner_text().strip() or s.text_content().strip(),
+                                'title': s.get_attribute("title") or ''
+                            })
+                        
+                        list_icon = el.locator("a.list_link.pop").first
+                        xws_raw = list_icon.get_attribute("data-list") if list_icon.count() > 0 else None
+                        
+                        # PID and Team Mapping
+                        pid = None
+                        team_name = None
+                        if is_team_pass:
+                             # Team View: First link is team, others are players
+                             team_link = el.locator("a[onclick*='pop_team']").first
+                             team_name = team_link.text_content().strip() if team_link.count() > 0 else name_raw
+                             
+                             # Map members
+                             for m_lnk in el.locator("a[onclick*='pop_user']").all():
+                                 onclick = m_lnk.get_attribute("onclick")
+                                 if onclick:
+                                     m_match = re.search(r"pop_user\((\d+)", onclick)
+                                     if m_match:
+                                         member_to_team[m_match.group(1)] = team_name
+                        else:
+                             # Individual View: extract PID
+                             user_link = el.locator("a[onclick*='pop_user']").first
+                             if user_link.count() > 0:
+                                 onclick = user_link.get_attribute("onclick")
+                                 if onclick:
+                                     p_match = re.search(r"pop_user\((\d+)", onclick)
+                                     if p_match: pid = p_match.group(1)
+                             
+                             if not pid:
+                                 id_span = el.locator(".id_number").first
+                                 if id_span.count() > 0:
+                                     txt = id_span.text_content() or ""
+                                     if '#' in txt: pid = re.sub(r"[^0-9]", "", txt.split('#')[-1])
+
+                        data_dump.append({
+                            'type': 'player',
+                            'nameRaw': name_raw,
+                            'rankRaw': rank_raw,
+                            'wins': wins_txt,
+                            'loss': loss_txt,
+                            'draw': draws_txt,
+                            'stats': stats_items,
+                            'xws': xws_raw,
+                            'pid': pid,
+                            'pid': pid,
+                            'team_name': team_name if is_team_pass else member_to_team.get(pid)
+                        })
+                    
+                    # Process data_dump for this pass
+                    current_section = "swiss"
+                    for item in data_dump:
+                        if item['type'] == 'header':
+                            h_text = item['text'].lower()
+                            if "cut" in h_text or "top" in h_text: current_section = "cut"
+                            elif "main" in h_text or "swiss" in h_text: current_section = "swiss"
+                            continue
+                        
+                        if item['type'] != 'player': continue
+                        
+                        try:
+                            name = item.get('nameRaw', 'Unknown').strip()
+                            name = re.sub(r"\s*#\d+$", "", name)
+                            name = " ".join(name.split())
+                            
+                            
+                            pid = item.get('pid')
+                            t_name = item.get('team_name')
+
+                            if "bye" in name.lower() or "drop" in name.lower() or pid == "308":
+                                continue
+                            
+                            # Filter column headers
+                            wins_raw = str(item.get('wins', '0')).strip()
+                            if not re.match(r'^-?\d+$', wins_raw): continue
+                            
+                            r_match = re.search(r"(\d+)", str(item.get('rankRaw', '0')))
+                            rank = int(r_match.group(1)) if r_match else 0
+                            if rank == 0: continue
+                            
+                            wins = int(str(item.get('wins')).replace('-', '0').strip() or 0)
+                            losses = int(str(item.get('loss')).replace('-', '0').strip() or 0)
+                            draws = int(str(item.get('draw')).replace('-', '0').strip() or 0)
+                            
+                            tp = 0
+                            vps = 0
+                            score = 0
+                            mov = 0
+                            
+                            for st in item.get('stats', []):
+                                txt = st['text'].strip().replace('\xa0', ' ').replace('–', '-').replace('—', '-')
+                                pattern1 = r"([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s+(-?\d+(?:\.\d+)?)"
+                                matches = re.findall(pattern1, txt)
+                                if not matches:
+                                    pattern2 = r"(-?\d+(?:\.\d+)?)\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)*)"
+                                    matches_rev = re.findall(pattern2, txt)
+                                    matches = [(m[1], m[0]) for m in matches_rev]
                                 
-                                // ID
-                                if (link.href) {
-                                    const parts = link.href.split('/');
-                                    const numeric = parts.filter(p => !isNaN(parseInt(p)) && p.length > 0);
-                                    if (numeric.length > 0) external_id = numeric[numeric.length - 1];
-                                }
-                            } else {
-                                name = nameDiv.textContent.trim();
-                            }
-                            // Clean player ID suffix like "#13326"
-                            name = name.replace(/\\s*#\\d+$/, '').trim();
-                        }
-                        
-                        if (!name || seenNames.has(name)) return;
-                        seenNames.add(name);
-                        
-                        // W/L/D is in a child with class 'stat mono' (usually index 5)
-                        // Format: "3 / 0" or "3 / 0 / 0"
-                        let wins = 0, losses = 0, draws = 0;
-                        for (let i = 4; i < children.length; i++) {
-                            const text = children[i].textContent.trim();
-                            // Match "3 / 0 / 0" or "3 / 0"
-                            const wldMatch = text.match(/(\\d+)\\s*\\/\\s*(\\d+)(?:\\s*\\/\\s*(\\d+))?/);
-                            if (wldMatch) {
-                                wins = parseInt(wldMatch[1]) || 0;
-                                losses = parseInt(wldMatch[2]) || 0;
-                                draws = wldMatch[3] ? parseInt(wldMatch[3]) : 0;
-                                break;
-                            }
-                        }
-                        
-                        // TP (Tournament Points) is in a child with class containing 'skinny' (index 4)
-                        let points = 0;
-                        for (let i = 3; i < children.length; i++) {
-                            if (children[i].classList.contains('skinny')) {
-                                const pMatch = children[i].textContent.match(/\\d+/);
-                                if (pMatch) points = parseInt(pMatch[0]) || 0;
-                                break;
-                            }
-                        }
-                        
-                        // Check for encoded list icon in factions div
-                        const hasListIcon = !!playerEl.querySelector("img[title='Encoded list']");
-                        
-                        // Faction from image
-                        const factionImg = playerEl.querySelector('.factions img.faction, .factions img');
-                        let faction = null;
-                        if (factionImg) {
-                            faction = factionImg.alt || factionImg.src || null;
-                        }
-                        
-                        results.push({
-                            name: name,
-                            external_id: external_id,
-                            rank: rank,
-                            faction: faction,
-                            wins: wins,
-                            losses: losses,
-                            draws: draws,
-                            points: points,
-                            hasListIcon: hasListIcon
-                        });
-                    });
-                    
-                    return results;
-                }""")
-                
-                logger.info(f"Found {len(player_data)} players in results table")
-                
-                # Build participants list
-                for p_data in player_data:
-                    pr = PlayerResult(
-                        tournament_id=int(tournament_id),
-                        player_name=p_data["name"],
-                        rank=p_data["rank"],
-                        swiss_rank=p_data["rank"],
-                        swiss_wins=p_data["wins"],
-                        swiss_losses=p_data["losses"],
-                        swiss_draws=p_data["draws"],
-                        points_at_event=p_data["points"],
-                        list_json={}
-                    )
-                    # Attach external_id dynamically (not in model)
-                    if p_data.get("external_id"):
-                        pr.external_id = str(p_data["external_id"])
-                    
-                    participants.append(pr)
-                
-                # Extract XWS from encoded list icons
+                                for label_raw, val_raw in matches:
+                                    label = label_raw.strip().lower()
+                                    try: val_int = int(float(val_raw))
+                                    except: continue
+                                    if label in ["tp", "tournament points"]: tp = val_int
+                                    elif label in ["mp", "mission points", "vps", "victory points"]: vps = val_int
+                                    elif label in ["mov", "margin of victory"]: mov = val_int
+                                    elif label in ["score", "points"]: score = val_int
+                                
+                                if not matches and st['title']:
+                                    title_lower = st['title'].lower()
+                                    try:
+                                        check_str = txt.replace('.', '', 1).replace('-', '', 1)
+                                        if check_str.isdigit():
+                                            val = int(float(txt))
+                                            if "tournament points" in title_lower or title_lower == "tp": tp = val
+                                            elif "mission points" in title_lower or "victory points" in title_lower or title_lower == "vps": vps = val
+                                            elif "margin of victory" in title_lower or title_lower == "mov": mov = val
+                                    except: pass
+
+                            if not tp and (wins or draws): tp = (wins * 3) + (draws * 1)
+                            
+                            final_ep = tp if "xwing-legacy" not in self.base_url else None
+                            final_tb = vps if "xwing-legacy" not in self.base_url else (mov if mov else vps)
+                            
+                            key = name
+                            if key in participants_dict:
+                                pr = participants_dict[key]
+                                if current_section == "cut":
+                                    pr.cut_rank, pr.cut_wins, pr.cut_losses, pr.cut_draws = rank, wins, losses, draws
+                                    pr.cut_event_points, pr.cut_tie_breaker_points = final_ep, final_tb
+                                else:
+                                    pr.swiss_rank, pr.swiss_wins, pr.swiss_losses, pr.swiss_draws = rank, wins, losses, draws
+                                    pr.swiss_event_points, pr.swiss_tie_breaker_points = final_ep, final_tb
+                            else:
+                                pr = PlayerResult(
+                                    tournament_id=int(tournament_id),
+                                    player_name=name,
+                                    team_name=t_name,
+                                    list_json={}
+                                )
+                                if current_section == "cut":
+                                    pr.cut_rank, pr.cut_wins, pr.cut_losses, pr.cut_draws = rank, wins, losses, draws
+                                    pr.cut_event_points, pr.cut_tie_breaker_points = final_ep, final_tb
+                                else:
+                                    pr.swiss_rank, pr.swiss_wins, pr.swiss_losses, pr.swiss_draws = rank, wins, losses, draws
+                                    pr.swiss_event_points, pr.swiss_tie_breaker_points = final_ep, final_tb
+                                participants_dict[key] = pr
+
+                            if item.get('xws'):
+                                try:
+                                    xws_json = json.loads(item['xws'])
+                                    participants_dict[key].list_json = xws_json
+                                    if not self.inferred_format:
+                                        from ..data_structures.formats import infer_format_from_xws
+                                        self.inferred_format = infer_format_from_xws(xws_json)
+                                except: pass
+                        except Exception as loop_e:
+                            logger.warning(f"Error parsing item: {loop_e}")
+
+                participants = list(participants_dict.values())
                 self._extract_lists_from_icons(page, participants, tournament_id)
                 
             except Exception as e:
@@ -344,559 +506,321 @@ class LongshanksScraper(BaseScraper):
                 browser.close()
         
         return participants
-    
-    def _extract_lists_from_icons(self, page, participants: list[PlayerResult], tournament_id: str) -> None:
+
+    def _fetch_lists_from_popups(self, page, participants, tournament_id):
         """
-        Extract XWS data by calling Longshanks's pop_user() JS function.
-        
-        Longshanks loads XWS into textarea#list_<player_id> when pop_user() is called.
+        Fallback: Fetch lists from pop_info.php if icons exist but no data-list.
         """
         try:
-            # Get player IDs and names from encoded list icons
-            player_ids = page.evaluate("""() => {
-                const results = [];
-                const icons = document.querySelectorAll("img[title='Encoded list']");
-                
-                icons.forEach(icon => {
-                    // The icon's onclick has the player_id: pop_user(13326, 30230, 'list')
-                    const onclick = icon.getAttribute('onclick') || '';
-                    const match = onclick.match(/pop_user\\((\\d+),/);
-                    if (!match) return;
-                    
-                    const playerId = match[1];
-                    
-                    // Get player name from parent .player div
-                    let name = null;
-                    const playerDiv = icon.closest('.player');
-                    if (playerDiv) {
-                        const dataEl = playerDiv.querySelector('.data');
-                        if (dataEl && dataEl.children[0]) {
-                            const link = dataEl.children[0].querySelector('.player_link, a');
-                            name = link ? link.textContent.trim() : dataEl.children[0].textContent.trim();
-                            name = name.replace(/\\s*#\\d+$/, '').trim();
-                        }
-                    }
-                    
-                    if (name && playerId) {
-                        results.push({id: playerId, name: name});
-                    }
-                });
-                
-                return results;
-            }""")
+            # 1. Identify players with missing lists who likely have them
+            # We need their Longshanks ID. 
+            # We must re-scan the rows to get IDs if we didn't store them.
+            # Ideally, get_participants should store them.
+            # For now, let's fast-scan again or assume we can find them.
             
-            if not player_ids:
-                logger.info("No players with encoded list icons found")
-                return
+            # Let's extract IDs from the page first
+            player_ids = {} # Name -> ID
             
-            logger.info(f"Found {len(player_ids)} players with encoded lists")
-            
-            # Name-to-participant lookup
-            participant_by_name = {p.player_name: p for p in participants}
-            
-            extracted_count = 0
-            for player in player_ids:
-                player_id = player["id"]
-                player_name = player["name"]
-                
-                if player_name not in participant_by_name:
-                    logger.debug(f"Player '{player_name}' not found in participants")
-                    continue
-                
+            rows = page.locator(".player").all()
+            for row in rows:
                 try:
-                    # Call pop_user to load the XWS data
-                    xws_data = page.evaluate(f"""async () => {{
-                        // Trigger the popup/data load
-                        pop_user({player_id}, {tournament_id}, 'list');
+                    # Extract Name
+                    name_el = row.locator("span.player_link, a.player_link").first
+                    if name_el.count() == 0: 
+                        name_el = row.locator(".data").first
+                    
+                    if name_el.count() == 0: continue
+                    raw_name = name_el.inner_text().strip()
+                    
+                    # Clean Name for matching
+                    import re
+                    clean_name = re.sub(r"\s*#\d+$", "", raw_name).strip()
+                    clean_name_lower = clean_name.lower()
+                    
+                    # Extract ID
+                    # Try onclick="pop_user(13326, ...)"
+                    # Or class="id_number"
+                    pid = None
+                    
+                    # Method A: Link onclick
+                    link = row.locator("a.player_link").first
+                    if link.count() > 0:
+                        onclick = link.get_attribute("onclick") or ""
+                        # pop_user(13326,30230)
+                        m = re.search(r"pop_user\((\d+)", onclick)
+                        if m: pid = m.group(1)
+                    
+                    # Method B: ID in text
+                    if not pid:
+                        id_span = row.locator(".id_number").first
+                        if id_span.count() > 0:
+                            txt = id_span.inner_text()
+                            m = re.search(r"#(\d+)", txt)
+                            if m: pid = m.group(1)
+                            
+                    if pid and clean_name_lower:
+                        player_ids[clean_name_lower] = pid
                         
-                        // Wait for textarea to be populated (up to 2 seconds)
-                        for (let i = 0; i < 50; i++) {{
-                            await new Promise(r => setTimeout(r, 100));
-                            const textarea = document.querySelector('textarea#list_{player_id}');
-                            if (textarea && textarea.value) {{
-                                try {{
-                                    const xws = JSON.parse(textarea.value);
-                                    
-                                    // Also get YASB/LBN link if present
-                                    let link = null;
-                                    const yasb = document.querySelector("a[href*='yasb.app']");
-                                    const lbn = document.querySelector("a[href*='launchbaynext']");
-                                    if (yasb) link = yasb.getAttribute('href');
-                                    else if (lbn) link = lbn.getAttribute('href');
-                                    
-                                    return {{ xws: xws, link: link }};
-                                }} catch (e) {{
-                                    return {{ error: 'parse', value: textarea.value.substring(0, 100) }};
-                                }}
-                            }}
-                        }}
-                        return {{ error: 'timeout' }};
-                    }}""")
-                    
-                    if xws_data and "xws" in xws_data:
-                        xws_json = xws_data["xws"]
-                        # Add vendor info
-                        if "vendor" not in xws_json:
-                            xws_json["vendor"] = {}
-                        xws_json["vendor"]["longshanks"] = {"link": xws_data.get("link")}
-                        participant_by_name[player_name].list_json = xws_json
-                        extracted_count += 1
-                        logger.debug(f"Got XWS for {player_name} ({len(xws_json.get('pilots', []))} pilots)")
-                    elif xws_data and xws_data.get("link"):
-                        # Store link reference only
-                        participant_by_name[player_name].list_json = {
-                            "vendor": {"longshanks": {"link": xws_data.get("link")}}
-                        }
-                    else:
-                        logger.debug(f"No XWS data for {player_name}: {xws_data}")
-                    
-                    # Close modal (press Escape)
-                    page.keyboard.press("Escape")
-                    page.wait_for_timeout(100)
-                    
+                except: pass
+                
+            # Filter participants needing lists
+            missing = []
+            for p in participants:
+                # If list is empty AND we have an ID
+                if (not p.list_json or not p.list_json.get("pilots")) and p.player_name.lower().strip() in player_ids:
+                    missing.append((p, player_ids[p.player_name.lower().strip()]))
+            
+            if not missing:
+                return
+
+            logger.info(f"Fetching missing lists for {len(missing)} players via pop_info...")
+            
+            # 2. Get Cookies
+            cookies = {c['name']: c['value'] for c in page.context.cookies()}
+            
+            # 3. Concurrent Fetch
+            import httpx
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            
+            def fetch_list(player, pid):
+                # Use current base_url for pop_info (works for both xwing and xwing-legacy)
+                url = f"{self.base_url}/admin/players/pop_info.php?player={pid}&event={tournament_id}&tab=list"
+                try:
+                    resp = httpx.get(url, cookies=cookies, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+                    if resp.status_code == 200:
+                        import html
+                        content = html.unescape(resp.text)
+                        # Extract Textarea content
+                        # <textarea id="list_13326" ...>{ JSON }</textarea>
+                        # Regex for content between textarea tags
+                        m = re.search(r"<textarea[^>]*>(.*?)</textarea>", content, re.DOTALL)
+                        if m:
+                            json_str = m.group(1).strip()
+                            try:
+                                return player, json.loads(json_str)
+                            except Exception as je:
+                                logger.error(f"Failed to parse XWS JSON for {player.player_name}: {je}")
                 except Exception as e:
-                    logger.debug(f"Error extracting list for {player_name}: {e}")
+                    logger.debug(f"Fetch list error for {pid}: {e}")
+                return player, None
+
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                futures = [executor.submit(fetch_list, p, pid) for p, pid in missing]
+                
+                for future in as_completed(futures):
                     try:
-                        page.keyboard.press("Escape")
-                    except:
-                        pass
-            
-            logger.info(f"Extracted {extracted_count} XWS lists")
-            
+                        p, xws = future.result()
+                        if xws:
+                            p.list_json = xws
+                    except: pass
+                    
         except Exception as e:
-            logger.error(f"Error extracting list links: {e}")
-    
+            logger.error(f"Error in _fetch_lists_from_popups: {e}")
+
+    def _extract_lists_from_icons(self, page, participants, tournament_id):
+        """
+        Extract XWS from list icons (Pure Python).
+        """
+        found_any = False
+        try:
+            # Find all list icons
+            icons = page.locator("a.list_link.pop").all()
+            
+            # If no standard icons, check for the popup style icons (Step 2)
+            if not icons:
+                # Check for ANY list icon image to decide if we should try popup fetch
+                other_icons = page.locator("img[src*='list_code.png']").count()
+                if other_icons > 0:
+                     logger.info("Found list icons but no data-list. Attempting popup fetch.")
+                     self._fetch_lists_from_popups(page, participants, tournament_id)
+                     return
+
+            if not icons:
+                return
+
+            import json
+            for icon in icons:
+                try:
+                    # Get data-list attribute
+                    xws_str = icon.get_attribute("data-list")
+                    if not xws_str: continue
+                    
+                    found_any = True
+                    
+                    # Get player ID from parent row
+                    row = icon.locator("xpath=./ancestor::div[contains(@class, 'player')]").first
+                    if row.count() == 0: continue
+                    
+                    # Extract Name from row
+                    name_el = row.locator("span.player_link, a.player_link").first
+                    if name_el.count() == 0: 
+                        name_el = row.locator(".data").first
+                    
+                    if name_el.count() == 0: continue
+                    
+                    raw_name = name_el.inner_text().strip()
+                    # Clean ID suffix
+                    if "#" in raw_name:
+                        import re
+                        raw_name = re.sub(r"\s*#\d+$", "", raw_name)
+                    
+                    clean_target = raw_name.lower().strip()
+                    
+                    # Find participant (Case insensitive match)
+                    target_p = None
+                    for p in participants:
+                        if p.player_name.lower().strip() == clean_target:
+                            target_p = p
+                            break
+                    
+                    if target_p:
+                        try:
+                            xws = json.loads(xws_str)
+                            target_p.list_json = xws
+                            # STATEFUL INFERENCE: Capture format from first XWS found
+                            if not self.inferred_format:
+                                from ..data_structures.formats import infer_format_from_xws
+                                self.inferred_format = infer_format_from_xws(xws)
+                        except: 
+                            # Fallback: if data-list is actually a URL or something else, 
+                            # we might want to store it, but for now we follow XWS spec.
+                            pass
+                         
+                except Exception as loop_e:
+                     pass
+                     
+            if not found_any:
+                 # Double check if we should try popups
+                 other_icons = page.locator("img[src*='list_code.png']").count()
+                 if other_icons > 0:
+                     self._fetch_lists_from_popups(page, participants, tournament_id)
+                     
+        except Exception as e:
+            logger.warning(f"List extraction warning: {e}")
+
+    def _parse_scenario(self, text: str) -> str | None:
+        """Helper to extract Scenario enum name from text."""
+        if not text: return None
+        text_norm = text.lower().replace(" ", "_").strip()
+        
+        # Mapping Fix
+        if "assault_the_satellite" in text_norm:
+            text_norm = "assault_at_the_satellite_array"
+            
+        from ..data_structures.scenarios import Scenario
+        for s in Scenario:
+            if s.value != "unknown" and s.value.replace("_", " ") in text.lower():
+                 return s.value
+            # Also check direct value match
+            if s.value in text_norm:
+                 return s.value
+        return Scenario.OTHER_UNKNOWN 
+
     def get_matches(self, tournament_id: str) -> list[Match]:
         """
-        Scrape matches from the Games tab, handling pagination via round selector.
+        Scrape matches from the Games tab (Pure Python).
         """
-        url = f"{self.base_url}/event/{tournament_id}/"
-        matches: list[Match] = []
+        matches = []
+        url = f"{self.base_url}/event/{tournament_id}/?tab=games"
         
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
             try:
-                page.goto(url, wait_until="networkidle", timeout=30000)
+                page.goto(url, wait_until="domcontentloaded", timeout=60000)
                 
-                # Kill cookie popup aggressively
+                # Cookie cleanup
                 page.add_style_tag(content="#cookie_permission { display: none !important; }")
-                page.wait_for_timeout(1000)
                 
-                # Click Games tab
-                games_tab = page.query_selector("#tab_games, a[href='#tab_games'], button:has-text('Games')")
-                if not games_tab:
-                    logger.warning("No Games tab found")
+                try:
+                    page.wait_for_selector(".results", timeout=5000)
+                except:
+                    # Maybe no matches
                     return []
                 
-                games_tab.click()
-                page.wait_for_timeout(2000)
+                items = page.locator(".item, .results").all()
                 
-                # Get all round values from selector logic
-                # Longshanks loads matches via AJAX when selector changes
-                round_values = page.evaluate("""() => {
-                    const sel = document.querySelector('#round_selector');
-                    if (!sel) return [];
-                    return Array.from(sel.options).map(o => o.value);
-                }""")
+                current_round = 0
+                current_round_type = RoundType.SWISS
+                current_scenario = None
                 
-                if not round_values:
-                    # Fallback if no selector (single round or loaded straight)
-                    round_values = ["current"]
-                
-                logger.info(f"Found {len(round_values)} rounds to scrape: {round_values}")
-                
-                processed_rounds = set()
-
-                for r_val in round_values:
-                    if r_val != "current":
-                        # Select the round
-                        page.select_option("#round_selector", r_val)
+                for el in items:
+                    cls = el.get_attribute("class")
+                    if "item" in cls:
+                        # Header
+                        txt = el.inner_text().strip()
+                        # Parse Round
+                        if "Round" in txt:
+                            import re
+                            m = re.search(r"Round (\\d+)", txt)
+                            if m: current_round = int(m.group(1))
+                            else: current_round += 1
+                            current_round_type = RoundType.SWISS
+                        elif "Cut" in txt or "Top" in txt:
+                             current_round += 1
+                             current_round_type = RoundType.CUT
                         
-                        # Dispatch change event explicitly for some browsers/JS frameworks
-                        page.evaluate("document.querySelector('#round_selector').dispatchEvent(new Event('change'))")
-                        
-                        # Remove Cookie Banner aggresively
-                        page.evaluate("const c=document.getElementById('cookie_permission'); if(c) c.remove();")
-                        
-                        # Wait for the table/divs to update
-                        # Ideally wait for a specific element that confirms the round loaded
-                        # We wait for the 'details' header to likely match our round if possible, or just a hard wait + network idle
-                        page.wait_for_timeout(500)
-                        try:
-                            page.wait_for_load_state("networkidle", timeout=3000)
-                            # Wait for at least one match item to appear to ensure we aren't scraping empty states
-                            page.wait_for_selector(".item", timeout=3000)
-                        except:
-                            pass
+                        # Parse Scenario
+                        if "-" in txt:
+                            scen_txt = txt.split("-", 1)[1].strip()
+                            current_scenario = self._parse_scenario(scen_txt)
+                        else:
+                            current_scenario = None
                             
-                        # Double check we have content
-                        page.wait_for_timeout(1000)
-                    
-                    # Scrape the currently visible matches
-                    # Squad Extraction Logic
-                    # Squad Extraction Logic
-                    # Squad Extraction Logic
-                    # Ensure content is loaded
-                    try:
-                        page.wait_for_selector(".game, .match, .details", timeout=2000)
-                    except:
-                        pass
-                    
-                    squad_locators = page.locator("a.game_tab")
-                    count = squad_locators.count()
-                    round_matches_data = []
-                    
-                    if count > 0:
-                        logger.info(f"Squad Mode: Found {count} team matches in round {r_val}")
-                        # Inject CSS to hide cookie banner permanently
-                        page.add_style_tag(content="#cookie_permission { display: none !important; visibility: hidden !important; }")
-                        
-                        for i in range(count):
+                    elif "results" in cls:
+                        # Matches
+                        match_rows = el.locator(".match").all()
+                        for m_row in match_rows:
                             try:
-                                btn = squad_locators.nth(i)
+                                # Extract Players and Scores
+                                players = m_row.locator(".player").all()
+                                scores = m_row.locator(".score").all()
                                 
-                                # Get onclick attribute to bypass click issues
-                                onclick_attr = btn.get_attribute("onclick")
-                                match_id = None
-                                if onclick_attr:
-                                    import re
-                                    m = re.search(r"pop_open\('([^']+)'\)", onclick_attr)
-                                    if m:
-                                        match_id = m.group(1)
+                                if len(players) < 2: continue
                                 
-                                if match_id:
-                                    logger.info(f"Invoking squad match via JS: {match_id}")
-                                    page.evaluate(f"pop_open('{match_id}')")
-                                    page.wait_for_timeout(500)
-                                else:
-                                    # Fallback to click if no ID found
-                                    logger.warning("No pop_open ID found, falling back to click")
-                                    btn.click(force=True)
+                                p1_name = players[0].locator(".player_link").inner_text().strip()
+                                p2_name = players[1].locator(".player_link").inner_text().strip()
                                 
-                                # Wait for modal with retry
-                                try:
-                                    page.wait_for_selector(".popframe", timeout=3000)
-                                except:
-                                    logger.warning("Modal timeout, retrying via click")
-                                    btn.click(force=True)
-                                    page.wait_for_selector(".popframe", timeout=3000)
-                                    
-                                page.wait_for_timeout(200)
+                                s1 = 0
+                                s2 = 0
+                                if len(scores) >= 2:
+                                    try:
+                                        s1 = int(scores[0].inner_text())
+                                    except: s1 = 0
+                                    try:
+                                        s2 = int(scores[1].inner_text())
+                                    except: s2 = 0
                                 
-                                # Extract from modal (using previously fixed logic)
-                                sub_matches = page.evaluate("""() => {
-                                    const modal = document.querySelector('.popframe');
-                                    if (!modal) return [];
-                                    const matches = [];
-                                    const items = modal.querySelectorAll('.game, .item'); 
-                                    items.forEach(item => {
-                                        const pLinks = item.querySelectorAll('.player_link');
-                                        const scores = item.querySelectorAll('.score.vp');
-                                        if (pLinks.length >= 2) {
-                                            const p1 = pLinks[0].textContent.trim().replace(/\\s*#\\d+$/, '');
-                                            const p2 = pLinks[1].textContent.trim().replace(/\\s*#\\d+$/, '');
-                                            const s1 = scores[0] ? parseInt(scores[0].textContent) || 0 : 0;
-                                            const s2 = scores[1] ? parseInt(scores[1].textContent) || 0 : 0;
-                                            
-                                            let p1Id = null, p2Id = null;
-                                            
-                                            const getId = (link) => {
-                                                const onclick = link.getAttribute('onclick');
-                                                if (onclick) {
-                                                    const m = onclick.match(/pop_user\\((\\d+)/);
-                                                    if (m) return m[1];
-                                                }
-                                                if (link.parentElement) {
-                                                    const span = link.parentElement.querySelector('.id_number');
-                                                    if (span) return span.innerText.replace('#','').trim();
-                                                }
-                                                if (link.href && link.href.includes('/player/')) {
-                                                    const parts = link.href.split('/');
-                                                    const nums = parts.filter(p => !isNaN(parseInt(p)) && p.length > 0);
-                                                    if (nums.length) return nums[nums.length-1];
-                                                }
-                                                return null;
-                                            };
-                                            
-                                            p1Id = getId(pLinks[0]);
-                                            p2Id = getId(pLinks[1]);
-                                            matches.push({p1, p2, p1_id: p1Id, p2_id: p2Id, s1, s2});
-                                        }
-                                    });
-                                    return matches;
-                                }""")
+                                # Validate Bye
+                                is_bye = False
+                                if "bye" in p2_name.lower(): is_bye = True
                                 
-                                current_round_num = int(r_val) if r_val.lstrip('-').isdigit() else 1
+                                # Winner
+                                winner_name = None
+                                if s1 > s2: winner_name = p1_name
+                                elif s2 > s1: winner_name = p2_name
                                 
-                                for sm in sub_matches:
-                                    logger.debug(f"Squad Sub-Match: {sm['p1']} ({sm['p1_id']}) vs {sm['p2']} ({sm['p2_id']})")
-                                    round_matches_data.append({
-                                        'round': current_round_num,
-                                        'type': 'swiss',
-                                        'p1': sm['p1'], 'p2': sm['p2'],
-                                        'p1_id': sm['p1_id'], 'p2_id': sm['p2_id'],
-                                        's1': sm['s1'], 's2': sm['s2'],
-                                        'bye': False, 'first_player_index': None, 'scenario': None
-                                    })
-                                
-                                # Close modal - Explicitly click Close button if possible
-                                close_btn = page.locator(".button_close")
-                                if close_btn.is_visible():
-                                    close_btn.click(force=True)
-                                else:
-                                    page.keyboard.press("Escape")
-                                
-                                # Wait for modal to disappear
-                                page.wait_for_timeout(500)
-                                
-                            except Exception as e:
-                                logger.warning(f"Error scraping squad match {i}: {e}")
-                                try: page.keyboard.press("Escape")
-                                except: pass
-                    
-                    if not round_matches_data:
-
-                        round_matches_data = page.evaluate("""() => {
-                        const extracted = [];
-                        const headers = document.querySelectorAll('.details');
-                        
-                        headers.forEach(header => {
-                            if (!/(Round|Top|Cut|Final)/i.test(header.innerText)) return;
-                            
-                            // Parse Round Header (Round X, Round C2, Top 8, Final)
-                            const headerText = header.innerText;
-                            const rMatch = headerText.match(/(Round|Top|Cut|Final)\\s+([A-Za-z0-9]+)/i);
-                            let roundNum = 1;
-                            let roundType = "swiss";
-                            
-                            if (rMatch) {
-                                const type = rMatch[1].toLowerCase();
-                                const val = rMatch[2];
-                                
-                                if (type === 'round') {
-                                    roundNum = parseInt(val) || 1;
-                                } else {
-                                    roundType = 'cut';
-                                    const d = val.match(/\\d+/);
-                                    roundNum = d ? parseInt(d[0]) : 1;
+                                m_dict = {
+                                    "round_number": current_round,
+                                    "round_type": current_round_type,
+                                    "scenario": current_scenario,
+                                    "player1_score": s1,
+                                    "player2_score": s2,
+                                    "is_bye": is_bye,
+                                    "p1_name_temp": p1_name,
+                                    "p2_name_temp": p2_name,
+                                    "winner_name_temp": winner_name
                                 }
-                            }
-                            
-                            // The players are in the SIBLING .results div (or next-next)
-                            // Structure: .details -> .results
-                            let next = header.nextElementSibling;
-                            while (next && !next.classList.contains('details') && !next.classList.contains('footer')) {
-                                if (next.classList.contains('results')) {
-                                    // In div layout, players are children of .results
-                                    const pLinks = next.querySelectorAll('.player_link');
-                                    const scores = next.querySelectorAll('.score.vp');
-                                    
-                                    if (pLinks.length >= 2) {
-                                        const p1 = pLinks[0].textContent.trim().replace(/\s*#\d+$/, '');
-                                        const p2 = pLinks[1].textContent.trim().replace(/\s*#\d+$/, '');
-                                        const s1 = scores[0] ? parseInt(scores[0].textContent) || 0 : 0;
-                                        const s2 = scores[1] ? parseInt(scores[1].textContent) || 0 : 0;
-                                        
-                                        // IDs
-                                        let p1Id = null;
-                                        let p2Id = null;
-                                        
-                                        if (pLinks[0].href) {
-                                            const parts = pLinks[0].href.split('/');
-                                            const nums = parts.filter(p => !isNaN(parseInt(p)) && p.length > 0);
-                                            if (nums.length) p1Id = nums[nums.length-1];
-                                        }
-                                        if (pLinks[1].href) {
-                                            const parts = pLinks[1].href.split('/');
-                                            const nums = parts.filter(p => !isNaN(parseInt(p)) && p.length > 0);
-                                            if (nums.length) p2Id = nums[nums.length-1];
-                                        }
-                                        
-                                        // First Player (Legacy/2.0)
-                                        // Look for img with title='First player'
-                                        // It is usually a sibling of the player link or score.
-                                        // We assume DOM order: P1, Score, P2.
-                                        // If icon is before the middle (scores), it's P1.
-                                        let firstPlayerIndex = null; // 0 or 1
-                                        const fpIcon = next.querySelector("img[title='First player']");
-                                        if (fpIcon) {
-                                            // Check position relative to P2 Link
-                                            // compareDocumentPosition: 2 (preceding), 4 (following)
-                                            // If fpIcon follows P1 Link and precedes P2 Link -> P1?
-                                            // Or if fpIcon is inside P1 block.
-                                            
-                                        // Robust check: Is it before P2 Link?
-                                            // The compareDocumentPosition check in JS returns a bitmask.
-                                            // 4 means "followed by" (Node A follows Node B? No, Node.DOCUMENT_POSITION_FOLLOWING means other node follows reference node)
-                                            // Actually, simplest is: Is the icon logically closer to P1 block?
-                                            // If fpIcon is document-preceding P2, it is P1.
-                                            // The bitmask for "node A (fpIcon) precedes node B (pLinks[1])" is 4 (DOCUMENT_POSITION_FOLLOWING... wait, definitions are tricky).
-                                            // Let's use containment if possible, or Order.
-                                            if (fpIcon.compareDocumentPosition(pLinks[1]) & Node.DOCUMENT_POSITION_PRECEDING) {
-                                                // fpIcon COMES AFTER P2 (Preceding means P2 precedes fpIcon? No.)
-                                                // 2 (PRECEDING): The other node precedes the reference node. 
-                                                // So pLinks[1] precedes fpIcon -> Icon is AFTER P2 -> P2 is First
-                                                 firstPlayerIndex = 1;
-                                            } else {
-                                                // Icon is BEFORE P2 -> P1 is First
-                                                firstPlayerIndex = 0;
-                                            }
-                                        } else {
-                                           // Fallback: Check for "star" text (*) in scores or player blocks
-                                           // User report: "First player has one star, second has two" (or similar notation)
-                                           // Check if scores text contains '*'
-                                           const scores = next.querySelectorAll('.score');
-                                           if (scores.length >= 2) {
-                                               const t1 = scores[0].innerText;
-                                               const t2 = scores[1].innerText;
-                                               if (t1.includes('*') && !t2.includes('*')) firstPlayerIndex = 0;
-                                               else if (!t1.includes('*') && t2.includes('*')) firstPlayerIndex = 1;
-                                               // Check player names too
-                                               else {
-                                                   const n1 = pLinks[0].parentElement.innerText;
-                                                   const n2 = pLinks[1].parentElement.innerText;
-                                                   if (n1.includes('*') && !n2.includes('*')) firstPlayerIndex = 0;
-                                                   else if (!n1.includes('*') && n2.includes('*')) firstPlayerIndex = 1;
-                                               }
-                                           }
-                                        }
-                                        
-                                        // Scenario (XWA/2.5)
-                                        // Look for "Scenario" in the NEXT sibling (.details)
-                                        let scenarioName = null;
-                                        const scenarioContainer = next.nextElementSibling;
-                                        if (scenarioContainer && scenarioContainer.classList.contains('details')) {
-                                            // Check text content of items in this details div
-                                            const items = scenarioContainer.querySelectorAll('.item');
-                                            for (const item of items) {
-                                                if (item.textContent.trim().startsWith("Scenario")) {
-                                                    const sSpan = item.querySelector('span[title]');
-                                                    if (sSpan) scenarioName = sSpan.textContent.trim();
-                                                    break;
-                                                }
-                                            }
-                                        }
-
-                                        extracted.push({
-                                            round: roundNum,
-                                            type: roundType,
-                                            p1: p1,
-                                            p2: p2,
-                                            p1_id: p1Id,
-                                            p2_id: p2Id,
-                                            s1: s1,
-                                            s2: s2,
-                                            bye: false,
-                                            first_player_index: firstPlayerIndex,
-                                            scenario: scenarioName
-                                        });
-                                        
-                                    } else if (pLinks.length === 1) {
-                                        // BYE
-                                        const p1 = pLinks[0].textContent.trim().replace(/\s*#\d+$/, '');
-                                        const s1 = scores[0] ? parseInt(scores[0].textContent) || 0 : 0;
-                                        
-                                        let p1Id = null;
-                                        if (pLinks[0].href) {
-                                            const parts = pLinks[0].href.split('/');
-                                            const nums = parts.filter(p => !isNaN(parseInt(p)) && p.length > 0);
-                                            if (nums.length) p1Id = nums[nums.length-1];
-                                        }
-                                        
-                                        extracted.push({
-                                            round: roundNum,
-                                            type: roundType,
-                                            p1: p1,
-                                            p2: 'BYE',
-                                            p1_id: p1Id,
-                                            p2_id: null,
-                                            s1: s1,
-                                            s2: 0,
-                                            bye: true
-                                        });
-                                    }
-                                }
-                                next = next.nextElementSibling;
-                            }
-                        });
-                        return extracted;
-                    }""")
-                    
-                    # Scenario Propagation: Backfill scenario for rounds
-                    # Find consistent scenario per round
-                    round_scenarios = {}
-                    for rm in round_matches_data:
-                        r_key = rm['round']
-                        if rm.get('scenario') and r_key not in round_scenarios:
-                            round_scenarios[r_key] = rm['scenario']
-                            
-                    # Backfill
-                    for rm in round_matches_data:
-                        r_key = rm['round']
-                        if not rm.get('scenario') and r_key in round_scenarios:
-                            rm['scenario'] = round_scenarios[r_key]
-
-                    for rm in round_matches_data:
-                        # Unique check (round + p1)
-                        unique_key = (rm['round'], rm['type'], rm['p1'])
-                        if unique_key in processed_rounds:
-                            continue
-                        processed_rounds.add(unique_key)
-                        
-                        # Map string to Enum (safety)
-                        r_type_enum = RoundType.SWISS
-                        if rm['type'] == 'cut': r_type_enum = RoundType.CUT
-                        
-                        m = Match(
-                            tournament_id=int(tournament_id),
-                            round_number=rm['round'],
-                            round_type=r_type_enum,
-                            player1_id=0, player2_id=0, winner_id=0,
-                            player1_score=rm['s1'],
-                            player2_score=rm['s2'],
-                            is_bye=rm['bye']
-                        )
-                        m.p1_name_temp = rm['p1']
-                        m.p1_name_temp = rm['p1']
-                        m.p2_name_temp = rm['p2']
-                        m.winner_name_temp = None
-                        
-                        # Attach IDs dynamically
-                        if rm.get('p1_id'): m.p1_external_id = str(rm['p1_id'])
-                        if rm.get('p2_id'): m.p2_external_id = str(rm['p2_id'])
-                        
-                        # Scenario
-                        scen_str = rm.get('scenario')
-                        if scen_str:
-                            try:
-                                key = scen_str.lower().replace(' ', '_')
-                                m.scenario = Scenario(key)
-                            except ValueError:
-                                logger.warning(f"Unknown scenario: {scen_str}")
-                        
-                        # First Player Index (Temp)
-                        if rm.get('first_player_index') is not None:
-                            m.first_player_temp_index = rm['first_player_index']
-
-                        # Winner logic
-                        if m.is_bye:
-                            m.winner_name_temp = m.p1_name_temp
-                        elif m.player1_score > m.player2_score:
-                            m.winner_name_temp = m.p1_name_temp
-                        elif m.player2_score > m.player1_score:
-                            m.winner_name_temp = m.p2_name_temp
-                            
-                        matches.append(m)
-                        
+                                matches.append(m_dict)
+                            except Exception as me:
+                                pass
             except Exception as e:
-                logger.error(f"Error scraping matches: {e}")
+                print(f"Error scraping matches: {e}")
             finally:
                 browser.close()
-        
-        # Deduplicate if needed, though processed_rounds helps
+                
         return matches
-    
+
     def run_full_scrape(
         self, 
         tournament_id: str,
@@ -905,44 +829,46 @@ class LongshanksScraper(BaseScraper):
         """
         Execute a complete scrape, optionally overriding subdomain.
         
-        Args:
-            tournament_id: The Longshanks event ID
-            subdomain: Optional override for subdomain ("xwing" or "xwing-legacy")
+        XWS-PRIORITY FLOW:
+        1. Extract participants and XWS data
+        2. Infer format from XWS (priority)
+        3. Create tournament with inferred format
+        4. Extract matches
         """
         # Allow runtime subdomain override
         if subdomain:
             self.subdomain = subdomain
             self.base_url = f"https://{subdomain}.longshanks.org"
         
-        # 1. Metadata
-        tournament = self.get_tournament_data(tournament_id)
-        
-        # 2. Players
+        # STEP 1: Extract Players & XWS data FIRST
         players = self.get_participants(tournament_id)
         
         if len(players) < 2:
             raise ValueError(f"Tournament {tournament_id} has fewer than 2 players ({len(players)})")
         
+        # STEP 2: Infer format from XWS data (priority over URL)
+        inferred_format = None
+        for pl in players[:20]:  # Check first 20 players
+            if pl.list_json and pl.list_json.get("pilots"):
+                inferred = infer_format_from_xws(pl.list_json)
+                if inferred != Format.OTHER:
+                    inferred_format = inferred
+                    logger.info(f"XWS-inferred format {inferred.value} from player {pl.player_name}")
+                    break
+        
+        # STEP 3: Create Tournament with inferred format
+        tournament = self.get_tournament_data(tournament_id, inferred_format=inferred_format)
+        
         # Update player count from actual results
         if players and tournament.player_count == 0:
             tournament.player_count = len(players)
         
-        # 3. Infer specific format from XWS if available
-        for pl in players[:20]:
-            if pl.list_json and pl.list_json.get("pilots"):
-                inferred = infer_format_from_xws(pl.list_json)
-                if inferred != Format.OTHER:
-                    tournament.format = inferred
-                    logger.info(f"Inferred format {inferred.value} from player {pl.player_name}")
-                    break
-        
-        # 4. Matches
+        # STEP 4: Extract Matches
         matches = self.get_matches(tournament_id)
         
         return tournament, players, matches
 
 
-# Convenience functions for standalone use
 def scrape_longshanks_event(
     event_id: int | str, 
     subdomain: str = "xwing"
