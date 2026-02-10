@@ -1,4 +1,4 @@
-﻿"""
+"""
 Longshanks Scraper Implementation (Playwright).
 
 Supports X-Wing 2.5 (xwing.longshanks.org) and Legacy 2.0 (xwing-legacy.longshanks.org).
@@ -411,17 +411,23 @@ class LongshanksScraper(BaseScraper):
                             if "bye" in name.lower() or "drop" in name.lower() or pid == "308":
                                 continue
                             
-                            # Filter column headers
-                            wins_raw = str(item.get('wins', '0')).strip()
-                            if not re.match(r'^-?\d+$', wins_raw): continue
+                            # Robust Integer Parsing: Skip header rows (e.g. "W / L / D")
+                            def safe_int(val, default=0):
+                                if val is None: return default
+                                s = str(val).strip().replace('-', '0')
+                                if not s or not re.match(r'^-?\d+$', s): return default
+                                return int(s)
+
+                            wins_txt = item.get('wins', '0')
+                            if not re.match(r'^-?\d+$', str(wins_txt).strip()): continue
                             
                             r_match = re.search(r"(\d+)", str(item.get('rankRaw', '0')))
                             rank = int(r_match.group(1)) if r_match else 0
                             if rank == 0: continue
                             
-                            wins = int(str(item.get('wins')).replace('-', '0').strip() or 0)
-                            losses = int(str(item.get('loss')).replace('-', '0').strip() or 0)
-                            draws = int(str(item.get('draw')).replace('-', '0').strip() or 0)
+                            wins = safe_int(item.get('wins'))
+                            losses = safe_int(item.get('loss'))
+                            draws = safe_int(item.get('draw'))
                             
                             tp = 0
                             vps = 0
@@ -727,95 +733,152 @@ class LongshanksScraper(BaseScraper):
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
             try:
+                logger.info(f"Scraping matches from {url}")
                 page.goto(url, wait_until="domcontentloaded", timeout=60000)
-                
-                # Cookie cleanup
                 page.add_style_tag(content="#cookie_permission { display: none !important; }")
                 
+                # Ensure we are on the games tab
                 try:
-                    page.wait_for_selector(".results", timeout=5000)
-                except:
-                    # Maybe no matches
-                    return []
+                    page.wait_for_selector("#tab_games", timeout=5000)
+                    page.click("#tab_games")
+                    page.wait_for_load_state("networkidle", timeout=30000)
+                except: pass
+
+                # Detect rounds if selector exists
+                rounds = [""]
+                try:
+                    sel = page.locator("#round_selector")
+                    if sel.count() > 0:
+                        # Extract round list
+                        rounds = [opt.get_attribute("value") for opt in sel.locator("option").all() if opt.get_attribute("value")]
+                except: pass
                 
-                items = page.locator(".item, .results").all()
-                
-                current_round = 0
-                current_round_type = RoundType.SWISS
-                current_scenario = None
-                
-                for el in items:
-                    cls = el.get_attribute("class")
-                    if "item" in cls:
-                        # Header
-                        txt = el.inner_text().strip()
-                        # Parse Round
-                        if "Round" in txt:
-                            import re
-                            m = re.search(r"Round (\\d+)", txt)
-                            if m: current_round = int(m.group(1))
-                            else: current_round += 1
-                            current_round_type = RoundType.SWISS
-                        elif "Cut" in txt or "Top" in txt:
-                             current_round += 1
-                             current_round_type = RoundType.CUT
-                        
-                        # Parse Scenario
-                        if "-" in txt:
-                            scen_txt = txt.split("-", 1)[1].strip()
-                            current_scenario = self._parse_scenario(scen_txt)
-                        else:
-                            current_scenario = None
+                if not rounds: rounds = [""]
+
+                processed_hashes = set()
+
+                for rnd in rounds:
+                    if rnd:
+                        logger.info(f"Switching to Round {rnd}...")
+                        try:
+                            # Use select_option to switch round without full page reload
+                            page.select_option("#round_selector", rnd)
+                            # Wait for AJAX load
+                            page.wait_for_load_state("networkidle", timeout=30000)
+                            page.wait_for_timeout(3000) 
+                        except Exception as exe:
+                            logger.warning(f"Error switching round {rnd}: {exe}")
+                    
+                    # Expand accordions if team event (AJAX load)
+                    try:
+                        logger.info("Expanding accordions...")
+                        page.evaluate("if(typeof all_accordions === 'function') all_accordions('expand');")
+                        page.wait_for_timeout(5000) 
+                    except: pass
+
+                    try:
+                        # Wait for ANY of the possible match containers
+                        page.wait_for_selector(".results, #games, .game, .item, .pairing", timeout=15000)
+                    except:
+                        logger.warning(f"Timeout waiting for elements in round {rnd}")
+                        continue
+                    
+                    # Capture pairings for this round
+                    current_round = int(rnd) if rnd and rnd.isdigit() else 0
+                    current_round_type = RoundType.SWISS
+                    current_scenario = None
+                    
+                    items = page.locator(".item, .match, .game, .pairing").all()
+                    logger.info(f"Scraped {len(items)} raw items for Round {rnd}")
+                    
+                    for el in items:
+                        try:
+                            cls = el.get_attribute("class") or ""
                             
-                    elif "results" in cls:
-                        # Matches
-                        match_rows = el.locator(".match").all()
-                        for m_row in match_rows:
-                            try:
-                                # Extract Players and Scores
-                                players = m_row.locator(".player").all()
-                                scores = m_row.locator(".score").all()
+                            if "item" in cls:
+                                txt = el.inner_text().strip()
+                                # Detect Round headers
+                                if "Round" in txt and not (rnd and rnd.isdigit()):
+                                    m_rnd = re.search(r"Round (\d+)", txt)
+                                    if m_rnd: current_round = int(m_rnd.group(1))
+                                    current_round_type = RoundType.SWISS
+                                elif ("Cut" in txt or "Top" in txt):
+                                    current_round = (current_round or 0) + 1
+                                    current_round_type = RoundType.CUT
                                 
-                                if len(players) < 2: continue
+                                # Scenario detection
+                                if "-" in txt:
+                                    scen_txt = txt.split("-", 1)[1].strip()
+                                    current_scenario = self._parse_scenario(scen_txt)
+                                else:
+                                    current_scenario = None
+                            
+                            elif "match" in cls or "game" in cls or "pairing" in cls:
+                                # Try multiple ways to find player names
+                                p_names = []
+                                # Option A: .player wrappers (standard)
+                                p_els = el.locator(".player").all()
+                                if len(p_els) >= 2:
+                                    for p_el in p_els:
+                                        # Try .player_disp, .player_link, or direct text
+                                        name_el = p_el.locator(".player_disp, .player_link, .data").first
+                                        if name_el.count() > 0:
+                                            p_names.append(name_el.inner_text().strip())
+                                        else:
+                                            p_names.append(p_el.inner_text().strip())
                                 
-                                p1_name = players[0].locator(".player_link").inner_text().strip()
-                                p2_name = players[1].locator(".player_link").inner_text().strip()
+                                # Option B: Direct .player_link or .player_disp siblings (modal/compact)
+                                if len(p_names) < 2:
+                                    p_names = [n.inner_text().strip() for n in el.locator(".player_link, .player_disp, .data").all() if n.inner_text().strip()]
                                 
+                                if len(p_names) < 2:
+                                    logger.info(f"Skipping potential match {cls}: only found players {p_names}")
+                                    continue
+                                
+                                p1_raw = p_names[0]
+                                p2_raw = p_names[1]
+                                
+                                # Hash to avoid duplicates
+                                m_hash = f"{current_round}-{p1_raw}-{p2_raw}"
+                                if m_hash in processed_hashes: continue
+                                processed_hashes.add(m_hash)
+
+                                # Clean names (remove #ID suffix)
+                                p1_clean = re.sub(r"\s*#\d+$", "", p1_raw)
+                                p1_clean = " ".join(p1_clean.split())
+                                p2_clean = re.sub(r"\s*#\d+$", "", p2_raw)
+                                p2_clean = " ".join(p2_clean.split())
+                                
+                                # Score extraction
+                                s_els = el.locator(".score").all()
                                 s1 = 0
                                 s2 = 0
-                                if len(scores) >= 2:
+                                if len(s_els) >= 2:
                                     try:
-                                        s1 = int(scores[0].inner_text())
-                                    except: s1 = 0
-                                    try:
-                                        s2 = int(scores[1].inner_text())
-                                    except: s2 = 0
+                                        s1_txt = s_els[0].inner_text().strip().replace('-', '0')
+                                        s2_txt = s_els[1].inner_text().strip().replace('-', '0')
+                                        s1 = int(float(s1_txt))
+                                        s2 = int(float(s2_txt))
+                                    except: pass
                                 
-                                # Validate Bye
-                                is_bye = False
-                                if "bye" in p2_name.lower(): is_bye = True
-                                
-                                # Winner
-                                winner_name = None
-                                if s1 > s2: winner_name = p1_name
-                                elif s2 > s1: winner_name = p2_name
-                                
-                                m_dict = {
-                                    "round_number": current_round,
+                                logger.info(f"SUCCESS: Scraped pairing: {repr(p1_clean)} vs {repr(p2_clean)} (Round {current_round})")
+
+                                matches.append({
+                                    "round_number": current_round or 1,
                                     "round_type": current_round_type,
                                     "scenario": current_scenario,
                                     "player1_score": s1,
                                     "player2_score": s2,
-                                    "is_bye": is_bye,
-                                    "p1_name_temp": p1_name,
-                                    "p2_name_temp": p2_name,
-                                    "winner_name_temp": winner_name
-                                }
-                                matches.append(m_dict)
-                            except Exception as me:
-                                pass
+                                    "is_bye": "bye" in p2_clean.lower(),
+                                    "p1_name_temp": p1_clean,
+                                    "p2_name_temp": p2_clean,
+                                    "winner_name_temp": p1_clean if s1 > s2 else (p2_clean if s2 > s1 else None)
+                                })
+                        except Exception as e:
+                            logger.error(f"Error processing item: {e}")
+                            
             except Exception as e:
-                print(f"Error scraping matches: {e}")
+                logger.error(f"Error scraping matches: {e}")
             finally:
                 browser.close()
                 
