@@ -37,6 +37,15 @@ class Tournament(rx.Model, table=True):
     format: Format | None = Field(default=None, sa_column=Column(String))
     
     results: list["PlayerResult"] = Relationship(back_populates="tournament")
+    
+    @property
+    def macro_format(self) -> str:
+        """Infer macro format from the specific format."""
+        if not self.format: return "other"
+        try:
+            return Format(self.format).macro.value
+        except ValueError:
+            return "other"
 
 
 class PlayerResult(rx.Model, table=True):
