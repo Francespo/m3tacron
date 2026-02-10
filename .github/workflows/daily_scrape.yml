@@ -11,11 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # Needed if we commit DB or push artifacts (optional)
-    
-    # Set the working directory for all run steps to the project subdirectory
-    defaults:
-      run:
-        working-directory: ./m3tacron
 
     steps:
       - name: Checkout Code
@@ -25,8 +20,6 @@ jobs:
         run: |
           echo "Current Directory: $(pwd)"
           ls -R
-        # Override working directory for this step to see the full root
-        working-directory: .
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -47,17 +40,18 @@ jobs:
 
       - name: Fetch Yesterday's Events
         run: |
-          python scripts/fetch_events.py --date yesterday --output events.json
+          # Use explicit path from root
+          python m3tacron/scripts/fetch_events.py --date yesterday --output events.json
           cat events.json
 
       - name: Scrape Events
         run: |
           # Use the test database as requested
-          python scripts/scrape_events.py --input events.json --db sqlite:///github_scraped.db
+          python m3tacron/scripts/scrape_events.py --input events.json --db sqlite:///github_scraped.db
 
       - name: Upload Scraped DB (Artifact)
         uses: actions/upload-artifact@v4
         with:
           name: daily-scraped-db
-          path: m3tacron/github_scraped.db
+          path: github_scraped.db
           retention-days: 5
