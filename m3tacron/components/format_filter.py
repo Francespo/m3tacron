@@ -12,7 +12,7 @@ class FormatFilterMixin(PaginationMixin):
     Mixin for states that need hierarchical format filtering.
     """
     # Map of format/macro value -> boolean
-    selected_formats: dict[str, bool] = {m.value: True for m in MacroFormat} | {f.value: True for f in Format}
+    selected_formats: dict[str, bool] = {m.value: False for m in MacroFormat} | {f.value: False for f in Format}
 
     @rx.var
     def macro_states(self) -> dict[str, str]:
