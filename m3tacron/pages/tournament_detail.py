@@ -21,8 +21,10 @@ from ..ui_utils.factions import faction_icon, get_faction_color
 class TournamentDetailState(rx.State):
     """State for the Tournament Detail page."""
     tournament: Tournament | None = None
-    players: list[dict] = []
+    players_swiss: list[dict] = [] # All players, ordered by swiss stats
+    players_cut: list[dict] = []   # Only players who made cut, ordered by cut stats
     matches: list[dict] = []
+
     loading: bool = True
     error: str = ""
     
@@ -66,24 +68,50 @@ class TournamentDetailState(rx.State):
                     self.loading = False
                     return
                 
-                self.tournament = t
+
                 
-                players = session.exec(select(PlayerResult).where(PlayerResult.tournament_id == tournament_id).order_by(PlayerResult.rank)).all()
-                self.players = []
-                for p in players:
+                # Fetch all players ordered by swiss_rank initially (as a stable baseline)
+                # Then we will separate them in Python
+                query_p = select(PlayerResult).where(PlayerResult.tournament_id == tournament_id).order_by(PlayerResult.swiss_rank)
+                all_results = session.exec(query_p).all()
+                
+                self.players_swiss = []
+                self.players_cut = []
+                
+                # Helper to build player dict
+                def build_p_dict(p, rank_val):
                     f_name, f_xws = self._extract_faction_data(p.list_json)
-                    self.players.append({
+                    return {
                         "id": p.id,
                         "name": p.player_name,
-                        "rank": p.rank,
+                        "rank": rank_val, # Display rank
+                        "swiss_rank": p.swiss_rank,
+                        "cut_rank": p.cut_rank,
+                        "wins": (p.swiss_wins or 0) + (p.cut_wins or 0),
+                        "losses": (p.swiss_losses or 0) + (p.cut_losses or 0),
                         "faction": f_name,
                         "faction_xws": f_xws,
                         "has_list": bool(p.list_json and isinstance(p.list_json, dict) and p.list_json.get("pilots")),
-                        "xws": p.list_json if p.list_json else {},
-                    })
+                    }
+
+                # 1. Build Swiss List (Everyone)
+                for p in all_results:
+                    # Swiss Rank should exist, but fallback to 0 if None
+                    r = p.swiss_rank if p.swiss_rank is not None else 0
+                    self.players_swiss.append(build_p_dict(p, r))
+                    
+                    # 2. Check for Cut
+                    if p.cut_rank is not None:
+                        self.players_cut.append(build_p_dict(p, p.cut_rank))
+                
+                # Sort Swiss (should be sorted by query, but ensure)
+                self.players_swiss.sort(key=lambda x: x["swiss_rank"])
+                
+                # Sort Cut
+                self.players_cut.sort(key=lambda x: x["cut_rank"])
                 
                 matches = session.exec(select(Match).where(Match.tournament_id == tournament_id).order_by(Match.round_number)).all()
-                player_map = {p.id: p.player_name for p in players}
+                player_map = {p.id: p.player_name for p in all_results}
                 self.matches = [{
                     "round": m.round_number,
                     "type": m.round_type,
@@ -95,11 +123,11 @@ class TournamentDetailState(rx.State):
                     "score2": m.player2_score,
                     "winner_id": m.winner_id,
                     "scenario": m.scenario,
-                    "player1_first": m.first_player_id == m.player1_id if m.first_player_id else False,
-                    "player2_first": m.first_player_id == m.player2_id if m.first_player_id else False,
                 } for m in matches]
+
                 
                 self.loading = False
+
         except Exception as e:
             self.error = f"Error: {str(e)}"
             self.loading = False
@@ -345,11 +373,7 @@ def match_row(match: dict) -> rx.Component:
                     text_align="left",
                     width="100%"
                 ),
-                rx.cond(
-                     match["player1_first"],
-                     rx.badge("1st", variant="solid", color_scheme="yellow", size="1"),
-                     rx.fragment()
-                ),
+
                  width="40%", # Allocate space for name
                  justify="start",
                  align="center",
@@ -369,12 +393,8 @@ def match_row(match: dict) -> rx.Component:
 
             # Player 2 (Right)
             rx.hstack(
-                rx.cond(
-                     match["player2_first"],
-                     rx.badge("1st", variant="solid", color_scheme="yellow", size="1"),
-                     rx.fragment()
-                ),
                 rx.text(
+
                     match["player2"], 
                     size="2", 
                     color=p2_color, 
@@ -427,20 +447,45 @@ def tournament_detail_content() -> rx.Component:
                         spacing="4", width="100%", margin_bottom="24px",
                     ),
                     rx.hstack(
-                        stat_card("PLAYERS", TournamentDetailState.players.length()),
+                        stat_card("PLAYERS", TournamentDetailState.players_swiss.length()),
                         stat_card("ROUNDS", TournamentDetailState.matches.length()),
                         margin_bottom="24px",
                     ),
                     rx.grid(
-                        terminal_panel("RANKINGS", rx.vstack(rx.foreach(TournamentDetailState.players.to(list[dict]), player_row), spacing="0", width="100%")),
+                        rx.vstack(
+                            # Conditional Cut Standings
+                            rx.cond(
+                                TournamentDetailState.players_cut.length() > 0,
+                                terminal_panel(
+                                    "CUT STANDINGS", 
+                                    rx.vstack(rx.foreach(TournamentDetailState.players_cut.to(list[dict]), player_row), spacing="0", width="100%")
+                                ),
+                                rx.fragment()
+                            ),
+                            # Swiss Standings (Always shown, title depends on cut existence?)
+                            # User said: "If a tournament has a cut phase you should show the cut leaderboard and stats above the swiss, otherwise show the swiss only."
+                            # But usually we show SIDE by SIDE or Stacked?
+                            # Grid column is 2. So matching existing layout logic.
+                            # Existing was: Rankings (Left), Matches (Right).
+                            # If we have CUT, where do we put it?
+                            # Maybe Stack Cut then Swiss on the Left Column?
+                            terminal_panel(
+                                rx.cond(TournamentDetailState.players_cut.length() > 0, "SWISS STANDINGS", "STANDINGS"),
+                                rx.vstack(rx.foreach(TournamentDetailState.players_swiss.to(list[dict]), player_row), spacing="0", width="100%")
+                            ),
+                            spacing="4",
+                            width="100%"
+                        ),
                         rx.cond(
                             TournamentDetailState.matches.length() > 0,
                             terminal_panel("MATCHES", rx.vstack(rx.foreach(TournamentDetailState.matches.to(list[dict]), match_row), spacing="0", width="100%")),
                             rx.fragment(),
                         ),
                         columns="2", spacing="6", width="100%",
+                        align_items="start"
                     ),
                     width="100%", max_width="1200px",
+
                 )
             ),
         ),

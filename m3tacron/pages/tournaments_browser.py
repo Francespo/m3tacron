@@ -39,7 +39,7 @@ class TournamentsState(TournamentFilterMixin):
 
     def _get_query_filters(self):
         """Build filters for the SQL query based on state."""
-        print(f"DEBUG: _get_query_filters. Formats: {self.selected_formats}")
+
         filters = []
         
         # 1. Format Filter
@@ -152,21 +152,75 @@ class TournamentsState(TournamentFilterMixin):
         self.current_page = 0
         self.load_tournaments()
 
-    # --- Hooks ---
+    # --- Hooks & Mixin Overrides ---
+    # WHY: Reflex silently fails on mixin event propagation.
+    # Inlining logic from FormatFilterMixin / TournamentFilterMixin.
+
     def on_tournament_filter_change(self):
-        """Hook from TournamentFilterMixin (Date/Loc)."""
+        """Central reload hook."""
         self.current_page = 0
         self.load_tournaments()
 
     def on_filter_change(self):
         """Hook from FormatFilterMixin (Format)."""
-        self.current_page = 0
-        self.load_tournaments()
+        self.on_tournament_filter_change()
 
     def on_location_change(self):
         """Hook from TournamentFilterMixin (Location)."""
-        self.current_page = 0
-        self.load_tournaments()
+        self.on_tournament_filter_change()
+
+    def toggle_format_macro(self, macro_val: str):
+        """Toggle a macro format and reload tournaments."""
+        from ..backend.data_structures.formats import MacroFormat
+
+        current_state = self.macro_states.get(macro_val, "unchecked")
+        target_checked = current_state == "unchecked"
+
+        new_formats = self.selected_formats.copy()
+        try:
+            macro = MacroFormat(macro_val)
+            for f in macro.formats():
+                new_formats[f.value] = target_checked
+        except ValueError:
+            pass
+        new_formats[macro_val] = target_checked
+
+        self.selected_formats = new_formats
+        self.on_tournament_filter_change()
+
+    def toggle_format_child(self, child_val: str):
+        """Toggle a specific format child and reload tournaments."""
+        checked = not self.selected_formats.get(child_val, False)
+        new_formats = self.selected_formats.copy()
+        new_formats[child_val] = checked
+        self.selected_formats = new_formats
+        self.on_tournament_filter_change()
+
+    def set_date_start(self, date: str):
+        self.date_range_start = date
+        self.on_tournament_filter_change()
+
+    def set_date_end(self, date: str):
+        self.date_range_end = date
+        self.on_tournament_filter_change()
+
+    def toggle_continent(self, val: str, checked: bool):
+        new_sel = self.selected_continents.copy()
+        new_sel[val] = checked
+        self.selected_continents = new_sel
+        self.on_tournament_filter_change()
+
+    def toggle_country(self, val: str, checked: bool):
+        new_sel = self.selected_countries.copy()
+        new_sel[val] = checked
+        self.selected_countries = new_sel
+        self.on_tournament_filter_change()
+
+    def toggle_city(self, val: str, checked: bool):
+        new_sel = self.selected_cities.copy()
+        new_sel[val] = checked
+        self.selected_cities = new_sel
+        self.on_tournament_filter_change()
 
     def on_page_change(self):
         """Hook from PaginationMixin."""

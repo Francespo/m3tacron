@@ -62,6 +62,9 @@ class UpgradeDetailState(FormatFilterMixin):
     # Chart Data
     chart_data: list[dict] = []
     
+    # Cache
+    _all_results_cached: list[dict] = []
+    
     @rx.var
     def upgrade_type_options(self) -> list[list[str]]:
         return [[t.label, t.value] for t in UpgradeType]
@@ -148,6 +151,10 @@ class UpgradeDetailState(FormatFilterMixin):
         self.current_page = 0
         self.load_data()
 
+    def update_view(self):
+        start = self.current_page * self.page_size
+        self.results = self._all_results_cached[start:start + self.page_size]
+
     def load_data(self):
         if not self.upgrade_xws: return
 
@@ -188,10 +195,9 @@ class UpgradeDetailState(FormatFilterMixin):
         data = aggregate_card_stats(filters, criteria, direction, mode, ds_enum)
         
         self.total_items_count = len(data)
-        
-        # Pagination
-        start = self.current_page * self.page_size
-        self.results = data[start:start + self.page_size]
+        self._all_results_cached = data
+        self.current_page = 0
+        self.update_view()
         
         # 2. Load Chart Data
         # Chart shows usage of MAIN UPGRADE + Selected Comparisons (Pilots or Upgrades)
@@ -283,7 +289,7 @@ class UpgradeDetailState(FormatFilterMixin):
         self.load_upgrade()
 
     def on_page_change(self):
-        self.load_data()
+        self.update_view()
 
     def toggle_format_macro(self, macro_val: str, checked: bool):
         super().toggle_format_macro(macro_val, checked)

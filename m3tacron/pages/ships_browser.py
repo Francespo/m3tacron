@@ -161,6 +161,9 @@ class ShipsBrowserState(TournamentFilterMixin):
         # However, we need to init formats.
         pass
 
+    # Cache for full filtered results
+    _all_ships_cached: list[dict] = []
+
     def on_mount(self):
         self.load_locations()
         if not self.data_source: self.data_source = "xwa"
@@ -173,12 +176,80 @@ class ShipsBrowserState(TournamentFilterMixin):
         self.set_default_formats_for_source(self.data_source)
         self.load_data()
 
+    # --- Mixin Overrides ---
+    # WHY: Reflex silently fails on super() in event handlers.
+    # Inlining the logic from FormatFilterMixin + calling load_data directly.
+    def on_filter_change(self):
+        """Hook override: reload data when format filter changes."""
+        self.on_tournament_filter_change()
+
+    def toggle_format_macro(self, macro_val: str):
+        """Toggle a macro format and reload ship data."""
+        from ..backend.data_structures.formats import MacroFormat
+        
+        current_state = self.macro_states.get(macro_val, "unchecked")
+        target_checked = current_state == "unchecked"
+        
+        new_formats = self.selected_formats.copy()
+        try:
+            macro = MacroFormat(macro_val)
+            for f in macro.formats():
+                new_formats[f.value] = target_checked
+        except ValueError:
+            pass
+        new_formats[macro_val] = target_checked
+        
+        self.selected_formats = new_formats
+        self.on_tournament_filter_change()
+
+    def toggle_format_child(self, child_val: str):
+        """Toggle a specific format child and reload ship data."""
+        checked = not self.selected_formats.get(child_val, False)
+        new_formats = self.selected_formats.copy()
+        new_formats[child_val] = checked
+        self.selected_formats = new_formats
+        self.on_tournament_filter_change()
+
+    # --- Date Range Overrides ---
+    def set_date_start(self, date: str):
+        self.date_range_start = date
+        self.on_tournament_filter_change()
+
+    def set_date_end(self, date: str):
+        self.date_range_end = date
+        self.on_tournament_filter_change()
+
+    # --- Location Overrides ---
+    def toggle_continent(self, val: str, checked: bool):
+        new_sel = self.selected_continents.copy()
+        new_sel[val] = checked
+        self.selected_continents = new_sel
+        self.on_tournament_filter_change()
+
+    def toggle_country(self, val: str, checked: bool):
+        new_sel = self.selected_countries.copy()
+        new_sel[val] = checked
+        self.selected_countries = new_sel
+        self.on_tournament_filter_change()
+
+    def toggle_city(self, val: str, checked: bool):
+        new_sel = self.selected_cities.copy()
+        new_sel[val] = checked
+        self.selected_cities = new_sel
+        self.on_tournament_filter_change()
+
     def on_tournament_filter_change(self):
         self.current_page = 0
         self.load_data()
     
     def on_page_change(self):
-        self.load_data()
+        self.update_view()
+
+    def update_view(self):
+        """Slice the full dataset for the current page."""
+        start = self.current_page * self.page_size
+        end = start + self.page_size
+        self.ships = self._all_ships_cached[start:end]
     
     def load_data(self):
         # Build sort criteria
@@ -191,15 +262,14 @@ class ShipsBrowserState(TournamentFilterMixin):
         direction = SortDirection(self.sort_direction)
         
         # Build allowed formats
-        allowed = []
+        allowed_set = set()
+        valid_format_values = {f.value for f in Format}
+        
         for k, v in self.selected_formats.items():
-            is_valid_format = False
-            for f in Format:
-                if f.value == k:
-                    is_valid_format = True
-                    break
-            if v and is_valid_format:
-                allowed.append(k)
+            if v and k in valid_format_values:
+                allowed_set.add(k)
+        
+        allowed = list(allowed_set)
         
         # Build faction filter
         active_factions = [k for k, v in self.selected_factions.items() if v]
@@ -225,11 +295,10 @@ class ShipsBrowserState(TournamentFilterMixin):
         data = aggregate_ship_stats(filters, criteria, direction, ds_enum)
         
         self.total_items_count = len(data)
+        self._all_ships_cached = data
+        self.current_page = 0
         
-        # Pagination
-        start = self.current_page * self.page_size
-        end = start + self.page_size
-        self.ships = data[start:end]
+        self.update_view()
 
 
 def render_filters() -> rx.Component:

@@ -51,7 +51,8 @@ def aggregate_ship_stats(
         # Load all pilots to build ship-faction mapping
         all_pilots = load_all_pilots(data_source)
         
-        allowed_formats = filters.get("allowed_formats", None) or None
+        
+        allowed_formats = filters.get("allowed_formats", None)
         allowed_date_start = filters.get("date_start", None)
         allowed_date_end = filters.get("date_end", None)
         
@@ -134,8 +135,17 @@ def aggregate_ship_stats(
             except (ValueError, AttributeError):
                 faction_xws = list_faction.lower().replace(" ", "")
             
-            wins = result.swiss_wins + result.cut_wins
-            games = wins + result.swiss_losses + result.cut_losses + result.swiss_draws
+            s_wins = result.swiss_wins or 0
+            s_losses = result.swiss_losses or 0
+            s_draws = result.swiss_draws or 0
+            
+            c_wins = result.cut_wins or 0
+            c_losses = result.cut_losses or 0
+            c_draws = result.cut_draws or 0
+            
+            wins = s_wins + c_wins
+            games = wins + s_losses + c_losses + s_draws + c_draws
+
             
             # Track which ships appeared in this list
             list_id = (result.tournament_id, result.player_name)

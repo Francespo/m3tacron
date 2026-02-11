@@ -56,6 +56,9 @@ class PilotDetailState(FormatFilterMixin):
     # Chart Data
     chart_data: list[dict] = []
     
+    # Cache
+    _all_results_cached: list[dict] = []
+    
     @rx.var
     def upgrade_type_options(self) -> list[list[str]]:
         return [[t.label, t.value] for t in UpgradeType]
@@ -129,6 +132,10 @@ class PilotDetailState(FormatFilterMixin):
         self.load_data()
         self.loading = False
 
+    def update_view(self):
+        start = self.current_page * self.page_size
+        self.results = self._all_results_cached[start:start + self.page_size]
+
     def load_data(self):
         if not self.pilot_xws: return
 
@@ -164,10 +171,9 @@ class PilotDetailState(FormatFilterMixin):
         data = aggregate_card_stats(filters, criteria, direction, "upgrades", ds_enum)
         
         self.total_items_count = len(data)
-        
-        # Pagination
-        start = self.current_page * self.page_size
-        self.results = data[start:start + self.page_size]
+        self._all_results_cached = data
+        self.current_page = 0
+        self.update_view()
         
         # 2. Load Chart Data
         # For chart, we generally ignore pagination but respect date/format filters
@@ -219,7 +225,7 @@ class PilotDetailState(FormatFilterMixin):
         self.load_pilot()
 
     def on_page_change(self):
-        self.load_data()
+        self.update_view()
 
     def toggle_format_macro(self, macro_val: str, checked: bool):
         super().toggle_format_macro(macro_val, checked)

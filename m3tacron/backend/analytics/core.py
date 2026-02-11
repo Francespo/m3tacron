@@ -481,8 +481,20 @@ def aggregate_card_stats(
             if not xws or not isinstance(xws, dict): continue
             
             # Process List
-            wins = result.swiss_wins + result.cut_wins
-            games = wins + result.swiss_losses + result.cut_losses + result.swiss_draws
+            # wins = swiss_wins + (cut_wins or 0)
+            # games = (swiss_wins + swiss_losses + swiss_draws) + (cut_wins + cut_losses + cut_draws or 0)
+            
+            s_wins = result.swiss_wins or 0
+            s_losses = result.swiss_losses or 0
+            s_draws = result.swiss_draws or 0
+            
+            c_wins = result.cut_wins or 0
+            c_losses = result.cut_losses or 0
+            c_draws = result.cut_draws or 0
+            
+            wins = s_wins + c_wins
+            games = wins + s_losses + c_losses + s_draws + c_draws
+
             
             if mode == "pilots":
                 list_faction = xws.get("faction", "unknown")

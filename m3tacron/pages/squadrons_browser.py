@@ -49,11 +49,72 @@ class SquadronsState(TournamentFilterMixin):
 
     def on_page_change(self):
         """Handle page changes by reloading data."""
-        self.load_squadrons()
+        self.update_view()
 
     def on_tournament_filter_change(self):
         self.current_page = 0
         self.load_squadrons()
+
+    # --- Mixin Overrides ---
+    # WHY: Reflex silently fails on mixin event propagation.
+    # Inlining logic from FormatFilterMixin / TournamentFilterMixin.
+
+    def on_filter_change(self):
+        """Hook override: format filter changed."""
+        self.on_tournament_filter_change()
+
+    def toggle_format_macro(self, macro_val: str):
+        """Toggle a macro format and reload squadron data."""
+        from ..backend.data_structures.formats import MacroFormat
+
+        current_state = self.macro_states.get(macro_val, "unchecked")
+        target_checked = current_state == "unchecked"
+
+        new_formats = self.selected_formats.copy()
+        try:
+            macro = MacroFormat(macro_val)
+            for f in macro.formats():
+                new_formats[f.value] = target_checked
+        except ValueError:
+            pass
+        new_formats[macro_val] = target_checked
+
+        self.selected_formats = new_formats
+        self.on_tournament_filter_change()
+
+    def toggle_format_child(self, child_val: str):
+        """Toggle a specific format child and reload squadron data."""
+        checked = not self.selected_formats.get(child_val, False)
+        new_formats = self.selected_formats.copy()
+        new_formats[child_val] = checked
+        self.selected_formats = new_formats
+        self.on_tournament_filter_change()
+
+    def set_date_start(self, date: str):
+        self.date_range_start = date
+        self.on_tournament_filter_change()
+
+    def set_date_end(self, date: str):
+        self.date_range_end = date
+        self.on_tournament_filter_change()
+
+    def toggle_continent(self, val: str, checked: bool):
+        new_sel = self.selected_continents.copy()
+        new_sel[val] = checked
+        self.selected_continents = new_sel
+        self.on_tournament_filter_change()
+
+    def toggle_country(self, val: str, checked: bool):
+        new_sel = self.selected_countries.copy()
+        new_sel[val] = checked
+        self.selected_countries = new_sel
+        self.on_tournament_filter_change()
+
+    def toggle_city(self, val: str, checked: bool):
+        new_sel = self.selected_cities.copy()
+        new_sel[val] = checked
+        self.selected_cities = new_sel
+        self.on_tournament_filter_change()
 
     def toggle_faction(self, faction: str, checked: bool):
         self.selected_factions[faction] = checked
@@ -70,7 +131,9 @@ class SquadronsState(TournamentFilterMixin):
     all_ships: list[str] = []
     
     
+    # Data
     squadrons_data: list[dict] = []
+    _all_squadrons_cached: list[dict] = []
     total_lists: int = 0
     
     selected_squadron: str = ""
@@ -142,8 +205,57 @@ class SquadronsState(TournamentFilterMixin):
         self.sort_mode = value
         self.load_squadrons()
     
-    
+    def update_view(self):
+        """Slice cache and populate UI data."""
+        start = self.current_page * self.page_size
+        page_items = self._all_squadrons_cached[start:start + self.page_size]
+        
+        new_data = []
+        
+        # Helper for icons update (need to load pilots if not already loaded, but should be fast)
+        # Ideally this map should be cached too or computed once in load_squadrons if static enough
+        all_pilots = load_all_pilots()
+        ship_map = {p["ship"]: p.get("ship_xws", "") for p in all_pilots.values() if "ship" in p and "ship_xws" in p}
+
+        for item in page_items:
+            faction = item["faction"]
+            ships = item["ships_list"]
+            
+            # Format Ships for UI
+            ship_counts = Counter(ships)
+            ship_ui_list = []
+            for name, count in sorted(ship_counts.items()):
+                raw_xws = ship_map.get(name, "")
+                if not raw_xws:
+                    raw_xws = name.lower().replace(" ", "").replace("-", "")
+                icon_xws = get_ship_icon_name(raw_xws)
+                
+                ship_ui_list.append({
+                    "name": name,
+                    "count": count,
+                    "icon": icon_xws,
+                    "color": FACTION_COLORS.get(faction, TEXT_SECONDARY),
+                })
+            
+            raw_faction = faction.lower().replace(" ", "").replace("-", "")
+            
+            new_data.append({
+                "signature": item["signature"],
+                "faction": Faction.from_xws(faction).label,
+                "faction_key": faction,
+                "icon": FACTION_ICONS.get(raw_faction, ""),
+                "ships": ship_ui_list,
+                "count": item["count"],
+                "format_play_rate": round(item["count"] / max(self.total_lists, 1) * 100, 1),
+                "win_rate": round(item["win_rate"], 1),
+                "games": item["games"],
+                "color": FACTION_COLORS.get(raw_faction, TEXT_SECONDARY),
+            })
+        
+        self.squadrons_data = new_data
+
     def load_squadrons(self):
+        print("DEBUG: load_squadrons called")
         with Session(engine) as session:
             # Optimize: Join with Tournament to filter by date/format efficiently
             query = select(PlayerResult, Tournament).where(PlayerResult.tournament_id == Tournament.id)
@@ -257,10 +369,11 @@ class SquadronsState(TournamentFilterMixin):
                 
                 # Calculate games/wins
                 # Swiss + Cut
-                wins = r.swiss_wins + r.cut_wins
-                losses = r.swiss_losses + r.cut_losses
-                draws = r.swiss_draws
+                wins = (r.swiss_wins or 0) + (r.cut_wins or 0)
+                losses = (r.swiss_losses or 0) + (r.cut_losses or 0)
+                draws = (r.swiss_draws or 0) + (r.cut_draws or 0)
                 games = wins + losses + draws
+
                 
                 # If no record of games (e.g. only rank), heuristic? 
                 # For now rely on recorded wins/losses.
@@ -300,50 +413,10 @@ class SquadronsState(TournamentFilterMixin):
                 processed_list.sort(key=lambda x: x["count"], reverse=True)
 
             self.total_items_count = len(processed_list)
+            self._all_squadrons_cached = processed_list
+            self.current_page = 0
             
-            # Pagination
-            start = self.current_page * self.page_size
-            page_items = processed_list[start:start + self.page_size]
-            
-            self.squadrons_data = []
-            
-            # Helper for icons update
-            ship_map = {p["ship"]: p.get("ship_xws", "") for p in all_pilots.values() if "ship" in p and "ship_xws" in p}
-
-            for item in page_items:
-                faction = item["faction"]
-                ships = item["ships_list"]
-                
-                # Format Ships for UI
-                ship_counts = Counter(ships)
-                ship_ui_list = []
-                for name, count in sorted(ship_counts.items()):
-                    raw_xws = ship_map.get(name, "")
-                    if not raw_xws:
-                        raw_xws = name.lower().replace(" ", "").replace("-", "")
-                    icon_xws = get_ship_icon_name(raw_xws)
-                    
-                    ship_ui_list.append({
-                        "name": name,
-                        "count": count,
-                        "icon": icon_xws,
-                        "color": FACTION_COLORS.get(faction, TEXT_SECONDARY),
-                    })
-                
-                raw_faction = faction.lower().replace(" ", "").replace("-", "")
-                
-                self.squadrons_data.append({
-                    "signature": item["signature"],
-                    "faction": Faction.from_xws(faction).label,
-                    "faction_key": faction,
-                    "icon": FACTION_ICONS.get(raw_faction, ""),
-                    "ships": ship_ui_list,
-                    "count": item["count"],
-                    "format_play_rate": round(item["count"] / max(self.total_lists, 1) * 100, 1),
-                    "win_rate": round(item["win_rate"], 1),
-                    "games": item["games"],
-                    "color": FACTION_COLORS.get(raw_faction, TEXT_SECONDARY),
-                })
+            self.update_view()
                 
             # Populate autocomplete if empty (first run)
             if not self.all_ships:
