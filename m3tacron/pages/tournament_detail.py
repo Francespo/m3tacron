@@ -418,7 +418,7 @@ def tournament_detail_content() -> rx.Component:
                         rx.vstack(
                             rx.heading(TournamentDetailState.tournament.name, size="6", font_family=SANS_FONT, weight="bold"),
                             rx.hstack(
-                                rx.badge(TournamentDetailState.tournament.format.macro.value, color_scheme="gray"),
+                                rx.badge(TournamentDetailState.tournament.macro_format, color_scheme="gray"),
                                 rx.text(TournamentDetailState.tournament.date.to(str), size="2", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
                                 spacing="2",
                             ),
