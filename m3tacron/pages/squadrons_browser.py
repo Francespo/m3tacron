@@ -43,13 +43,22 @@ class SquadronsState(TournamentFilterMixin):
         self.set_default_formats_for_source("xwa")
         self.load_squadrons()
 
-    @rx.var
-    def total_pages_squadrons(self) -> int:
-        return (self.total_items_count + self.page_size - 1) // self.page_size if self.total_items_count > 0 else 1
+    # Redundant total_pages_squadrons removed
+
 
     def on_page_change(self):
         """Handle page changes by reloading data."""
         self.update_view()
+
+    # Override Pagination Methods to fix Reflex Mixin Dispatch
+    def next_page(self):
+        self.current_page += 1
+        self.update_view()
+
+    def prev_page(self):
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_view()
 
     def on_tournament_filter_change(self):
         self.current_page = 0
@@ -603,7 +612,7 @@ def render_sidebar_filters() -> rx.Component:
             SquadronsState.ship_search_query,
             SquadronsState.set_ship_search_query
         ),
-
+        
         rx.divider(border_color=BORDER_COLOR, flex_shrink="0"),
 
         # Tournament Filters
@@ -781,7 +790,7 @@ def squadrons_content() -> rx.Component:
             margin_bottom="16px"
         ),
         rx.grid(
-            rx.foreach(SquadronsState.squadrons_data.to(list[dict]), squadron_card),
+            rx.foreach(SquadronsState.squadrons_data, squadron_card),
             columns="2",
             spacing="4",
             width="100%",

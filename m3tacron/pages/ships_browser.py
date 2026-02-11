@@ -245,6 +245,16 @@ class ShipsBrowserState(TournamentFilterMixin):
     def on_page_change(self):
         self.update_view()
 
+    # Override Pagination Methods to fix Reflex Mixin Dispatch
+    def next_page(self):
+        self.current_page += 1
+        self.update_view()
+
+    def prev_page(self):
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_view()
+
     def update_view(self):
         """Slice the full dataset for the current page."""
         start = self.current_page * self.page_size

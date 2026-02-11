@@ -226,6 +226,16 @@ class TournamentsState(TournamentFilterMixin):
         """Hook from PaginationMixin."""
         self.update_view()
 
+    # Override Pagination Methods to fix Reflex Mixin Dispatch
+    def next_page(self):
+        self.current_page += 1
+        self.update_view()
+
+    def prev_page(self):
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_view()
+
     def on_mount_tournaments(self):
         """Called on page mount."""
         self.page_size = 10  # Override default (20) at runtime, not class-level

@@ -29,14 +29,12 @@ class PaginationMixin(rx.State):
 
     def next_page(self):
         """Handle next page click."""
-        if isinstance(self.current_page, (int, float)):
-            self.current_page += 1
-            return self.on_page_change()
-        return []
+        self.current_page += 1
+        return self.on_page_change()
 
     def prev_page(self):
         """Handle prev page click."""
-        if isinstance(self.current_page, (int, float)) and self.current_page > 0:
+        if self.current_page > 0:
             self.current_page -= 1
             return self.on_page_change()
         return []
