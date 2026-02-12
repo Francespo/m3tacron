@@ -669,108 +669,156 @@ class LongshanksScraper(BaseScraper):
 
 
     def get_matches(self, tournament_id: str) -> list[Match]:
-        """
-        Scrape matches from the Games tab (Pure Python).
+        """Scrape matches from the Games tab by iterating the round dropdown.
+
+        Longshanks shows one round at a time via a #round_selector dropdown.
+        This method selects each round option, waits for DOM update, and
+        extracts match data from the .results containers.
         """
         matches = []
         url = f"{self.base_url}/event/{tournament_id}/?tab=games"
-        
+
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
             try:
                 page.goto(url, wait_until="domcontentloaded", timeout=60000)
-                
-                # Cookie cleanup
-                page.add_style_tag(content="#cookie_permission { display: none !important; }")
-                
-                try:
-                    page.wait_for_selector(".results", timeout=5000)
-                except:
-                    # Maybe no matches
+                page.add_style_tag(
+                    content="#cookie_permission { display: none !important; }"
+                )
+                page.wait_for_timeout(2000)
+
+                # Get round options from the dropdown
+                round_options = page.evaluate("""() => {
+                    const sel = document.getElementById('round_selector');
+                    if (!sel) return [];
+                    return Array.from(sel.options).map(o => ({
+                        value: o.value, text: o.innerText.trim()
+                    }));
+                }""")
+
+                if not round_options:
+                    logger.warning(f"No round_selector found for {tournament_id}")
                     return []
-                
-                items = page.locator(".item, .results").all()
-                
-                current_round = 0
-                current_round_type = RoundType.SWISS
-                current_scenario = None
-                
-                for el in items:
-                    cls = el.get_attribute("class")
-                    if "item" in cls:
-                        # Header
-                        txt = el.inner_text().strip()
-                        # Parse Round
-                        if "Round" in txt:
-                            import re
-                            m = re.search(r"Round (\\d+)", txt)
-                            if m: current_round = int(m.group(1))
-                            else: current_round += 1
-                            current_round_type = RoundType.SWISS
-                        elif "Cut" in txt or "Top" in txt:
-                             current_round += 1
-                             current_round_type = RoundType.CUT
-                        
-                        # Parse Scenario
-                        if "-" in txt:
-                            scen_txt = txt.split("-", 1)[1].strip()
-                            current_scenario = self._parse_scenario(scen_txt)
-                        else:
-                            current_scenario = None
-                            
-                    elif "results" in cls:
-                        # Matches
-                        match_rows = el.locator(".match").all()
-                        for m_row in match_rows:
-                            try:
-                                # Extract Players and Scores
-                                players = m_row.locator(".player").all()
-                                scores = m_row.locator(".score").all()
-                                
-                                if len(players) < 2: continue
-                                
-                                p1_name = players[0].locator(".player_link").inner_text().strip()
-                                p2_name = players[1].locator(".player_link").inner_text().strip()
-                                
-                                s1 = 0
-                                s2 = 0
-                                if len(scores) >= 2:
-                                    try:
-                                        s1 = int(scores[0].inner_text())
-                                    except: s1 = 0
-                                    try:
-                                        s2 = int(scores[1].inner_text())
-                                    except: s2 = 0
-                                
-                                # Validate Bye
-                                is_bye = False
-                                if "bye" in p2_name.lower(): is_bye = True
-                                
-                                # Winner
-                                winner_name = None
-                                if s1 > s2: winner_name = p1_name
-                                elif s2 > s1: winner_name = p2_name
-                                
-                                m_dict = {
-                                    "round_number": current_round,
-                                    "round_type": current_round_type,
-                                    "scenario": current_scenario,
-                                    "player1_score": s1,
-                                    "player2_score": s2,
-                                    "is_bye": is_bye,
-                                    "p1_name_temp": p1_name,
-                                    "p2_name_temp": p2_name,
-                                    "winner_name_temp": winner_name
-                                }
-                                matches.append(m_dict)
-                            except Exception as me:
-                                pass
+
+                logger.info(
+                    f"Found {len(round_options)} rounds in dropdown."
+                )
+
+                for opt in round_options:
+                    round_text = opt["text"]
+                    round_val = opt["value"]
+
+                    # Parse round number and type from dropdown text
+                    round_num = 0
+                    round_type = RoundType.SWISS
+                    rm = re.search(r"Round (\d+)", round_text)
+                    if rm:
+                        round_num = int(rm.group(1))
+                    elif "Cut" in round_text or "Top" in round_text:
+                        round_type = RoundType.CUT
+                        cm = re.search(r"(\d+)", round_text)
+                        round_num = int(cm.group(1)) if cm else 0
+                    else:
+                        # Fallback: use dropdown value as round number
+                        try:
+                            round_num = int(round_val)
+                        except (ValueError, TypeError):
+                            round_num = 0
+
+                    # Parse scenario from round text ("Round 1 - Scramble")
+                    scenario = None
+                    if " - " in round_text:
+                        scen_part = round_text.split(" - ", 1)[1].strip()
+                        scenario = self._parse_scenario(scen_part)
+
+                    # Select round using robust trigger (jQuery or Native)
+                    page.evaluate(f"""() => {{
+                        const sel = document.getElementById('round_selector');
+                        if (!sel) return;
+                        sel.value = '{round_val}';
+                        if (typeof jQuery !== 'undefined') {{
+                            jQuery(sel).trigger('change');
+                        }} else {{
+                            sel.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                        }}
+                    }}""")
+                    page.wait_for_timeout(2000)
+
+                    # Each .results div IS one match (2 child .player divs)
+                    result_divs = page.locator(".results").all()
+                    for rdiv in result_divs:
+                        try:
+                            player_divs = rdiv.locator(".player").all()
+                            if len(player_divs) < 2:
+                                continue
+
+                            # Extract player names from .player_link
+                            p1_link = player_divs[0].locator(".player_link")
+                            p2_link = player_divs[1].locator(".player_link")
+                            if p1_link.count() == 0 or p2_link.count() == 0:
+                                continue
+
+                            p1_name = p1_link.inner_text().strip()
+                            p2_name = p2_link.inner_text().strip()
+
+                            # Extract scores from .score elements
+                            s1 = 0
+                            s2 = 0
+                            p1_score_el = player_divs[0].locator(".score")
+                            p2_score_el = player_divs[1].locator(".score")
+                            if p1_score_el.count() > 0:
+                                try:
+                                    s1 = int(p1_score_el.inner_text().strip())
+                                except ValueError:
+                                    s1 = 0
+                            if p2_score_el.count() > 0:
+                                try:
+                                    s2 = int(p2_score_el.inner_text().strip())
+                                except ValueError:
+                                    s2 = 0
+
+                            # Winner from CSS class (winner/loser)
+                            p1_cls = player_divs[0].get_attribute("class") or ""
+                            p2_cls = player_divs[1].get_attribute("class") or ""
+                            winner_name = None
+                            if "winner" in p1_cls:
+                                winner_name = p1_name
+                            elif "winner" in p2_cls:
+                                winner_name = p2_name
+                            elif s1 > s2:
+                                winner_name = p1_name
+                            elif s2 > s1:
+                                winner_name = p2_name
+
+                            is_bye = "bye" in p2_name.lower()
+
+                            m_dict = {
+                                "round_number": round_num,
+                                "round_type": round_type,
+                                "scenario": scenario,
+                                "player1_score": s1,
+                                "player2_score": s2,
+                                "is_bye": is_bye,
+                                "p1_name_temp": p1_name,
+                                "p2_name_temp": p2_name,
+                                "winner_name_temp": winner_name,
+                            }
+                            matches.append(m_dict)
+                        except Exception:
+                            pass
+
+                    logger.info(
+                        f"Round '{round_text}': "
+                        f"{sum(1 for m in matches if m['round_number'] == round_num)} matches"
+                    )
+
             except Exception as e:
-                print(f"Error scraping matches: {e}")
+                logger.error(f"Error scraping matches: {e}")
             finally:
                 browser.close()
-                
+
+        logger.info(f"Total matches scraped: {len(matches)}")
         return matches
 
     def list_tournaments(
