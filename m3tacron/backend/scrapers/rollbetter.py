@@ -2,7 +2,7 @@
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, date as date_type
 from playwright.sync_api import sync_playwright
 
 from .base import BaseScraper
@@ -28,9 +28,16 @@ class RollbetterScraper(BaseScraper):
     
     BASE_URL = "https://rollbetter.gg"
     
-    def __init__(self):
+    def __init__(self, game_id: int | None = None):
+        """Initialize scraper.
+
+        Args:
+            game_id: Rollbetter game system ID for listing.
+                     5=AMG, 17=XWA, 4=2.0/Legacy. None=no listing.
+        """
         super().__init__()
-        self.cache = {} # Map ID -> dict (full data)
+        self.game_id = game_id
+        self.cache = {}  # Map ID -> dict (full data)
 
     def _parse_date(self, text: str) -> datetime:
         try:
@@ -284,6 +291,111 @@ class RollbetterScraper(BaseScraper):
         for p in players:
             if p.swiss_event_points is None or p.swiss_event_points <= 0:
                 p.swiss_event_points = (p.swiss_wins * pt_win) + (p.swiss_draws * pt_draw)
+
+    def list_tournaments(
+        self,
+        date_from: date_type,
+        date_to: date_type,
+        max_pages: int | None = None
+    ) -> list[dict]:
+        """Discover tournament URLs from Rollbetter game listing pages.
+
+        Scrapes /games/{game_id} with "Past" filter and pagination.
+
+        Args:
+            date_from: Start of date range (inclusive).
+            date_to: End of date range (inclusive).
+            max_pages: Max pages to scrape. None = all pages.
+
+        Returns:
+            List of dicts: {url, name, date, player_count}.
+        """
+        if not self.game_id:
+            raise ValueError("game_id is required for list_tournaments. Set it in constructor.")
+
+        results = []
+        listing_url = f"{self.BASE_URL}/games/{self.game_id}"
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            try:
+                page.goto(listing_url, wait_until="load", timeout=30000)
+                page.wait_for_timeout(3000)
+
+                # Click "Past" filter to show completed tournaments
+                past_btn = page.locator("button:has-text('Past')").first
+                if past_btn.count() > 0:
+                    past_btn.click()
+                    page.wait_for_timeout(3000)
+
+                pages_scraped = 0
+                stop_early = False
+
+                while True:
+                    pages_scraped += 1
+                    if max_pages and pages_scraped > max_pages:
+                        break
+
+                    # Extract tournament cards
+                    cards = page.locator(".card.mb-3").all()
+                    logger.info(f"Page {pages_scraped}: found {len(cards)} tournament cards.")
+
+                    for card in cards:
+                        try:
+                            # Name + URL from card header
+                            name_link = card.locator(".card-header a[href*='/tournaments/']").first
+                            if name_link.count() == 0:
+                                continue
+                            name = name_link.inner_text().strip()
+                            href = name_link.get_attribute("href") or ""
+                            url = f"{self.BASE_URL}{href}" if href.startswith("/") else href
+
+                            # Date & player count from card body text
+                            body_text = card.locator(".card-body").first.inner_text()
+
+                            # Parse date (e.g. "Jan 25, 2026")
+                            event_date = self._parse_date(body_text).date()
+
+                            # Date range filter
+                            if event_date > date_to:
+                                continue
+                            if event_date < date_from:
+                                stop_early = True
+                                break
+
+                            # Player count (e.g. "9 / 16")
+                            player_count = 0
+                            pc_match = re.search(r"(\d+)\s*/\s*\d+", body_text)
+                            if pc_match:
+                                player_count = int(pc_match.group(1))
+
+                            results.append({
+                                "url": url,
+                                "name": name,
+                                "date": event_date.isoformat(),
+                                "player_count": player_count,
+                            })
+                        except Exception as e:
+                            logger.debug(f"Error parsing card: {e}")
+
+                    if stop_early:
+                        break
+
+                    # Pagination: look for "Next" button
+                    next_btn = page.locator(".page-item:not(.disabled) .page-link:has-text('Next')").first
+                    if next_btn.count() > 0:
+                        next_btn.click()
+                        page.wait_for_timeout(3000)
+                    else:
+                        break
+            except Exception as e:
+                logger.error(f"Error listing tournaments: {e}")
+            finally:
+                browser.close()
+
+        logger.info(f"Discovered {len(results)} tournaments from Rollbetter (game {self.game_id}).")
+        return results
 
     def get_tournament_data(self, tournament_id: str) -> Tournament:
         self._ensure_data(tournament_id)

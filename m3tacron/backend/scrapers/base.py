@@ -7,7 +7,7 @@ a standard return type for tournament data, participants, and matches.
 """
 from abc import ABC, abstractmethod
 
-from datetime import datetime
+from datetime import datetime, date
 
 # Database Models
 from ..models import Tournament, PlayerResult, Match
@@ -19,6 +19,26 @@ class BaseScraper(ABC):
     Any platform-specific scraper should inherit from this class and implement
     the abstract methods to transform platform-specific data into our standard Models.
     """
+
+    @abstractmethod
+    def list_tournaments(
+        self,
+        date_from: date,
+        date_to: date,
+        max_pages: int | None = None
+    ) -> list[dict]:
+        """
+        Discover tournament URLs from the platform's listing pages.
+
+        Args:
+            date_from: Start of date range (inclusive).
+            date_to: End of date range (inclusive).
+            max_pages: Max listing pages to scrape. None = no limit.
+
+        Returns:
+            List of dicts with keys: url, name, date, player_count.
+        """
+        pass
 
     @abstractmethod
     def get_tournament_data(self, tournament_id: str) -> Tournament:

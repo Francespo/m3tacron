@@ -7,7 +7,7 @@ Extracts tournament data, player results with XWS, and match data.
 import logging
 import json
 import re
-from datetime import datetime
+from datetime import datetime, date as date_type
 
 from playwright.sync_api import sync_playwright
 
@@ -820,6 +820,126 @@ class LongshanksScraper(BaseScraper):
                 browser.close()
                 
         return matches
+
+    def list_tournaments(
+        self,
+        date_from: date_type,
+        date_to: date_type,
+        max_pages: int | None = None
+    ) -> list[dict]:
+        """
+        Discover tournament URLs from the Longshanks history page.
+
+        Scrapes /events/history/ with pagination, filtering by date range.
+
+        Args:
+            date_from: Start of date range (inclusive).
+            date_to: End of date range (inclusive).
+            max_pages: Max pages to scrape. None = all pages.
+
+        Returns:
+            List of dicts: {url, name, date, player_count}.
+        """
+        results = []
+        history_url = f"{self.base_url}/events/history/"
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            try:
+                page.goto(history_url, wait_until="domcontentloaded", timeout=30000)
+                page.wait_for_timeout(2000)
+                self._dismiss_cookie_popup(page)
+
+                pages_scraped = 0
+                stop_early = False
+
+                while True:
+                    pages_scraped += 1
+                    if max_pages and pages_scraped > max_pages:
+                        break
+
+                    # Extract tournament cards from current page
+                    cards = page.locator(".event_display").all()
+                    logger.info(f"Page {pages_scraped}: found {len(cards)} tournament cards.")
+
+                    for card in cards:
+                        try:
+                            # Name + URL
+                            name_link = card.locator(".event_name a").first
+                            if name_link.count() == 0:
+                                continue
+                            name = name_link.inner_text().strip()
+                            href = name_link.get_attribute("href") or ""
+                            url = f"{self.base_url}{href}" if href.startswith("/") else href
+
+                            # Date — find td with img[alt='Date'], get next sibling td
+                            date_text = page.evaluate(
+                                """(card) => {
+                                    const tds = card.querySelectorAll('td');
+                                    for (let i = 0; i < tds.length; i++) {
+                                        const img = tds[i].querySelector('img[alt="Date"]');
+                                        if (img && tds[i+1]) return tds[i+1].textContent.trim();
+                                    }
+                                    return '';
+                                }""",
+                                card.element_handle()
+                            )
+                            parsed_date = self._parse_date(date_text)
+                            event_date = parsed_date.date() if isinstance(parsed_date, datetime) else parsed_date
+
+                            # Date range filter — skip future events beyond range
+                            if event_date > date_to:
+                                continue
+                            if event_date < date_from:
+                                # History is sorted newest-first, so once we pass
+                                # the range we can stop scraping entirely
+                                stop_early = True
+                                break
+
+                            # Player count
+                            size_text = page.evaluate(
+                                """(card) => {
+                                    const tds = card.querySelectorAll('td');
+                                    for (let i = 0; i < tds.length; i++) {
+                                        const img = tds[i].querySelector('img[alt="Event size"]');
+                                        if (img && tds[i+1]) return tds[i+1].textContent.trim();
+                                    }
+                                    return '0';
+                                }""",
+                                card.element_handle()
+                            )
+                            player_count = 0
+                            p_match = re.search(r"(\d+)\s*player", size_text, re.IGNORECASE)
+                            if p_match:
+                                player_count = int(p_match.group(1))
+
+                            results.append({
+                                "url": url,
+                                "name": name,
+                                "date": event_date.isoformat(),
+                                "player_count": player_count,
+                            })
+                        except Exception as e:
+                            logger.debug(f"Error parsing card: {e}")
+
+                    if stop_early:
+                        break
+
+                    # Pagination: click next page button (⟫⟫ or next numbered page)
+                    next_btn = page.locator("a.button.small:has-text('⟫⟫')").first
+                    if next_btn.count() > 0:
+                        next_btn.click()
+                        page.wait_for_timeout(2000)
+                    else:
+                        break
+            except Exception as e:
+                logger.error(f"Error listing tournaments: {e}")
+            finally:
+                browser.close()
+
+        logger.info(f"Discovered {len(results)} tournaments from Longshanks ({self.subdomain}).")
+        return results
 
     def run_full_scrape(
         self, 
