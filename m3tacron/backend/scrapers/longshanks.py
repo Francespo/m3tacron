@@ -67,36 +67,7 @@ class LongshanksScraper(BaseScraper):
         except Exception:
             pass
     
-    def _parse_date(self, date_str: str) -> datetime:
-        """Parse date string with multiple formats."""
-        if not date_str:
-            return datetime.now()
-        
-        # Remove ordinal suffixes (1st, 2nd, 3rd, 4th)
-        clean_str = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", date_str.strip())
-        
-        # Handle date ranges (e.g. "2026-01-10 – 2026-01-11")
-        if "–" in clean_str:
-            clean_str = clean_str.split("–")[0].strip()
-        if " - " in clean_str:
-            clean_str = clean_str.split("-")[0].strip()
-        
-        formats = [
-            "%d %b %Y",     # 14 Jan 2024
-            "%d %B %Y",     # 14 January 2024
-            "%Y-%m-%d",     # 2024-01-14
-            "%d/%m/%Y",     # 14/01/2024
-            "%B %d, %Y",    # January 14, 2024
-        ]
-        
-        for fmt in formats:
-            try:
-                return datetime.strptime(clean_str, fmt)
-            except ValueError:
-                continue
-        
-        return datetime.now()
-    
+
     def _parse_faction(self, value: str) -> str | None:
         """Parse faction from image alt/src."""
         faction = Faction.from_xws(value)
@@ -199,16 +170,14 @@ class LongshanksScraper(BaseScraper):
                 }""")
                 
                 if location_raw:
-                    print(f"DEBUG: Longshanks Raw Location: '{location_raw}'")
-                else:
-                    print("DEBUG: Longshanks Raw Location not found in table.")
+                    logger.debug(f"Longshanks Raw Location: '{location_raw}'")
 
                 # Use resolve_location
                 from ..utils.geocoding import resolve_location
                 location_obj = resolve_location(location_raw) if location_raw else None
                 
                 if not location_obj and location_raw:
-                     print(f"DEBUG: Could not resolve location: '{location_raw}'")
+                     logger.debug(f"Could not resolve location: '{location_raw}'")
 
                 # Manual Override for known issues (e.g. PSO Lomza mapped to Virtual but is physical)
                 name_lower = name.lower()
@@ -698,23 +667,6 @@ class LongshanksScraper(BaseScraper):
         except Exception as e:
             logger.warning(f"List extraction warning: {e}")
 
-    def _parse_scenario(self, text: str) -> str | None:
-        """Helper to extract Scenario enum name from text."""
-        if not text: return None
-        text_norm = text.lower().replace(" ", "_").strip()
-        
-        # Mapping Fix
-        if "assault_the_satellite" in text_norm:
-            text_norm = "assault_at_the_satellite_array"
-            
-        from ..data_structures.scenarios import Scenario
-        for s in Scenario:
-            if s.value != "unknown" and s.value.replace("_", " ") in text.lower():
-                 return s.value
-            # Also check direct value match
-            if s.value in text_norm:
-                 return s.value
-        return Scenario.OTHER_UNKNOWN 
 
     def get_matches(self, tournament_id: str) -> list[Match]:
         """
@@ -946,47 +898,12 @@ class LongshanksScraper(BaseScraper):
         tournament_id: str,
         subdomain: str | None = None
     ) -> tuple[Tournament, list[PlayerResult], list[Match]]:
-        """
-        Execute a complete scrape, optionally overriding subdomain.
-        
-        XWS-PRIORITY FLOW:
-        1. Extract participants and XWS data
-        2. Infer format from XWS (priority)
-        3. Create tournament with inferred format
-        4. Extract matches
-        """
-        # Allow runtime subdomain override
+        """Override to support runtime subdomain switching."""
         if subdomain:
             self.subdomain = subdomain
             self.base_url = f"https://{subdomain}.longshanks.org"
-        
-        # STEP 1: Extract Players & XWS data FIRST
-        players = self.get_participants(tournament_id)
-        
-        if len(players) < 2:
-            raise ValueError(f"Tournament {tournament_id} has fewer than 2 players ({len(players)})")
-        
-        # STEP 2: Infer format from XWS data (priority over URL)
-        inferred_format = None
-        for pl in players[:20]:  # Check first 20 players
-            if pl.list_json and pl.list_json.get("pilots"):
-                inferred = infer_format_from_xws(pl.list_json)
-                if inferred != Format.OTHER:
-                    inferred_format = inferred
-                    logger.info(f"XWS-inferred format {inferred.value} from player {pl.player_name}")
-                    break
-        
-        # STEP 3: Create Tournament with inferred format
-        tournament = self.get_tournament_data(tournament_id, inferred_format=inferred_format)
-        
-        # Update player count from actual results
-        if players and tournament.player_count == 0:
-            tournament.player_count = len(players)
-        
-        # STEP 4: Extract Matches
-        matches = self.get_matches(tournament_id)
-        
-        return tournament, players, matches
+
+        return super().run_full_scrape(tournament_id)
 
 
 def scrape_longshanks_event(

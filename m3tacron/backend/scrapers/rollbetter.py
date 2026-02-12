@@ -39,24 +39,6 @@ class RollbetterScraper(BaseScraper):
         self.game_id = game_id
         self.cache = {}  # Map ID -> dict (full data)
 
-    def _parse_date(self, text: str) -> datetime:
-        try:
-            # Flexible regex for "Jan 25, 2026" or "August 5, 2023"
-            # Matches: (Month) (Day), (Year)
-            print(f"DEBUG: Parsing date from '{text}'")
-            match = re.search(r"([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})", text)
-            if match:
-                d_str = f"{match.group(1)[:3]} {match.group(2)}, {match.group(3)}"
-                return datetime.strptime(d_str, "%b %d, %Y")
-        except Exception as e:
-            print(f"Date Parse Error: {e}")
-            pass
-        return datetime.now()
-    def _parse_int(self, val: str) -> int:
-        try:
-            return int(str(val).strip())
-        except (ValueError, AttributeError):
-            return 0
 
     def _ensure_data(self, tournament_id: str):
         """Load data if not in cache."""
@@ -215,82 +197,7 @@ class RollbetterScraper(BaseScraper):
         # Raise so worker knows it failed
         raise ValueError("Failed to ensure data")
 
-    def _compute_stats_from_matches(self, players: list[PlayerResult], matches: list[dict], fmt: Format):
-        """
-        Fallback: Compute W/L/D and Points from matches if UI scraping failed.
-        Also computes Tie Breakers (Sum of Scores) if missing.
-        """
-        # 1. Check if we need to compute (if players have -1 stats OR -1 TB)
-        needs_compute = any(p.swiss_wins == -1 for p in players) or any(p.swiss_tie_breaker_points == -1 for p in players)
-        if not needs_compute:
-            return
 
-        logger.info("Computing W/L/D and Tie Breakers from matches...")
-        
-        # Initialize map
-        p_map = {p.player_name.lower().strip(): p for p in players}
-        
-        # Reset those with -1 to 0
-        for p in players:
-            if p.swiss_wins == -1: p.swiss_wins = 0
-            if p.swiss_losses == -1: p.swiss_losses = 0
-            if p.swiss_draws == -1: p.swiss_draws = 0
-            # Don't reset TB yet, we accumulate
-            if p.swiss_tie_breaker_points == -1: p.swiss_tie_breaker_points = 0
-            
-        # We need to re-calculate TB from scratch to be safe? 
-        # Or just add to it? Safest is to reset to 0 if we are computing.
-        for p in players:
-             p.swiss_tie_breaker_points = 0
-
-        for m in matches:
-            if m["round_type"] != RoundType.SWISS: continue
-            
-            p1_name = m.get("p1_name_temp")
-            p2_name = m.get("p2_name_temp")
-            winner = m.get("winner_name_temp")
-            
-            p1 = p_map.get(p1_name.lower().strip()) if p1_name else None
-            p2 = p_map.get(p2_name.lower().strip()) if p2_name else None
-            
-            # Score
-            s1 = m.get("player1_score", 0)
-            s2 = m.get("player2_score", 0)
-
-            # Determine Result
-            p1_win = False
-            p2_win = False
-            draw = False
-            
-            if winner:
-                w_norm = winner.lower().strip()
-                if p1_name and w_norm == p1_name.lower().strip(): p1_win = True
-                elif p2_name and w_norm == p2_name.lower().strip(): p2_win = True
-            else:
-                # Score based check or draw
-                if s1 > s2: p1_win = True
-                elif s2 > s1: p2_win = True
-                elif s1 == s2 and s1 > 0: draw = True 
-            
-            if p1:
-                p1.swiss_tie_breaker_points += s1 # Accumulate Score as TB
-                if p1_win: p1.swiss_wins += 1
-                elif p2_win: p1.swiss_losses += 1
-                elif draw: p1.swiss_draws += 1
-            
-            if p2:
-                p2.swiss_tie_breaker_points += s2 # Accumulate Score as TB
-                if p2_win: p2.swiss_wins += 1
-                elif p1_win: p2.swiss_losses += 1
-                elif draw: p2.swiss_draws += 1
-        
-        # Points Calculation (Approximation)
-        pt_win = 3 if fmt != Format.LEGACY_X2PO else 1 
-        pt_draw = 1 if fmt != Format.LEGACY_X2PO else 0 
-        
-        for p in players:
-            if p.swiss_event_points is None or p.swiss_event_points <= 0:
-                p.swiss_event_points = (p.swiss_wins * pt_win) + (p.swiss_draws * pt_draw)
 
     def list_tournaments(
         self,
@@ -397,7 +304,7 @@ class RollbetterScraper(BaseScraper):
         logger.info(f"Discovered {len(results)} tournaments from Rollbetter (game {self.game_id}).")
         return results
 
-    def get_tournament_data(self, tournament_id: str) -> Tournament:
+    def get_tournament_data(self, tournament_id: str, inferred_format: Format | None = None) -> Tournament:
         self._ensure_data(tournament_id)
         return self.cache[tournament_id]['tournament']
 
@@ -421,7 +328,6 @@ class RollbetterScraper(BaseScraper):
                  # Clean hidden characters (NBSP, etc)
                  import unicodedata
                  clean_text = unicodedata.normalize("NFKD", raw_text).strip()
-                 print(f"DEBUG ROLLBETTER DATE TEXT (High Conf): '{clean_text}' (Raw: '{raw_text}')")
                  return self._parse_date(clean_text)
             
             # 2. Low Confidence: Generic Icon
@@ -435,17 +341,14 @@ class RollbetterScraper(BaseScraper):
             # 3. Last Resort: Search Body Text for "Date: Mmm dd, YYYY" or just the date pattern
             # Using regex on the first 2000 chars of body might be safer/faster
             body_intro = page.locator("body").inner_text()[:2000]
-            print("DEBUG: Attempting Body Text Date Search...")
             # Look for specific keys first
             m = re.search(r"(?:Date|When):\s*([a-zA-Z]+\s+\d{1,2},?\s+\d{4})", body_intro, re.IGNORECASE)
             if m:
-                 print(f"DEBUG: Found Date in body: {m.group(1)}")
                  return self._parse_date(m.group(1))
                  
             # Look for raw date pattern (riskier, but 'Aug 19, 2023' is distinct)
             m2 = re.search(r"\b([A-Z][a-z]{2}\s+\d{1,2},?\s+\d{4})\b", body_intro)
             if m2:
-                 print(f"DEBUG: Found Raw Date pattern in body: {m2.group(1)}")
                  return self._parse_date(m2.group(1))
                  
         except: pass
@@ -605,13 +508,11 @@ class RollbetterScraper(BaseScraper):
             try: formatted_date = datetime.strptime(date_str, "%Y-%m-%d").date()
             except: pass
         
-        import os
-        print(f"DEBUG: Scraper file: {os.path.abspath(__file__)}")
-        print(f"DEBUG: JSON Keys: {list(data.keys())}")
+
         
         # Players
         players_json = data.get("players", []) or data.get("participants", []) or data.get("standings", [])
-        print(f"DEBUG: Found {len(players_json)} players in JSON")
+
         t = Tournament(
             id=int(tid), name=name, date=formatted_date,
             player_count=len(players_json), platform=Platform.ROLLBETTER, url=url, format=Format.OTHER
