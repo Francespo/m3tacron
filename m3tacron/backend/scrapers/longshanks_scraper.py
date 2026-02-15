@@ -197,12 +197,9 @@ class LongshanksScraper(BaseScraper):
                 if game_format:
                     logger.info(f"Using XWS-inferred format: {game_format.value}")
                 else:
-                    # Fallback to URL-based detection
-                    if "xwing-legacy" in self.base_url:
-                         game_format = Format.LEGACY_XLC
-                    else:
-                         game_format = Format.XWA # Use XWA as more specific default for 2.5 subdomain
-                    logger.info(f"Using URL-based format (no XWS available): {game_format.value}")
+                    # Fallback policy: Conservative (Format.OTHER)
+                    game_format = Format.OTHER
+                    logger.info("No XWS format inferred. Defaulting to OTHER (Conservative Policy).")
                 
                 return Tournament(
                     id=int(tournament_id),
@@ -682,10 +679,48 @@ class LongshanksScraper(BaseScraper):
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
             try:
+                # Check for Legacy format first
+                is_legacy = False
+                if self.inferred_format:
+                    fmt_val = self.inferred_format.value if hasattr(self.inferred_format, "value") else self.inferred_format
+                    if fmt_val in [Format.LEGACY_XLC.value, Format.LEGACY_X2PO.value, Format.FFG.value]:
+                        is_legacy = True
+                        logger.info("Legacy format detected (from XWS). Forcing Scenario to NO_SCENARIO.")
+
                 page.goto(url, wait_until="domcontentloaded", timeout=60000)
                 page.add_style_tag(
                     content="#cookie_permission { display: none !important; }"
                 )
+
+                # Check Title/System for Legacy keywords if not already detected
+                if not is_legacy:
+                    try:
+                        # 1. Check event header text (Title is usually H1, but system is in .event_status)
+                        # Subagent found: div.event_status .entry .text -> "X-Wing Legacy"
+                        # Also check H1 just in case
+                        header_texts = []
+                        
+                        # Title
+                        h1 = page.locator("h1").first
+                        if h1.count() > 0:
+                            header_texts.append(h1.inner_text())
+                            
+                        # System Text
+                        sys_text = page.locator(".event_status .entry .text").all_inner_texts()
+                        header_texts.extend(sys_text)
+                        
+                        # System Logo Title
+                        sys_logo = page.locator("img.logo.system").first
+                        if sys_logo.count() > 0:
+                            header_texts.append(sys_logo.get_attribute("title") or "")
+                            
+                        full_header_text = " ".join(header_texts).lower()
+                        
+                        if any(x in full_header_text for x in ["legacy", "2.0", "x2po", "xlc", "ffg"]):
+                            is_legacy = True
+                            logger.info(f"Legacy format detected (from Page Info: '{full_header_text[:100]}...'). Forcing Scenario to NO_SCENARIO.")
+                    except Exception as e:
+                        logger.warning(f"Error checking for legacy format in DOM: {e}")
                 page.wait_for_timeout(2000)
 
                 # Get round options from the dropdown
@@ -728,9 +763,19 @@ class LongshanksScraper(BaseScraper):
 
                     # Parse scenario from round text ("Round 1 - Scramble")
                     scenario = None
-                    if " - " in round_text:
-                        scen_part = round_text.split(" - ", 1)[1].strip()
-                        scenario = self._parse_scenario(scen_part)
+                    if not is_legacy:
+                        if " - " in round_text:
+                            scen_part = round_text.split(" - ", 1)[1].strip()
+                            scenario = self._parse_scenario(scen_part)
+                    else:
+                        from ..data_structures.scenarios import Scenario
+                        scenario = Scenario.NO_SCENARIO
+                    
+                    # Fallback: Scan page content for known scenarios if not found in dropdown
+                    if not scenario or scenario == "unknown": # Check vs "unknown" string if enum returns that, or None
+                         # We need to wait for content to load first, which happens below after click. 
+                         # So we move this logic AFTER the click/wait.
+                         pass
 
                     # Select round using robust trigger (jQuery or Native)
                     page.evaluate(f"""() => {{
@@ -744,6 +789,28 @@ class LongshanksScraper(BaseScraper):
                         }}
                     }}""")
                     page.wait_for_timeout(2000)
+
+                    # --- Precise Scenario Extraction (Subagent Verified) ---
+                    # Logic: Look for any "Scenario" header inside a match item and grab its sibling.
+                    # We assume the scenario is the same for all matches in the round (Standard Longshanks behavior).
+                    if not is_legacy and (not scenario or scenario == "unknown"):
+                        try:
+                            # Execute JS to find the first valid scenario text in this round
+                            found_scen_text = page.evaluate("""() => {
+                                const headers = Array.from(document.querySelectorAll('span.header'));
+                                const scenHeader = headers.find(h => h.innerText.trim() === 'Scenario');
+                                if (scenHeader && scenHeader.nextElementSibling) {
+                                    return scenHeader.nextElementSibling.innerText.trim();
+                                }
+                                return null;
+                            }""")
+                            
+                            if found_scen_text:
+                                scenario = self._parse_scenario(found_scen_text)
+                                logger.info(f"Extracted scenario from DOM: '{found_scen_text}' -> {scenario}")
+                        except Exception as e:
+                            logger.warning(f"DOM scenario extraction failed: {e}")
+                    # -------------------------------------------------------
 
                     # Each .results div IS one match (2 child .player divs)
                     result_divs = page.locator(".results").all()

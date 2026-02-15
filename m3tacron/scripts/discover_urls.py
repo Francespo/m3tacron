@@ -16,8 +16,8 @@ import sys
 from datetime import date
 
 from m3tacron.backend.data_structures.formats import Format
-from m3tacron.backend.scrapers.longshanks import LongshanksScraper
-from m3tacron.backend.scrapers.rollbetter import RollbetterScraper
+from m3tacron.backend.scrapers.longshanks_scraper import LongshanksScraper
+from m3tacron.backend.scrapers.rollbetter_scraper import RollbetterScraper
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("discover_urls")

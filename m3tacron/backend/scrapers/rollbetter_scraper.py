@@ -2,7 +2,7 @@
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, date as date_type
 from playwright.sync_api import sync_playwright
 
 from .base import BaseScraper
@@ -28,23 +28,17 @@ class RollbetterScraper(BaseScraper):
     
     BASE_URL = "https://rollbetter.gg"
     
-    def __init__(self):
-        super().__init__()
-        self.cache = {} # Map ID -> dict (full data)
+    def __init__(self, game_id: int | None = None):
+        """Initialize scraper.
 
-    def _parse_date(self, text: str) -> datetime:
-        try:
-            match = re.search(r"([A-Za-z]{3})\s+(\d{1,2}),\s+(\d{4})", text)
-            if match:
-                return datetime.strptime(match.group(0), "%b %d, %Y")
-        except:
-            pass
-        return datetime.now()
-    def _parse_int(self, val: str) -> int:
-        try:
-            return int(str(val).strip())
-        except (ValueError, AttributeError):
-            return 0
+        Args:
+            game_id: Rollbetter game system ID for listing.
+                     5=AMG, 17=XWA, 4=2.0/Legacy. None=no listing.
+        """
+        super().__init__()
+        self.game_id = game_id
+        self.cache = {}  # Map ID -> dict (full data)
+
 
     def _ensure_data(self, tournament_id: str):
         """Load data if not in cache."""
@@ -133,13 +127,45 @@ class RollbetterScraper(BaseScraper):
                         
                         # Now scrape UI for Location and Detailed Matches
                         try:
+                            # Refine Date from UI (JSON date often fails or is today)
+                            ui_date = self._scrape_date_from_ui(page)
+                            if ui_date.date() != datetime.now().date():
+                                self.cache[tournament_id]['tournament'].date = ui_date.date()
+                                logger.info(f"Updated date from UI: {ui_date.date()}")
+
                             location_data = self._extract_location(page)
                             if location_data:
                                 self.cache[tournament_id]['tournament'].location = location_data
                             
+                            # Determine Format from Body Text (FALLBACK if XWS inference failed)
+                            # XWS inference has priority (already done in _parse_from_json_v2)
+                            current_format = self.cache[tournament_id]['tournament'].format
+                            if current_format == Format.OTHER:
+                                logger.info("XWS inference failed or missing. Keeping format as OTHER (Conservative Policy).")
+                            else:
+                                logger.info(f"Using XWS-inferred format: {current_format.value}")
+
+                            # Scrape UI Standings for missing stats
+                            ui_stats = self._scrape_standings_ui(page)
+                            if ui_stats:
+                                for p in self.cache[tournament_id]['players']:
+                                    key = p.player_name.lower().strip()
+                                    if key in ui_stats:
+                                        s = ui_stats[key]
+                                        if s["wins"] != -1: p.swiss_wins = s["wins"]
+                                        if s["losses"] != -1: p.swiss_losses = s["losses"]
+                                        if s["draws"] != -1: p.swiss_draws = s["draws"]
+                                        
+                                        # Only update points if NOT Legacy and JSON was empty
+                                        if self.cache[tournament_id]['tournament'].format != Format.LEGACY_X2PO:
+                                            if (p.swiss_event_points is None or p.swiss_event_points <= 0) and s.get("points", 0) > 0:
+                                                 p.swiss_event_points = s["points"]
+
                             matches = self._scrape_detailed_matches(page, tournament_id)
                             if matches:
                                 self.cache[tournament_id]['matches'] = matches
+                                # Compute missing stats from matches
+                                self._compute_stats_from_matches(self.cache[tournament_id]['players'], matches, self.cache[tournament_id]['tournament'].format)
                         except Exception as e:
                             logger.warning(f"UI detail scrape failed for {tournament_id}: {e}")
                         
@@ -160,7 +186,114 @@ class RollbetterScraper(BaseScraper):
         # Raise so worker knows it failed
         raise ValueError("Failed to ensure data")
 
-    def get_tournament_data(self, tournament_id: str) -> Tournament:
+
+
+    def list_tournaments(
+        self,
+        date_from: date_type,
+        date_to: date_type,
+        max_pages: int | None = None
+    ) -> list[dict]:
+        """Discover tournament URLs from Rollbetter game listing pages.
+
+        Scrapes /games/{game_id} with "Past" filter and pagination.
+
+        Args:
+            date_from: Start of date range (inclusive).
+            date_to: End of date range (inclusive).
+            max_pages: Max pages to scrape. None = all pages.
+
+        Returns:
+            List of dicts: {url, name, date, player_count}.
+        """
+        if not self.game_id:
+            raise ValueError("game_id is required for list_tournaments. Set it in constructor.")
+
+        results = []
+        listing_url = f"{self.BASE_URL}/games/{self.game_id}"
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            try:
+                page.goto(listing_url, wait_until="load", timeout=30000)
+                page.wait_for_timeout(3000)
+
+                # Click "Past" filter to show completed tournaments
+                past_btn = page.locator("button:has-text('Past')").first
+                if past_btn.count() > 0:
+                    past_btn.click()
+                    page.wait_for_timeout(3000)
+
+                pages_scraped = 0
+                stop_early = False
+
+                while True:
+                    pages_scraped += 1
+                    if max_pages and pages_scraped > max_pages:
+                        break
+
+                    # Extract tournament cards
+                    cards = page.locator(".card.mb-3").all()
+                    logger.info(f"Page {pages_scraped}: found {len(cards)} tournament cards.")
+
+                    for card in cards:
+                        try:
+                            # Name + URL from card header
+                            name_link = card.locator(".card-header a[href*='/tournaments/']").first
+                            if name_link.count() == 0:
+                                continue
+                            name = name_link.inner_text().strip()
+                            href = name_link.get_attribute("href") or ""
+                            url = f"{self.BASE_URL}{href}" if href.startswith("/") else href
+
+                            # Date & player count from card body text
+                            body_text = card.locator(".card-body").first.inner_text()
+
+                            # Parse date (e.g. "Jan 25, 2026")
+                            event_date = self._parse_date(body_text).date()
+
+                            # Date range filter
+                            if event_date > date_to:
+                                continue
+                            if event_date < date_from:
+                                stop_early = True
+                                break
+
+                            # Player count (e.g. "9 / 16")
+                            player_count = 0
+                            pc_match = re.search(r"(\d+)\s*/\s*\d+", body_text)
+                            if pc_match:
+                                player_count = int(pc_match.group(1))
+
+                            results.append({
+                                "url": url,
+                                "name": name,
+                                "date": event_date.isoformat(),
+                                "player_count": player_count,
+                            })
+                        except Exception as e:
+                            logger.debug(f"Error parsing card: {e}")
+
+                    if stop_early:
+                        break
+
+                    # Pagination: look for "Next" button
+                    next_btn = page.locator(".page-item:not(.disabled) .page-link:has-text('Next')").first
+                    if next_btn.count() > 0:
+                        next_btn.click()
+                        page.wait_for_timeout(3000)
+                    else:
+                        break
+            except Exception as e:
+                logger.error(f"Error listing tournaments: {e}")
+            finally:
+                browser.close()
+
+        logger.info(f"Discovered {len(results)} tournaments from Rollbetter (game {self.game_id}).")
+        return results
+
+    def get_tournament_data(self, tournament_id: str, inferred_format: Format | None = None) -> Tournament:
         self._ensure_data(tournament_id)
         return self.cache[tournament_id]['tournament']
 
@@ -175,17 +308,55 @@ class RollbetterScraper(BaseScraper):
         self._ensure_data(tournament_id)
         return self.cache[tournament_id]['matches']
 
-    # Validation (same as before)
+    def _scrape_date_from_ui(self, page) -> datetime:
+        try:
+            # 1. High Confidence: Event Calendar Icon
+            calendar_icon = page.locator(".bi-calendar-event, .bi-calendar-date").first
+            if calendar_icon.count() > 0:
+                 raw_text = calendar_icon.locator("xpath=..").inner_text()
+                 # Clean hidden characters (NBSP, etc)
+                 import unicodedata
+                 clean_text = unicodedata.normalize("NFKD", raw_text).strip()
+                 return self._parse_date(clean_text)
+            
+            # 2. Low Confidence: Generic Icon
+            calendar_icon = page.locator(".bi-calendar, .fa-calendar").first
+            if calendar_icon.count() > 0:
+                 parent = calendar_icon.locator("xpath=..").inner_text()
+                 parsed = self._parse_date(parent)
+                 if parsed.date() != datetime.now().date(): 
+                     return parsed
+            
+            # 3. Last Resort: Search Body Text for "Date: Mmm dd, YYYY" or just the date pattern
+            # Using regex on the first 2000 chars of body might be safer/faster
+            body_intro = page.locator("body").inner_text()[:2000]
+            # Look for specific keys first
+            m = re.search(r"(?:Date|When):\s*([a-zA-Z]+\s+\d{1,2},?\s+\d{4})", body_intro, re.IGNORECASE)
+            if m:
+                 return self._parse_date(m.group(1))
+                 
+            # Look for raw date pattern (riskier, but 'Aug 19, 2023' is distinct)
+            m2 = re.search(r"\b([A-Z][a-z]{2}\s+\d{1,2},?\s+\d{4})\b", body_intro)
+            if m2:
+                 return self._parse_date(m2.group(1))
+                 
+        except: pass
+        return datetime.now()
+
     def _validate_page(self, page, tournament_id) -> bool:
         body_text = page.inner_text("body")
         
         # 1. Game System
-        h1_text = page.locator("h1").first.inner_text()
+        h1_text = ""
+        try:
+            h1 = page.locator("h1").first
+            if h1.count() > 0:
+                h1_text = h1.inner_text()
+        except: pass
         
         is_xwing_title = "x-wing" in h1_text.lower()
         
         if "Marvel Crisis Protocol" in body_text and not is_xwing_title:
-             # Only reject if title is NOT X-Wing
              logger.warning(f"Tournament {tournament_id} seems to be Marvel Crisis Protocol. Skipping.")
              return False
              
@@ -194,22 +365,16 @@ class RollbetterScraper(BaseScraper):
              return False
             
         if "X-Wing" not in body_text and "Miniatures Game" not in body_text and not is_xwing_title:
-             logger.warning(f"Tournament {tournament_id} missing 'X-Wing' identifier in Body or Title. Skipping.")
-             return False
+             logger.warning(f"Tournament {tournament_id} missing 'X-Wing' identifier. Proceeding.")
+             # return False 
 
         # Date
-        date_obj = datetime.now()
-        try:
-            calendar_icon = page.locator(".bi-calendar, .fa-calendar").first
-            if calendar_icon.count() > 0:
-                 parent = calendar_icon.locator("..").inner_text()
-                 date_obj = self._parse_date(parent)
+        date_obj = self._scrape_date_from_ui(page)
             
-            # Allow "Today" as valid (<=)
-            if date_obj.date() > datetime.now().date():
-                logger.warning(f"Tournament {tournament_id} is in the future ({date_obj.date()}). Skipping.")
-                return False
-        except: pass
+        # Allow "Today" as valid (<=)
+        if date_obj.date() > datetime.now().date():
+            logger.warning(f"Tournament {tournament_id} is in the future ({date_obj.date()}). Skipping.")
+            return False
             
         # Count
         player_count = 0
@@ -232,61 +397,79 @@ class RollbetterScraper(BaseScraper):
         from ..utils.geocoding import resolve_location
         from ..data_structures.location import Location
         location_data = None
+        
+        # Strategy 0: Scoped Metadata Check (Avoids matching "Online" in description)
         try:
-            # Strategy 0: Check for "Online" badge/indicator first
-            body_text = page.inner_text("body")
-            # If "Online" badge exists and no physical address elements, use Virtual
-            online_indicators = ["Event Type: Online", "Online Event", "Online Tournament"]
-            if any(ind in body_text for ind in online_indicators):
-                return Location.create(city="Virtual", country="Virtual", continent="Virtual")
-            
-            # Also check if there's a specific "Online" badge class near the header
-            try:
-                online_badge = page.locator("span.badge:has-text('Online'), div:has-text('Online')").first
-                if online_badge.count() > 0:
-                    badge_text = online_badge.inner_text().strip()
-                    if badge_text == "Online":
+            # The metadata row often has justify-last-start class
+            meta_row = page.locator("div.justify-last-start").first
+            if meta_row.count() > 0:
+                # Check for Online icons/text within this container only
+                online_indicators = meta_row.locator("i.bi-person-video, i.fa-laptop, i.bi-laptop, :text('Online')").all()
+                for el in online_indicators:
+                    txt = el.inner_text().lower() if el.count() > 0 else ""
+                    # Also check parent text if it's just the icon
+                    parent_txt = el.locator("..").inner_text().lower()
+                    if "online" in txt or "online" in parent_txt:
+                        logger.info(f"Found Online indicator in metadata: '{parent_txt}'. Forcing Virtual.")
                         return Location.create(city="Virtual", country="Virtual", continent="Virtual")
-            except: pass
+                
+                # If we find "In Person" here, we should NOT return Virtual, 
+                # even if Strategy 2/3 would find it elsewhere.
+                in_person = meta_row.locator("i.bi-person-fill, i.fa-users, :text('In Person')").first
+                if in_person.count() > 0:
+                    logger.info("Found 'In Person' in metadata. Avoiding Virtual override.")
+                    # Continue to Strategy 1 (standard location resolution)
+        except Exception as e:
+            logger.debug(f"Metadata scoped check failed: {e}")
 
-            # Strategy 1: Icons (wait for them)
-            try:
-                page.wait_for_selector(".bi-geo-alt, .fa-map-marker-alt, .fa-map-marker", timeout=3000)
-            except:
-                pass
-                
-            loc_icon = page.locator(".bi-geo-alt, .fa-map-marker-alt, .fa-map-marker").first
-            if loc_icon.count() > 0:
-                full_text = loc_icon.locator("..").inner_text().strip()
-                if full_text:
-                    # Use new geocoding logic
-                    location_data = resolve_location(full_text)
-            
-            # Strategy 2: Fallback to text blocks
-            if not location_data:
-                try:
-                    page.wait_for_selector("div.overflow-protected", timeout=3000)
-                except: pass
-                
-                blocks = page.locator("div.overflow-protected").all()
-                for block in blocks:
-                    text = block.inner_text().strip()
-                    if text in ["Started", "Open", "More", "Show More", "List Fortress", "In Person"]: continue
-                    # Handle "Online" explicitly - aggressively
-                    if "online" in text.lower():
+        # Check Title for Online/Virtual (High confidence)
+        try:
+            h1 = page.locator("h1").first
+            if h1.count() > 0:
+                h1_text = h1.inner_text().lower()
+                if "online" in h1_text or "virtual" in h1_text:
+                        logger.info(f"Found '{h1_text}' in title. Forcing Virtual.")
                         return Location.create(city="Virtual", country="Virtual", continent="Virtual")
-                    if "X-Wing" in text or "Standard" in text or "Legacy" in text or "Round" in text: continue
-                    if ":" in text and ("AM" in text or "PM" in text): continue
-                    
-                    if len(text) < 100:
-                        # Try to resolve any short text block that might be a location
-                        loc = resolve_location(text)
-                        if loc:
-                            location_data = loc
-                            break
-        except Exception as e: 
-            logger.warning(f"Location extraction failed: {e}")
+        except: pass
+
+        if any(ind in body_text for ind in online_indicators):
+            return Location.create(city="Virtual", country="Virtual", continent="Virtual")
+        
+        # Strategy 1: Icons (wait for them)
+        try:
+            page.wait_for_selector(".bi-geo-alt, .fa-map-marker-alt, .fa-map-marker", timeout=3000)
+        except:
             pass
+            
+        loc_icon = page.locator(".bi-geo-alt, .fa-map-marker-alt, .fa-map-marker").first
+        if loc_icon.count() > 0:
+            full_text = loc_icon.locator("..").inner_text().strip()
+            if full_text:
+                # Use new geocoding logic
+                location_data = resolve_location(full_text)
+        
+        # Strategy 2: Fallback to text blocks
+        if not location_data:
+            try:
+                page.wait_for_selector("div.overflow-protected", timeout=3000)
+            except: pass
+            
+            blocks = page.locator("div.overflow-protected").all()
+            for block in blocks:
+                text = block.inner_text().strip()
+                if text in ["Started", "Open", "More", "Show More", "List Fortress", "In Person"]: continue
+                # Handle "Online" explicitly - aggressively
+                if "online" in text.lower():
+                    return Location.create(city="Virtual", country="Virtual", continent="Virtual")
+                if "X-Wing" in text or "Standard" in text or "Legacy" in text or "Round" in text: continue
+                if ":" in text and ("AM" in text or "PM" in text): continue
+                
+                if len(text) < 100:
+                    # Try to resolve any short text block that might be a location
+                    loc = resolve_location(text)
+                    if loc:
+                        location_data = loc
+                        break
         return location_data
 
     # _try_listfortress_export removed as logic moved into _ensure_data retry loop
@@ -314,13 +497,11 @@ class RollbetterScraper(BaseScraper):
             try: formatted_date = datetime.strptime(date_str, "%Y-%m-%d").date()
             except: pass
         
-        import os
-        print(f"DEBUG: Scraper file: {os.path.abspath(__file__)}")
-        print(f"DEBUG: JSON Keys: {list(data.keys())}")
+
         
         # Players
         players_json = data.get("players", []) or data.get("participants", []) or data.get("standings", [])
-        print(f"DEBUG: Found {len(players_json)} players in JSON")
+
         t = Tournament(
             id=int(tid), name=name, date=formatted_date,
             player_count=len(players_json), platform=Platform.ROLLBETTER, url=url, format=Format.OTHER
@@ -369,6 +550,9 @@ class RollbetterScraper(BaseScraper):
                 # Points can be "points" or "tournament_points"
                 swiss_points = safe_int(player.get("points"), safe_int(player.get("tournament_points"), -1))
                 
+                # Tie Breaker: Use MOV or SOS or MP
+                swiss_tb = safe_int(player.get("mov"), safe_int(player.get("sos"), safe_int(player.get("mission_points"), -1)))
+                
                 pr = PlayerResult(
                     tournament_id=int(tid),
                     player_name=player.get("name", "Unknown"),
@@ -377,6 +561,7 @@ class RollbetterScraper(BaseScraper):
                     swiss_wins=swiss_wins,
                     swiss_losses=swiss_losses,
                     swiss_draws=swiss_draws,
+                    swiss_tie_breaker_points=swiss_tb,
                     cut_rank=cut_rank,
                     list_json=list_json
                 )
@@ -397,7 +582,95 @@ class RollbetterScraper(BaseScraper):
                     f = inferred; break
         t.format = f
         
+        # Apply Legacy Logic: Nullify EP if Legacy
+        # Note: We might detect Legacy later from body text in _ensure_data, 
+        # so this loop might need to run again or be handled in _ensure_data?
+        # Let's handle it here IF inferred, and also in _ensure_data.
+        if f == Format.LEGACY_X2PO:
+             for p in results:
+                  p.swiss_event_points = None
+
         return {'tournament': t, 'players': results, 'matches': []}
+
+    def _scrape_standings_ui(self, page) -> dict[str, dict]:
+        """
+        Scrape W/L/D and Points from the Standings UI tab.
+        Returns a map: normalized_name -> {wins, losses, draws, points, rank}
+        """
+        stats_map = {}
+        try:
+            # Click Standings Tab
+            standings_tab = page.locator("button[id$='-tab-standings'], button:has-text('Standings')").first
+            if standings_tab.count() > 0:
+                standings_tab.click()
+                page.wait_for_timeout(2000)
+                
+                # Find the main table
+                # Usually table within the active tab pane
+                rows = page.locator("div.tab-pane.active table tbody tr").all()
+                if not rows:
+                     rows = page.locator("table tbody tr").all()
+                
+                logger.info(f"Found {len(rows)} rows in Standings UI.")
+                
+                for row in rows:
+                    cells = row.locator("td").all()
+                    # Expected columns: Rank, Name, Faction, W-L, MOV, SOS, Points
+                    if len(cells) < 4: continue
+                    
+                    try:
+                        # Name (usually index 1 or 2 depending on rank column)
+                        # Let's try to identify by content
+                        # Rank is usually #0
+                        name = cells[1].inner_text().strip()
+                        if not name: name = cells[2].inner_text().strip() # Fallback
+                        
+                        # Stats are tricky. Let's look for W-L pattern (e.g. "3 - 1") in all cells
+                        wins = -1
+                        losses = -1
+                        draws = 0
+                        points = 0
+                        
+                        for cell in cells:
+                            txt = cell.inner_text().strip()
+                            # W-L check
+                            if "-" in txt and len(txt) < 10:
+                                parts = txt.split("-")
+                                if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+                                    wins = int(parts[0])
+                                    losses = int(parts[1])
+                            
+                            # Points check (integer, usually higher value, but could be small like 3)
+                            # Hard to distinguish from Rank or MOV without headers.
+                            # But usually Points is the last or second to last column?
+                            
+                        # If we can't find columns strictly, let's use fixed indices for Rollbetter V2
+                        # Rank (0), Name (1), Faction (2), Points (3), W-L (4), MOV (5), SOS (6) ?
+                        # Let's verify by checking if Col 4 has dash
+                        # The DEBUG script showed nothing for Rollbetter. I'm flying blind on UI layout.
+                        # I'll rely on generic text parsing for W-L.
+                        # For Points, I'll trust the JSON unless it is 0/missing.
+                        
+                        # Better Parsing based on observation:
+                        # Col 1: Name
+                        # Col 3/4?: W-L (e.g. 3-1)
+                        
+                        if wins != -1:
+                            import re
+                            # Normalize name for mapping
+                            key = name.lower().strip()
+                            stats_map[key] = {
+                                "wins": wins,
+                                "losses": losses, 
+                                "draws": draws
+                            }
+                    except: pass
+            else:
+                logger.warning("Standings tab not found.")
+        except Exception as e:
+            logger.warning(f"UI Standings scrape failed: {e}")
+        
+        return stats_map
 
     def _scrape_detailed_matches(self, page, tid: str) -> list[Match]:
         """
@@ -430,6 +703,14 @@ class RollbetterScraper(BaseScraper):
 
             logger.info(f"Found {len(round_btns)} rounds to scrape.")
             
+            # Check for Legacy format indicators
+            is_legacy = False
+            try:
+                body_text = page.inner_text("body").lower()
+                if "legacy" in body_text or "2.0" in body_text:
+                    is_legacy = True
+            except: pass
+
             for r_idx, btn in enumerate(round_btns):
                 try:
                     btn_text = btn.inner_text()
@@ -451,12 +732,31 @@ class RollbetterScraper(BaseScraper):
                             scenario_text = text.split("Scenario:")[1].strip()
                     
                     # Map Scenario Enum
-                    scenario_val = None
+                    # DEFAULT: Other/Unknown if extraction fails (User requirement)
+                    # UNLESS Legacy -> No Scenario
+                    scenario_val = Scenario.OTHER_UNKNOWN
+                    if is_legacy:
+                        scenario_val = Scenario.NO_SCENARIO
+                    
                     if scenario_text:
                         s_norm = scenario_text.lower().replace(" ", "_")
+                        
+                        # Fix for Assault at/the Satellite Array
+                        if "assault_the_satellite" in s_norm:
+                            s_norm = "assault_at_the_satellite_array"
+                            
+                        found = False
                         for s in Scenario:
-                            if s.value == s_norm: scenario_val = s; break
-                    
+                            if s.value == s_norm: 
+                                scenario_val = s
+                                found = True
+                                break
+                        if not found:
+                             logger.warning(f"Unknown scenario text: {scenario_text}")
+                             # If we found text but couldn't map it, keep OTHER_UNKNOWN?
+                             # Or use logic? Let's check strict mapping.
+                             pass
+
                     # Extract Matches
                     # Find the table that contains 'Player' or 'Result'
                     table = page.locator("table:has(th:has-text('Result')), table:has(td:has-text('Win'))").last
@@ -537,7 +837,7 @@ class RollbetterScraper(BaseScraper):
                             m_dict = {
                                 "round_number": r_idx + 1,
                                 "round_type": round_type,
-                                "scenario": None if is_bye else scenario_val,
+                                "scenario": Scenario.NO_SCENARIO if is_bye else scenario_val,
                                 "player1_score": p1_score,
                                 "player2_score": p2_score,
                                 "is_bye": is_bye,

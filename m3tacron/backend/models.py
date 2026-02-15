@@ -82,3 +82,7 @@ class Match(rx.Model, table=True):
     
     winner_id: int | None = Field(default=None) # -1 if draw
     is_bye: bool = Field(default=False)
+    
+    # Debug fields for name matching
+    p1_name_temp: str | None = Field(default=None)
+    p2_name_temp: str | None = Field(default=None)

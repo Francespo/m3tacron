@@ -21,8 +21,11 @@ from m3tacron.backend.models import Tournament, PlayerResult, Match
 from m3tacron.backend.data_structures.formats import Format
 from m3tacron.backend.data_structures.round_types import RoundType
 from m3tacron.backend.data_structures.scenarios import Scenario
-from m3tacron.backend.scrapers.rollbetter import RollbetterScraper
-from m3tacron.backend.scrapers.longshanks import LongshanksScraper
+from m3tacron.backend.scrapers.longshanks_scraper import LongshanksScraper
+from m3tacron.backend.scrapers.rollbetter_scraper import RollbetterScraper
+from m3tacron.backend.scrapers.listfortress_scraper import ListFortressScraper
+from m3tacron.backend.domain.deduplication import DedupService
+from m3tacron.backend.data_structures.platforms import Platform
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("extract_data")
@@ -44,6 +47,10 @@ def _get_scraper(url: str):
             subdomain = "xwing-legacy"
         tid = url.rstrip("/").split("/")[-1]
         return LongshanksScraper(subdomain=subdomain), tid
+
+    if "listfortress.com" in url:
+        tid = url.rstrip("/").split("/")[-1]
+        return ListFortressScraper(), tid
 
     return None, None
 
@@ -115,6 +122,34 @@ def _calculate_and_update_stats(session, tournament):
         logger.error(f"Stats Calculation Error: {e}")
 
 
+def _resolve_player_id(name: str, player_map: dict[str, int]) -> int | None:
+    """Resolve player ID from name using exact, case-insensitive, or substring matching."""
+    if not name:
+        return None
+    
+    # Robust normalization: collapse all whitespace (NBSP, double space, etc) to single space
+    clean = " ".join(name.split())
+    
+    # 1. Exact match
+    if clean in player_map:
+        return player_map[clean]
+        
+    # 2. Case-insensitive match
+    clean_lower = clean.lower()
+    if clean_lower in player_map:
+        return player_map[clean_lower]
+        
+    # 3. Substring match (Ranking name contains Match name)
+    candidates = []
+    for key, pid in player_map.items():
+        if key.lower().startswith(clean_lower):
+             candidates.append(pid)
+             
+    if len(candidates) == 1:
+        return candidates[0]
+        
+    return None
+
 def run_url(url: str, engine, format_filter: str | None = None):
     """Scrape a single tournament URL and persist to DB.
 
@@ -133,14 +168,37 @@ def run_url(url: str, engine, format_filter: str | None = None):
 
     SQLModel.metadata.create_all(engine)
 
+    import traceback
     try:
         with Session(engine) as session:
             # 1. Get participants (triggers format inference via XWS)
             players = scraper.get_participants(tid)
             logger.info(f"Scraped {len(players)} players.")
 
+            # 1a. Infer format from XWS (Critical: User Requirement)
+            from m3tacron.backend.data_structures.formats import infer_format_from_xws, Format
+            inferred_format = None
+            
+            # Check first 20 players for valid lists
+            for pl in players[:20]:
+                if pl.list_json:
+                    # Depending on scraper, list_json might be the XWS dict or wrapped
+                    # BaseScraper/ListFortressScraper usually puts XWS dict in list_json
+                    inferred = infer_format_from_xws(pl.list_json)
+                    if inferred != Format.OTHER:
+                        inferred_format = inferred
+                        logger.info(
+                            f"XWS-inferred format {inferred.value} "
+                            f"from player {pl.player_name}"
+                        )
+                        break
+            
+            if not inferred_format:
+                logger.warning("Could not infer format from XWS. Defaulting to OTHER.")
+                inferred_format = Format.OTHER
+
             # 2. Get tournament metadata
-            t_data = scraper.get_tournament_data(tid)
+            t_data = scraper.get_tournament_data(tid, inferred_format=inferred_format)
             logger.info(
                 f"Tournament: {t_data.name} | {t_data.date} | "
                 f"Format: {t_data.format}"
@@ -158,6 +216,39 @@ def run_url(url: str, engine, format_filter: str | None = None):
                     return
 
             # 3. Persist tournament
+            
+            # 3a. ID Collision Check
+            existing_t = session.get(Tournament, t_data.id)
+            if existing_t and existing_t.platform != t_data.platform:
+               logger.error(
+                   f"ID Collision detected! ID {t_data.id} exists for {existing_t.platform} "
+                   f"but trying to save for {t_data.platform}. Skipping."
+               )
+               return
+
+            # 3b. Deduplication Check
+            dedup_service = DedupService()
+            # Fetch candidates within +/- 2 days window
+            # We can't use date math in SQLModel easily with sqlite sometimes, fetching wider range or all
+            # Optimization: Fetch only id, name, date, platform for efficiency if DB matches
+            # For now, fetching all is fine for scale < 10k
+            candidates = session.exec(select(Tournament)).all()
+            
+            # Need candidate players for deep check? 
+            # This is expensive (n+1). For this implementation, pass None for candidate_players_map 
+            # and rely on Name/Date matching unless we want to do a heavy load.
+            # Plan: Only load players for high-name-match candidates if needed?
+            # Or just rely on dedup_service to be fast with partial data.
+            
+            duplicate = dedup_service.find_duplicate(t_data, candidates)
+            if duplicate:
+                logger.warning(
+                    f"[DEDUP] Tournament '{t_data.name}' ({t_data.platform}) "
+                    f"appears to be a duplicate of '{duplicate.name}' ({duplicate.platform}). "
+                    f"Proceeding with save, but flagging."
+                )
+                # Logic to Link/Merge could go here in future.
+
             session.merge(t_data)
             session.commit()
             t_data = session.get(Tournament, t_data.id)
@@ -194,9 +285,11 @@ def run_url(url: str, engine, format_filter: str | None = None):
                     session.refresh(p)
                     p_bound = p
 
-                clean_name = p.player_name.strip()
-                player_map[clean_name] = p_bound.id
-                player_map[clean_name.lower()] = p_bound.id
+                # Normalize name for map
+                if p.player_name:
+                    clean_name = " ".join(p.player_name.split())
+                    player_map[clean_name] = p_bound.id
+                    player_map[clean_name.lower()] = p_bound.id
 
             logger.info(f"Mapped {len(player_map) // 2} players.")
 
@@ -215,14 +308,8 @@ def run_url(url: str, engine, format_filter: str | None = None):
                 p2_name = m_data.get("p2_name_temp") or m_data.get("player2_name")
 
                 # Resolve player IDs
-                p1_id = None
-                p2_id = None
-                if p1_name:
-                    p1_clean = p1_name.strip()
-                    p1_id = player_map.get(p1_clean) or player_map.get(p1_clean.lower())
-                if p2_name:
-                    p2_clean = p2_name.strip()
-                    p2_id = player_map.get(p2_clean) or player_map.get(p2_clean.lower())
+                p1_id = _resolve_player_id(p1_name, player_map)
+                p2_id = _resolve_player_id(p2_name, player_map)
 
                 if not p1_id:
                     continue
@@ -245,6 +332,8 @@ def run_url(url: str, engine, format_filter: str | None = None):
                     player1_score=m_data["player1_score"],
                     player2_score=m_data["player2_score"],
                     is_bye=m_data["is_bye"],
+                    p1_name_temp=p1_name,
+                    p2_name_temp=p2_name,
                 )
 
                 # Winner assignment
