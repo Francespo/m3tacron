@@ -908,7 +908,12 @@ class LongshanksScraper(BaseScraper):
             List of dicts: {url, name, date, player_count}.
         """
         results = []
+        # Support date filtering directly via URL parameters
         history_url = f"{self.base_url}/events/history/"
+        if date_from and date_to:
+            history_url += f"?date_from={date_from.isoformat()}&date_to={date_to.isoformat()}"
+        
+        logger.info(f"Scraping Longshanks history: {history_url}")
 
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
