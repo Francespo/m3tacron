@@ -23,6 +23,23 @@ logger = logging.getLogger("scrape_tournaments")
 VALID_PLATFORMS = ["longshanks", "rollbetter", "listfortress", "all"]
 TIME_RANGES = ["yesterday", "today", "last_week"]
 
+def _parse_date_robust(d_str: str) -> date:
+    """Parse date robustly handling YYYY-MM-DD and single digit M/D."""
+    try:
+        return date.fromisoformat(d_str)
+    except ValueError:
+        pass
+    
+    # Fallback for non-padded 2025-8-1
+    try:
+        parts = d_str.split("-")
+        if len(parts) == 3:
+            return date(int(parts[0]), int(parts[1]), int(parts[2]))
+    except (ValueError, TypeError):
+        pass
+    raise ValueError(f"Invalid date format: {d_str}")
+
+
 def parse_time_range(range_str: str) -> tuple[date, date]:
     """Convert named range or date string to (start_date, end_date) tuple.
     
@@ -49,11 +66,11 @@ def parse_time_range(range_str: str) -> tuple[date, date]:
     try:
         if "," in range_str:
             start_str, end_str = range_str.split(",", 1)
-            start = date.fromisoformat(start_str.strip())
-            end = date.fromisoformat(end_str.strip())
+            start = _parse_date_robust(start_str.strip())
+            end = _parse_date_robust(end_str.strip())
             return start, end
         else:
-            single_date = date.fromisoformat(range_str.strip())
+            single_date = _parse_date_robust(range_str.strip())
             return single_date, single_date
     except ValueError:
         pass
