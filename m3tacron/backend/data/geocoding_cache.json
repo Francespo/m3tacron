@@ -1,11 +1,9 @@
 {
-  "Hala Kultury w LomzyPoland": null,
   "Lomza, Poland": {
     "city": "\u0141om\u017ca",
     "country": "Polska",
     "continent": "Europe"
   },
-  "Torchlight Games & HobbiesOntario,\u00a0Canada": null,
   "Gosford, New South Wales, AU": {
     "city": "Gosford",
     "country": "Australia",
@@ -41,7 +39,6 @@
     "country": "United Kingdom",
     "continent": "Europe"
   },
-  "LomzaPoland": null,
   "Italy": {
     "city": "Unknown",
     "country": "Italia",
@@ -51,8 +48,5 @@
     "city": "Burlington",
     "country": "Canada",
     "continent": "North America"
-  },
-  "Odisea GamesAragon,\u00a0Spain": null,
-  "Hobby games Central, MoscowRussia": null,
-  "Kingdom WargamesMadrid,\u00a0Spain": null
+  }
 }

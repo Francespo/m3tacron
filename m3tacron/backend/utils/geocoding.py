@@ -172,8 +172,9 @@ def resolve_location(query: str) -> Location | None:
 
         if not data:
             logger.info(f"Nominatim: No results for '{query}'")
-            _GEO_CACHE[query] = None
-            _save_cache(_GEO_CACHE)
+            # Do NOT cache failure permanently. Allow retries.
+            # _GEO_CACHE[query] = None 
+            # _save_cache(_GEO_CACHE)
             return None
 
         result = data[0]
@@ -214,8 +215,7 @@ def resolve_location(query: str) -> Location | None:
             # Let's check if we found ANYTHING useful
             if not city:
                 logger.warning(f"Nominatim returned result but no City/Country for '{query}'")
-                _GEO_CACHE[query] = None
-                _save_cache(_GEO_CACHE)
+                # Do NOT cache failure
                 return None
 
         loc_dict = {

@@ -163,7 +163,9 @@ class LongshanksScraper(BaseScraper):
                         const img = row.querySelector('img');
                         if (img && (img.alt === 'Location' || img.alt === 'Venue')) {
                             const cell = row.querySelector('td:nth-child(2)');
-                            return cell?.textContent?.trim() || '';
+                            // Use innerText to preserve line breaks, then replace them with comma
+                            let text = cell?.innerText?.trim() || '';
+                            return text.replace(/\\n/g, ', ');
                         }
                     }
                     return '';
