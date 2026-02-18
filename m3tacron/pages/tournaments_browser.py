@@ -12,7 +12,10 @@ from ..backend.models import Tournament, PlayerResult
 from ..backend.data_structures.formats import Format, MacroFormat
 from ..backend.data_structures.platforms import Platform
 from ..components.pagination import pagination_controls
-from ..components.tournament_filters import TournamentFilterMixin
+from ..ui_utils.pagination import PaginationMixin
+from ..backend.state.global_filter_state import GlobalFilterState
+# from ..components.tournament_filters import TournamentFilterMixin - REMOVED
+from ..components.tournament_filters import tournament_filters
 from ..components.location_filter import location_filter
 from ..components.format_filter import hierarchical_format_filter
 from ..theme import (
@@ -21,14 +24,9 @@ from ..theme import (
 )
 
 
-class TournamentsState(TournamentFilterMixin):
+class TournamentsState(PaginationMixin):
     """
     State for the Tournaments page.
-
-    Inherits TournamentFilterMixin -> FormatFilterMixin -> PaginationMixin(rx.State):
-        - date_range_start/end, location selections
-        - selected_formats, format toggles
-        - pagination states
     """
     tournaments: list[dict] = []
     _all_tournaments_cached: list[dict] = [] # Cache for client-side pagination
@@ -37,31 +35,31 @@ class TournamentsState(TournamentFilterMixin):
     # Overriding parent state vars creates duplicate Reflex state slots,
     # breaking reactivity (toggle writes to parent slot, query reads child slot).
 
-    def _get_query_filters(self):
+    def _get_query_filters(self, gs):
         """Build filters for the SQL query based on state."""
-
+        # gs passed in to avoid async get_state here
         filters = []
         
         # 1. Format Filter
         valid_format_values = {f.value for f in Format}
-        allowed = [k for k, v in self.selected_formats.items() if v and k in valid_format_values]
+        allowed = [k for k, v in gs.selected_formats.items() if v and k in valid_format_values]
         if allowed:
             filters.append(Tournament.format.in_(allowed))
             
         # 2. Date Range
-        if self.date_range_start:
-            filters.append(Tournament.date >= self.date_range_start)
-        if self.date_range_end:
-            filters.append(Tournament.date <= self.date_range_end)
+        if gs.date_range_start:
+            filters.append(Tournament.date >= gs.date_range_start)
+        if gs.date_range_end:
+            filters.append(Tournament.date <= gs.date_range_end)
             
         # 3. Tournament Name Search
         if self.search_query:
             filters.append(Tournament.name.ilike(f"%{self.search_query}%"))
             
         # 4. Location Filters
-        active_continents = [k for k, v in self.selected_continents.items() if v]
-        active_countries = [k for k, v in self.selected_countries.items() if v]
-        active_cities = [k for k, v in self.selected_cities.items() if v]
+        active_continents = [k for k, v in gs.selected_continents.items() if v]
+        active_countries = [k for k, v in gs.selected_countries.items() if v]
+        active_cities = [k for k, v in gs.selected_cities.items() if v]
         
         # We use JSON extract for location matching
         if active_continents:
@@ -73,15 +71,16 @@ class TournamentsState(TournamentFilterMixin):
             
         return filters
 
-    def load_tournaments(self):
+    async def load_tournaments(self):
         """Load tournaments with all active filters from database."""
+        gs = await self.get_state(GlobalFilterState)
         print("DEBUG: load_tournaments START")
         with Session(engine) as session:
             # Base query
             query = select(Tournament).order_by(Tournament.date.desc())
             
             # Apply all filters
-            for f in self._get_query_filters():
+            for f in self._get_query_filters(gs):
                 query = query.where(f)
             
             # Fetch ALL matching results
@@ -153,78 +152,16 @@ class TournamentsState(TournamentFilterMixin):
         self.load_tournaments()
 
     # --- Hooks & Mixin Overrides ---
-    # WHY: Reflex silently fails on mixin event propagation.
-    # Inlining logic from FormatFilterMixin / TournamentFilterMixin.
-
-    def on_tournament_filter_change(self):
-        """Central reload hook."""
-        self.current_page = 0
-        self.load_tournaments()
-
-    def on_filter_change(self):
-        """Hook from FormatFilterMixin (Format)."""
-        self.on_tournament_filter_change()
-
-    def on_location_change(self):
-        """Hook from TournamentFilterMixin (Location)."""
-        self.on_tournament_filter_change()
-
-    def toggle_format_macro(self, macro_val: str):
-        """Toggle a macro format and reload tournaments."""
-        from ..backend.data_structures.formats import MacroFormat
-
-        current_state = self.macro_states.get(macro_val, "unchecked")
-        target_checked = current_state == "unchecked"
-
-        new_formats = self.selected_formats.copy()
-        try:
-            macro = MacroFormat(macro_val)
-            for f in macro.formats():
-                new_formats[f.value] = target_checked
-        except ValueError:
-            pass
-        new_formats[macro_val] = target_checked
-
-        self.selected_formats = new_formats
-        self.on_tournament_filter_change()
-
-    def toggle_format_child(self, child_val: str):
-        """Toggle a specific format child and reload tournaments."""
-        checked = not self.selected_formats.get(child_val, False)
-        new_formats = self.selected_formats.copy()
-        new_formats[child_val] = checked
-        self.selected_formats = new_formats
-        self.on_tournament_filter_change()
-
-    def set_date_start(self, date: str):
-        self.date_range_start = date
-        self.on_tournament_filter_change()
-
-    def set_date_end(self, date: str):
-        self.date_range_end = date
-        self.on_tournament_filter_change()
-
-    def toggle_continent(self, val: str, checked: bool):
-        new_sel = self.selected_continents.copy()
-        new_sel[val] = checked
-        self.selected_continents = new_sel
-        self.on_tournament_filter_change()
-
-    def toggle_country(self, val: str, checked: bool):
-        new_sel = self.selected_countries.copy()
-        new_sel[val] = checked
-        self.selected_countries = new_sel
-        self.on_tournament_filter_change()
-
-    def toggle_city(self, val: str, checked: bool):
-        new_sel = self.selected_cities.copy()
-        new_sel[val] = checked
-        self.selected_cities = new_sel
-        self.on_tournament_filter_change()
+    
+    # Hooks to reload data when global filters change
+    # Note: GlobalFilterState calls "on_change" passed to components.
+    # We pass TournamentsState.load_tournaments.
 
     def on_page_change(self):
         """Hook from PaginationMixin."""
         self.update_view()
+
+
 
     # Override Pagination Methods to fix Reflex Mixin Dispatch
     def next_page(self):
@@ -236,11 +173,16 @@ class TournamentsState(TournamentFilterMixin):
             self.current_page -= 1
             self.update_view()
 
-    def on_mount_tournaments(self):
+    async def on_mount_tournaments(self):
         """Called on page mount."""
+        gs = await self.get_state(GlobalFilterState)
+        gs.load_locations()
+        # Ensure defaults if empty (but maybe we want "All" for tournaments? no, stick to per-source defaults)
+        if not gs.selected_formats:
+             gs.set_default_formats_for_source(gs.data_source)
+             
         self.page_size = 10  # Override default (20) at runtime, not class-level
-        self.load_locations()
-        self.load_tournaments()
+        await self.load_tournaments()
 
 
 def _split_format_badge(format_label: str) -> tuple[str, str]:
@@ -251,11 +193,15 @@ def _split_format_badge(format_label: str) -> tuple[str, str]:
     """
     label = format_label.upper() if format_label else "UNK"
     
-    # Manual mappings for common ones
+    # Clean up obsolete Standard/Extended labels
     if "STANDARD" in label:
-        return "XWA", "STD"
+        label = label.replace("STANDARD", "").strip()
     if "EXTENDED" in label:
-        return "XWA", "EXT"
+        label = label.replace("EXTENDED", "").strip()
+    
+    # Simple split if still too long, or manual
+    if label == "AMG": return "AMG", ""
+    if label == "XWA": return "XWA", ""
     if "LEGACY (X2PO)" in label:
         return "LGCY", "X2PO"
     if "LEGACY (XLC)" in label:
@@ -367,45 +313,10 @@ def render_filters() -> rx.Component:
     return rx.vstack(
         rx.text("TOURNAMENT FILTERS", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
         
-        # 1. Date Range
-        rx.vstack(
-            rx.text("Date Range", size="1", weight="bold", color=TEXT_SECONDARY),
-            rx.vstack(
-                rx.input(
-                    type="date",
-                    value=TournamentsState.date_range_start,
-                    on_change=TournamentsState.set_date_start,
-                    style=INPUT_STYLE,
-                    width="100%"
-                ),
-                rx.text("to", size="1", color=TEXT_SECONDARY, text_align="center"),
-                rx.input(
-                    type="date",
-                    value=TournamentsState.date_range_end,
-                    on_change=TournamentsState.set_date_end,
-                    style=INPUT_STYLE,
-                    width="100%"
-                ),
-                spacing="1",
-                width="100%",
-                padding="8px",
-                border=f"1px solid {BORDER_COLOR}",
-                border_radius=RADIUS
-            ),
-            spacing="1",
+        # Unified Tournament Filters Component
+        rx.box(
+            tournament_filters(TournamentsState.load_tournaments),
             width="100%"
-        ),
-        
-        # 2. Location Filter
-        rx.box(
-            location_filter(TournamentsState),
-            width="100%",
-        ),
-
-        # 3. Format Filter
-        rx.box(
-            hierarchical_format_filter(TournamentsState),
-            width="100%",
         ),
 
         # 4. Search Bar (at the bottom of filters)

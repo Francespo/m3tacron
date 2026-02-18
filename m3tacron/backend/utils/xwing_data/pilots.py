@@ -63,8 +63,7 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                             "size": ship_size,
                             "limited": pilot.get("limited", 0),
                             # Formats
-                            "standard": pilot.get("standard", False),
-                            "extended": pilot.get("extended", False),
+                            "valid_in_standard": pilot.get("standard", False) or pilot.get("extended", False),
                             "wildspace": pilot.get("wildspace", False),
                             "epic": pilot.get("epic", False),
                         }

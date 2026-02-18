@@ -30,6 +30,8 @@ def filter_accordion(
     options: list[list[str]], # [[label, value], ...]
     state_map: rx.Var,  # Dict[str, bool]
     on_toggle: callable, # Function(value, checked)
+    accordion_value: rx.Var[list[str]] = None, # Controlled State: List of open items
+    on_accordion_change: callable = None, # Setter for controlled state
 ) -> rx.Component:
     """
     A transparent, black & white accordion for filters.
@@ -79,5 +81,7 @@ def filter_accordion(
         collapsible=True,
         width="100%",
         color_scheme="gray",
-        variant="ghost" # Ghost variant usually has no borders/bg
+        variant="ghost", # Ghost variant usually has no borders/bg
+        value=accordion_value,
+        on_value_change=on_accordion_change,
     )

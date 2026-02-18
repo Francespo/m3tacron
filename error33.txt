@@ -1,0 +1,18 @@
+Warning: Windows Subsystem for Linux (WSL) is recommended for improving initial
+install times.
+Warning: Unable to bind to :8000 due to: [WinError 10048] Only one usage of 
+each socket address (protocol/network address/port) is normally permitted.
+Warning: Unable to bind to :8001 due to: [WinError 10048] Only one usage of 
+each socket address (protocol/network address/port) is normally permitted.
+Warning: Unable to bind to :8002 due to: [WinError 10048] Only one usage of 
+each socket address (protocol/network address/port) is normally permitted.
+Info: The backend will run on port 8003.
+----------------------------- Starting Reflex App -----------------------------
+DeprecationWarning: rx.Base has been deprecated in version 0.8.15. <class 
+'m3tacron.pages.list_browser.UpgradeData'> is subclassing rx.Base. You can 
+subclass from `pydantic.BaseModel` directly instead or use dataclasses if 
+possible. It will be completely removed in 0.9.0. (<frozen abc>:106)
+Detected database schema changes. Run reflex db makemigrations to generate 
+migration scripts.
+
+Aborted!

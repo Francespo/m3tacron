@@ -19,7 +19,7 @@ from ..data_structures.factions import Faction
 from ..data_structures.platforms import Platform
 from ..data_structures.round_types import RoundType
 from ..data_structures.scenarios import Scenario
-from ..utils import parse_builder_url
+from ..utils.squadron import parse_builder_url
 
 
 logger = logging.getLogger(__name__)

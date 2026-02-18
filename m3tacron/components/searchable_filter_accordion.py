@@ -33,6 +33,8 @@ def searchable_filter_accordion(
     on_toggle: callable, # Function(value, checked)
     search_text: rx.Var, # State var for search
     set_search_text: callable, # Setter for search
+    accordion_value: rx.Var[list[str]] = None, # Controlled State
+    on_accordion_change: callable = None, # Setter
 ) -> rx.Component:
     """
     A transparent accordion with an internal search bar.
@@ -102,5 +104,7 @@ def searchable_filter_accordion(
         collapsible=True,
         width="100%",
         color_scheme="gray",
-        variant="ghost"
+        variant="ghost",
+        value=accordion_value,
+        on_value_change=on_accordion_change,
     )

@@ -4,8 +4,9 @@ Ships Browser Page.
 Displays all ships with aggregated statistics per faction.
 """
 import reflex as rx
-from ..components.content_source_filter import content_source_filter, ContentSourceState
-from ..components.tournament_filters import tournament_filters, TournamentFilterMixin
+from ..components.content_source_filter import content_source_filter
+from ..components.tournament_filters import tournament_filters
+from ..backend.state.global_filter_state import GlobalFilterState
 from ..ui_utils.pagination import PaginationMixin
 from ..components.pagination import pagination_controls
 from ..components.sidebar import layout, dashboard_layout
@@ -22,7 +23,7 @@ from ..components.icons import ship_icon
 from ..ui_utils.factions import faction_icon, get_faction_color
 from ..components.filter_accordion import filter_accordion
 from ..components.searchable_filter_accordion import searchable_filter_accordion
-from ..backend.utils import load_all_ships
+from ..backend.utils.xwing_data.ships import load_all_ships
 
 
 # Faction label mapping for display
@@ -37,27 +38,15 @@ FACTION_LABELS = {
 }
 
 
-class ShipsBrowserState(TournamentFilterMixin):
+class ShipsBrowserState(PaginationMixin):
     """
     State for the Ships Browser page.
     """
-    # Content Source State Logic (Manually Implemented to avoid Mixin conflicts)
-    data_source: str = "xwa" # xwa, legacy
-    include_epic: bool = False
-
-    def set_data_source(self, *args):
-        source = args[0]
-        if isinstance(source, list):
-            source = source[0]
-        self.data_source = source
-        self.on_content_source_change()
-
-    def set_include_epic(self, val: bool):
-        self.include_epic = val
-        self.on_content_source_change()
-
+    
+    # Global state access
+    
     def on_content_source_change(self):
-        """Handle content source changes."""
+        """Handle content source changes (triggered via load_data chain)."""
         self.current_page = 0
         self.load_data()
     
@@ -80,6 +69,16 @@ class ShipsBrowserState(TournamentFilterMixin):
     selected_ships: dict[str, bool] = {}
     ship_search_text: str = ""
     
+    # --- Accordion States (Smart Persistence) ---
+    faction_acc_val: list[str] = []
+    ship_acc_val: list[str] = []
+    
+    def set_faction_acc_val(self, val):
+        self.faction_acc_val = val
+        
+    def set_ship_acc_val(self, val):
+        self.ship_acc_val = val
+    
     # Static faction options
     faction_options: list[list[str]] = [
         ["Rebel Alliance", "Rebel Alliance"],
@@ -95,11 +94,7 @@ class ShipsBrowserState(TournamentFilterMixin):
     def sort_metric_options(self) -> list[str]:
         return ["Games", "Popularity", "Win Rate"]
     
-    @rx.var
-    def all_ships(self) -> list[dict]:
-        """Load all ships based on data source."""
-        source_enum = DataSource(self.data_source) if isinstance(self.data_source, str) else self.data_source
-        return load_all_ships(source_enum)
+    all_ships: list[dict] = [] # Now a state var set in load_data
     
     @rx.var
     def available_ships(self) -> list[list[str]]:
@@ -117,7 +112,7 @@ class ShipsBrowserState(TournamentFilterMixin):
             norm_active = {norm(f) for f in active_factions}
             
             for s in ships:
-                s_factions_norm = {norm(f) for f in s["factions"]}
+                s_factions_norm = {norm(f) for f in s.get("factions", [])}
                 if not s_factions_norm.isdisjoint(norm_active):
                     filtered_by_faction.append(s)
         
@@ -153,6 +148,23 @@ class ShipsBrowserState(TournamentFilterMixin):
         self.selected_ships[xws] = checked
         self.current_page = 0
         self.load_data()
+
+    async def reset_ship_filters(self):
+        """Reset only ship-specific filters."""
+        self.selected_factions = {}
+        self.selected_ships = {}
+        self.ship_search_text = ""
+        self.sort_metric = "Popularity"
+        self.sort_direction = "desc"
+        self.current_page = 0
+        await self.load_data()
+
+    async def reset_tournament_filters_wrapper(self):
+        """Reset global tournament filters."""
+        gs = await self.get_state(GlobalFilterState)
+        gs.reset_tournament_filters()
+        self.current_page = 0
+        await self.load_data()
     
     def set_data_source_override(self, source: str | list[str]):
         # Overriding to add default format logic manually if needed, 
@@ -168,6 +180,18 @@ class ShipsBrowserState(TournamentFilterMixin):
         self.load_locations()
         if not self.data_source: self.data_source = "xwa"
         self.set_default_formats_for_source(self.data_source)
+        
+        # --- Smart Accordion Logic ---
+        # Faction
+        has_faction = any(self.selected_factions.values())
+        if has_faction:
+            self.faction_acc_val = ["Faction"]
+            
+        # Ship
+        has_ship = any(self.selected_ships.values()) or self.ship_search_text
+        if has_ship:
+            self.ship_acc_val = ["Ship Chassis"]
+            
         self.load_data()
     
     # Hooks
@@ -210,58 +234,38 @@ class ShipsBrowserState(TournamentFilterMixin):
         self.selected_formats = new_formats
         self.on_tournament_filter_change()
 
-    # --- Date Range Overrides ---
-    def set_date_start(self, date: str):
-        self.date_range_start = date
-        self.on_tournament_filter_change()
-
-    def set_date_end(self, date: str):
-        self.date_range_end = date
-        self.on_tournament_filter_change()
+    # --- Date Range Overrides REMOVED (Handled in load_data via GlobalState) ---
 
     # --- Location Overrides ---
     def toggle_continent(self, val: str, checked: bool):
-        new_sel = self.selected_continents.copy()
-        new_sel[val] = checked
-        self.selected_continents = new_sel
-        self.on_tournament_filter_change()
+        # We don't override global toggle locally, we just use global state
+        pass
 
-    def toggle_country(self, val: str, checked: bool):
-        new_sel = self.selected_countries.copy()
-        new_sel[val] = checked
-        self.selected_countries = new_sel
-        self.on_tournament_filter_change()
+    async def on_mount(self):
+        gs = await self.get_state(GlobalFilterState)
+        gs.load_locations()
+        # Initialize default formats if needed
+        if not gs.selected_formats:
+             gs.set_default_formats_for_source(gs.data_source)
+        
+        # Initialize selected_factions keys
+        if not self.selected_factions:
+             # Ships browser has hardcoded faction options in `faction_options`
+             for f_list in self.faction_options:
+                 self.selected_factions[f_list[1]] = False
 
-    def toggle_city(self, val: str, checked: bool):
-        new_sel = self.selected_cities.copy()
-        new_sel[val] = checked
-        self.selected_cities = new_sel
-        self.on_tournament_filter_change()
+        await self.load_data()
 
-    def on_tournament_filter_change(self):
-        self.current_page = 0
-        self.load_data()
-    
-    def on_page_change(self):
-        self.update_view()
+    async def load_data(self):
+        gs = await self.get_state(GlobalFilterState)
+        
+        # 1. Update All Ships based on Global Source
+        try:
+            ds_enum = DataSource(gs.data_source)
+        except ValueError:
+            ds_enum = DataSource.XWA
+        self.all_ships = list(load_all_ships(ds_enum).values())
 
-    # Override Pagination Methods to fix Reflex Mixin Dispatch
-    def next_page(self):
-        self.current_page += 1
-        self.update_view()
-
-    def prev_page(self):
-        if self.current_page > 0:
-            self.current_page -= 1
-            self.update_view()
-
-    def update_view(self):
-        """Slice the full dataset for the current page."""
-        start = self.current_page * self.page_size
-        end = start + self.page_size
-        self.ships = self._all_ships_cached[start:end]
-    
-    def load_data(self):
         # Build sort criteria
         criteria_map = {
             "Popularity": SortingCriteria.POPULARITY,
@@ -271,11 +275,11 @@ class ShipsBrowserState(TournamentFilterMixin):
         criteria = criteria_map.get(self.sort_metric, SortingCriteria.POPULARITY)
         direction = SortDirection(self.sort_direction)
         
-        # Build allowed formats
+        # Build allowed formats from GLOBAL STATE
         allowed_set = set()
         valid_format_values = {f.value for f in Format}
         
-        for k, v in self.selected_formats.items():
+        for k, v in gs.selected_formats.items():
             if v and k in valid_format_values:
                 allowed_set.add(k)
         
@@ -287,20 +291,15 @@ class ShipsBrowserState(TournamentFilterMixin):
         
         filters = {
             "allowed_formats": allowed,
-            "date_start": self.date_range_start,
-            "date_end": self.date_range_end,
+            "date_start": gs.date_range_start,
+            "date_end": gs.date_range_end,
             "faction": active_factions,
             "ship": active_ships,
             # Location
-            "continent": [k for k, v in self.selected_continents.items() if v],
-            "country": [k for k, v in self.selected_countries.items() if v],
-            "city": [k for k, v in self.selected_cities.items() if v],
+            "continent": [k for k, v in gs.selected_continents.items() if v],
+            "country": [k for k, v in gs.selected_countries.items() if v],
+            "city": [k for k, v in gs.selected_cities.items() if v],
         }
-        
-        try:
-            ds_enum = DataSource(self.data_source)
-        except ValueError:
-            ds_enum = DataSource.XWA
         
         data = aggregate_ship_stats(filters, criteria, direction, ds_enum)
         
@@ -316,7 +315,7 @@ def render_filters() -> rx.Component:
     return rx.vstack(
         # Data Source
         rx.box(
-            content_source_filter(ShipsBrowserState),
+            content_source_filter(ShipsBrowserState.load_data),
             width="100%"
         ),
         
@@ -324,14 +323,30 @@ def render_filters() -> rx.Component:
         
         # Tournament Filters
         rx.box(
-            tournament_filters(ShipsBrowserState),
+            tournament_filters(
+                on_change=ShipsBrowserState.load_data,
+                reset_handler=ShipsBrowserState.reset_tournament_filters_wrapper
+            ),
             width="100%"
         ),
         
         rx.divider(border_color=BORDER_COLOR, flex_shrink="0"),
         
         # Ship Filters Section
-        rx.text("SHIP FILTERS", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
+        rx.hstack(
+            rx.text("SHIP FILTERS", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
+            rx.spacer(),
+            rx.icon_button(
+                rx.icon(tag="rotate-ccw"),
+                on_click=ShipsBrowserState.reset_ship_filters,
+                variable="ghost",
+                color_scheme="gray",
+                size="1",
+                tooltip="Reset Ship Filters"
+            ),
+            width="100%",
+            align_items="center"
+        ),
         
         # Sort By (top of SHIP FILTERS)
         rx.vstack(
@@ -369,7 +384,9 @@ def render_filters() -> rx.Component:
             "Faction",
             ShipsBrowserState.faction_options,
             ShipsBrowserState.selected_factions,
-            ShipsBrowserState.toggle_faction
+            ShipsBrowserState.toggle_faction,
+            accordion_value=ShipsBrowserState.faction_acc_val,
+            on_accordion_change=ShipsBrowserState.set_faction_acc_val,
         ),
         
         # Chassis Filter
@@ -379,7 +396,9 @@ def render_filters() -> rx.Component:
             ShipsBrowserState.selected_ships,
             ShipsBrowserState.toggle_ship,
             ShipsBrowserState.ship_search_text,
-            ShipsBrowserState.set_ship_search
+            ShipsBrowserState.set_ship_search,
+            accordion_value=ShipsBrowserState.ship_acc_val,
+            on_accordion_change=ShipsBrowserState.set_ship_acc_val,
         ),
         
         spacing="4",

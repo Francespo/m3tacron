@@ -1,0 +1,2 @@
+rxconfig.py not found. Move to the root folder of your project, or run reflex 
+init to start a new project.

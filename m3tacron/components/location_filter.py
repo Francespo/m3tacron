@@ -8,17 +8,22 @@ from .searchable_filter_accordion import searchable_filter_accordion
 
 
 
-def location_filter(state: any) -> rx.Component:
+def location_filter(state: any, on_change: any = None) -> rx.Component:
     """
     Render hierarchical location filter.
     """
+    def wrap_toggle(toggle_fn):
+        if on_change:
+            return lambda v, c: [toggle_fn(v, c), on_change]
+        return toggle_fn
+
     content = rx.vstack(
         # Continent
         searchable_filter_accordion(
             "Continent",
             state.continent_options,
             state.selected_continents,
-            state.toggle_continent,
+            wrap_toggle(state.toggle_continent),
             state.continent_search,
             state.set_continent_search
         ),
@@ -28,7 +33,7 @@ def location_filter(state: any) -> rx.Component:
             "Country",
             state.country_options,
             state.selected_countries,
-            state.toggle_country,
+            wrap_toggle(state.toggle_country),
             state.country_search,
             state.set_country_search
         ),
@@ -38,7 +43,7 @@ def location_filter(state: any) -> rx.Component:
             "City",
             state.city_options,
             state.selected_cities,
-            state.toggle_city,
+            wrap_toggle(state.toggle_city),
             state.city_search,
             state.set_city_search
         ),

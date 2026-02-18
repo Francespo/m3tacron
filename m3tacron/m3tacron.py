@@ -57,6 +57,9 @@ app.add_page(squadrons_browser_page, route="/squadrons", title="M3taCron - Squad
 app.add_page(cards_browser_page, route="/cards", title="M3taCron - Cards Browser")
 app.add_page(ships_browser_page, route="/ships", title="M3taCron - Ships Browser")
 
+from .pages.list_browser import list_browser
+app.add_page(list_browser, route="/lists", title="M3taCron - List Browser")
+
 from .pages.pilot_detail import pilot_detail_page
 from .pages.upgrade_detail import upgrade_detail_page
 app.add_page(pilot_detail_page, route="/pilot/[id]", title="M3taCron - Pilot Detail")

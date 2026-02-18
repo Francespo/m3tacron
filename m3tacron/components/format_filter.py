@@ -127,6 +127,7 @@ def render_custom_checkbox(status: str, on_click: callable) -> rx.Component:
 def render_macro_section(
     macro: MacroFormat, 
     state: any,
+    on_change: any = None
 ) -> rx.Component:
     """
     Render a macro format section as a flattened list with indentation.
@@ -136,13 +137,21 @@ def render_macro_section(
     
     children_components = []
     
+    def handle_child_toggle(child_val):
+        evt = state.toggle_format_child(child_val)
+        return [evt, on_change] if on_change else evt
+
+    def handle_macro_toggle(macro_val):
+        evt = state.toggle_format_macro(macro_val)
+        return [evt, on_change] if on_change else evt
+    
     # Static iteration over children using enum
     for child in macro.formats():
         children_components.append(
             rx.hstack(
                 rx.checkbox(
                     checked=path_to_selection[child.value],
-                    on_change=lambda val, c=child: state.toggle_format_child(c.value),
+                    on_change=lambda val, c=child: handle_child_toggle(c.value),
                     color_scheme="gray",
                     size="1",
                 ),
@@ -151,7 +160,7 @@ def render_macro_section(
                     size="1", 
                     color=TEXT_PRIMARY,
                     font_family=MONOSPACE_FONT,
-                    on_click=lambda c=child: state.toggle_format_child(c.value),
+                    on_click=lambda c=child: handle_child_toggle(c.value),
                     cursor="pointer"
                 ),
                 spacing="2",
@@ -166,7 +175,7 @@ def render_macro_section(
         rx.hstack(
             render_custom_checkbox(
                 macro_status,
-                lambda: state.toggle_format_macro(macro.value)
+                lambda: handle_macro_toggle(macro.value)
             ),
             rx.text(
                 macro.label, 
@@ -175,7 +184,7 @@ def render_macro_section(
                 color=TEXT_SECONDARY,
                 font_family=MONOSPACE_FONT,
                 letter_spacing="1px",
-                on_click=lambda: state.toggle_format_macro(macro.value),
+                on_click=lambda: handle_macro_toggle(macro.value),
                 cursor="pointer"
             ),
             align="center",
@@ -197,7 +206,8 @@ def render_macro_section(
 
 def hierarchical_format_filter(
     state: any,
-    label: str = "Format"
+    label: str = "Format",
+    on_change: any = None
 ) -> rx.Component:
     """
     Main component.
@@ -206,7 +216,7 @@ def hierarchical_format_filter(
     macro_items = []
     for m in MacroFormat:
         macro_items.append(
-            render_macro_section(m, state)
+            render_macro_section(m, state, on_change)
         )
     
     # Stack of Macro Sections (Flattened visually)

@@ -65,3 +65,7 @@ class PaginationMixin(rx.State):
     def on_page_change(self):
         """Hook for sub-classes to handle page changes (e.g. reload data)."""
         return []
+
+    def update_view(self):
+        """Override this method to update the view when pagination changes."""
+        pass

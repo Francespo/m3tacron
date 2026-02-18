@@ -8,7 +8,8 @@ from ..components.sidebar import layout
 from ..components.ui import content_panel as terminal_panel, stat_card
 from ..backend.database import engine
 from ..backend.models import Tournament, PlayerResult, Match
-from ..backend.utils.xwing_data import parse_xws, get_faction_name, normalize_faction
+from ..backend.utils.xwing_data.parser import parse_xws, normalize_faction
+from ..backend.utils.xwing_data.core import get_faction_name
 from ..backend.utils.yasb import xws_to_yasb_url, get_xws_string
 from ..theme import (
     TERMINAL_BG, BORDER_COLOR, TERMINAL_PANEL, TEXT_PRIMARY, TEXT_SECONDARY,

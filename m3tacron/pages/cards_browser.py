@@ -2,8 +2,9 @@
 Card Analyzer Page.
 """
 import reflex as rx
-from ..components.content_source_filter import content_source_filter, ContentSourceState
-from ..components.tournament_filters import tournament_filters, TournamentFilterMixin
+from ..components.content_source_filter import content_source_filter
+from ..components.tournament_filters import tournament_filters
+from ..backend.state.global_filter_state import GlobalFilterState
 from ..ui_utils.pagination import PaginationMixin
 from ..components.pagination import pagination_controls
 # from ..components.multi_filter import collapsible_checkbox_group # Deprecated
@@ -12,7 +13,7 @@ from ..backend.data_structures.factions import Faction
 from ..backend.data_structures.upgrade_types import UpgradeType
 from ..backend.data_structures.data_source import DataSource
 from ..backend.data_structures.formats import Format, MacroFormat
-from ..backend.utils import load_all_ships
+from ..backend.utils.xwing_data.ships import load_all_ships
 from ..backend.analytics.core import aggregate_card_stats
 from ..backend.data_structures.sorting_order import SortingCriteria, SortDirection
 from ..backend.data_structures.view_mode import ViewMode
@@ -26,28 +27,13 @@ from ..components.searchable_filter_accordion import searchable_filter_accordion
 from ..components.initiative_grid import initiative_grid
 from ..components.advanced_filters import advanced_filters
 
-class CardAnalyzerState(TournamentFilterMixin):
+class CardAnalyzerState(PaginationMixin):
     """
     State for the Card Analyzer page.
     """
-    # Content Source State Logic (Manually Implemented to avoid Mixin conflicts)
-    data_source: str = "xwa" # xwa, legacy
-    include_epic: bool = False
-
-    def set_data_source(self, *args):
-        source = args[0]
-        if isinstance(source, list):
-            source = source[0]
-        self.data_source = source
-        self.on_content_source_change()
-
-    def set_include_epic(self, val: bool):
-        self.include_epic = val
-        self.on_content_source_change()
-
-    def on_content_source_change(self):
-        """Handle content source changes."""
-        self.load_data()
+    # Content Source State Logic (Manually Implemented to avoid Mixin conflicts) - REMOVED for Global State
+    
+    # Active Tab
     # Active Tab
     active_tab: str = "pilots" # pilots, upgrades
     
@@ -72,6 +58,20 @@ class CardAnalyzerState(TournamentFilterMixin):
     
     # Upgrade Specific
     selected_upgrade_types: dict[str, bool] = {}
+    
+    # --- Accordion States (Smart Persistence) ---
+    faction_acc_val: list[str] = []
+    ship_acc_val: list[str] = []
+    upgrade_acc_val: list[str] = []
+    
+    def set_faction_acc_val(self, val):
+        self.faction_acc_val = val
+        
+    def set_ship_acc_val(self, val):
+        self.ship_acc_val = val
+        
+    def set_upgrade_acc_val(self, val):
+        self.upgrade_acc_val = val
     
     # Static info for filters
     faction_options: list[list[str]] = [[f.label, f.value] for f in Faction if f != Faction.UNKNOWN]
@@ -129,6 +129,45 @@ class CardAnalyzerState(TournamentFilterMixin):
     # Epic Content
     # include_epic: bool = False
     
+    async def reset_card_filters(self):
+        """Reset only card-specific filters."""
+        self.text_filter = ""
+        self.selected_factions = {}
+        self.selected_ships = {}
+        self.ship_search_text = ""
+        self.selected_initiatives = {}
+        self.selected_upgrade_types = {}
+        
+        # Reset Advanced Filters to Defaults
+        self.points_min = 0
+        self.points_max = 200
+        self.loadout_min = 0
+        self.loadout_max = 99
+        self.hull_min = 0
+        self.hull_max = 20
+        self.shields_min = 0
+        self.shields_max = 20
+        self.agility_min = 0
+        self.agility_max = 10
+        self.is_unique = False
+        self.is_limited = False
+        self.is_not_limited = False
+        self.attack_min = 0
+        self.attack_max = 10
+        self.init_min = 0
+        self.init_max = 8
+        self.base_sizes = {}
+        
+        self.current_page = 0
+        await self.load_data()
+
+    async def reset_tournament_filters_wrapper(self):
+        """Reset global tournament filters."""
+        gs = await self.get_state(GlobalFilterState)
+        gs.reset_tournament_filters()
+        self.current_page = 0
+        await self.load_data()
+
     def set_mode(self, mode: str | list[str]):
         if isinstance(mode, list):
             mode = mode[0]
@@ -242,18 +281,9 @@ class CardAnalyzerState(TournamentFilterMixin):
 
     @rx.var
     def sort_metric_options(self) -> list[str]:
-        """Available metrics (Labels)."""
-        opts = [
-            "Cost",
-            "Games",
-            "Name",
-            "Popularity",
-            "Win Rate"
-        ]
-        if self.data_source == "xwa":
-             opts.append("Loadout")
-             opts.sort() # Ensure Loadout is also sorted (Cost, Games, Loadout, Name, Popularity, Win Rate)
-        return opts
+        return self._sort_metric_options
+
+    _sort_metric_options: list[str] = ["Cost", "Games", "Name", "Popularity", "Win Rate", "Loadout"]
     
     def set_sort_metric(self, metric: str):
         self.sort_metric = metric
@@ -323,6 +353,11 @@ class CardAnalyzerState(TournamentFilterMixin):
         new_factions[faction] = checked
         self.selected_factions = new_factions
         
+        # Determine if we should keep accordion open (usually yes if user interacting)
+        # But if they uncheck all, we might want to manually close? No, let user close.
+        # But if they check one, ensure it's open (it is, they clicked it).
+        # We generally update the underlying filter state here.
+        
         self.current_page = 0
         self.load_data()
 
@@ -362,26 +397,26 @@ class CardAnalyzerState(TournamentFilterMixin):
         self.date_range_start = date
         self.load_data()
         
-    def set_date_end(self, date: str):
+    async def set_date_end(self, date: str):
         self.date_range_end = date
-        self.load_data()
+        await self.load_data()
         
     @rx.var
     def all_ships(self) -> list[dict]:
-        """Load all ships based on data source. Cached by backend lru_cache."""
-        source_enum = DataSource(self.data_source) if isinstance(self.data_source, str) else self.data_source
-        return load_all_ships(source_enum)
+        return self._all_ships
+
+    _all_ships: list[dict] = []
 
 
     # Hooks
-    def on_content_source_change(self):
+    async def on_content_source_change(self):
         self.current_page = 0
         self.set_default_formats_for_source(self.data_source)
-        self.load_data()
+        await self.load_data()
 
-    def on_tournament_filter_change(self):
+    async def on_tournament_filter_change(self):
         self.current_page = 0
-        self.load_data()
+        await self.load_data()
         self.set_default_formats_for_source(self.data_source)
         self.load_data()
 
@@ -426,37 +461,7 @@ class CardAnalyzerState(TournamentFilterMixin):
         self.current_page = 0
         self.load_data()
 
-    def set_data_source(self, source: str | list[str]):
-        if isinstance(source, list):
-            source = source[0]
-        # Store as string for UI state simplicity if needed, but backend needs Enum
-        # Segmented control returns string value.
-        # Segmented control returns string value.
-        self.data_source = source
-        # Reset sort metric if current is invalid (e.g. Loadout in Legacy)
-        if self.data_source == "legacy" and self.sort_metric == "Loadout":
-             self.sort_metric = "Popularity"
-        
-        # Default Format Logic
-        # If XWA -> Select 2.5 Macro + its children, Deselect 2.0
-        # If Legacy -> Select 2.0 Macro + its children, Deselect 2.5
-        new_formats = self.selected_formats.copy()
-        
-        # Reset all formats first (including OTHER)
-        for m in MacroFormat:
-            new_formats[m.value] = False
-            for f in m.formats():
-                new_formats[f.value] = False
-                    
-        target_macro = MacroFormat.V2_5 if self.data_source == "xwa" else MacroFormat.V2_0
-        new_formats[target_macro.value] = True
-        for f in target_macro.formats():
-             new_formats[f.value] = True
-             
-        self.selected_formats = new_formats
-        
-        self.current_page = 0
-        self.load_data()
+    # set_data_source removed - handled by GlobalFilterState
 
     @rx.var
     def available_ships(self) -> list[list[str]]:
@@ -480,7 +485,7 @@ class CardAnalyzerState(TournamentFilterMixin):
             norm_active = {norm(f) for f in active_factions}
             
             for s in ships:
-                s_factions_norm = {norm(f) for f in s["factions"]}
+                s_factions_norm = {norm(f) for f in s.get("factions", [])}
                 if not s_factions_norm.isdisjoint(norm_active):
                     filtered_by_faction.append(s)
                     
@@ -539,7 +544,39 @@ class CardAnalyzerState(TournamentFilterMixin):
 
 
 
-    def load_data(self):
+    async def on_mount(self):
+        gs = await self.get_state(GlobalFilterState)
+        gs.load_locations()
+        # Initialize default formats if needed
+        if not gs.selected_formats:
+             gs.set_default_formats_for_source(gs.data_source)
+             
+        # Initialize selected_factions keys
+        if not self.selected_factions:
+             for f_list in self.faction_options:
+                 self.selected_factions[f_list[1]] = False
+
+        # --- Smart Accordion Logic ---
+        # If filters are active (persisted), open the corresponding accordion.
+        
+        # Faction
+        has_faction = any(self.selected_factions.values())
+        if has_faction:
+            self.faction_acc_val = ["Faction"]
+            
+        # Ship
+        has_ship = any(self.selected_ships.values()) or self.ship_search_text
+        if has_ship:
+            self.ship_acc_val = ["Ship Chassis"]
+            
+        # Upgrade
+        has_upgrade = any(self.selected_upgrade_types.values())
+        if has_upgrade:
+            self.upgrade_acc_val = ["Upgrade Type"]
+             
+        await self.load_data()
+
+    async def load_data(self):
         """
         Full data reload:
         1. Aggregates stats from DB based on filters.
@@ -548,14 +585,15 @@ class CardAnalyzerState(TournamentFilterMixin):
         4. Resets pagination to 0.
         5. Updates view.
         """
+        gs = await self.get_state(GlobalFilterState)
         criteria = SortingCriteria.from_label(self.sort_metric)
         direction = SortDirection(self.sort_direction)
 
-        print(f"DEBUG: load_data called. Source: {self.data_source}")
+        print(f"DEBUG: load_data called. Source: {gs.data_source}")
 
         # Construction Allowed Formats List
         allowed = []
-        for k, v in self.selected_formats.items():
+        for k, v in gs.selected_formats.items():
             # Check if k is a valid Format value (exclude macros)
             is_valid_format = False
             for f in Format:
@@ -574,8 +612,8 @@ class CardAnalyzerState(TournamentFilterMixin):
 
         filters = {
             "allowed_formats": allowed,
-            "date_start": self.date_range_start,
-            "date_end": self.date_range_end,
+            "date_start": gs.date_range_start,
+            "date_end": gs.date_range_end,
             "search_text": self.text_filter,
             "faction": active_factions,
             "ship": active_ships,
@@ -600,19 +638,29 @@ class CardAnalyzerState(TournamentFilterMixin):
             "is_limited": self.is_limited,
             "is_not_limited": self.is_not_limited,
             "base_sizes": self.base_sizes,
-            "include_epic": self.include_epic,
+            "include_epic": gs.include_epic,
             # Location
-            "continent": [k for k, v in self.selected_continents.items() if v],
-            "country": [k for k, v in self.selected_countries.items() if v],
-            "city": [k for k, v in self.selected_cities.items() if v],
+            "continent": [k for k, v in gs.selected_continents.items() if v],
+            "country": [k for k, v in gs.selected_countries.items() if v],
+            "city": [k for k, v in gs.selected_cities.items() if v],
         }
         # print(f"DEBUG: Active Filters: {filters}")
         
         # Convert data_source string to Enum
         try:
-            ds_enum = DataSource(self.data_source)
+            ds_enum = DataSource(gs.data_source)
         except ValueError:
             ds_enum = DataSource.XWA
+
+        # Update sort options based on source
+        opts = ["Cost", "Games", "Name", "Popularity", "Win Rate"]
+        if gs.data_source == "xwa":
+             opts.append("Loadout")
+             opts.sort()
+        self._sort_metric_options = opts
+
+        # Update all ships for current source
+        self._all_ships = list(load_all_ships(ds_enum).values())
 
         data = aggregate_card_stats(filters, criteria, direction, self.active_tab, ds_enum)
         
@@ -627,7 +675,7 @@ def render_filters() -> rx.Component:
     return rx.vstack(
         # 1. Content Source
         rx.box(
-            content_source_filter(CardAnalyzerState),
+            content_source_filter(CardAnalyzerState.load_data),
             width="100%"
         ),
 
@@ -635,7 +683,10 @@ def render_filters() -> rx.Component:
         rx.divider(border_color=BORDER_COLOR, flex_shrink="0"),
         
         # 2. Tournament Filters
-        tournament_filters(CardAnalyzerState),
+        tournament_filters(
+            on_change=CardAnalyzerState.load_data,
+            reset_handler=CardAnalyzerState.reset_tournament_filters_wrapper
+        ),
         
         rx.divider(border_color=BORDER_COLOR, flex_shrink="0"),
         
@@ -644,6 +695,14 @@ def render_filters() -> rx.Component:
             rx.hstack(
                 rx.text("CARD FILTERS", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
                 rx.spacer(),
+                rx.icon_button(
+                    rx.icon(tag="rotate-ccw"),
+                    on_click=CardAnalyzerState.reset_card_filters,
+                    variable="ghost",
+                    color_scheme="gray",
+                    size="1",
+                    tooltip="Reset Card Filters"
+                ),
                 rx.segmented_control.root(
                     rx.segmented_control.item("Basic", value=ViewMode.BASIC.value),
                     rx.segmented_control.item("Advanced", value=ViewMode.ADVANCED.value),
@@ -686,65 +745,65 @@ def render_filters() -> rx.Component:
                 width="100%"
             ),
 
-            # --- BASIC MODE CONTENT ---
-            rx.cond(
-                CardAnalyzerState.mode == ViewMode.BASIC.value,
-                rx.vstack(
-                    # Text Search
-                    rx.vstack(
-                        rx.text("Text Search", size="1", weight="bold", color=TEXT_SECONDARY),
-                        rx.input(
-                            placeholder="Search card text",
-                            value=CardAnalyzerState.text_filter,
-                            on_change=CardAnalyzerState.set_text_filter,
-                            style=INPUT_STYLE,
-                            width="100%",
-                            color_scheme="gray",
-                        ),
-                        spacing="1",
-                        width="100%"
-                    ),
+            # --- SHARED FILTERS (Always visible in both Basic and Advanced) ---
 
-                    rx.cond(
-                        CardAnalyzerState.active_tab == "pilots",
-                        rx.vstack(
-                            # Faction
-                            filter_accordion(
-                                "Faction",
-                                CardAnalyzerState.faction_options,
-                                CardAnalyzerState.selected_factions,
-                                CardAnalyzerState.toggle_faction
-                            ),
-                            
-                            # Ship 
-                            searchable_filter_accordion(
-                                "Ship Chassis",
-                                CardAnalyzerState.available_ships,
-                                CardAnalyzerState.selected_ships,
-                                CardAnalyzerState.toggle_ship,
-                                CardAnalyzerState.ship_search_text,
-                                CardAnalyzerState.set_ship_search
-                            ),
-                            
-                            # REMOVED INITIATIVE FOR BASIC MODE (User Request)
-                        
-                            spacing="3",
-                            width="100%"
-                        ),
-                        # Upgrade Filters
-                        filter_accordion(
-                            "Upgrade Type",
-                            CardAnalyzerState.upgrade_type_options,
-                            CardAnalyzerState.selected_upgrade_types,
-                            CardAnalyzerState.toggle_upgrade_type
-                        )
-                    ),
-                    spacing="3",
-                    width="100%"
+            # Text Search
+            rx.vstack(
+                rx.text("Text Search", size="1", weight="bold", color=TEXT_SECONDARY),
+                rx.input(
+                    placeholder="Search card text",
+                    value=CardAnalyzerState.text_filter,
+                    on_change=CardAnalyzerState.set_text_filter,
+                    style=INPUT_STYLE,
+                    width="100%",
+                    color_scheme="gray",
+                ),
+                spacing="1",
+                width="100%"
+            ),
+
+            # Faction (Pilots only)
+            rx.cond(
+                CardAnalyzerState.active_tab == "pilots",
+                filter_accordion(
+                    "Faction",
+                    CardAnalyzerState.faction_options,
+                    CardAnalyzerState.selected_factions,
+                    CardAnalyzerState.toggle_faction,
+                    accordion_value=CardAnalyzerState.faction_acc_val,
+                    on_accordion_change=CardAnalyzerState.set_faction_acc_val,
                 ),
             ),
-            
-            # --- ADVANCED MODE CONTENT ---
+
+            # Ship Chassis (Pilots only)
+            rx.cond(
+                CardAnalyzerState.active_tab == "pilots",
+                searchable_filter_accordion(
+                    "Ship Chassis",
+                    CardAnalyzerState.available_ships,
+                    CardAnalyzerState.selected_ships,
+                    CardAnalyzerState.toggle_ship,
+                    CardAnalyzerState.ship_search_text,
+                    CardAnalyzerState.set_ship_search,
+                    accordion_value=CardAnalyzerState.ship_acc_val,
+                    on_accordion_change=CardAnalyzerState.set_ship_acc_val,
+                ),
+            ),
+
+            # Upgrade Type (Upgrades only)
+            rx.cond(
+                CardAnalyzerState.active_tab == "upgrades",
+                filter_accordion(
+                    "Upgrade Type",
+                    CardAnalyzerState.upgrade_type_options,
+                    CardAnalyzerState.selected_upgrade_types,
+                    CardAnalyzerState.toggle_upgrade_type,
+                    accordion_value=CardAnalyzerState.upgrade_acc_val,
+                    on_accordion_change=CardAnalyzerState.set_upgrade_acc_val,
+                ),
+            ),
+
+            # --- ADVANCED MODE EXTRAS (Only visible in Advanced) ---
             rx.cond(
                 CardAnalyzerState.mode == ViewMode.ADVANCED.value,
                 advanced_filters(CardAnalyzerState)
@@ -787,7 +846,7 @@ def pilot_card(p: dict) -> rx.Component:
                         ),
                         rx.badge(p["cost"].to(str) + " PTS", color_scheme="blue", variant="solid", radius="full"),
                         rx.cond(
-                            CardAnalyzerState.data_source == "xwa",
+                            GlobalFilterState.data_source == "xwa",
                             rx.badge(p["loadout"].to(str) + " LV", color_scheme="purple", variant="solid", radius="full"),
                             rx.fragment()
                         ),

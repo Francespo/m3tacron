@@ -135,6 +135,7 @@ def sidebar_content(collapsed: rx.Var = False) -> rx.Component:
             sidebar_link("DASHBOARD", "/", "home", collapsed),
             sidebar_link("TOURNAMENTS", "/tournaments", "database", collapsed),
             sidebar_link("SQUADRONS", "/squadrons", "layers", collapsed),
+            sidebar_link("LISTS", "/lists", "list", collapsed),
             sidebar_link("SHIPS", "/ships", "rocket", collapsed),
             sidebar_link("CARDS", "/cards", "cpu", collapsed),
             width="100%",

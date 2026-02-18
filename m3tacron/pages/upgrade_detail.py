@@ -10,7 +10,9 @@ from ..backend.data_structures.factions import Faction
 from ..backend.data_structures.upgrade_types import UpgradeType
 from ..backend.data_structures.data_source import DataSource
 from ..backend.data_structures.formats import Format, MacroFormat
-from ..backend.utils import load_all_upgrades, load_all_ships, load_all_pilots
+from ..backend.utils.xwing_data.upgrades import load_all_upgrades
+from ..backend.utils.xwing_data.ships import load_all_ships
+from ..backend.utils.xwing_data.pilots import load_all_pilots
 from ..backend.data_structures.sorting_order import SortingCriteria, SortDirection
 from ..backend.analytics.core import aggregate_card_stats
 from ..backend.analytics.charts import get_card_usage_history
@@ -207,7 +209,7 @@ class UpgradeDetailState(FormatFilterMixin):
     def all_ships(self) -> list[dict]:
         """Load all ships based on data source. Cached by backend lru_cache."""
         source_enum = DataSource(self.data_source) if isinstance(self.data_source, str) else self.data_source
-        return load_all_ships(source_enum)
+        return list(load_all_ships(source_enum).values())
 
     @rx.var
     def available_ships(self) -> list[list[str]]:

@@ -4,7 +4,9 @@ Card Analytics - Aggregation Logic for Pilots and Upgrades.
 from sqlmodel import Session, select
 from ..database import engine
 from ..models import PlayerResult, Tournament
-from ..utils import get_pilot_name, get_upgrade_name, get_pilot_info, load_all_pilots, load_all_upgrades, load_all_ships
+from ..utils.xwing_data.pilots import get_pilot_name, get_pilot_info, load_all_pilots
+from ..utils.xwing_data.upgrades import get_upgrade_name, load_all_upgrades
+from ..utils.xwing_data.ships import load_all_ships
 from ..data_structures.factions import Faction
 from ..data_structures.formats import Format, MacroFormat
 from ..data_structures.data_source import DataSource
@@ -154,22 +156,11 @@ def aggregate_card_stats(
                     if p_loadout < loadout_min or p_loadout > loadout_max:
                         continue
                         
-                # Ship Stats Filters
-                # Use safe default for filter checks
-                # Default Logic: Show if standard OR extended OR wildspace is True.
-                # If include_epic is True, show if epic is True (regardless of others).
-                # If include_epic is False, DO NOT show if ONLY epic is True.
-                
-                is_std = p_info.get("standard", False)
-                is_ext = p_info.get("extended", False)
-                is_wild = p_info.get("wildspace", False)
-                is_epic = p_info.get("epic", False)
-                
+                        
                 include_epic_content = filters.get("include_epic", False)
 
                 # Strict Format Visibility Filter
-                is_std = p_info.get("standard", False)
-                is_ext = p_info.get("extended", False)
+                is_legal = p_info.get("valid_in_standard", False)
                 is_wild = p_info.get("wildspace", False)
                 is_epic = p_info.get("epic", False)
                 
@@ -178,10 +169,10 @@ def aggregate_card_stats(
                 # Check against allowed formats from filter
                 # allowed_formats contains strings from Format enum (e.g. 'xwa', 'amg', 'wildspace')
                 if allowed_formats:
-                     # 2.5 / Standard / Extended Logic
-                     # 'xwa' and 'amg' usually imply Standard/Extended legality
+                     # 2.5 Logic (AMG/XWA) implies Standard Play validity
                      if "xwa" in allowed_formats or "amg" in allowed_formats:
-                         if is_std or is_ext:
+                         # Show if valid in standard play (formerly standard OR extended)
+                         if is_legal:
                              show_card = True
                              
                      # Wild Space
@@ -382,8 +373,7 @@ def aggregate_card_stats(
 
 
                 # Strict Format Visibility Filter (Upgrades)
-                is_std = u_info.get("standard", False)
-                is_ext = u_info.get("extended", False)
+                is_legal = u_info.get("valid_in_standard", False)
                 is_wild = u_info.get("wildspace", False)
                 is_epic = u_info.get("epic", False)
                 
@@ -392,7 +382,7 @@ def aggregate_card_stats(
                 # Check against allowed formats
                 if allowed_formats:
                      if "xwa" in allowed_formats or "amg" in allowed_formats:
-                         if is_std or is_ext:
+                         if is_legal:
                              show_card = True
                              
                      if "wildspace" in allowed_formats and is_wild:
@@ -450,7 +440,7 @@ def aggregate_card_stats(
                     "type": display_type,
                     "count": 0, "wins": 0, "games": 0,
                     "image": u_info.get("image", ""),
-                    "cost": u_info.get("cost", 0)
+                    "cost": int(u_info.get("cost", {}).get("value", 0) if isinstance(u_info.get("cost"), dict) else (u_info.get("cost") or 0))
                 }
 
         for result, tournament in rows:

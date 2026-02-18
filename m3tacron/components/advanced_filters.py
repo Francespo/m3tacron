@@ -3,52 +3,16 @@ import reflex as rx
 from ..theme import (
     TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR, INPUT_STYLE, RADIUS
 )
-from .filter_accordion import filter_accordion
-from .searchable_filter_accordion import searchable_filter_accordion
+from ..backend.state.global_filter_state import GlobalFilterState
 
 def advanced_filters(state) -> rx.Component:
     """
-    Render the advanced filters for the Card Browser.
-    All filters under single "Card Filters" section (no sub-headers).
+    Render extra advanced-only filters for the Card Browser.
+    Shared filters (Text Search, Faction, Ship Chassis, Upgrade Type)
+    are rendered by the parent page, not here.
     """
     
     return rx.vstack(
-        # Text Search
-        # Text Search
-        rx.vstack(
-            rx.text("Text Search", weight="bold", size="1", color=TEXT_SECONDARY),
-            rx.input(
-                placeholder="Search card text",
-                value=state.text_filter,
-                on_change=state.set_text_filter,
-                style=INPUT_STYLE,
-                width="100%"
-            ),
-            spacing="1",
-            width="100%"
-        ),
-        
-        # Factions
-        filter_accordion(
-            "Faction",
-            state.faction_display_options,
-            state.selected_factions,
-            state.toggle_faction
-        ),
-        
-        # Ships (Pilots only)
-        rx.cond(
-            state.active_tab == "pilots",
-            searchable_filter_accordion(
-                "Chassis",
-                state.available_ships,
-                state.selected_ships,
-                state.toggle_ship,
-                state.ship_search_text,
-                state.set_ship_search
-            )
-        ),
-        
         # Point Costs (Range)
         rx.vstack(
             rx.text("Point Costs", weight="bold", size="1", color=TEXT_SECONDARY),
@@ -75,7 +39,7 @@ def advanced_filters(state) -> rx.Component:
         
         # Loadout Value (XWA Pilots Only)
         rx.cond(
-            (state.active_tab == "pilots") & (state.data_source == "xwa"),
+            (state.active_tab == "pilots") & (GlobalFilterState.data_source == "xwa"),
             rx.vstack(
                 rx.text("Loadout Value", weight="bold", size="1", color=TEXT_SECONDARY),
                 rx.hstack(
@@ -100,7 +64,7 @@ def advanced_filters(state) -> rx.Component:
             )
         ),
         
-        # Limited/Unique toggles (3 options on same line)
+        # Limited/Unique toggles
         rx.vstack(
             rx.text("Uniqueness", weight="bold", size="1", color=TEXT_SECONDARY),
             rx.hstack(
@@ -114,7 +78,7 @@ def advanced_filters(state) -> rx.Component:
             width="100%"
         ),
         
-        # Base Size (S/M/L/H on same line) - Pilots Only
+        # Base Size (Pilots Only)
         rx.cond(
             state.active_tab == "pilots",
             rx.vstack(
@@ -131,11 +95,11 @@ def advanced_filters(state) -> rx.Component:
             )
         ),
         
-        # --- PILOT-SPECIFIC STATS ---
+        # Pilot-Specific Stats
         rx.cond(
             state.active_tab == "pilots",
             rx.vstack(
-                # Initiative (Range)
+                # Initiative
                 rx.hstack(
                     rx.text("Initiative:", size="1", color=TEXT_SECONDARY, min_width="70px"),
                     rx.input(value=state.init_min, on_change=state.set_init_min, type="number", style=INPUT_STYLE, width="50px"),
@@ -181,22 +145,6 @@ def advanced_filters(state) -> rx.Component:
                     width="100%"
                 ),
                 spacing="2",
-                width="100%"
-            )
-        ),
-        
-        # --- UPGRADE-SPECIFIC FILTERS ---
-        rx.cond(
-            state.active_tab == "upgrades",
-            rx.vstack(
-                # Upgrade Types
-                filter_accordion(
-                    "Upgrade Type",
-                    state.upgrade_type_options,
-                    state.selected_upgrade_types,
-                    state.toggle_upgrade_type
-                ),
-                spacing="3",
                 width="100%"
             )
         ),

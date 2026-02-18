@@ -15,7 +15,7 @@ def pagination_controls(state: any) -> rx.Component:
         rx.hstack(
             rx.text("Page", color=TEXT_SECONDARY, size="2", font_family=MONOSPACE_FONT),
             rx.input(
-                value=(state.current_page + 1).to_string(),
+                value=state.current_page + 1,
                 on_change=state.jump_to_page,
                 width="50px",
                 size="1",

@@ -10,7 +10,7 @@ from ..backend.data_structures.factions import Faction
 from ..backend.data_structures.upgrade_types import UpgradeType
 from ..backend.data_structures.data_source import DataSource
 from ..backend.data_structures.formats import Format, MacroFormat
-from ..backend.utils import load_all_pilots
+from ..backend.utils.xwing_data.pilots import load_all_pilots
 from ..backend.analytics.core import aggregate_card_stats
 from ..backend.data_structures.sorting_order import SortingCriteria, SortDirection
 from ..backend.analytics.charts import get_card_usage_history

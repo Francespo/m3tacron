@@ -6,7 +6,7 @@ Aggregates statistics (win rate, popularity, games) per ship per faction.
 from sqlmodel import Session, select
 from ..database import engine
 from ..models import PlayerResult, Tournament
-from ..utils import load_all_pilots
+from ..utils.xwing_data.pilots import load_all_pilots
 from ..data_structures.factions import Faction
 from ..data_structures.formats import Format
 from ..data_structures.data_source import DataSource
@@ -167,15 +167,14 @@ def aggregate_ship_stats(
                     continue
 
                 # Legality check to match Cards Browser visibility
-                is_std = p_info.get("standard", False)
-                is_ext = p_info.get("extended", False)
+                is_legal = p_info.get("valid_in_standard", False)
                 is_wild = p_info.get("wildspace", False)
                 is_epic = p_info.get("epic", False)
                 
                 show_pilot = False
                 if allowed_formats:
                     if "xwa" in allowed_formats or "amg" in allowed_formats:
-                        if is_std or is_ext:
+                        if is_legal:
                             show_pilot = True
                     if "wildspace" in allowed_formats and is_wild:
                         show_pilot = True
@@ -187,8 +186,8 @@ def aggregate_ship_stats(
                         if not legacy_keys.isdisjoint(allowed_formats):
                             show_pilot = True
                 else:
-                    # Fallback visibility if no formats selected (match Cards page)
-                    show_pilot = is_std or is_ext or is_wild
+                    # Fallback visibility if no formats selected
+                    show_pilot = is_legal or is_wild
                 
                 if not show_pilot:
                     continue
