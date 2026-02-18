@@ -72,24 +72,6 @@ class LongshanksScraper(BaseScraper):
         """Parse faction from image alt/src."""
         faction = Faction.from_xws(value)
         return faction.value if faction != Faction.UNKNOWN else None
-
-    def _safe_int(self, value: str | int | None, default: int = 0) -> int:
-        """Robustly parse integer from string, cleaning non-numeric text."""
-        if value is None:
-            return default
-        # Remove non-numeric chars except minus sign (keep digits and -)
-        # But for 'Loss', we just want 0.
-        s = str(value).strip()
-        # If it's a pure string like 'Loss', return default
-        import re
-        # Match number at start or end, or just number
-        m = re.search(r'-?\d+', s)
-        if m:
-            try:
-                return int(m.group(0))
-            except:
-                pass
-        return default
     
     def get_tournament_data(self, tournament_id: str, inferred_format: Format | None = None) -> Tournament:
         """
@@ -330,11 +312,6 @@ class LongshanksScraper(BaseScraper):
                         list_icon = el.locator("a.list_link.pop").first
                         xws_raw = list_icon.get_attribute("data-list") if list_icon.count() > 0 else None
                         
-                        # Fix: Check if data-list contains actual JSON or just a URL slug
-                        if xws_raw and (not xws_raw.strip().startswith("{") and not xws_raw.strip().startswith("[")):
-                             # Sometimes it's not JSON? Log debug.
-                             xws_raw = None
-
                         # PID and Team Mapping
                         pid = None
                         team_name = None
@@ -406,14 +383,13 @@ class LongshanksScraper(BaseScraper):
                             wins_raw = str(item.get('wins', '0')).strip()
                             if not re.match(r'^-?\d+$', wins_raw): continue
                             
-                            
                             r_match = re.search(r"(\d+)", str(item.get('rankRaw', '0')))
                             rank = int(r_match.group(1)) if r_match else 0
                             if rank == 0: continue
                             
-                            wins = self._safe_int(item.get('wins'), 0)
-                            losses = self._safe_int(item.get('loss'), 0)
-                            draws = self._safe_int(item.get('draw'), 0)
+                            wins = int(str(item.get('wins')).replace('-', '0').strip() or 0)
+                            losses = int(str(item.get('loss')).replace('-', '0').strip() or 0)
+                            draws = int(str(item.get('draw')).replace('-', '0').strip() or 0)
                             
                             tp = 0
                             vps = 0
@@ -588,12 +564,10 @@ class LongshanksScraper(BaseScraper):
                         m = re.search(r"<textarea[^>]*>(.*?)</textarea>", content, re.DOTALL)
                         if m:
                             json_str = m.group(1).strip()
-                            if not json_str:
-                                return player, None
                             try:
                                 return player, json.loads(json_str)
                             except Exception as je:
-                                logger.error(f"Failed to parse XWS JSON for {player.player_name}: {je} | Content snippet: {json_str[:50]}...")
+                                logger.error(f"Failed to parse XWS JSON for {player.player_name}: {je}")
                 except Exception as e:
                     logger.debug(f"Fetch list error for {pid}: {e}")
                 return player, None
@@ -989,13 +963,13 @@ class LongshanksScraper(BaseScraper):
                             event_date = parsed_date.date() if isinstance(parsed_date, datetime) else parsed_date
 
                             # Date range filter — skip future events beyond range
+                            # (Just in case server includes future events?)
                             if event_date > date_to:
                                 continue
-                            if event_date < date_from:
-                                # History is sorted newest-first, so once we pass
-                                # the range we can stop scraping entirely
-                                stop_early = True
-                                break
+                            
+                            # Server-side filtering handles the "from" date.
+                            # We treat all returned events as valid candidates if they are <= date_to.
+                            # No more stop_early logic based on start date.
 
                             # Player count
                             size_text = page.evaluate(

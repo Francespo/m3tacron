@@ -51,10 +51,11 @@ class BaseScraper(ABC):
         clean = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", text.strip())
 
         # Handle date ranges ("2026-01-10 – 2026-01-11")
+        # We prefer the END date for recently-concluded usage
         if "–" in clean:
-            clean = clean.split("–")[0].strip()
+            clean = clean.split("–")[-1].strip()
         if " - " in clean:
-            clean = clean.split(" - ")[0].strip()
+            clean = clean.split(" - ")[-1].strip()
 
         formats = [
             "%d %b %Y",     # 14 Jan 2024

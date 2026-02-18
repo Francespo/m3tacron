@@ -227,6 +227,8 @@ class RollbetterScraper(BaseScraper):
 
                 pages_scraped = 0
                 stop_early = False
+                consecutive_misses = 0
+                MAX_CONSECUTIVE_MISSES = 5
 
                 while True:
                     pages_scraped += 1
@@ -256,9 +258,17 @@ class RollbetterScraper(BaseScraper):
                             # Date range filter
                             if event_date > date_to:
                                 continue
+                            
                             if event_date < date_from:
-                                stop_early = True
-                                break
+                                # Count consecutive misses to handle out-of-order listings
+                                consecutive_misses += 1
+                                if consecutive_misses >= MAX_CONSECUTIVE_MISSES:
+                                    stop_early = True
+                                    break
+                                continue # Skip this one, but don't stop yet
+                            else:
+                                # Valid date found, reset counter
+                                consecutive_misses = 0
 
                             # Player count (e.g. "9 / 16")
                             player_count = 0

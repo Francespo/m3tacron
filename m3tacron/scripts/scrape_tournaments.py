@@ -9,6 +9,7 @@ Usage:
 import argparse
 import logging
 import sys
+import os
 from datetime import date, timedelta
 from sqlmodel import create_engine
 
@@ -88,7 +89,7 @@ def main():
         help="Time range: preset (yesterday, today, last_week) or YYYY-MM-DD or start,end."
     )
     parser.add_argument(
-        "--db", default="scraped_data.db",
+        "--db", default=os.getenv("DATABASE_URL", "scraped_data.db"),
         help="Database connection string or path (sqlite default)."
     )
     parser.add_argument(
@@ -157,7 +158,11 @@ def main():
 
     # 4. Extract Data
     db_path = args.db
-    if "sqlite" not in db_path and "postgres" not in db_path:
+    # Ensure PostgreSQL compatibility if using a connection string
+    if db_path.startswith("postgres://"):
+        db_path = db_path.replace("postgres://", "postgresql://", 1)
+        
+    if "sqlite" not in db_path and "postgresql" not in db_path:
         db_path = f"sqlite:///{args.db}"
         
     engine = create_engine(db_path)

@@ -45,10 +45,12 @@ jobs:
         playwright install chromium --with-deps
         
     - name: Run Scraper
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
       run: |
         # Ensure m3tacron module can be found
         export PYTHONPATH=$PYTHONPATH:.
-        python -m m3tacron.scripts.scrape_tournaments --platform ${{ inputs.platform }} --time-range ${{ inputs.time_range }} --db main.db
+        python -m m3tacron.scripts.scrape_tournaments --platform ${{ inputs.platform }} --time-range ${{ inputs.time_range }}
 
 
     - name: Upload Database Artifact
