@@ -48,5 +48,640 @@
     "city": "Burlington",
     "country": "Canada",
     "continent": "North America"
+  },
+  "ALCALA DE HENARES, Madrid,\u00a0Spain": {
+    "city": "Alcal\u00e1 de Henares",
+    "country": "Espa\u00f1a",
+    "continent": "Europe"
+  },
+  "Roma, Italy": {
+    "city": "Roma",
+    "country": "Italia",
+    "continent": "Europe"
+  },
+  "Spratton Hall School, England,\u00a0United Kingdom": {
+    "city": "Northampton",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Brea, California,\u00a0United States": {
+    "city": "Brea",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Alicante, Valencia,\u00a0Spain": {
+    "city": "Alacant / Alicante",
+    "country": "Espa\u00f1a",
+    "continent": "Europe"
+  },
+  "Campinas, S\u00e3o Paulo,\u00a0Brazil": {
+    "city": "Campinas",
+    "country": "Brasil",
+    "continent": "South America"
+  },
+  "East Coast Gamers, New Jersey,\u00a0United States": {
+    "city": "Toms River",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Common Ground Games, Scotland,\u00a0United Kingdom": {
+    "city": "Stirling",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "N\u00f8rresundby, North Jutland,\u00a0Denmark": {
+    "city": "N\u00f8rresundby",
+    "country": "Danmark",
+    "continent": "Europe"
+  },
+  "Krolm, Gdansk, Poland": {
+    "city": "Gda\u0144sk",
+    "country": "Polska",
+    "continent": "Europe"
+  },
+  "Rome, Italy": {
+    "city": "Roma",
+    "country": "Italia",
+    "continent": "Europe"
+  },
+  "Minas Gerais,\u00a0Brazil": {
+    "city": "Minas Gerais",
+    "country": "Brasil",
+    "continent": "South America"
+  },
+  "Saskatoon, Saskatchewan, CA": {
+    "city": "Saskatoon",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Roseville, Minnesota, US": {
+    "city": "Roseville",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "The Wizard's Chest": {
+    "city": "Denver",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Conroe, Texas, US": {
+    "city": "Conroe",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Middletown, Pennsylvania, US": {
+    "city": "Middletown Township",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Denver, Colorado, US": {
+    "city": "Denver",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Grand Junction , Colorado, US": {
+    "city": "Grand Junction",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Arlington, Virginia, US": {
+    "city": "Virginia",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "South Bend, Indiana, US": {
+    "city": "South Bend",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Burleson, Texas, US": {
+    "city": "Texas",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Waco, Texas, US": {
+    "city": "Waco",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Bellefonte, Pennsylvania, US": {
+    "city": "Bellefonte",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Steelton, Pennsylvania, US": {
+    "city": "Steelton",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "St Peters, Missouri, US": {
+    "city": "Saint Peters",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Vancouver, Washington, US": {
+    "city": "Vancouver",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "New Mexico, US": {
+    "city": "New Mexico",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Vancouver, British Columbia, CA": {
+    "city": "Vancouver",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Lost Star": {
+    "city": "Scottsdale",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Portland, Oregon, US": {
+    "city": "Portland",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Salt lake City , Utah, US": {
+    "city": "Salt Lake City",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Tucson, Arizona, US": {
+    "city": "Tucson",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Castle Rock, Colorado, US": {
+    "city": "Castle Rock",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Worms, Rheinland-Pfalz, DE": {
+    "city": "Worms",
+    "country": "Deutschland",
+    "continent": "Europe"
+  },
+  "Stanwood, Washington, US": {
+    "city": "Stanwood",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Missouri, US": {
+    "city": "Missouri",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Richmond, British Columbia, CA": {
+    "city": "Richmond",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Recife, Pernambuco, BR": {
+    "city": "Recife",
+    "country": "Brasil",
+    "continent": "South America"
+  },
+  "Cologne, Nordrhein-Westfalen, DE": {
+    "city": "K\u00f6ln",
+    "country": "Deutschland",
+    "continent": "Europe"
+  },
+  "Milwaukee, Wisconsin, US": {
+    "city": "Milwaukee",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Prancing Pony": {
+    "city": "Las Vegas",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Downers Grove, Illinois, US": {
+    "city": "Downers Grove",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Wellington, Wellington, NZ": {
+    "city": "Wellington",
+    "country": "New Zealand / Aotearoa",
+    "continent": "Oceania"
+  },
+  "Gap, Pennsylvania, US": {
+    "city": "Salisbury Township",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Prince George, British Columbia, CA": {
+    "city": "Prince George",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Ashburn, Virginia, US": {
+    "city": "Ashburn",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Santiago, Regi\u00f3n Metropolitana de Santiago, CL": {
+    "city": "Santiago",
+    "country": "Chile",
+    "continent": "South America"
+  },
+  "Grand Junction, Colorado, US": {
+    "city": "Grand Junction",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Bellevue, Washington, US": {
+    "city": "Bellevue",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Springfield, Virginia, US": {
+    "city": "Springfield",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Regi\u00f3n Metropolitana de Santiago, CL": {
+    "city": "Regi\u00f3n Metropolitana de Santiago",
+    "country": "Chile",
+    "continent": "South America"
+  },
+  "Waco , Texas, US": {
+    "city": "Waco",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "British Columbia, CA": {
+    "city": "British Columbia",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Locust Grove, Georgia, US": {
+    "city": "Locust Grove",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "The Forge": {
+    "city": "Basingstoke and Deane",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Canberra, Australian Capital Territory, AU": {
+    "city": "Canberra",
+    "country": "Australia",
+    "continent": "Oceania"
+  },
+  "Ottawa, Ontario, CA": {
+    "city": "Ottawa",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Nottingham, GB": {
+    "city": "City of Nottingham",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Bremerton, Washington, US": {
+    "city": "Bremerton",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Colorado, US": {
+    "city": "Colorado",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Quebec, Quebec, CA": {
+    "city": "Qu\u00e9bec",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Minneapolis, Minnesota, US": {
+    "city": "Minneapolis",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Phoenix, Arizona, US": {
+    "city": "Phoenix",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Carver": {
+    "city": "Minnesota",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Durham, North Carolina, US": {
+    "city": "Durham",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Chicago, Illinois, US": {
+    "city": "Chicago",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Hemel Hempstead, GB": {
+    "city": "Dacorum",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "East Windsor, Connecticut, US": {
+    "city": "East Windsor",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Glen Burnie, Maryland, US": {
+    "city": "Glen Burnie",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Annerley, Queensland, AU": {
+    "city": "City of Brisbane",
+    "country": "Australia",
+    "continent": "Oceania"
+  },
+  "Houston, Texas, US": {
+    "city": "Houston",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Stockton, California, US": {
+    "city": "Stockton",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Columbia, South Carolina, US": {
+    "city": "Columbia",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Cochabamba , Cochabamba, BO": {
+    "city": "Cochabamba",
+    "country": "Bolivia",
+    "continent": "Unknown"
+  },
+  "Washington, District of Columbia, US": {
+    "city": "Washington",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "La Paz, La Paz, BO": {
+    "city": "La Paz",
+    "country": "Bolivia",
+    "continent": "Unknown"
+  },
+  "South Carolina, US": {
+    "city": "South Carolina",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Wellington, NZ": {
+    "city": "Wellington",
+    "country": "New Zealand / Aotearoa",
+    "continent": "Oceania"
+  },
+  "DFW, Texas, US": {
+    "city": "Dallas",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Portland , Oregon, US": {
+    "city": "Portland",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Allen, Texas, US": {
+    "city": "Allen",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Campbelltown, New South Wales, AU": {
+    "city": "Campbelltown City Council",
+    "country": "Australia",
+    "continent": "Oceania"
+  },
+  "Beijing, CN": {
+    "city": "\u5317\u4eac\u5e02",
+    "country": "\u4e2d\u56fd",
+    "continent": "Asia"
+  },
+  "Cape Town, Western Cape, ZA": {
+    "city": "Cape Town",
+    "country": "South Africa",
+    "continent": "Africa"
+  },
+  "Pleasant Grove, Utah, US": {
+    "city": "Pleasant Grove",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Birmingham, GB": {
+    "city": "Birmingham",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Game Kastle Santa Clara": {
+    "city": "Santa Clara",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Game Preserve North": {
+    "city": "North Dumfries",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Cairns, Queensland, AU": {
+    "city": "Cairns",
+    "country": "Australia",
+    "continent": "Oceania"
+  },
+  "Lloydminster, Alberta, CA": {
+    "city": "City of Lloydminster",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Calgary, Alberta, CA": {
+    "city": "Calgary",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Saint David, Arizona, US": {
+    "city": "Saint David",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Virginia Beach, Virginia, US": {
+    "city": "Virginia Beach",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Tempe, Arizona, US": {
+    "city": "Tempe",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Renaissance Schaumburg Convention Center": {
+    "city": "Schaumburg",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Schaumburg, Illinois, US": {
+    "city": "Schaumburg",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Ankeny , Iowa, US": {
+    "city": "Ankeny",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Abbotsford , British Columbia, CA": {
+    "city": "Abbotsford",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Curitiba, Paran\u00e1, BR": {
+    "city": "Curitiba",
+    "country": "Brasil",
+    "continent": "South America"
+  },
+  "Estacada, Oregon, US": {
+    "city": "Estacada",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Sylva, North Carolina, US": {
+    "city": "Sylva",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Gaithersburg , Maryland, US": {
+    "city": "Gaithersburg",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Helsingborg, Sk\u00e5ne, SE": {
+    "city": "Helsingborg",
+    "country": "Sverige",
+    "continent": "Europe"
+  },
+  "Cape Town, ZA": {
+    "city": "Cape Town",
+    "country": "South Africa",
+    "continent": "Africa"
+  },
+  "Concord, California, US": {
+    "city": "Concord",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Midlothian, Virginia, US": {
+    "city": "Midlothian",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Lexington, Kentucky, US": {
+    "city": "Lexington",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Berkeley, California, US": {
+    "city": "Berkeley",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Warren, Michigan, US": {
+    "city": "Warren",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Las Vegas, Nevada, US": {
+    "city": "Las Vegas",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Batavia, Illinois, US": {
+    "city": "Batavia",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Littleton, Colorado, US": {
+    "city": "Littleton",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Game Nite": {
+    "city": "Saint Louis",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Gig Harbor, Washington, US": {
+    "city": "Gig Harbor",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Albuquerque, New Mexico, US": {
+    "city": "Albuquerque",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Norwich, Norfolk, GB": {
+    "city": "Norwich",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Chicago, US": {
+    "city": "Chicago",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Indianapolis , Indiana, US": {
+    "city": "Indianapolis",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Gilbert, Arizona, US": {
+    "city": "Gilbert",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "San Francisco, Colorado, US": {
+    "city": "San Francisco",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "south bend, Indiana, US": {
+    "city": "South Bend",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Lansing, MI, Michigan, US": {
+    "city": "Lansing",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "KINGMAN, Arizona, US": {
+    "city": "Kingman",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Somersworth, New Hampshire, US": {
+    "city": "Somersworth",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Medford, Wisconsin, US": {
+    "city": "Medford",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "San Antonio, Texas, US": {
+    "city": "San Antonio",
+    "country": "United States",
+    "continent": "North America"
   }
 }
