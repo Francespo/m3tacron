@@ -91,6 +91,10 @@ def main():
         "--db", default="scraped_data.db",
         help="Database connection string or path (sqlite default)."
     )
+    parser.add_argument(
+        "--limit", type=int, default=None,
+        help="Max number of NEW (non-duplicate) tournaments to scrape."
+    )
     
     args = parser.parse_args()
     
@@ -158,8 +162,18 @@ def main():
         
     engine = create_engine(db_path)
     
+    added_count = 0
     for t in found_tournaments:
-        run_url(t["url"], engine)
+        if args.limit and added_count >= args.limit:
+            logger.info(f"Reached limit of {args.limit} new tournaments. Stopping.")
+            break
+            
+        is_new = run_url(t["url"], engine)
+        if is_new:
+            added_count += 1
+            logger.info(f"Added new tournament. Total added: {added_count}")
+        else:
+            logger.info(f"Skipped duplicate or existing tournament: {t['url']}")
 
 if __name__ == "__main__":
     main()

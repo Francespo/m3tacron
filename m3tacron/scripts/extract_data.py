@@ -150,7 +150,7 @@ def _resolve_player_id(name: str, player_map: dict[str, int]) -> int | None:
         
     return None
 
-def run_url(url: str, engine, format_filter: str | None = None):
+def run_url(url: str, engine, format_filter: str | None = None) -> bool:
     """Scrape a single tournament URL and persist to DB.
 
     Args:
@@ -158,13 +158,17 @@ def run_url(url: str, engine, format_filter: str | None = None):
         engine: SQLAlchemy engine.
         format_filter: Optional format string. If set, skip tournaments
                        whose inferred format doesn't match.
+
+    Returns:
+        True if a NEW tournament was successfully added to the database.
+        False if it was a duplicate, already existed, or encountered an error.
     """
     logger.info(f"--- Processing: {url} ---")
 
     scraper, tid = _get_scraper(url)
     if not scraper:
         logger.error(f"Unknown URL type: {url}")
-        return
+        return False
 
     SQLModel.metadata.create_all(engine)
 
@@ -213,7 +217,7 @@ def run_url(url: str, engine, format_filter: str | None = None):
                         f"SKIPPED: format mismatch "
                         f"(want={format_filter}, got={inferred_val})"
                     )
-                    return
+                    return False
 
             # 3. Persist tournament
             
@@ -224,7 +228,12 @@ def run_url(url: str, engine, format_filter: str | None = None):
                    f"ID Collision detected! ID {t_data.id} exists for {existing_t.platform} "
                    f"but trying to save for {t_data.platform}. Skipping."
                )
-               return
+               return False
+
+            added_new = True
+            if existing_t:
+                added_new = False
+                logger.info(f"Tournament {t_data.id} already exists in database. Updating.")
 
             # 3b. Deduplication Check
             dedup_service = DedupService()
@@ -248,6 +257,7 @@ def run_url(url: str, engine, format_filter: str | None = None):
                     f"Proceeding with save, but flagging."
                 )
                 # Logic to Link/Merge could go here in future.
+                added_new = False
 
             session.merge(t_data)
             session.commit()
@@ -364,11 +374,14 @@ def run_url(url: str, engine, format_filter: str | None = None):
             if "rollbetter" in scraper.__class__.__name__.lower():
                 logger.info("Recalculating tie breakers from match data...")
                 _calculate_and_update_stats(session, t_data)
+            
+            return added_new
 
     except Exception as e:
         logger.error(f"Error processing {url}: {e}")
         import traceback
         traceback.print_exc()
+        return False
 
 
 def main():
