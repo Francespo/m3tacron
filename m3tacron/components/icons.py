@@ -71,8 +71,11 @@ def ship_icon(ship_xws: str | rx.Var, size: str = "1.5em", color: str | rx.Var |
     Returns:
         Ship icon component
     """
+    # Ensure we are working with a Var
+    xws_var = rx.Var.create(ship_xws)
+    
     # Normalize: lower case and remove prefix if present
-    clean_name = ship_xws.to(str).lower().replace("xwing-miniatures-ship-", "")
+    clean_name = xws_var.to(str).lower().replace("xwing-miniatures-ship-", "")
     
     # Use rx.cond for mapping (rx.match requires tuples, dict not supported directly)
     # Currently only mapping tieininterceptor -> tieinterceptor

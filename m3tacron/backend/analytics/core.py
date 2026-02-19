@@ -316,7 +316,7 @@ def aggregate_card_stats(
                 stats[pid] = {
                     "name": p_info.get("name", pid),
                     "xws": pid,
-                    "count": 0, "wins": 0, "games": 0,
+                    "count": 0, "popularity": 0, "wins": 0, "games": 0,
                     "faction": p_info.get("faction", ""), 
                     "ship": p_info.get("ship", ""),
                     "ship_icon": p_info.get("ship_icon", ""),
@@ -438,7 +438,7 @@ def aggregate_card_stats(
                     "name": u_info.get("name", u_xws),
                     "xws": u_xws,
                     "type": display_type,
-                    "count": 0, "wins": 0, "games": 0,
+                    "count": 0, "popularity": 0, "wins": 0, "games": 0,
                     "image": u_info.get("image", ""),
                     "cost": int(u_info.get("cost", {}).get("value", 0) if isinstance(u_info.get("cost"), dict) else (u_info.get("cost") or 0))
                 }
@@ -517,6 +517,7 @@ def aggregate_card_stats(
                     if pid in stats:
                         s = stats[pid]
                         s["count"] += 1
+                        s["popularity"] += 1
                         s["wins"] += wins
                         s["games"] += games
                     else:
@@ -561,6 +562,7 @@ def aggregate_card_stats(
                             if u_xws in stats:
                                 s = stats[u_xws]
                                 s["count"] += 1
+                                s["popularity"] += 1
                                 s["wins"] += wins
                                 s["games"] += games
 
