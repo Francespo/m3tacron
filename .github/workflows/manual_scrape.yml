@@ -1,0 +1,68 @@
+name: Manual Tournament Scraper
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: 'Date to scrape (YYYY-MM-DD or "yesterday")'
+        required: true
+        default: 'yesterday'
+
+jobs:
+  scrape-manual:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Get Playwright Version
+        id: playwright-version
+        shell: bash
+        run: |
+          VERSION=$(grep "playwright" requirements.txt | cut -d'=' -f3) || true
+          if [ -z "$VERSION" ]; then VERSION="1.41.0"; fi
+          echo "PLAYWRIGHT_VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Cache Playwright Browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ env.PLAYWRIGHT_VERSION }}
+
+      - name: Install Playwright Browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: |
+          playwright install chromium
+          playwright install-deps
+
+      - name: Fetch Events
+        run: |
+          # Use the input date from the workflow dispatch
+          python m3tacron/scripts/fetch_events.py --date "${{ inputs.target_date }}" --output events.json
+          cat events.json
+
+      - name: Scrape Events
+        run: |
+          python m3tacron/scripts/scrape_events.py --input events.json --db sqlite:///manual_scrape.db
+
+      - name: Upload Scraped DB (Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-scraped-db-${{ inputs.target_date }}
+          path: manual_scrape.db
+          retention-days: 5

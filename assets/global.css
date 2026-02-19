@@ -61,16 +61,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-    background: #0A0A0A;
+    background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #333333;
-    border: 1px solid #050505;
+    background: rgba(255, 255, 255, 0.1);
+    /* Subtle, semi-transparent thumb */
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #666666;
+    background: rgba(255, 255, 255, 0.2);
 }
 
 /* ==========================================================================
@@ -144,4 +144,12 @@ body {
     font-style: normal;
     font-size: 1.2em;
     line-height: 1;
+}
+
+/* Fix for Recharts Pie Chart Labels displaying numeric values in wrong font */
+.recharts-pie-label-text, 
+.recharts-text.recharts-label {
+    font-family: 'XWing', sans-serif !important;
+    font-size: 20px !important;
+    fill: #888 !important;
 }

@@ -10,10 +10,13 @@ from ..components.sidebar import layout, dashboard_layout
 from ..backend.database import engine
 from ..backend.models import PlayerResult, Tournament
 from ..backend.data_structures.formats import Format, MacroFormat
-from ..backend.utils import get_squadron_signature, parse_squadron_signature
+from ..backend.utils.squadron import get_squadron_signature, parse_squadron_signature
 from ..backend.data_structures.factions import Faction
-from ..components.format_filter import hierarchical_format_filter, FormatFilterMixin
-from ..components.multi_filter import collapsible_checkbox_group
+from ..components.tournament_filters import tournament_filters
+# from ..components.tournament_filters import TournamentFilterMixin - REMOVED
+from ..backend.state.global_filter_state import GlobalFilterState
+# from ..components.multi_filter import collapsible_checkbox_group # Replaced by filter_accordion
+from ..components.filter_accordion import filter_accordion
 from ..ui_utils.pagination import PaginationMixin
 from ..components.pagination import pagination_controls
 from ..theme import (
@@ -23,38 +26,101 @@ from ..theme import (
 )
 from ..ui_utils.factions import faction_icon, get_faction_color
 from ..components.icons import ship_icon
-from ..backend.utils import load_all_pilots, get_pilot_info, get_filtered_ships
+from ..backend.utils.xwing_data.pilots import load_all_pilots, get_pilot_info
+from ..backend.utils.xwing_data.ships import get_filtered_ships
 from ..components.searchable_filter_accordion import searchable_filter_accordion
 from ..ui_utils.ships import get_ship_icon_name, render_ship_icon_group
 
 
-class SquadronsState(FormatFilterMixin):
+class SquadronsState(PaginationMixin):
     """State for the Squadrons browser page."""
     # Multi-Select Filters
     selected_factions: dict[str, bool] = {}
     
+    # --- Accordion States (Smart Persistence) ---
+    faction_acc_val: list[str] = []
+    ship_acc_val: list[str] = []
+    
+    def set_faction_acc_val(self, val):
+        self.faction_acc_val = val
+        
+    def set_ship_acc_val(self, val):
+        self.ship_acc_val = val
+    
     # Static Options
     faction_options: list[list[str]] = [[f.label, f.value] for f in Faction if f != Faction.UNKNOWN]
 
-    def on_mount(self):
-        self.load_squadrons()
+    async def on_mount(self):
+        gs = await self.get_state(GlobalFilterState)
+        gs.load_locations()
+        # Initialize default formats if needed (e.g. XWA defaults)
+        if not gs.selected_formats:
+             gs.set_default_formats_for_source(gs.data_source)
+             
+        # Initialize selected_factions keys to prevent binding errors
+        if not self.selected_factions:
+             for f_list in self.faction_options:
+                 self.selected_factions[f_list[1]] = False
 
-    @rx.var
-    def total_items_count(self) -> int:
-        return self.total_squadrons
+        # --- Smart Accordion Logic ---
+        # Faction
+        has_faction = any(self.selected_factions.values())
+        if has_faction:
+            self.faction_acc_val = ["Faction"]
+            
+        # Ship
+        has_ship = any(self.selected_ships.values()) or self.ship_search_query
+        if has_ship:
+            self.ship_acc_val = ["Ship Chassis"]
+             
+        await self.load_squadrons()
+
+    # Redundant total_pages_squadrons removed
+
 
     def on_page_change(self):
         """Handle page changes by reloading data."""
-        self.load_squadrons()
+        self.update_view()
 
-    def toggle_faction(self, faction: str, checked: bool):
+    # Override Pagination Methods to fix Reflex Mixin Dispatch
+    def next_page(self):
+        self.current_page += 1
+        self.update_view()
+
+    def prev_page(self):
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_view()
+
+    async def on_tournament_filter_change(self):
+        self.current_page = 0
+        await self.load_squadrons()
+
+    async def reset_squadron_filters(self):
+        """Reset only squadron-specific filters."""
+        self.selected_factions = {}
+        self.selected_ships = {}
+        self.ship_search_query = ""
+        self.current_page = 0
+        await self.load_squadrons()
+
+    async def reset_tournament_filters_wrapper(self):
+        """Reset only global tournament filters."""
+        gs = await self.get_state(GlobalFilterState)
+        gs.reset_tournament_filters()
+        self.current_page = 0
+        await self.load_squadrons()
+
+    # --- Mixin Overrides REMOVED (Handled by GlobalState) ---
+    
+    async def toggle_faction(self, faction: str, checked: bool):
         self.selected_factions[faction] = checked
         self.current_page = 0
-        self.load_squadrons()
+        await self.load_squadrons()
     
     # New Filters
-    date_range_start: str = "" # YYYY-MM-DD
-    date_range_end: str = ""   # YYYY-MM-DD
+    # date_range_start: str = "" # YYYY-MM-DD - Handled by Mixin
+    # date_range_end: str = ""   # YYYY-MM-DD - Handled by Mixin
     ship_filter: str = ""      # Filter by specific ship name
     sort_mode: str = "popularity" # "popularity" or "win_rate"
     
@@ -62,8 +128,9 @@ class SquadronsState(FormatFilterMixin):
     all_ships: list[str] = []
     
     
+    # Data
     squadrons_data: list[dict] = []
-    total_squadrons: int = 0
+    _all_squadrons_cached: list[dict] = []
     total_lists: int = 0
     
     selected_squadron: str = ""
@@ -118,25 +185,75 @@ class SquadronsState(FormatFilterMixin):
     def set_ship_search_query(self, value: str):
         self.ship_search_query = value
 
-    def toggle_ship(self, value: str, checked: bool):
+    async def toggle_ship(self, value: str, checked: bool):
         self.selected_ships[value] = checked
         self.current_page = 0
-        self.load_squadrons()
+        await self.load_squadrons()
 
-    def set_date_range_start(self, value: str):
-        self.date_range_start = value
-        self.load_squadrons()
+    # def set_date_range_start(self, value: str):
+    #     self.date_range_start = value
+    #     self.load_squadrons()
         
-    def set_date_range_end(self, value: str):
-        self.date_range_end = value
-        self.load_squadrons()
+    # def set_date_range_end(self, value: str):
+    #     self.date_range_end = value
+    #     self.load_squadrons()
         
-    def set_sort_mode(self, value: str):
+    async def set_sort_mode(self, value: str):
         self.sort_mode = value
-        self.load_squadrons()
+        await self.load_squadrons()
     
-    
-    def load_squadrons(self):
+    def update_view(self):
+        """Slice cache and populate UI data."""
+        start = self.current_page * self.page_size
+        page_items = self._all_squadrons_cached[start:start + self.page_size]
+        
+        new_data = []
+        
+        # Helper for icons update (need to load pilots if not already loaded, but should be fast)
+        # Ideally this map should be cached too or computed once in load_squadrons if static enough
+        all_pilots = load_all_pilots()
+        ship_map = {p["ship"]: p.get("ship_xws", "") for p in all_pilots.values() if "ship" in p and "ship_xws" in p}
+
+        for item in page_items:
+            faction = item["faction"]
+            ships = item["ships_list"]
+            
+            # Format Ships for UI
+            ship_counts = Counter(ships)
+            ship_ui_list = []
+            for name, count in sorted(ship_counts.items()):
+                raw_xws = ship_map.get(name, "")
+                if not raw_xws:
+                    raw_xws = name.lower().replace(" ", "").replace("-", "")
+                icon_xws = get_ship_icon_name(raw_xws)
+                
+                ship_ui_list.append({
+                    "name": name,
+                    "count": count,
+                    "icon": icon_xws,
+                    "color": FACTION_COLORS.get(faction, TEXT_SECONDARY),
+                })
+            
+            raw_faction = faction.lower().replace(" ", "").replace("-", "")
+            
+            new_data.append({
+                "signature": item["signature"],
+                "faction": Faction.from_xws(faction).label,
+                "faction_key": faction,
+                "icon": FACTION_ICONS.get(raw_faction, ""),
+                "ships": ship_ui_list,
+                "count": item["count"],
+                "format_play_rate": round(item["count"] / max(self.total_lists, 1) * 100, 1),
+                "win_rate": round(item["win_rate"], 1),
+                "games": item["games"],
+                "color": FACTION_COLORS.get(raw_faction, TEXT_SECONDARY),
+            })
+        
+        self.squadrons_data = new_data
+
+    async def load_squadrons(self):
+        print("DEBUG: load_squadrons called")
+        gs = await self.get_state(GlobalFilterState)
         with Session(engine) as session:
             # Optimize: Join with Tournament to filter by date/format efficiently
             query = select(PlayerResult, Tournament).where(PlayerResult.tournament_id == Tournament.id)
@@ -149,30 +266,35 @@ class SquadronsState(FormatFilterMixin):
             rows = session.exec(query).all()
             
             # Post-SQL Filtering (Python side for flexibility with Props/Enums)
+            # gs loaded above
             filtered_rows = []
-            valid_ships = set() # Collect all ships for autocomplete
             
             for result, tournament in rows:
                 # Filter by Format
-                # Hierarchy Logic: Check if t_fmt is enabled
                 t_fmt_raw = tournament.format
                 t_fmt = str(t_fmt_raw) if t_fmt_raw else "other"
                 
-                if self.selected_formats:
-                     if not self.selected_formats.get(t_fmt, False):
+                if gs.selected_formats:
+                     if not gs.selected_formats.get(t_fmt, False):
                          continue
-                # If selected_formats is empty, it means all? Or logic in load ensures it's populated.
-                # If we consider empty = all, then fine. But on mount default populates it.
-                
-                # Check Macro if not found?
-                # Actually, the hierarchy component populates LEAF values (formats) as well as MACRO values.
-                # So t_fmt should be in there if selected.
                 
                 # Filter by Date
-                if self.date_range_start and str(tournament.date) < self.date_range_start:
+                if gs.date_range_start and str(tournament.date) < gs.date_range_start:
                     continue
-                if self.date_range_end and str(tournament.date) > self.date_range_end:
+                if gs.date_range_end and str(tournament.date) > gs.date_range_end:
                     continue
+
+                # Filter by Location
+                active_continents = [k for k, v in gs.selected_continents.items() if v]
+                active_countries = [k for k, v in gs.selected_countries.items() if v]
+                active_cities = [k for k, v in gs.selected_cities.items() if v]
+                
+                if active_continents or active_countries or active_cities:
+                    loc = tournament.location
+                    if not loc: continue
+                    if active_continents and (not loc.continent or loc.continent not in active_continents): continue
+                    if active_countries and (not loc.country or loc.country not in active_countries): continue
+                    if active_cities and (not loc.city or loc.city not in active_cities): continue
 
                 filtered_rows.append(result)
 
@@ -238,10 +360,11 @@ class SquadronsState(FormatFilterMixin):
                 
                 # Calculate games/wins
                 # Swiss + Cut
-                wins = r.swiss_wins + r.cut_wins
-                losses = r.swiss_losses + r.cut_losses
-                draws = r.swiss_draws
+                wins = (r.swiss_wins or 0) + (r.cut_wins or 0)
+                losses = (r.swiss_losses or 0) + (r.cut_losses or 0)
+                draws = (r.swiss_draws or 0) + (r.cut_draws or 0)
                 games = wins + losses + draws
+
                 
                 # If no record of games (e.g. only rank), heuristic? 
                 # For now rely on recorded wins/losses.
@@ -280,51 +403,11 @@ class SquadronsState(FormatFilterMixin):
                 # Default: Popularity
                 processed_list.sort(key=lambda x: x["count"], reverse=True)
 
-            self.total_squadrons = len(processed_list)
+            self.total_items_count = len(processed_list)
+            self._all_squadrons_cached = processed_list
+            self.current_page = 0
             
-            # Pagination
-            start = self.current_page * self.page_size
-            page_items = processed_list[start:start + self.page_size]
-            
-            self.squadrons_data = []
-            
-            # Helper for icons update
-            ship_map = {p["ship"]: p.get("ship_xws", "") for p in all_pilots.values() if "ship" in p and "ship_xws" in p}
-
-            for item in page_items:
-                faction = item["faction"]
-                ships = item["ships_list"]
-                
-                # Format Ships for UI
-                ship_counts = Counter(ships)
-                ship_ui_list = []
-                for name, count in sorted(ship_counts.items()):
-                    raw_xws = ship_map.get(name, "")
-                    if not raw_xws:
-                        raw_xws = name.lower().replace(" ", "").replace("-", "")
-                    icon_xws = get_ship_icon_name(raw_xws)
-                    
-                    ship_ui_list.append({
-                        "name": name,
-                        "count": count,
-                        "icon": icon_xws,
-                        "color": FACTION_COLORS.get(faction, TEXT_SECONDARY),
-                    })
-                
-                raw_faction = faction.lower().replace(" ", "").replace("-", "")
-                
-                self.squadrons_data.append({
-                    "signature": item["signature"],
-                    "faction": Faction.from_xws(faction).label,
-                    "faction_key": faction,
-                    "icon": FACTION_ICONS.get(raw_faction, ""),
-                    "ships": ship_ui_list,
-                    "count": item["count"],
-                    "format_play_rate": round(item["count"] / max(self.total_lists, 1) * 100, 1),
-                    "win_rate": round(item["win_rate"], 1),
-                    "games": item["games"],
-                    "color": FACTION_COLORS.get(raw_faction, TEXT_SECONDARY),
-                })
+            self.update_view()
                 
             # Populate autocomplete if empty (first run)
             if not self.all_ships:
@@ -379,11 +462,11 @@ class SquadronsState(FormatFilterMixin):
                 t_fmt_raw = tournament.format
                 t_fmt = str(t_fmt_raw) if t_fmt_raw else "other"
                 
-                if self.selected_formats and not self.selected_formats.get(t_fmt, False):
+                if gs.selected_formats and not gs.selected_formats.get(t_fmt, False):
                     continue
                     
-                if self.date_range_start and str(tournament.date) < self.date_range_start: continue
-                if self.date_range_end and str(tournament.date) > self.date_range_end: continue
+                if gs.date_range_start and str(tournament.date) < gs.date_range_start: continue
+                if gs.date_range_end and str(tournament.date) > gs.date_range_end: continue
                 
                 xws = result.list_json
                 if not xws or not isinstance(xws, dict): continue
@@ -473,29 +556,6 @@ def faction_filter_select() -> rx.Component:
 
 
 
-def date_filter_inputs() -> rx.Component:
-    return rx.hstack(
-        rx.input(
-            type="date",
-            placeholder="Start Date",
-            value=SquadronsState.date_range_start,
-            on_change=SquadronsState.set_date_range_start,
-            style=INPUT_STYLE,
-            width="130px"
-        ),
-        rx.text("-", color=TEXT_SECONDARY),
-        rx.input(
-            type="date",
-            placeholder="End Date",
-            value=SquadronsState.date_range_end,
-            on_change=SquadronsState.set_date_range_end,
-            style=INPUT_STYLE,
-            width="130px"
-        ),
-        align="center",
-        spacing="2"
-    )
-
 def sort_select() -> rx.Component:
     return rx.select.root(
         rx.select.trigger(placeholder="Sort By", style=INPUT_STYLE),
@@ -523,7 +583,7 @@ def render_sidebar_filters() -> rx.Component:
              spacing="1"
         ),
         
-        rx.divider(border_color=BORDER_COLOR),
+        rx.divider(border_color=BORDER_COLOR, flex_shrink="0"),
 
         # Search Ship
         searchable_filter_accordion(
@@ -532,29 +592,46 @@ def render_sidebar_filters() -> rx.Component:
             SquadronsState.selected_ships,
             SquadronsState.toggle_ship,
             SquadronsState.ship_search_query,
-            SquadronsState.set_ship_search_query
+            SquadronsState.set_ship_search_query,
+            accordion_value=SquadronsState.ship_acc_val,
+            on_accordion_change=SquadronsState.set_ship_acc_val,
         ),
-
-        # Date
-        rx.vstack(
-            rx.text("Date Range", size="1", color=TEXT_SECONDARY),
-            date_filter_inputs(),
-             width="100%",
-             spacing="1"
-        ),
-
-        # Format
-        hierarchical_format_filter(
-        SquadronsState,
-        label="Formats"
-    ),
         
-        # Faction
-        collapsible_checkbox_group(
-            "Factions",
+        rx.divider(border_color=BORDER_COLOR, flex_shrink="0"),
+
+        # Tournament Filters
+        rx.box(
+            tournament_filters(
+                on_change=SquadronsState.load_squadrons,
+                reset_handler=SquadronsState.reset_tournament_filters_wrapper
+            ),
+            width="100%"
+        ),
+        
+        rx.divider(border_color=BORDER_COLOR, flex_shrink="0"),
+        
+        # Squadron Filters Header with Reset
+        rx.hstack(
+            rx.text("SQUADRON FILTERS", size="2", weight="bold", letter_spacing="1px", color=TEXT_PRIMARY),
+            rx.spacer(),
+            rx.icon_button(
+                rx.icon(tag="rotate-ccw"),
+                on_click=SquadronsState.reset_squadron_filters,
+                variable="ghost",
+                color_scheme="gray",
+                size="1",
+                tooltip="Reset Squadron Filters"
+            ),
+            width="100%",
+            align_items="center"
+        ),
+        filter_accordion(
+            "Faction",
             SquadronsState.faction_options,
             SquadronsState.selected_factions,
-            SquadronsState.toggle_faction
+            SquadronsState.toggle_faction,
+            accordion_value=SquadronsState.faction_acc_val,
+            on_accordion_change=SquadronsState.set_faction_acc_val,
         ),
 
         spacing="4",
@@ -707,7 +784,7 @@ def squadrons_content() -> rx.Component:
             width="100%"
         ),
         rx.flex(
-            rx.text(f"{SquadronsState.total_squadrons} UNIQUE SQUADRONS", size="2", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+            rx.text(f"{SquadronsState.total_items_count} UNIQUE SQUADRONS", size="2", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
             rx.spacer(),
             pagination_controls_squadrons(),
             width="100%", 
@@ -716,7 +793,7 @@ def squadrons_content() -> rx.Component:
             margin_bottom="16px"
         ),
         rx.grid(
-            rx.foreach(SquadronsState.squadrons_data.to(list[dict]), squadron_card),
+            rx.foreach(SquadronsState.squadrons_data, squadron_card),
             columns="2",
             spacing="4",
             width="100%",
@@ -729,7 +806,7 @@ def squadrons_content() -> rx.Component:
         padding_bottom="60px"
     )
 
-def squadrons_page() -> rx.Component:
+def squadrons_browser_page() -> rx.Component:
     return layout(
         rx.fragment(
             dashboard_layout(

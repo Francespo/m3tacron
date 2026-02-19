@@ -8,4 +8,5 @@ import_log.txt
 error.log
 .env
 .env.local
-.vscode
+.vscode/
+.agent/

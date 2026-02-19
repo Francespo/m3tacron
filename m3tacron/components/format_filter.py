@@ -12,57 +12,138 @@ class FormatFilterMixin(PaginationMixin):
     Mixin for states that need hierarchical format filtering.
     """
     # Map of format/macro value -> boolean
-    selected_formats: dict[str, bool] = {m.value: True for m in MacroFormat} | {f.value: True for f in Format}
+    selected_formats: dict[str, bool] = {m.value: False for m in MacroFormat} | {f.value: False for f in Format}
 
-    def toggle_format_macro(self, macro_val: str, checked: bool):
-        """Toggle a macro format and all its children."""
-        if isinstance(checked, rx.Var) or isinstance(macro_val, rx.Var): return []
-        self.selected_formats[macro_val] = checked
-        # Toggle all children
+    @rx.var
+    def macro_states(self) -> dict[str, str]:
+        """
+        Compute the state of each macro: 'checked', 'unchecked', or 'indeterminate'.
+        """
+        states = {}
+        for m in MacroFormat:
+            children = [f.value for f in m.formats()]
+            if not children:
+                states[m.value] = "unchecked"
+                continue
+            
+            # Count how many children are checked
+            checked_count = sum(1 for c in children if self.selected_formats.get(c, False))
+            
+            if checked_count == len(children):
+                states[m.value] = "checked"
+            elif checked_count == 0:
+                states[m.value] = "unchecked"
+            else:
+                states[m.value] = "indeterminate"
+        return states
+
+    def toggle_format_macro(self, macro_val: str):
+        """Toggle a macro format based on its current state."""
+        # Logic: If checked or indeterminate -> Uncheck all. If unchecked -> Check all.
+        current_state = self.macro_states.get(macro_val, "unchecked")
+        
+        target_checked = True
+        if current_state == "checked" or current_state == "indeterminate":
+            target_checked = False
+            
+        new_formats = self.selected_formats.copy()
+        # Update children
         try:
             macro = MacroFormat(macro_val)
             for f in macro.formats():
-                self.selected_formats[f.value] = checked
+                new_formats[f.value] = target_checked
         except ValueError:
             pass
-        return self.on_filter_change()
+            
+        # Update macro itself (for consistency, though computed var drives UI)
+        new_formats[macro_val] = target_checked
+        
+        self.selected_formats = new_formats
+        self.on_filter_change()
 
-    def toggle_format_child(self, child_val: str, checked: bool):
+    def toggle_format_child(self, child_val: str):
         """Toggle a specific format child."""
-        if isinstance(checked, rx.Var) or isinstance(child_val, rx.Var): return []
-        self.selected_formats[child_val] = checked
-        # Optional: update macro indeterminate state logic could go here
-        return self.on_filter_change()
+        checked = not self.selected_formats.get(child_val, False)
+
+        new_formats = self.selected_formats.copy()
+        new_formats[child_val] = checked
+        self.selected_formats = new_formats
+        self.on_filter_change()
+
+    def set_default_formats_for_source(self, source: str):
+        """Set default format selection based on content source."""
+        # Reset all to False
+        new_sel = {k: False for k in self.selected_formats}
+        
+        keys_to_enable = []
+        if source == "xwa":
+            # AMG, XWA, Wildspace are typical 2.5 formats
+            keys_to_enable = ["amg", "xwa", "wildspace"]
+        elif source == "legacy":
+            # 2.0 Legacy formats
+            keys_to_enable = ["legacy_x2po", "legacy_xlc", "ffg"]
+            
+        for k in keys_to_enable:
+            if k in new_sel:
+                new_sel[k] = True
+                
+        self.selected_formats = new_sel
 
     def on_filter_change(self):
         """Hook for sub-classes to handle filter changes."""
         return []
 
-def render_format_item(item: dict, state_var: rx.Var, on_toggle: callable) -> rx.Component:
+def render_checkbox_icon(status: str) -> rx.Component:
+    """Render a custom checkbox icon based on status string."""
+    return rx.cond(
+        status == "checked",
+        rx.icon("check", size=14, color="white"), # Standard check
+        rx.cond(
+            status == "indeterminate",
+            rx.icon("minus", size=14, color="white"), # Indeterminate dash
+            rx.fragment() # Unchecked
+        )
+    )
+
+def render_custom_checkbox(status: str, on_click: callable) -> rx.Component:
     """
-    Render a single format toggle item.
-    item: {"label": "...", "value": "..."}
+    Render a composed checkbox that supports 'indeterminate'.
     """
-    return rx.hstack(
-        rx.checkbox(
-            checked=state_var[item["value"]],
-            on_change=lambda val: on_toggle(item["value"], val),
-            color_scheme="green",
-        ),
-        rx.text(item["label"], size="2", color=TEXT_PRIMARY),
-        spacing="2",
-        align="center"
+    return rx.box(
+        render_checkbox_icon(status),
+        width="16px",
+        height="16px",
+        border=f"1px solid {BORDER_COLOR}",
+        border_radius="4px",
+        display="flex",
+        align_items="center",
+        justify_content="center",
+        cursor="pointer",
+        bg=rx.cond(status == "unchecked", "transparent", rx.cond(status == "indeterminate", "gray", "var(--accent-9)")),
+        on_click=on_click,
+        _hover={"border_color": TEXT_SECONDARY}
     )
 
 def render_macro_section(
     macro: MacroFormat, 
     state: any,
+    on_change: any = None
 ) -> rx.Component:
     """
-    Render a macro format section as an accordion item.
+    Render a macro format section as a flattened list with indentation.
     """
     path_to_selection = state.selected_formats
+    macro_status = state.macro_states[macro.value]
+    
     children_components = []
+    
+    def handle_child_toggle(child_val):
+        evt = state.toggle_format_child(child_val)
+        return [evt, on_change] if on_change else evt
+
+    def handle_macro_toggle(macro_val):
+        evt = state.toggle_format_macro(macro_val)
+        return [evt, on_change] if on_change else evt
     
     # Static iteration over children using enum
     for child in macro.formats():
@@ -70,7 +151,7 @@ def render_macro_section(
             rx.hstack(
                 rx.checkbox(
                     checked=path_to_selection[child.value],
-                    on_change=lambda val: state.toggle_format_child(child.value, val),
+                    on_change=lambda val, c=child: handle_child_toggle(c.value),
                     color_scheme="gray",
                     size="1",
                 ),
@@ -79,22 +160,22 @@ def render_macro_section(
                     size="1", 
                     color=TEXT_PRIMARY,
                     font_family=MONOSPACE_FONT,
-                    on_click=lambda: state.toggle_format_child(child.value, ~path_to_selection[child.value]),
+                    on_click=lambda c=child: handle_child_toggle(c.value),
                     cursor="pointer"
                 ),
                 spacing="2",
                 align="center",
-                padding_left="8px"
+                padding_left="24px", # Indentation for children
+                width="100%"
             )
         )
 
-    return rx.accordion.item(
-        header=rx.hstack(
-            rx.checkbox(
-                checked=path_to_selection[macro.value],
-                on_change=lambda val: state.toggle_format_macro(macro.value, val),
-                size="1", 
-                color_scheme="gray",
+    return rx.vstack(
+        # Macro Header
+        rx.hstack(
+            render_custom_checkbox(
+                macro_status,
+                lambda: handle_macro_toggle(macro.value)
             ),
             rx.text(
                 macro.label, 
@@ -102,29 +183,31 @@ def render_macro_section(
                 size="1", 
                 color=TEXT_SECONDARY,
                 font_family=MONOSPACE_FONT,
-                letter_spacing="1px"
+                letter_spacing="1px",
+                on_click=lambda: handle_macro_toggle(macro.value),
+                cursor="pointer"
             ),
-            spacing="2",
             align="center",
             width="100%",
+            spacing="2",
+            padding_y="4px"
         ),
-        content=rx.vstack(
-            *children_components,
-            spacing="1",
-            width="100%",
-            padding_top="8px"
+        # Children Container
+        rx.vstack(
+             *children_components,
+             spacing="1",
+             width="100%",
+             padding_top="0px",
         ),
-        value=macro.label, # Value for open state
-        style={
-            "background": "transparent", 
-            "border": "none",
-            "_hover": {"background": "transparent"}
-        }
+        spacing="0",
+        width="100%",
+        align_items="start"
     )
 
 def hierarchical_format_filter(
     state: any,
-    label: str = "Formats"
+    label: str = "Format",
+    on_change: any = None
 ) -> rx.Component:
     """
     Main component.
@@ -132,36 +215,47 @@ def hierarchical_format_filter(
     # Static iteration over Macros using enum
     macro_items = []
     for m in MacroFormat:
-        if m != MacroFormat.OTHER:
-            macro_items.append(
-                render_macro_section(m, state)
-            )
+        macro_items.append(
+            render_macro_section(m, state, on_change)
+        )
     
-    # Inner Accordion for Macros
-    inner_accordion = rx.accordion.root(
+    # Stack of Macro Sections (Flattened visually)
+    macro_stack = rx.vstack(
         *macro_items,
-        type="multiple",
-        collapsible=True,
-        width="100%",
-        color_scheme="gray",
-        variant="ghost"
+        spacing="1",
+        width="100%"
     )
 
     # Outer Accordion Item (The "Wrapper")
     return rx.accordion.root(
         rx.accordion.item(
-            header=rx.text(
-                label, 
-                size="1", 
-                weight="bold", 
-                color=TEXT_SECONDARY, 
-                font_family=MONOSPACE_FONT,
-                letter_spacing="1px"
+            rx.accordion.header(
+                rx.accordion.trigger(
+                    rx.text(
+                        label, 
+                        size="1", 
+                        weight="bold", 
+                        color=TEXT_SECONDARY, 
+                        font_family=MONOSPACE_FONT,
+                        letter_spacing="1px"
+                    ),
+                    rx.accordion.icon(),
+                    align_items="center",
+                    display="flex",
+                    justify_content="space-between",
+                    width="100%",
+                    padding_y="8px",
+                    padding_x="0px",
+                    _hover={"background": "transparent"},
+                )
             ),
-            content=rx.box(
-                inner_accordion,
-                width="100%",
-                padding_left="8px"
+            rx.accordion.content(
+                rx.box(
+                    macro_stack,
+                    width="100%",
+                    padding_left="8px",
+                    padding_top="0px"
+                )
             ),
             value="main",
             style={

@@ -30,29 +30,45 @@ def filter_accordion(
     options: list[list[str]], # [[label, value], ...]
     state_map: rx.Var,  # Dict[str, bool]
     on_toggle: callable, # Function(value, checked)
+    accordion_value: rx.Var[list[str]] = None, # Controlled State: List of open items
+    on_accordion_change: callable = None, # Setter for controlled state
 ) -> rx.Component:
     """
     A transparent, black & white accordion for filters.
     """
     return rx.accordion.root(
         rx.accordion.item(
-            header=rx.text(
-                label, 
-                size="1", 
-                weight="bold", 
-                color=TEXT_SECONDARY, 
-                font_family=MONOSPACE_FONT,
-                letter_spacing="1px"
+            rx.accordion.header(
+                rx.accordion.trigger(
+                    rx.text(
+                        label, 
+                        size="1", 
+                        weight="bold", 
+                        color=TEXT_SECONDARY, 
+                        font_family=MONOSPACE_FONT,
+                        letter_spacing="1px"
+                    ),
+                    rx.accordion.icon(),
+                    align_items="center",
+                    display="flex",
+                    justify_content="space-between",
+                    width="100%",
+                    padding_y="8px", # Minimal vertical padding for interaction
+                    padding_x="0px", # Remove horizontal padding to align with text above
+                    _hover={"background": "transparent", "opacity": 0.8},
+                )
             ),
-            content=rx.vstack(
-                rx.foreach(
-                    options,
-                    lambda opt: checkbox_row(opt[0], opt[1], state_map, on_toggle)
-                ),
-                spacing="1",
-                width="100%",
-                padding_left="8px", # Indentation
-                padding_top="8px"
+            rx.accordion.content(
+                rx.vstack(
+                    rx.foreach(
+                        options,
+                        lambda opt: checkbox_row(opt[0], opt[1], state_map, on_toggle)
+                    ),
+                    spacing="1",
+                    width="100%",
+                    padding_left="8px", # Indentation
+                    padding_top="0px"
+                )
             ),
             value=label,
             style={
@@ -65,5 +81,7 @@ def filter_accordion(
         collapsible=True,
         width="100%",
         color_scheme="gray",
-        variant="ghost" # Ghost variant usually has no borders/bg
+        variant="ghost", # Ghost variant usually has no borders/bg
+        value=accordion_value,
+        on_value_change=on_accordion_change,
     )

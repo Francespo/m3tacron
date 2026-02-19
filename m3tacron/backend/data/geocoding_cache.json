@@ -49,6 +49,7 @@
     "country": "Canada",
     "continent": "North America"
   },
+<<<<<<< HEAD
   "ALCALA DE HENARES, Madrid,\u00a0Spain": {
     "city": "Alcal\u00e1 de Henares",
     "country": "Espa\u00f1a",
@@ -684,4 +685,9 @@
     "country": "United States",
     "continent": "North America"
   }
+=======
+  "Odisea GamesAragon,\u00a0Spain": null,
+  "Hobby games Central, MoscowRussia": null,
+  "Afk gamesMichigan,\u00a0United States": null
+>>>>>>> graphics-improvements
 }

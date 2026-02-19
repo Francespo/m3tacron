@@ -1,0 +1,73 @@
+name: Daily Tournament Scraper
+
+on:
+  schedule:
+    # Run at 08:00 UTC (9:00 CET) every day
+    - cron: '0 8 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  scrape-daily:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Needed if we commit DB or push artifacts (optional)
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Debug File Structure
+        run: |
+          echo "Current Directory: $(pwd)"
+          ls -R
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Get Playwright Version
+        id: playwright-version
+        shell: bash
+        run: |
+          # Try to get version from requirements, else default
+          VERSION=$(grep "playwright" requirements.txt | cut -d'=' -f3) || true
+          if [ -z "$VERSION" ]; then VERSION="1.41.0"; fi
+          echo "PLAYWRIGHT_VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Cache Playwright Browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ env.PLAYWRIGHT_VERSION }}
+
+      - name: Install Playwright Browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: |
+          playwright install chromium
+          playwright install-deps
+
+      - name: Fetch Yesterday's Events
+        run: |
+          # Use explicit path from root
+          python m3tacron/scripts/fetch_events.py --date yesterday --output events.json
+          cat events.json
+
+      - name: Scrape Events
+        run: |
+          # Use the test database as requested
+          python m3tacron/scripts/scrape_events.py --input events.json --db sqlite:///github_scraped.db
+
+      - name: Upload Scraped DB (Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-scraped-db
+          path: github_scraped.db
+          retention-days: 5
