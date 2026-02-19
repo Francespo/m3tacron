@@ -28,6 +28,13 @@ theme = rx.theme(
 # Create the app
 app = rx.App(
     theme=theme,
+    head_components=[
+        rx.el.meta(name="viewport", content="width=device-width, initial-scale=1"),
+        rx.el.meta(name="description", content="M3taCron - X-Wing Miniatures Meta Analytics Platform. Discover the competitive landscape, ship stats, and tournament results for AMG, XWA, and Legacy formats."),
+        rx.el.meta(property="og:title", content="M3taCron - X-Wing Meta Analytics"),
+        rx.el.meta(property="og:description", content="Superior meta analytics for the X-Wing Miniatures game. Tracking AMG, XWA, and Legacy formats."),
+        rx.el.meta(property="og:type", content="website"),
+    ],
     stylesheets=[
         # Google Fonts - JetBrains Mono for body, Orbitron for headers
         "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@500;600;700;800;900&display=swap",

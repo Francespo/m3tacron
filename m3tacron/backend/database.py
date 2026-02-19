@@ -4,7 +4,7 @@ from sqlmodel import create_engine, SQLModel
 # Explicitly import models to ensure they are registered with SQLModel.metadata
 from .models import Tournament, PlayerResult, Match
 
-DATABASE_URL = f"sqlite:///metacron_new.db"
+DATABASE_URL = f"sqlite:///main.db"
 
 engine = create_engine(DATABASE_URL)
 

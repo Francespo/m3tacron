@@ -33,34 +33,11 @@ from ..backend.utils.xwing_data.pilots import load_all_pilots, get_pilot_info
 from ..backend.utils.xwing_data.ships import get_ship_icon_name
 from ..backend.utils.xwing_data.upgrades import get_upgrade_name, get_upgrade_slot, get_upgrade_info
 
-class UpgradeData(rx.Base):
-    name: str = ""
-    xws: str = ""
-    slot: str = ""
-    slot_icon: str = ""
-    image: str = ""
-    points: int = 0
-
-class PilotData(rx.Base):
-    name: str = ""
-    xws: str = ""
-    ship_name: str = ""
-    ship_icon: str = ""
-    image: str = ""
-    points: int = 0
-    loadout: int = 0
-    upgrades: list[UpgradeData] = []
-
-class ListData(rx.Base):
-    signature: str = ""
-    faction: str = ""
-    faction_key: str = ""
-    points: int = 0
-    count: int = 0
-    games: int = 0
-    win_rate: float = 0.0
-    total_loadout: int = 0
-    pilots: list[PilotData] = []
+from ..components.list_renderer import (
+    UpgradeData, PilotData, ListData, 
+    pilot_tooltip_content, render_upgrade_icon, 
+    render_pilot_block, list_row_card
+)
 
 class ListBrowserState(rx.State):
     """State for the List Browser page."""
@@ -116,11 +93,16 @@ class ListBrowserState(rx.State):
         self.current_page = 0
         await self.load_lists(override_source=forced_source)
 
-    def handle_source_change(self, _e=None, **kwargs):
+    async def handle_source_change(self, _e=None, **kwargs):
         """Handle content source change: update defaults and reload."""
         # _e is the value from SegmentedControl (str) or Event from Button (dict/obj)
         new_source = _e if isinstance(_e, str) else "xwa"
-        return ListBrowserState.actual_source_change_logic(new_source)
+        
+        # 1. Update Global State first
+        yield GlobalFilterState.set_data_source(new_source)
+        
+        # 2. Trigger async actual logic
+        yield ListBrowserState.actual_source_change_logic(new_source)
 
     async def reset_tournament_filters_wrapper(self):
         """Reset only global tournament filters."""
@@ -140,8 +122,6 @@ class ListBrowserState(rx.State):
     min_games: int = 0 
     points_min: int = 0
     points_max: int = 200 # Updated dynamically based on source
-    points_min: int = 0
-    points_max: int = 200 
     loadout_min: int = 0
     loadout_max: int = 50 # Default max reasonable loadout? 
     
@@ -327,17 +307,17 @@ class ListBrowserState(rx.State):
                 # 2. List Processing
                 xws = result.list_json
                 if not xws:
-                     print(f"DEBUG: result {result.id} has empty xws", flush=True)
+                     # print(f"DEBUG: result {result.id} has empty xws", flush=True)
                      continue
                 if not isinstance(xws, dict):
-                     print(f"DEBUG: result {result.id} xws is not dict", flush=True)
+                     # print(f"DEBUG: result {result.id} xws is not dict", flush=True)
                      continue
                 
                 # Check min games filter? No, we filter aggregated results later.
                 
                 signature = get_list_signature(xws)
                 if not signature:
-                    print(f"DEBUG: Could not generate signature for result {result.id}", flush=True)
+                    # print(f"DEBUG: Could not generate signature for result {result.id}", flush=True)
                     continue
                 
                 # Filter Faction (Python Side)
@@ -389,16 +369,8 @@ class ListBrowserState(rx.State):
                     if self.loadout_max > 0 and stats["total_loadout"] > self.loadout_max:
                         continue
                 
-
-                
                 # Assume aggregated games/wins if available in PlayerResult?
-                # PlayerResult has 'swiss_wins', 'cut_wins'?
                 # For now assume result represents 1 entry.
-                # Ideally, calculate games/wins from Swiss rounds + Cut.
-                # Simplified: count games played by this player.
-                # Assuming PlayerResult doesn't store match history directly but we can estimate.
-                # Let's count games = swiss_standing + cut games?
-                # Using 0 as placeholder if unknown.
                 games_played = 0
                 wins = 0
                 if result.swiss_rank and result.swiss_rank > 0:
@@ -432,7 +404,7 @@ class ListBrowserState(rx.State):
                     ship_name = pilot_info.get("ship", "Unknown Ship")
                     ship_icon_name = get_ship_icon_name(ship_xws)
                     pilot_image = pilot_info.get("image", "")
-                    # Points: Use list-specific points if available (variable point costs), else base cost
+                    # Points: Use list-specific points if available
                     pilot_points = p.get("points", pilot_info.get("cost", 0))
                     
                     rich_upgrades = []
@@ -445,10 +417,12 @@ class ListBrowserState(rx.State):
                             if not isinstance(items, list): continue
                             for item_id in items:
                                 upg_info = get_upgrade_info(item_id) or {}
+                                norm_slot = slot.lower()
+                                if norm_slot == "configuration": norm_slot = "config"
                                 rich_upgrades.append(UpgradeData(
                                     name=upg_info.get("name", item_id),
                                     xws=item_id,
-                                    slot=slot,
+                                    slot=norm_slot,
                                     slot_icon="",
                                     image=upg_info.get("image", ""),
                                     points=upg_info.get("cost", {}).get("value", 0)
@@ -458,10 +432,12 @@ class ListBrowserState(rx.State):
                          for item_id in upgrades_data:
                                 upg_info = get_upgrade_info(item_id) or {}
                                 slot = get_upgrade_slot(item_id)
+                                norm_slot = slot.lower()
+                                if norm_slot == "configuration": norm_slot = "config"
                                 rich_upgrades.append(UpgradeData(
                                     name=upg_info.get("name", item_id),
                                     xws=item_id,
-                                    slot=slot,
+                                    slot=norm_slot,
                                     slot_icon="",
                                     image=upg_info.get("image", ""),
                                     points=upg_info.get("cost", {}).get("value", 0)
@@ -477,9 +453,6 @@ class ListBrowserState(rx.State):
                         loadout=pilot_info.get("loadout", 0),
                         upgrades=rich_upgrades
                     ))
-                    # DEBUG: Print data for first few pilots to check image/loadout
-                    if len(rich_pilots) < 2 and len(final_list) < 2:
-                        print(f"DEBUG: Pilot {pilot_name} - Image: '{pilot_image}' - Loadout: {pilot_info.get('loadout', 0)}")
                 
                 final_list.append(ListData(
                     signature=sig,
@@ -501,18 +474,12 @@ class ListBrowserState(rx.State):
             elif self.sort_metric == "Points Cost":
                 final_list.sort(key=lambda x: x.points, reverse=reverse)
             elif self.sort_metric == "Total Loadout":
-                 # We need to expose loadout in ListData to sort by it?
-                 # Currently ListData doesn't have it. We should add it or sort before converting.
-                 # Let's add it to ListData if we want to display it too?
-                 # For now, sorting raw dicts might be harder. 
-                 # Let's fix ListData definition.
-                 pass # See note below
+                 pass
             else: # Games (Default)
                 final_list.sort(key=lambda x: x.games, reverse=reverse)
                 
-            # If Sort Metric is Loadout, handle manual sort after creation (less efficient but easy)
+            # If Sort Metric is Loadout, handle manual sort 
             if self.sort_metric == "Total Loadout":
-                 # We need to computer loadout sum from pilots in final_list
                  final_list.sort(key=lambda x: sum(p.loadout for p in x.pilots), reverse=reverse)
                 
             self._all_lists_cached = final_list
@@ -524,162 +491,6 @@ class ListBrowserState(rx.State):
         start = self.current_page * self.page_size
         end = start + self.page_size
         self.lists_data = self._all_lists_cached[start:end]
-
-# --- UI Components ---
-
-def pilot_tooltip_content(pilot: PilotData) -> rx.Component:
-    """Tooltip content for a pilot."""
-    return pilot.name + " (" + pilot.ship_name + ")"
-
-def render_upgrade_icon(upgrade: UpgradeData) -> rx.Component:
-    return rx.hover_card.root(
-        rx.hover_card.trigger(
-            rx.box(
-                rx.text(f"{upgrade.name} ({upgrade.points})", size="1", padding_x="4px", border=f"1px solid {BORDER_COLOR}", border_radius="4px", bg="rgba(0,0,0,0.3)"),
-                cursor="pointer",
-                on_click=rx.redirect(f"/upgrade/{upgrade.xws}")
-            )
-        ),
-        rx.hover_card.content(
-            rx.cond(
-                upgrade.image,
-                rx.image(src=upgrade.image, width="300px", height="auto"),
-                rx.text(upgrade.name)
-            )
-        )
-    )
-
-def render_pilot_block(pilot: PilotData) -> rx.Component:
-    return rx.box(
-        rx.vstack(
-            # Top: Pilot (Clickable) + Name Tooltip
-            rx.hstack(
-                 rx.text(ship_icon(pilot.ship_icon), font_family="xwing-miniatures-ship", font_size="2em"),
-                 rx.vstack(
-                     # Tooltip ONLY on name
-                     rx.hover_card.root(
-                        rx.hover_card.trigger(
-                            rx.text(pilot.name, size="3", weight="bold"),
-                        ),
-                        rx.hover_card.content(
-                            rx.cond(
-                                pilot.image,
-                                rx.image(src=pilot.image, width="300px", height="auto"),
-                                rx.text(pilot.name)
-                            )
-                        )
-                     ),
-                     rx.hstack(
-                         rx.text(f"{pilot.points} pts", size="1", color=TEXT_SECONDARY),
-                         rx.cond(
-                             GlobalFilterState.data_source == "xwa",
-                             rx.cond(
-                                 pilot.loadout > 0,
-                                 rx.text(f"LV: {pilot.loadout}", size="1", color=TEXT_SECONDARY),
-                             )
-                         ),
-                         spacing="1",
-                         align="center"
-                     ),
-                     spacing="0"
-                 ),
-                 spacing="2",
-                 align="center",
-                 width="100%",
-                 cursor="pointer",
-                 on_click=rx.redirect(f"/pilot/{pilot.xws}")
-            ),
-            
-            # Upgrades
-            rx.flex(
-                rx.foreach(
-                    pilot.upgrades,
-                    render_upgrade_icon
-                ),
-                wrap="wrap",
-                spacing="1",
-                width="100%"
-            ),
-            
-            spacing="2",
-            padding="8px",
-            width="100%",
-            bg="rgba(255,255,255,0.03)",
-            border_radius="8px"
-        ),
-        width="100%", # Take full width of grid cell
-        min_width="300px", # Increased minimum width
-        # max_width removed for full expansion
-    )
-
-def list_row_card(list_data: ListData) -> rx.Component:
-    """
-    Renders a single row for a list.
-    """
-    faction = list_data.faction_key
-    faction_color = get_faction_color(faction)
-    
-    return rx.box(
-        rx.hstack(
-            # Faction Strip
-            rx.box(
-                width="6px", 
-                min_height="100px", 
-                bg=faction_color,
-                align_self="stretch", # Force stretch to full height
-                flex_shrink=0 # Prevent shrinking
-            ),
-            
-            # Content
-            rx.vstack(
-                # Header: Faction Icon + Stats
-                rx.hstack(
-                    faction_icon(faction, size="1.5em"),
-                    rx.spacer(),
-                    # Stats
-                    rx.hstack(
-                        rx.badge(f"{list_data.points} pts", variant="solid", color_scheme="gray"),
-                        rx.badge(f"{list_data.win_rate}% WR", variant="surface", 
-                                 color_scheme=rx.cond(list_data.win_rate >= 50, "green", "orange")),
-                        rx.cond(
-                            GlobalFilterState.data_source == "xwa",
-                            rx.badge(f"LV: {list_data.total_loadout}", variant="outline", color_scheme="violet")
-                        ),
-                        rx.text(f"{list_data.games} games", size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
-                        spacing="2",
-                        align="center"
-                    ),
-                    width="100%",
-                    align="center",
-                    margin_bottom="4px"
-                ),
-                
-                # Ships Row - Use Grid or Flex
-                rx.flex(
-                    rx.foreach(
-                        list_data.pilots,
-                        render_pilot_block
-                    ),
-                    wrap="wrap",
-                    spacing="2",
-                    width="100%"
-                ),
-                
-                width="100%",
-                spacing="3",
-                padding="12px"
-            ),
-            width="100%",
-            align="stretch", # Ensure faction bar stretches
-            spacing="0"
-        ),
-        bg=TERMINAL_PANEL_STYLE["background"],
-        border=f"1px solid {BORDER_COLOR}",
-        border_radius=RADIUS,
-        overflow="hidden",
-        width="100%", # Ensure card takes full width
-        _hover={"border_color": TEXT_SECONDARY}
-    )
 
 def render_filters_sidebar() -> rx.Component:
     return rx.vstack(

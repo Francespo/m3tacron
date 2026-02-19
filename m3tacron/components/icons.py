@@ -12,7 +12,7 @@ from ..theme import FACTION_ICONS
 from ..ui_utils.factions import get_faction_color, get_faction_icon_class
 
 
-def xwing_icon(icon_type: str | rx.Var, size: str = "1.5em", color: str | rx.Var | None = None) -> rx.Component:
+def xwing_icon(icon_type: str | rx.Var, size: str = "1.5em", color: str | rx.Var | None = None, **props) -> rx.Component:
     """
     Render an X-Wing miniatures font icon.
     
@@ -20,6 +20,7 @@ def xwing_icon(icon_type: str | rx.Var, size: str = "1.5em", color: str | rx.Var
         icon_type: Icon type (faction XWS ID or icon class suffix)
         size: Font size (e.g., "1.5em", "24px")
         color: Optional color override (can be Var or string)
+        **props: Additional element properties
         
     Returns:
         Icon component using xwing-miniatures-font
@@ -36,13 +37,27 @@ def xwing_icon(icon_type: str | rx.Var, size: str = "1.5em", color: str | rx.Var
         icon_class
     )
     
+    # Use !important to override the 1.5em default in the font's CSS
+    size_var = rx.Var.create(size)
+    final_font_size = rx.cond(
+        size_var != "1.5em",
+        size_var.to(str) + " !important",
+        size_var
+    )
+    
     style = {
-        "font_size": size,
+        "font_size": final_font_size,
         "font_style": "normal",
+        "vertical_align": "middle",
+        "line_height": "1",
     }
     if color is not None:
         style["color"] = color
     
+    # We combine user styles if any
+    if "style" in props:
+        style.update(props.pop("style"))
+
     return rx.el.i(
         class_name=rx.cond(
             final_icon_class_var.to(str).contains("xwing-miniatures-font-"),
@@ -50,6 +65,7 @@ def xwing_icon(icon_type: str | rx.Var, size: str = "1.5em", color: str | rx.Var
             f"xwing-miniatures-font xwing-miniatures-font-{final_icon_class_var}"
         ),
         style=style,
+        **props
     )
 
 
@@ -71,8 +87,11 @@ def ship_icon(ship_xws: str | rx.Var, size: str = "1.5em", color: str | rx.Var |
     Returns:
         Ship icon component
     """
+    # Ensure we are working with a Var
+    xws_var = rx.Var.create(ship_xws)
+    
     # Normalize: lower case and remove prefix if present
-    clean_name = ship_xws.to(str).lower().replace("xwing-miniatures-ship-", "")
+    clean_name = xws_var.to(str).lower().replace("xwing-miniatures-ship-", "")
     
     # Use rx.cond for mapping (rx.match requires tuples, dict not supported directly)
     # Currently only mapping tieininterceptor -> tieinterceptor

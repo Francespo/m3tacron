@@ -10,7 +10,7 @@ from ..utils.xwing_data.ships import load_all_ships
 from ..data_structures.factions import Faction
 from ..data_structures.formats import Format, MacroFormat
 from ..data_structures.data_source import DataSource
-from .filters import filter_query
+from .filters import filter_query, get_active_formats
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
 
 def aggregate_card_stats(
@@ -38,7 +38,7 @@ def aggregate_card_stats(
         all_pilots = load_all_pilots(data_source)
         all_upgrades = load_all_upgrades(data_source)
         
-        allowed_formats = filters.get("allowed_formats", None) # Set of strings
+        allowed_formats = get_active_formats(filters.get("allowed_formats", None)) # List of active strings
         faction_filter = filters.get("faction") # For pilots
         type_filter = filters.get("upgrade_type") # For upgrades
         text_filter = filters.get("search_text", "").lower()
@@ -316,9 +316,10 @@ def aggregate_card_stats(
                 stats[pid] = {
                     "name": p_info.get("name", pid),
                     "xws": pid,
-                    "count": 0, "wins": 0, "games": 0,
+                    "count": 0, "popularity": 0, "wins": 0, "games": 0,
                     "faction": p_info.get("faction", ""), 
                     "ship": p_info.get("ship", ""),
+                    "ship_xws": p_info.get("ship_xws", ""),
                     "ship_icon": p_info.get("ship_icon", ""),
                     "image": p_info.get("image", ""),
                     "cost": p_info.get("cost", 0),
@@ -438,7 +439,7 @@ def aggregate_card_stats(
                     "name": u_info.get("name", u_xws),
                     "xws": u_xws,
                     "type": display_type,
-                    "count": 0, "wins": 0, "games": 0,
+                    "count": 0, "popularity": 0, "wins": 0, "games": 0,
                     "image": u_info.get("image", ""),
                     "cost": int(u_info.get("cost", {}).get("value", 0) if isinstance(u_info.get("cost"), dict) else (u_info.get("cost") or 0))
                 }
@@ -448,7 +449,7 @@ def aggregate_card_stats(
             t_fmt_raw = tournament.format
             t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
             
-            if allowed_formats is not None: 
+            if allowed_formats: 
                 if t_fmt not in allowed_formats:
                     continue
 
@@ -517,6 +518,7 @@ def aggregate_card_stats(
                     if pid in stats:
                         s = stats[pid]
                         s["count"] += 1
+                        s["popularity"] += 1
                         s["wins"] += wins
                         s["games"] += games
                     else:
@@ -561,6 +563,7 @@ def aggregate_card_stats(
                             if u_xws in stats:
                                 s = stats[u_xws]
                                 s["count"] += 1
+                                s["popularity"] += 1
                                 s["wins"] += wins
                                 s["games"] += games
 
