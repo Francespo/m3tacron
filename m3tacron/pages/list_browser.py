@@ -661,7 +661,6 @@ def list_browser() -> rx.Component:
                 rx.flex(
                     rx.text(ListBrowserState.lists_found_label, size="2", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
                     rx.spacer(),
-                    pagination_controls_lists(),
                     width="100%", 
                     justify="between", 
                     align="center",

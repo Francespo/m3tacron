@@ -32,9 +32,9 @@ def render_ship_icon_group(ship: dict) -> rx.Component:
                 rx.text(f"{ship['count']}x", size="1", color=ship["color"], font_family=MONOSPACE_FONT, weight="bold"),
                 rx.fragment()
             ),
-            ship_icon(ship["icon"], size="1.2em", color=ship["color"]),
+            ship_icon(ship["icon"], size="1.6em", color=ship["color"]),
             spacing="1",
-            align="center",
+            align_items="center",
             style={"cursor": "help"}
         ),
         content=ship["name"]

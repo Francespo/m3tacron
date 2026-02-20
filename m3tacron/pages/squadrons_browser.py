@@ -797,7 +797,6 @@ def squadrons_content() -> rx.Component:
         rx.flex(
             rx.text(f"{SquadronsState.total_items_count} UNIQUE SQUADRONS", size="2", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
             rx.spacer(),
-            pagination_controls_squadrons(),
             width="100%", 
             justify="between", 
             align="center",

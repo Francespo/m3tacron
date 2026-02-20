@@ -191,6 +191,8 @@ def home_content() -> rx.Component:
                             rx.text(f"RANGE: {HomeState.date_range}", size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
                             spacing="2",
                             align="center",
+                            margin_top="8px",
+                            flex_wrap="wrap"
                         ),
                         align="start",
                         spacing="2"
@@ -206,6 +208,7 @@ def home_content() -> rx.Component:
                     align="end",
                     flex_direction={"initial": "column", "md": "row"},
                     gap="4",
+                    wrap="wrap",
                 ),
                 padding_bottom="40px",
                 width="100%"

@@ -37,45 +37,82 @@ def tournament_filters(on_change: any, reset_handler: list | None = None) -> rx.
             align_items="center"
         ),
         
-        # Date Range
-        rx.vstack(
-            rx.text("Date Range", size="1", weight="bold", color=TEXT_SECONDARY),
-            rx.vstack(
-                rx.input(
-                    type="date",
-                    value=GlobalFilterState.date_range_start,
-                    on_change=[GlobalFilterState.set_date_start, on_change],
-                    style=INPUT_STYLE,
-                    width="100%"
+        # Filters inside an Accordion
+        rx.accordion.root(
+            # Date Range
+            rx.accordion.item(
+                rx.accordion.header(
+                    rx.accordion.trigger(
+                        rx.text("Date Range", size="1", weight="bold", color=TEXT_SECONDARY),
+                        rx.accordion.icon(),
+                        align_items="center", display="flex", justify_content="space-between", width="100%", padding_y="8px", padding_x="0px", _hover={"background": "transparent", "opacity": 0.8},
+                    )
                 ),
-                rx.text("to", size="1", color=TEXT_SECONDARY, text_align="center"),
-                rx.input(
-                    type="date",
-                    value=GlobalFilterState.date_range_end,
-                    on_change=[GlobalFilterState.set_date_end, on_change],
-                    style=INPUT_STYLE,
-                    width="100%"
+                rx.accordion.content(
+                    rx.vstack(
+                        rx.input(
+                            type="date",
+                            value=GlobalFilterState.date_range_start,
+                            on_change=[GlobalFilterState.set_date_start, on_change],
+                            style=INPUT_STYLE,
+                            width="100%"
+                        ),
+                        rx.text("to", size="1", color=TEXT_SECONDARY, text_align="center"),
+                        rx.input(
+                            type="date",
+                            value=GlobalFilterState.date_range_end,
+                            on_change=[GlobalFilterState.set_date_end, on_change],
+                            style=INPUT_STYLE,
+                            width="100%"
+                        ),
+                        spacing="1",
+                        width="100%",
+                        padding="8px",
+                        border=f"1px solid {BORDER_COLOR}",
+                        border_radius=RADIUS
+                    ),
+                    padding_left="8px", padding_top="0px"
                 ),
-                spacing="1",
-                width="100%",
-                padding="8px",
-                border=f"1px solid {BORDER_COLOR}",
-                border_radius=RADIUS
+                value="date_range",
+                style={"background": "transparent", "border": "none", "_hover": {"background": "transparent"}}
             ),
-            spacing="1",
-            width="100%"
-        ),
-        
-        # Location Filter
-        rx.box(
-            location_filter(GlobalFilterState, on_change=on_change),
+            # Location Filter
+            rx.accordion.item(
+                rx.accordion.header(
+                    rx.accordion.trigger(
+                        rx.text("Location", size="1", weight="bold", color=TEXT_SECONDARY),
+                        rx.accordion.icon(),
+                        align_items="center", display="flex", justify_content="space-between", width="100%", padding_y="8px", padding_x="0px", _hover={"background": "transparent", "opacity": 0.8},
+                    )
+                ),
+                rx.accordion.content(
+                    rx.box(location_filter(GlobalFilterState, on_change=on_change), width="100%"),
+                    padding_left="8px", padding_top="0px"
+                ),
+                value="location",
+                style={"background": "transparent", "border": "none", "_hover": {"background": "transparent"}}
+            ),
+            # Format Filter
+            rx.accordion.item(
+                rx.accordion.header(
+                    rx.accordion.trigger(
+                        rx.text("Format", size="1", weight="bold", color=TEXT_SECONDARY),
+                        rx.accordion.icon(),
+                        align_items="center", display="flex", justify_content="space-between", width="100%", padding_y="8px", padding_x="0px", _hover={"background": "transparent", "opacity": 0.8},
+                    )
+                ),
+                rx.accordion.content(
+                    rx.box(hierarchical_format_filter(GlobalFilterState, on_change=on_change), width="100%"),
+                    padding_left="8px", padding_top="0px"
+                ),
+                value="format",
+                style={"background": "transparent", "border": "none", "_hover": {"background": "transparent"}}
+            ),
+            type="multiple",
+            collapsible=True,
             width="100%",
-        ),
-
-        # Format Filter
-        rx.box(
-            hierarchical_format_filter(GlobalFilterState, on_change=on_change),
-            width="100%",
+            color_scheme="gray",
+            variant="ghost",
         ),
         
         spacing="4",
