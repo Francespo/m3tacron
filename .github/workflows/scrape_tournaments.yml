@@ -4,6 +4,9 @@ permissions:
   contents: write
 
 on:
+  schedule:
+    # Run at 08:00 UTC every day
+    - cron: '0 8 * * *'
   workflow_dispatch:
     inputs:
       platform:
@@ -15,7 +18,6 @@ on:
           - all
           - longshanks
           - rollbetter
-          - listfortress
       time_range:
         description: 'Time range (preset or YYYY-MM-DD)'
         required: true
@@ -47,12 +49,17 @@ jobs:
     - name: Run Scraper
       env:
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        PYTHONPATH: .
       run: |
-        # Ensure m3tacron module can be found
-        export PYTHONPATH=$PYTHONPATH:.
-        python -m m3tacron.scripts.scrape_tournaments --platform ${{ inputs.platform }} --time-range ${{ inputs.time_range }}
-
-
+        # Use inputs if available, otherwise default to all/yesterday
+        PLATFORM="${{ inputs.platform }}"
+        TIME_RANGE="${{ inputs.time_range }}"
+        
+        if [ -z "$PLATFORM" ]; then PLATFORM="all"; fi
+        if [ -z "$TIME_RANGE" ]; then TIME_RANGE="yesterday"; fi
+        
+        python -m m3tacron.scripts.scrape_tournaments --platform "$PLATFORM" --time-range "$TIME_RANGE"
+    
     - name: Upload Database Artifact
       if: success()
       uses: actions/upload-artifact@v4
