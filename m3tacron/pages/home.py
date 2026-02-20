@@ -185,7 +185,7 @@ def home_content() -> rx.Component:
             rx.box(
                 rx.hstack(
                     rx.vstack(
-                        rx.heading("META SNAPSHOT", size="9", font_family=SANS_FONT, weight="bold", letter_spacing="-0.03em"),
+                        rx.heading("META SNAPSHOT", size="9", font_family=SANS_FONT, weight="medium", letter_spacing="0.08em"),
                         rx.hstack(
                             rx.badge(HomeState.last_sync, variant="surface", color_scheme="gray"),
                             rx.text(f"RANGE: {HomeState.date_range}", size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
