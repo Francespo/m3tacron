@@ -183,7 +183,7 @@ def home_content() -> rx.Component:
         rx.vstack(
             # Hero Section
             rx.box(
-                rx.hstack(
+                rx.flex(
                     rx.vstack(
                         rx.heading("META SNAPSHOT", size="9", font_family=SANS_FONT, weight="bold", letter_spacing="-0.03em"),
                         rx.hstack(
@@ -199,11 +199,13 @@ def home_content() -> rx.Component:
                     rx.vstack(
                         rx.text("GAME SOURCE", size="1", weight="bold", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
                         data_source_toggle(),
-                        align="end",
+                        align=["start", "start", "end", "end"],
                         spacing="1"
                     ),
                     width="100%",
-                    align="end"
+                    align="end",
+                    flex_direction=["column", "column", "row", "row"],
+                    gap="4",
                 ),
                 padding_bottom="40px",
                 width="100%"
@@ -215,7 +217,7 @@ def home_content() -> rx.Component:
                 meta_stat_card("RECENT LISTS", HomeState.total_players.to(str), icon="users", subtext="Last 90 Days"),
                 meta_stat_card("ACTIVE FACTIONS", "7", icon="layers"),
                 # Add Data Source Toggle here actually looks better on top right of header
-                columns="3",
+                columns=["1", "1", "3", "3"],
                 spacing="4",
                 width="100%",
                 margin_bottom="32px",
@@ -238,7 +240,7 @@ def home_content() -> rx.Component:
                     rx.box(faction_game_pie_chart(HomeState.faction_distribution), width="100%"),
                     icon="circle-dashed"
                 ),
-                columns="3",
+                columns=["1", "1", "3", "3"],
                 spacing="4",
                 width="100%",
                 margin_bottom="32px",
@@ -341,8 +343,8 @@ def home_content() -> rx.Component:
                     ),
                     spacing="6",
                 ),
-                columns="2",
-                spacing="6",
+                columns=["1", "1", "2", "2"],
+                spacing="4",
                 width="100%",
             ),
             

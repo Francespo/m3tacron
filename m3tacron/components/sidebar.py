@@ -263,6 +263,7 @@ def mobile_header() -> rx.Component:
         right="0",
         display=["flex", "flex", "none", "none"],
         z_index="100",
+        background=TERMINAL_BG,
     )
 
 
@@ -278,16 +279,18 @@ def layout(page_content: rx.Component, **kwargs) -> rx.Component:
                 ["0", "0", "60px", "60px"],
                 ["0", "0", "260px", "260px"]
             ),
-            margin_top=["60px", "60px", "0", "0"],
-            padding="0",
-            height="100vh",
-            width="auto",
-            overflow_y="auto",
+            padding_top=["60px", "60px", "0", "0"],
+            padding_bottom="0",
+            min_height="100vh",
+            width="100%",
             overflow_x="hidden",
             background=TERMINAL_BG,
             style={"position": "relative"},
             transition="margin-left 0.2s ease",
         ),
+        width="100%",
+        min_height="100vh",
+        background=TERMINAL_BG,
         **kwargs
     )
 

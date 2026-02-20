@@ -294,7 +294,7 @@ def tournament_card(tournament: dict, index: int) -> rx.Component:
             ),
 
             width="100%",
-            height="80px", # Fixed height for uniformity
+            min_height="80px", # Use min_height for responsive wrapping
             align="center",
             padding="10px",
             border_bottom=f"1px solid {BORDER_COLOR}",

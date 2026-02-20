@@ -794,7 +794,7 @@ def squadrons_content() -> rx.Component:
         ),
         rx.grid(
             rx.foreach(SquadronsState.squadrons_data, squadron_card),
-            columns="2",
+            columns=["1", "1", "2", "2"],
             spacing="4",
             width="100%",
         ),
