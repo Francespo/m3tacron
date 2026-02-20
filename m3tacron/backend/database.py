@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Default to local sqlite if no DATABASE_URL is provided (e.g. via GitHub Secrets)
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///metacron.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///main.db")
 
 # Force PostgreSQL compatibility if using Supabase (SQLModel needs 'postgresql+psycopg2://' or similar often)
 if DATABASE_URL.startswith("postgres://"):
