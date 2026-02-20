@@ -24,6 +24,7 @@ from ..theme import (
     TEXT_PRIMARY, TEXT_SECONDARY, MONOSPACE_FONT, SANS_FONT, INPUT_STYLE,
     TERMINAL_PANEL_STYLE, RADIUS, FACTION_ICONS
 )
+from ..components.ui import empty_state
 from ..ui_utils.factions import faction_icon, get_faction_color
 from ..components.icons import ship_icon
 from ..backend.utils.xwing_data.pilots import load_all_pilots, get_pilot_info
@@ -792,13 +793,30 @@ def squadrons_content() -> rx.Component:
             align="center",
             margin_bottom="16px"
         ),
-        rx.grid(
-            rx.foreach(SquadronsState.squadrons_data, squadron_card),
-            columns="2",
-            spacing="4",
-            width="100%",
+        rx.cond(
+            SquadronsState.squadrons_data.length() > 0,
+            rx.vstack(
+                rx.grid(
+                    rx.foreach(SquadronsState.squadrons_data, squadron_card),
+                    columns="2",
+                    spacing="4",
+                    width="100%",
+                ),
+                rx.hstack(rx.spacer(), pagination_controls_squadrons(), width="100%", margin_top="24px"),
+                width="100%",
+                spacing="0",
+            ),
+            rx.box(
+                empty_state(
+                    title="0 SQUADRONS FOUND",
+                    description="No squadrons match your current filters or search query.",
+                    icon_tag="swords",
+                    reset_handler=SquadronsState.reset_squadron_filters
+                ),
+                width="100%",
+                padding_y="48px"
+            ),
         ),
-        rx.hstack(rx.spacer(), pagination_controls_squadrons(), width="100%", margin_top="24px"),
         align="start",
         width="100%",
         max_width="1200px",

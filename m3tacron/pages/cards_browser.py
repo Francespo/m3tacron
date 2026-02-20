@@ -18,9 +18,10 @@ from ..backend.analytics.core import aggregate_card_stats
 from ..backend.data_structures.sorting_order import SortingCriteria, SortDirection
 from ..backend.data_structures.view_mode import ViewMode
 from ..theme import (
-    TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR, TERMINAL_PANEL, TERMINAL_PANEL_STYLE,
-    HEADER_FONT, MONOSPACE_FONT, SANS_FONT, INPUT_STYLE, RADIUS, FACTION_COLORS
+    TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR, TERMINAL_PANEL_STYLE,
+    MONOSPACE_FONT, SANS_FONT, INPUT_STYLE, TERMINAL_BG, RADIUS, FACTION_COLORS
 )
+from ..components.ui import empty_state
 from ..components.icons import ship_icon
 from ..components.filter_accordion import filter_accordion
 from ..components.searchable_filter_accordion import searchable_filter_accordion
@@ -95,20 +96,20 @@ class CardAnalyzerState(PaginationMixin):
         return self.mode
     
     # numeric filters (min/max)
-    points_min: int = 0
-    points_max: int = 200
+    points_min: int | None = None
+    points_max: int | None = None
     
-    loadout_min: int = 0
-    loadout_max: int = 99
+    loadout_min: int | None = None
+    loadout_max: int | None = None
     
-    hull_min: int = 0
-    hull_max: int = 20
+    hull_min: int | None = None
+    hull_max: int | None = None
     
-    shields_min: int = 0
-    shields_max: int = 20
+    shields_min: int | None = None
+    shields_max: int | None = None
     
-    agility_min: int = 0
-    agility_max: int = 10
+    agility_min: int | None = None
+    agility_max: int | None = None
     
     # booleans for Limited/Unique
     is_unique: bool = False  # limited == 1
@@ -116,12 +117,12 @@ class CardAnalyzerState(PaginationMixin):
     is_not_limited: bool = False  # limited == 0
     
     # Attack range
-    attack_min: int = 0
-    attack_max: int = 10
+    attack_min: int | None = None
+    attack_max: int | None = None
     
     # Initiative range (replaces grid)
-    init_min: int = 0
-    init_max: int = 8
+    init_min: int | None = None
+    init_max: int | None = None
     
     # Base sizes - empty dict means no filter (all sizes)
     base_sizes: dict[str, bool] = {}
@@ -129,48 +130,42 @@ class CardAnalyzerState(PaginationMixin):
     # Epic Content
     # include_epic: bool = False
     
-    async def reset_card_filters(self):
+    def reset_card_filters(self):
         """Reset only card-specific filters."""
-        self.text_filter = ""
         self.selected_factions = {}
         self.selected_ships = {}
         self.ship_search_text = ""
         self.selected_initiatives = {}
         self.selected_upgrade_types = {}
-        
-        # Reset Advanced Filters to Defaults
-        self.points_min = 0
-        self.points_max = 200
-        self.loadout_min = 0
-        self.loadout_max = 99
-        self.hull_min = 0
-        self.hull_max = 20
-        self.shields_min = 0
-        self.shields_max = 20
-        self.agility_min = 0
-        self.agility_max = 10
+        self.text_filter = ""
+        self.base_sizes = {"Small": False, "Medium": False, "Large": False, "Huge": False}
+        self.points_min = None
+        self.points_max = None
+        self.loadout_min = None
+        self.loadout_max = None
+        self.hull_min = None
+        self.hull_max = None
+        self.shields_min = None
+        self.shields_max = None
+        self.agility_min = None
+        self.agility_max = None
+        self.attack_min = None
+        self.attack_max = None
+        self.init_min = None
+        self.init_max = None
         self.is_unique = False
         self.is_limited = False
         self.is_not_limited = False
-        self.attack_min = 0
-        self.attack_max = 10
-        self.init_min = 0
-        self.init_max = 8
-        self.base_sizes = {}
-        
         self.current_page = 0
-        await self.load_data()
+        self.load_data()
 
     async def reset_tournament_filters_wrapper(self):
-        """Reset global tournament filters."""
+        """Reset only global tournament filters."""
         gs = await self.get_state(GlobalFilterState)
         gs.reset_tournament_filters()
         self.current_page = 0
-        await self.load_data()
+        self.load_data()
 
-    def set_mode(self, mode: str | list[str]):
-        if isinstance(mode, list):
-            mode = mode[0]
     def set_mode(self, mode: str | list[str]):
         if isinstance(mode, list):
             mode = mode[0]
@@ -181,52 +176,52 @@ class CardAnalyzerState(PaginationMixin):
 
     def set_points_min(self, val: str):
         try: self.points_min = int(val)
-        except ValueError: pass
+        except ValueError: self.points_min = None
         self.load_data()
         
     def set_points_max(self, val: str):
         try: self.points_max = int(val)
-        except ValueError: pass
+        except ValueError: self.points_max = None
         self.load_data()
 
     def set_loadout_min(self, val: str):
         try: self.loadout_min = int(val)
-        except ValueError: pass
+        except ValueError: self.loadout_min = None
         self.load_data()
 
     def set_loadout_max(self, val: str):
         try: self.loadout_max = int(val)
-        except ValueError: pass
+        except ValueError: self.loadout_max = None
         self.load_data()
         
     def set_hull_min(self, val: str):
         try: self.hull_min = int(val)
-        except ValueError: pass
+        except ValueError: self.hull_min = None
         self.load_data()
 
     def set_hull_max(self, val: str):
         try: self.hull_max = int(val)
-        except ValueError: pass
+        except ValueError: self.hull_max = None
         self.load_data()
 
     def set_shields_min(self, val: str):
         try: self.shields_min = int(val)
-        except ValueError: pass
+        except ValueError: self.shields_min = None
         self.load_data()
 
     def set_shields_max(self, val: str):
         try: self.shields_max = int(val)
-        except ValueError: pass
+        except ValueError: self.shields_max = None
         self.load_data()
 
     def set_agility_min(self, val: str):
         try: self.agility_min = int(val)
-        except ValueError: pass
+        except ValueError: self.agility_min = None
         self.load_data()
 
     def set_agility_max(self, val: str):
         try: self.agility_max = int(val)
-        except ValueError: pass
+        except ValueError: self.agility_max = None
         self.load_data()
 
     def set_is_unique(self, val: bool):
@@ -243,22 +238,22 @@ class CardAnalyzerState(PaginationMixin):
         
     def set_attack_min(self, val: str):
         try: self.attack_min = int(val)
-        except ValueError: pass
+        except ValueError: self.attack_min = None
         self.load_data()
 
     def set_attack_max(self, val: str):
         try: self.attack_max = int(val)
-        except ValueError: pass
+        except ValueError: self.attack_max = None
         self.load_data()
         
     def set_init_min(self, val: str):
         try: self.init_min = int(val)
-        except ValueError: pass
+        except ValueError: self.init_min = None
         self.load_data()
 
     def set_init_max(self, val: str):
         try: self.init_max = int(val)
-        except ValueError: pass
+        except ValueError: self.init_max = None
         self.load_data()
 
     def toggle_base_size(self, size: str, checked: bool):
@@ -943,19 +938,35 @@ def render_content() -> rx.Component:
         ),
         
         # Grid
-        rx.grid(
-            rx.cond(
-                CardAnalyzerState.active_tab == "pilots",
-                rx.foreach(CardAnalyzerState.results.to(list[dict]), pilot_card),
-                rx.foreach(CardAnalyzerState.results.to(list[dict]), upgrade_card)
+        rx.cond(
+            CardAnalyzerState.results.length() > 0,
+            rx.vstack(
+                rx.grid(
+                    rx.cond(
+                        CardAnalyzerState.active_tab == "pilots",
+                        rx.foreach(CardAnalyzerState.results.to(list[dict]), pilot_card),
+                        rx.foreach(CardAnalyzerState.results.to(list[dict]), upgrade_card)
+                    ),
+                    columns={"initial": "1", "sm": "2", "xl": "3", "2xl": "4"},
+                    spacing="4",
+                    width="100%"
+                ),
+                # Pagination
+                pagination_controls(CardAnalyzerState),
+                width="100%",
+                spacing="4"
             ),
-            columns={"initial": "1", "sm": "2", "xl": "3", "2xl": "4"},
-            spacing="4",
-            width="100%"
+            rx.box(
+                empty_state(
+                    title="0 CARDS FOUND",
+                    description="No cards match your current filters or search query.",
+                    icon_tag="sticky-note",
+                    reset_handler=CardAnalyzerState.reset_card_filters
+                ),
+                width="100%",
+                padding_y="48px"
+            ),
         ),
-        
-        # Pagination
-        pagination_controls(CardAnalyzerState),
         
         width="100%",
         padding="20px",

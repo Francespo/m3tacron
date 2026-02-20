@@ -112,3 +112,61 @@ def stat_card(title: str, value: rx.Var, subtitle: str = "") -> rx.Component:
         style=TERMINAL_PANEL_STYLE,
         min_width="180px",
     )
+
+
+def empty_state(
+    title: str = "NO RESULTS FOUND",
+    description: str = "Try adjusting your filters or search query.",
+    icon_tag: str = "search",
+    reset_handler=None
+) -> rx.Component:
+    """
+    A stylized empty state component to display when a list/grid has no items.
+    """
+    return rx.center(
+        rx.vstack(
+            rx.icon(
+                tag=icon_tag,
+                size=48,
+                color=TEXT_SECONDARY,
+                opacity=0.3,
+                margin_bottom="16px"
+            ),
+            rx.text(
+                title,
+                size="4",
+                weight="bold",
+                color=TEXT_PRIMARY,
+                font_family=SANS_FONT,
+                text_align="center"
+            ),
+            rx.text(
+                description,
+                size="2",
+                color=TEXT_SECONDARY,
+                font_family=MONOSPACE_FONT,
+                text_align="center",
+                max_width="400px",
+                margin_bottom="24px"
+            ),
+            rx.cond(
+                reset_handler is not None,
+                rx.button(
+                    "Reset Filters",
+                    variant="surface",
+                    color_scheme="gray",
+                    on_click=reset_handler,
+                    cursor="pointer",
+                ),
+                rx.fragment()
+            ),
+            align="center",
+            spacing="3",
+            padding="64px 24px",
+        ),
+        width="100%",
+        height="100%",
+        min_height="300px",
+        style=TERMINAL_PANEL_STYLE,
+        border_radius=RADIUS,
+    )

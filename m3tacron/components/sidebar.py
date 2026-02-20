@@ -43,7 +43,7 @@ def sidebar_link(text: str, href: str, icon: str, collapsed: rx.Var = False) -> 
                 rx.fragment()
             ),
             width="100%",
-            padding=rx.cond(collapsed, "12px 0", "12px 16px"),
+            padding=rx.cond(collapsed, "8px 0", "8px 16px"),
             justify=rx.cond(collapsed, "center", "start"),
             background=rx.cond(
                 is_active, 
@@ -139,8 +139,8 @@ def sidebar_content(collapsed: rx.Var = False) -> rx.Component:
             sidebar_link("SHIPS", "/ships", "rocket", collapsed),
             sidebar_link("CARDS", "/cards", "sticky-note", collapsed),
             width="100%",
-            padding="16px 0",
-            spacing="1",
+            padding="8px 0",
+            spacing="0",
         ),
         
         rx.spacer(),
