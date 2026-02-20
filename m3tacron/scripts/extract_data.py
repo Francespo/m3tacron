@@ -24,7 +24,7 @@ from m3tacron.backend.data_structures.scenarios import Scenario
 from m3tacron.backend.scrapers.longshanks_scraper import LongshanksScraper
 from m3tacron.backend.scrapers.rollbetter_scraper import RollbetterScraper
 from m3tacron.backend.scrapers.listfortress_scraper import ListFortressScraper
-from m3tacron.backend.domain.deduplication import DedupService
+from m3tacron.backend.utils.deduplication import DedupService
 from m3tacron.backend.data_structures.platforms import Platform
 
 logging.basicConfig(level=logging.INFO)
