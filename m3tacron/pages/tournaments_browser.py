@@ -323,7 +323,7 @@ def render_filters() -> rx.Component:
         
         # Unified Tournament Filters Component
         rx.box(
-            tournament_filters(TournamentsState.load_tournaments),
+            tournament_filters(TournamentsState.load_tournaments, reset_handler=TournamentsState.reset_tournament_filters_wrapper),
             width="100%"
         ),
 
