@@ -18,6 +18,7 @@ on:
           - all
           - longshanks
           - rollbetter
+          - listfortress
       time_range:
         description: 'Time range (preset or YYYY-MM-DD)'
         required: true
