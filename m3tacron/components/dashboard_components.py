@@ -76,22 +76,37 @@ def faction_game_pie_chart(data: list[dict]) -> rx.Component:
                     ),
                     data=data,
                     data_key="games",
-                    name_key="name",
-                    label={
-                        "position": "outside",
-                        "fill": "#888",
-                        "fontSize": "22px",
-                        "fontFamily": "XWing",
-                    },
-                    labelLine=False, 
+                    name_key="real_name",
+                    label=False,
                     cx="50%",
                     cy="50%",
-                    outer_radius=70,  # Reduced from 80 to avoid label overlap
+                    outer_radius=70,
                     is_animation_active=False,
                 ),
+                rx.recharts.graphing_tooltip(
+                    content_style={"backgroundColor": "#0A0A0A", "borderColor": "#333", "color": "#FFF", "fontFamily": SANS_FONT},
+                    item_style={"color": "#FFF"}
+                ),
             ),
-            height=250,
+            height=180,
             width="100%",
+        ),
+        rx.flex(
+            rx.foreach(
+                data,
+                lambda entry: rx.hstack(
+                    faction_icon(entry["xws"], size="1.2em"),
+                    rx.text(entry["percentage"].to(str) + "%", size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
+                    align="center",
+                    spacing="1",
+                    margin_right="12px",
+                    margin_bottom="6px"
+                )
+            ),
+            wrap="wrap",
+            justify="center",
+            width="100%",
+            margin_top="8px"
         ),
         width="100%",
         padding="20px",
