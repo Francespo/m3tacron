@@ -145,11 +145,3 @@ body {
     font-size: 1.2em;
     line-height: 1;
 }
-
-/* Fix for Recharts Pie Chart Labels displaying numeric values in wrong font */
-.recharts-pie-label-text, 
-.recharts-text.recharts-label {
-    font-family: 'XWing', sans-serif !important;
-    font-size: 20px !important;
-    fill: #888 !important;
-}
