@@ -224,7 +224,7 @@ def render_pilot_block(pilot: PilotData) -> rx.Component:
             border_radius="8px"
         ),
         width="100%", # Take full width of grid cell
-        min_width=["100%", "100%", "300px", "300px"], # Responsive min-width
+        min_width={"initial": "100%", "md": "300px"}, # Responsive min-width
     )
 
 def list_row_card(list_data: ListData) -> rx.Component:
