@@ -9,4 +9,4 @@ error.log
 .env
 .env.local
 .vscode/
-.agent/
+.agents/
