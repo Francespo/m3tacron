@@ -79,18 +79,18 @@ def sidebar_content(collapsed: rx.Var = False) -> rx.Component:
                     rx.text(
                         "M3",
                         size="4",
-                        weight="bold",
+                        weight="medium",
                         color=TEXT_PRIMARY,
                         font_family=SANS_FONT,
-                        letter_spacing="-0.02em",
+                        letter_spacing="0.15em",
                     ),
                     rx.text(
                         "M3TACRON",
                         size="5",
-                        weight="bold",
+                        weight="medium",
                         color=TEXT_PRIMARY,
                         font_family=SANS_FONT,
-                        letter_spacing="-0.02em",
+                        letter_spacing="0.15em",
                     ),
                 ),
                 rx.cond(
@@ -197,7 +197,8 @@ def sidebar_content(collapsed: rx.Var = False) -> rx.Component:
         width="100%",
         height="100vh",
         background=TERMINAL_PANEL,
-        border_right=f"1px solid {BORDER_COLOR}",
+        # Subtle divider — no color bleed or glow.
+        border_right=f"1px solid rgba(255, 255, 255, 0.08)",
     )
 
 
@@ -243,7 +244,8 @@ def mobile_header() -> rx.Component:
                 "M3TACRON", 
                 size="4", 
                 font_family=SANS_FONT,
-                weight="bold",
+                weight="medium",
+                letter_spacing="0.15em",
                 color=TEXT_PRIMARY
             ),
             rx.spacer(),
