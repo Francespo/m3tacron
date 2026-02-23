@@ -164,21 +164,17 @@ def sidebar_content(collapsed: rx.Var = False) -> rx.Component:
                         color=TEXT_SECONDARY,
                         font_family=SANS_FONT,
                     ),
-                    rx.link(
-                        rx.button(
-                            rx.icon("coffee", size=16),
-                            "Support on Ko-fi",
-                            variant="soft",
-                            color_scheme="orange",
-                            size="1",
-                            cursor="pointer",
-                            width="100%",
-                            margin_top="8px",
-                            style={"font_family": MONOSPACE_FONT},
-                        ),
-                        href="https://ko-fi.com/francespo",
-                        is_external=True,
-                        style={"text_decoration": "none", "width": "100%"}
+                    rx.button(
+                        rx.icon("coffee", size=16),
+                        "Support on Ko-fi",
+                        variant="soft",
+                        color_scheme="orange",
+                        size="1",
+                        cursor="pointer",
+                        width="100%",
+                        margin_top="8px",
+                        style={"font_family": MONOSPACE_FONT},
+                        on_click=rx.redirect("https://ko-fi.com/francespo", is_external=True)
                     ),
                     rx.divider(margin_top="8px", margin_bottom="8px", opacity=0.1),
                     rx.text(
@@ -214,7 +210,7 @@ def sidebar() -> rx.Component:
         top="0",
         width=rx.cond(SidebarState.is_collapsed, "60px", "260px"),
         height="100vh",
-        display=["none", "none", "flex", "flex"],
+        display=["none", "none", "flex", "flex", "flex"],
         z_index="100",
         transition="width 0.2s ease",
     )
@@ -261,8 +257,9 @@ def mobile_header() -> rx.Component:
         top="0",
         left="0",
         right="0",
-        display=["flex", "flex", "none", "none"],
+        display=["flex", "flex", "none", "none", "none"],
         z_index="100",
+        background=TERMINAL_BG,
     )
 
 
@@ -273,19 +270,20 @@ def layout(page_content: rx.Component, **kwargs) -> rx.Component:
         mobile_header(),
         rx.box(
             page_content,
-            margin_left=rx.cond(
-                SidebarState.is_collapsed,
-                ["0", "0", "60px", "60px"],
-                ["0", "0", "260px", "260px"]
-            ),
-            margin_top=["60px", "60px", "0", "0"],
-            padding="0",
-            height="100vh",
+            margin_left="0px",
+            padding_top=["60px", "60px", "0", "0", "0"],
+            padding_bottom="0",
+            min_height="100vh",
             width="auto",
             overflow_y="auto",
             overflow_x="hidden",
             background=TERMINAL_BG,
-            style={"position": "relative"},
+            style={
+                "position": "relative",
+                "@media screen and (min-width: 768px)": {
+                    "margin_left": rx.cond(SidebarState.is_collapsed, "60px", "260px")
+                }
+            },
             transition="margin-left 0.2s ease",
         ),
         **kwargs
@@ -299,7 +297,8 @@ def dashboard_layout(filters_sidebar: rx.Component, main_content: rx.Component) 
         # Filters Column
         rx.box(
             filters_sidebar,
-            width=["100%", "100%", "300px", "350px"],
+            display=["none", "none", "block", "block", "block"],
+            width=["100%", "100%", "300px", "350px", "350px"],
             height="100%",
             overflow_y="auto",
             border_right=f"1px solid {BORDER_COLOR}",
@@ -319,7 +318,7 @@ def dashboard_layout(filters_sidebar: rx.Component, main_content: rx.Component) 
             class_name="scrollbar-thin",
             scrollbar_gutter="stable",
         ),
-        flex_direction=["column", "row"],
+        flex_direction=["column", "column", "row", "row", "row"],
         width="100%",
         height="100%",
         overflow="hidden",
