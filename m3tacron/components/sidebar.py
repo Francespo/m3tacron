@@ -270,23 +270,22 @@ def layout(page_content: rx.Component, **kwargs) -> rx.Component:
         mobile_header(),
         rx.box(
             page_content,
-            margin_left=rx.cond(
-                SidebarState.is_collapsed,
-                {"initial": "0", "md": "60px"},
-                {"initial": "0", "md": "260px"}
-            ),
-            padding_top={"initial": "60px", "md": "0"},
+            margin_left="0px",
+            padding_top=["60px", "60px", "0", "0", "0"],
             padding_bottom="0",
             min_height="100vh",
-            width="100%",
+            width="auto",
+            overflow_y="auto",
             overflow_x="hidden",
             background=TERMINAL_BG,
-            style={"position": "relative"},
+            style={
+                "position": "relative",
+                "@media screen and (min-width: 768px)": {
+                    "margin_left": rx.cond(SidebarState.is_collapsed, "60px", "260px")
+                }
+            },
             transition="margin-left 0.2s ease",
         ),
-        width="100%",
-        min_height="100vh",
-        background=TERMINAL_BG,
         **kwargs
     )
 
