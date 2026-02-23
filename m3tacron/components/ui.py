@@ -111,5 +111,5 @@ def stat_card(title: str, value: rx.Var, subtitle: str = "") -> rx.Component:
         ),
         padding="16px",
         style=TERMINAL_PANEL_STYLE,
-        min_width="180px",
+        width="100%",
     )

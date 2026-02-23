@@ -12,3 +12,4 @@ error.log
 .env.local
 .vscode/
 .agent/
+.agents/
