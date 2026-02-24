@@ -112,6 +112,16 @@ class SquadronsState(PaginationMixin):
         self.current_page = 0
         await self.load_squadrons()
 
+    async def reset_all_filters(self):
+        """Reset both global tournament filters and local squadron filters."""
+        gs = await self.get_state(GlobalFilterState)
+        gs.reset_tournament_filters()
+        self.selected_factions = {}
+        self.selected_ships = {}
+        self.ship_search_query = ""
+        self.current_page = 0
+        await self.load_squadrons()
+
     # --- Mixin Overrides REMOVED (Handled by GlobalState) ---
     
     async def toggle_faction(self, faction: str, checked: bool):
@@ -811,7 +821,7 @@ def squadrons_content() -> rx.Component:
                     title="0 SQUADRONS FOUND",
                     description="No squadrons match your current filters or search query.",
                     icon_tag="swords",
-                    reset_handler=SquadronsState.reset_squadron_filters
+                    reset_handler=SquadronsState.reset_all_filters
                 ),
                 width="100%",
                 padding_y="48px"

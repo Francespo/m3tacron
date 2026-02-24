@@ -166,6 +166,37 @@ class CardAnalyzerState(PaginationMixin):
         self.current_page = 0
         self.load_data()
 
+    async def reset_all_filters(self):
+        """Reset both global tournament filters and local card filters."""
+        gs = await self.get_state(GlobalFilterState)
+        gs.reset_tournament_filters()
+        self.selected_factions = {}
+        self.selected_ships = {}
+        self.ship_search_text = ""
+        self.selected_initiatives = {}
+        self.selected_upgrade_types = {}
+        self.text_filter = ""
+        self.base_sizes = {"Small": False, "Medium": False, "Large": False, "Huge": False}
+        self.points_min = None
+        self.points_max = None
+        self.loadout_min = None
+        self.loadout_max = None
+        self.hull_min = None
+        self.hull_max = None
+        self.shields_min = None
+        self.shields_max = None
+        self.agility_min = None
+        self.agility_max = None
+        self.attack_min = None
+        self.attack_max = None
+        self.init_min = None
+        self.init_max = None
+        self.is_unique = False
+        self.is_limited = False
+        self.is_not_limited = False
+        self.current_page = 0
+        self.load_data()
+
     def set_mode(self, mode: str | list[str]):
         if isinstance(mode, list):
             mode = mode[0]
@@ -961,7 +992,7 @@ def render_content() -> rx.Component:
                     title="0 CARDS FOUND",
                     description="No cards match your current filters or search query.",
                     icon_tag="sticky-note",
-                    reset_handler=CardAnalyzerState.reset_card_filters
+                    reset_handler=CardAnalyzerState.reset_all_filters
                 ),
                 width="100%",
                 padding_y="48px"
