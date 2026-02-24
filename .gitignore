@@ -1,3 +1,5 @@
+*.db
+assets/external/
 .states
 __pycache__/
 .web
@@ -9,4 +11,5 @@ error.log
 .env
 .env.local
 .vscode/
+.agent/
 .agents/

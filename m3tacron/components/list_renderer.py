@@ -224,8 +224,7 @@ def render_pilot_block(pilot: PilotData) -> rx.Component:
             border_radius="8px"
         ),
         width="100%", # Take full width of grid cell
-        min_width="300px", # Increased minimum width
-        # max_width removed for full expansion
+        min_width={"initial": "100%", "md": "300px"}, # Responsive min-width
     )
 
 def list_row_card(list_data: ListData) -> rx.Component:
@@ -249,11 +248,11 @@ def list_row_card(list_data: ListData) -> rx.Component:
             # Content
             rx.vstack(
                 # Header: Faction Icon + Stats
-                rx.hstack(
+                rx.flex(
                     faction_icon(faction, size="1.5em"),
                     rx.spacer(),
                     # Stats
-                    rx.hstack(
+                    rx.flex(
                         rx.badge(f"{list_data.points} pts", variant="solid", color_scheme="gray"),
                         rx.badge(f"{list_data.win_rate}% WR", variant="surface", 
                                  color_scheme=rx.cond(list_data.win_rate >= 50, "green", "orange")),
@@ -263,11 +262,15 @@ def list_row_card(list_data: ListData) -> rx.Component:
                         ),
                         rx.text(f"{list_data.games} games", size="1", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
                         spacing="2",
-                        align="center"
+                        align="center",
+                        wrap="wrap",
+                        justify="end",
                     ),
                     width="100%",
                     align="center",
-                    margin_bottom="4px"
+                    margin_bottom="4px",
+                    wrap="wrap",
+                    gap="2",
                 ),
                 
                 # Ships Row - Use Grid or Flex

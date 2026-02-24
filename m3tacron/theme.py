@@ -70,7 +70,8 @@ TERMINAL_PANEL_STYLE = {
     "background": TERMINAL_PANEL,
     "border": f"1px solid {BORDER_COLOR}",
     "borderRadius": RADIUS,
-    "boxShadow": "0 4px 6px -1px rgba(0, 0, 0, 0.5)",
+    # Subtle inward depth: pure dark, no color bleed.
+    "boxShadow": "inset 0 1px 0 rgba(255, 255, 255, 0.03)",
     "padding": "16px",
 }
 

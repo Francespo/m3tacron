@@ -22,7 +22,8 @@ def content_panel(title: str, content: rx.Component, icon: str = "activity") -> 
                     title, 
                     size="3", 
                     font_family=SANS_FONT,
-                    weight="bold",
+                    weight="medium",
+                    letter_spacing="0.05em",
                     color=TEXT_PRIMARY,
                 ),
                 width="100%",
@@ -110,7 +111,7 @@ def stat_card(title: str, value: rx.Var, subtitle: str = "") -> rx.Component:
         ),
         padding="16px",
         style=TERMINAL_PANEL_STYLE,
-        min_width="180px",
+        width="100%",
     )
 
 
