@@ -15,7 +15,7 @@ import reflex as rx
 TERMINAL_BG = "#000000"      # Pure Depth
 TERMINAL_PANEL = "#0A0A0A"   # Very dark grey
 TEXT_PRIMARY = "#FFFFFF"     # Primary Text
-TEXT_SECONDARY = "#888888"   # Softer Grey for Labels
+TEXT_SECONDARY = "#AAAAAA"   # Softer Grey for Labels (contrast improved from #888888)
 BORDER_COLOR = "#333333"     # Dividers
 
 # Status Colors

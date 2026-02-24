@@ -6,7 +6,7 @@ from sqlmodel import Session, select, func
 
 from ..components.sidebar import layout, dashboard_layout
 from ..backend.database import engine
-from ..components.ui import content_panel, list_row
+from ..components.ui import content_panel, list_row, empty_state
 from ..components.icons import xwing_icon
 from ..backend.models import Tournament, PlayerResult
 from ..backend.data_structures.formats import Format, MacroFormat
@@ -160,6 +160,14 @@ class TournamentsState(PaginationMixin):
     def on_page_change(self):
         """Hook from PaginationMixin."""
         self.update_view()
+
+    async def reset_tournament_filters_wrapper(self):
+        """Reset only global tournament filters."""
+        gs = await self.get_state(GlobalFilterState)
+        gs.reset_tournament_filters()
+        self.search_query = ""
+        self.current_page = 0
+        await self.load_tournaments()
 
 
 
@@ -315,7 +323,7 @@ def render_filters() -> rx.Component:
         
         # Unified Tournament Filters Component
         rx.box(
-            tournament_filters(TournamentsState.load_tournaments),
+            tournament_filters(TournamentsState.load_tournaments, reset_handler=TournamentsState.reset_tournament_filters_wrapper),
             width="100%"
         ),
 
@@ -381,10 +389,14 @@ def tournaments_content() -> rx.Component:
                 class_name="animate-fade-in-up delay-300"
             ),
             rx.box(
-                rx.text("NO RECORDS FOUND", size="2", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
-                padding="48px",
+                empty_state(
+                    title="0 TOURNAMENTS FOUND",
+                    description="No tournaments match your current filters or search query.",
+                    icon_tag="database",
+                    reset_handler=TournamentsState.reset_tournament_filters_wrapper
+                ),
                 width="100%",
-                text_align="center",
+                padding_y="48px"
             ),
         ),
 
