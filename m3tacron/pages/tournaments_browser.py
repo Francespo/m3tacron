@@ -134,6 +134,7 @@ class TournamentsState(PaginationMixin):
                 })
                 
             self.total_items_count = len(self._all_tournaments_cached)
+            self.current_page = 0
             self.update_view()
 
     def update_view(self):
