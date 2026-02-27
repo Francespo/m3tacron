@@ -13,7 +13,8 @@ from ..backend.utils.xwing_data.core import get_faction_name
 from ..backend.utils.yasb import xws_to_yasb_url, get_xws_string
 from ..theme import (
     TERMINAL_BG, BORDER_COLOR, TERMINAL_PANEL, TEXT_PRIMARY, TEXT_SECONDARY,
-    MONOSPACE_FONT, SANS_FONT, TERMINAL_PANEL_STYLE, FACTION_COLORS
+    MONOSPACE_FONT, SANS_FONT, TERMINAL_PANEL_STYLE, FACTION_COLORS,
+    STATUS_VICTORY, STATUS_DEFEAT, TRUNCATE_TEXT,
 )
 from ..components.card_tooltip import pilot_card_tooltip, upgrade_card_tooltip
 from ..ui_utils.factions import faction_icon, get_faction_color
@@ -300,10 +301,18 @@ def player_row(player: dict) -> rx.Component:
             player["rank"], 
             style={"background_color": get_faction_color(player["faction_xws"])}, 
             size="2", 
-            variant="solid"
+            variant="solid",
+            flex_shrink="0",
         ),
         rx.vstack(
-            rx.text(player["name"], size="2", weight="medium", font_family=MONOSPACE_FONT, color=TEXT_PRIMARY),
+            rx.text(
+                player["name"],
+                size="2",
+                weight="medium",
+                font_family=MONOSPACE_FONT,
+                color=TEXT_PRIMARY,
+                style=TRUNCATE_TEXT,
+            ),
             rx.hstack(
                 # Faction Icon + Colored Text
                 faction_icon(player["faction_xws"], size="14px"),
@@ -312,14 +321,17 @@ def player_row(player: dict) -> rx.Component:
                     size="1", 
                     color=get_faction_color(player["faction_xws"]), 
                     font_family=MONOSPACE_FONT,
-                    weight="bold"
+                    weight="bold",
+                    style=TRUNCATE_TEXT,
                 ), 
                 spacing="2",
                 align="center",
                 # Hide if unknown faction to keep clean
                 display=rx.cond(player["faction_xws"] == "unknown", "none", "flex")
             ),
-            spacing="1", align="start"
+            spacing="1",
+            align="start",
+            min_width="0",
         ),
         rx.spacer(),
         rx.cond(
@@ -337,34 +349,46 @@ def player_row(player: dict) -> rx.Component:
 def match_row(match: dict) -> rx.Component:
     """
     Render a match row with:
-    [Round] [Scenario Space] [P1 Name + Score -- Score + P2 Name]
+    [Round] [Scenario] [P1 Name + Score -- Score + P2 Name]
     """
-    # Color logic: Green for winner, Red for loser
-    p1_color = rx.cond(match["winner_id"] == match["player1_id"], "green", "red")
-    p2_color = rx.cond(match["winner_id"] == match["player2_id"], "green", "red")
+    # Color logic: theme-consistent victory/defeat
+    p1_color = rx.cond(match["winner_id"] == match["player1_id"], STATUS_VICTORY, STATUS_DEFEAT)
+    p2_color = rx.cond(match["winner_id"] == match["player2_id"], STATUS_VICTORY, STATUS_DEFEAT)
     
     return rx.hstack(
         # 1. Round Number
-        rx.text(match["round"], color=TEXT_SECONDARY, size="1", font_family=MONOSPACE_FONT, width="30px"),
+        rx.text(
+            match["round"],
+            color=TEXT_SECONDARY,
+            size="1",
+            font_family=MONOSPACE_FONT,
+            width="30px",
+            flex_shrink="0",
+        ),
         
-        # 2. Scenario Space (Fixed width, always present)
+        # 2. Scenario (truncated to avoid overflow)
         rx.box(
             rx.cond(
                 match["scenario"],
-                rx.badge(match["scenario"], variant="outline", size="1", color_scheme="gray"),
+                rx.text(
+                    match["scenario"],
+                    size="1",
+                    color=TEXT_SECONDARY,
+                    font_family=MONOSPACE_FONT,
+                    style=TRUNCATE_TEXT,
+                ),
                 rx.fragment()
             ),
-            width="120px", # Fixed space for scenario
+            width="140px",
+            flex_shrink="0",
             display="flex",
             align_items="center",
-            justify_content="center",
         ),
         
         # 3. Match Sub-container
         rx.hstack(
             # Player 1 (Left)
             rx.hstack(
-                rx.icon(tag="user", size=14, color=TEXT_SECONDARY), # Icon for P1
                 rx.text(
                     match["player1"], 
                     size="2", 
@@ -372,13 +396,12 @@ def match_row(match: dict) -> rx.Component:
                     font_family=MONOSPACE_FONT,
                     weight="medium",
                     text_align="left",
-                    width="100%"
+                    style=TRUNCATE_TEXT,
                 ),
-
-                 width="40%", # Allocate space for name
-                 justify="start",
-                 align="center",
-                 spacing="2"
+                width="40%",
+                min_width="0",
+                justify="start",
+                align="center",
             ),
             
             # Scores (Center)
@@ -388,109 +411,178 @@ def match_row(match: dict) -> rx.Component:
                 rx.text(match["score2"], size="2", color=p2_color, font_family=MONOSPACE_FONT, weight="bold"),
                 justify="center",
                 width="20%",
+                flex_shrink="0",
                 align="center",
-                spacing="2"
+                spacing="2",
             ),
 
             # Player 2 (Right)
             rx.hstack(
                 rx.text(
-
                     match["player2"], 
                     size="2", 
                     color=p2_color, 
                     font_family=MONOSPACE_FONT,
                     weight="medium",
                     text_align="right",
-                    width="100%"
+                    style=TRUNCATE_TEXT,
                 ),
-                width="40%", # Allocate space for name
+                width="40%",
+                min_width="0",
                 justify="end",
                 align="center",
-                spacing="2"
             ),
             
-            flex="1", # Take remaining space
+            flex="1",
+            min_width="0",
             align="center",
             justify="between",
-            style={"background_color": "rgba(255, 255, 255, 0.02)", "border_radius": "4px", "padding": "4px 8px"}
+            style={"background_color": "rgba(255, 255, 255, 0.02)", "border_radius": "4px", "padding": "4px 8px"},
         ),
         
         width="100%", 
         padding="8px 12px", 
         border_bottom=f"1px solid {BORDER_COLOR}", 
         align="center",
-        spacing="4"
+        spacing="4",
     )
 
 
 def tournament_detail_content() -> rx.Component:
+    """Full-width stacked layout for tournament detail."""
     return rx.vstack(
         render_list_modal(),
         rx.cond(
             TournamentDetailState.loading,
-            rx.spinner(),
+            rx.center(rx.spinner(), width="100%", padding="60px"),
             rx.cond(
                 TournamentDetailState.error != "",
                 rx.text(TournamentDetailState.error, color="red"),
                 rx.vstack(
+                    # --- Header ---
                     rx.hstack(
-                        rx.link(rx.button("< BACK", variant="ghost", size="1", style={"font_family": MONOSPACE_FONT}), href="/tournaments"),
-                        rx.vstack(
-                            rx.heading(TournamentDetailState.tournament.name, size="6", font_family=SANS_FONT, weight="bold"),
-                            rx.hstack(
-                                rx.badge(TournamentDetailState.tournament.macro_format, color_scheme="gray"),
-                                rx.text(TournamentDetailState.tournament.date.to(str), size="2", color=TEXT_SECONDARY, font_family=MONOSPACE_FONT),
-                                spacing="2",
+                        rx.link(
+                            rx.button(
+                                "< BACK",
+                                variant="ghost",
+                                size="1",
+                                style={"font_family": MONOSPACE_FONT},
                             ),
-                            align="start", spacing="2",
+                            href="/tournaments",
                         ),
-                        spacing="4", width="100%", margin_bottom="24px",
-                    ),
-                    rx.hstack(
-                        stat_card("PLAYERS", TournamentDetailState.players_swiss.length()),
-                        stat_card("ROUNDS", TournamentDetailState.matches.length()),
+                        rx.vstack(
+                            rx.heading(
+                                TournamentDetailState.tournament.name,
+                                size="6",
+                                font_family=SANS_FONT,
+                                weight="bold",
+                                style=TRUNCATE_TEXT,
+                            ),
+                            rx.hstack(
+                                rx.badge(
+                                    TournamentDetailState.tournament.macro_format,
+                                    color_scheme="gray",
+                                    variant="outline",
+                                ),
+                                rx.text(
+                                    TournamentDetailState.tournament.date.to(str),
+                                    size="2",
+                                    color=TEXT_SECONDARY,
+                                    font_family=MONOSPACE_FONT,
+                                ),
+                                spacing="2",
+                                align="center",
+                            ),
+                            align="start",
+                            spacing="2",
+                            min_width="0",
+                        ),
+                        spacing="4",
+                        width="100%",
+                        align="center",
                         margin_bottom="24px",
                     ),
+
+                    # --- Stat Cards ---
                     rx.grid(
-                        rx.vstack(
-                            # Conditional Cut Standings
+                        stat_card("PLAYERS", TournamentDetailState.players_swiss.length()),
+                        stat_card("ROUNDS", TournamentDetailState.matches.length()),
+                        columns="2",
+                        spacing="4",
+                        width="100%",
+                        margin_bottom="24px",
+                    ),
+
+                    # --- Cut Standings (if applicable) ---
+                    rx.cond(
+                        TournamentDetailState.players_cut.length() > 0,
+                        rx.box(
+                            terminal_panel(
+                                "CUT STANDINGS",
+                                rx.vstack(
+                                    rx.foreach(
+                                        TournamentDetailState.players_cut.to(list[dict]),
+                                        player_row,
+                                    ),
+                                    spacing="0",
+                                    width="100%",
+                                ),
+                            ),
+                            width="100%",
+                            margin_bottom="16px",
+                        ),
+                        rx.fragment(),
+                    ),
+
+                    # --- Swiss Standings ---
+                    rx.box(
+                        terminal_panel(
                             rx.cond(
                                 TournamentDetailState.players_cut.length() > 0,
-                                terminal_panel(
-                                    "CUT STANDINGS", 
-                                    rx.vstack(rx.foreach(TournamentDetailState.players_cut.to(list[dict]), player_row), spacing="0", width="100%")
+                                "SWISS STANDINGS",
+                                "STANDINGS",
+                            ),
+                            rx.vstack(
+                                rx.foreach(
+                                    TournamentDetailState.players_swiss.to(list[dict]),
+                                    player_row,
                                 ),
-                                rx.fragment()
+                                spacing="0",
+                                width="100%",
                             ),
-                            # Swiss Standings (Always shown, title depends on cut existence?)
-                            # User said: "If a tournament has a cut phase you should show the cut leaderboard and stats above the swiss, otherwise show the swiss only."
-                            # But usually we show SIDE by SIDE or Stacked?
-                            # Grid column is 2. So matching existing layout logic.
-                            # Existing was: Rankings (Left), Matches (Right).
-                            # If we have CUT, where do we put it?
-                            # Maybe Stack Cut then Swiss on the Left Column?
-                            terminal_panel(
-                                rx.cond(TournamentDetailState.players_cut.length() > 0, "SWISS STANDINGS", "STANDINGS"),
-                                rx.vstack(rx.foreach(TournamentDetailState.players_swiss.to(list[dict]), player_row), spacing="0", width="100%")
-                            ),
-                            spacing="4",
-                            width="100%"
                         ),
-                        rx.cond(
-                            TournamentDetailState.matches.length() > 0,
-                            terminal_panel("MATCHES", rx.vstack(rx.foreach(TournamentDetailState.matches.to(list[dict]), match_row), spacing="0", width="100%")),
-                            rx.fragment(),
-                        ),
-                        columns="2", spacing="6", width="100%",
-                        align_items="start"
+                        width="100%",
+                        margin_bottom="16px",
                     ),
-                    width="100%", max_width="1200px",
 
-                )
+                    # --- Matches ---
+                    rx.cond(
+                        TournamentDetailState.matches.length() > 0,
+                        rx.box(
+                            terminal_panel(
+                                "MATCHES",
+                                rx.vstack(
+                                    rx.foreach(
+                                        TournamentDetailState.matches.to(list[dict]),
+                                        match_row,
+                                    ),
+                                    spacing="0",
+                                    width="100%",
+                                ),
+                            ),
+                            width="100%",
+                        ),
+                        rx.fragment(),
+                    ),
+
+                    width="100%",
+                    max_width="1200px",
+                ),
             ),
         ),
-        align="start", width="100%", padding_bottom="60px",
+        align="start",
+        width="100%",
+        padding_bottom="60px",
         on_mount=TournamentDetailState.load_tournament,
     )
 
