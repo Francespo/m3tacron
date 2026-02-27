@@ -90,25 +90,30 @@ def aggregate_card_stats(
                 allowed_types = {type_filter.lower()}
 
         # Advanced Filters
-        points_min = filters.get("points_min", 0)
-        points_max = filters.get("points_max", 200)
-        loadout_min = filters.get("loadout_min", 0)
-        loadout_max = filters.get("loadout_max", 99)
+        # WHY: dict.get(key, default) only uses default when key is MISSING.
+        # After filter reset, keys exist with value=None, causing int vs None comparisons.
+        def _int_or(val, fallback):
+            return val if val is not None else fallback
+
+        points_min = _int_or(filters.get("points_min"), 0)
+        points_max = _int_or(filters.get("points_max"), 200)
+        loadout_min = _int_or(filters.get("loadout_min"), 0)
+        loadout_max = _int_or(filters.get("loadout_max"), 99)
         
-        hull_min = filters.get("hull_min", 0)
-        hull_max = filters.get("hull_max", 20)
+        hull_min = _int_or(filters.get("hull_min"), 0)
+        hull_max = _int_or(filters.get("hull_max"), 20)
         
-        shields_min = filters.get("shields_min", 0)
-        shields_max = filters.get("shields_max", 20)
+        shields_min = _int_or(filters.get("shields_min"), 0)
+        shields_max = _int_or(filters.get("shields_max"), 20)
         
-        agility_min = filters.get("agility_min", 0)
-        agility_max = filters.get("agility_max", 10)
+        agility_min = _int_or(filters.get("agility_min"), 0)
+        agility_max = _int_or(filters.get("agility_max"), 10)
         
-        attack_min = filters.get("attack_min", 0)
-        attack_max = filters.get("attack_max", 10)
+        attack_min = _int_or(filters.get("attack_min"), 0)
+        attack_max = _int_or(filters.get("attack_max"), 10)
         
-        init_min = filters.get("init_min", 0)
-        init_max = filters.get("init_max", 8)
+        init_min = _int_or(filters.get("init_min"), 0)
+        init_max = _int_or(filters.get("init_max"), 8)
         
         if init_min is not None:
             try: init_min = int(init_min)
