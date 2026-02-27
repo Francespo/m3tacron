@@ -68,6 +68,7 @@ class TournamentDetailState(rx.State):
                     self.error = "Tournament not found"
                     self.loading = False
                     return
+                self.tournament = t
                 
 
                 
@@ -445,7 +446,23 @@ def tournament_detail_content() -> rx.Component:
                             ),
                             align="start", spacing="2",
                         ),
-                        spacing="4", width="100%", margin_bottom="24px",
+                        rx.spacer(),
+                        rx.cond(
+                            TournamentDetailState.tournament.url != "",
+                            rx.link(
+                                rx.button(
+                                    "VIEW ON SOURCE", 
+                                    variant="outline", 
+                                    color_scheme="blue", 
+                                    size="2",
+                                    style={"font_family": MONOSPACE_FONT}
+                                ),
+                                href=TournamentDetailState.tournament.url,
+                                is_external=True,
+                            ),
+                            rx.fragment(),
+                        ),
+                        spacing="4", width="100%", margin_bottom="24px", align="center"
                     ),
                     rx.hstack(
                         stat_card("PLAYERS", TournamentDetailState.players_swiss.length()),
