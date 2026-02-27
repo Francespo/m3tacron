@@ -1,0 +1,39 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+*.log
+import_log.txt
+error.log
+
+# --- Reflex / Web ---
+.web/
+.states/
+
+# --- Database ---
+*.db
+*.sqlite
+*.sqlite3
+# Ignore specific external data if dynamic
+assets/external/
+
+# --- IDEs / Editors ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# --- Secrets ---
+.env
+.env.local
+
+# --- Agentic Workflows ---
+.agent/
+.agents/
+issues.json
+temp_*.txt
+*-issue-*

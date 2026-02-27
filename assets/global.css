@@ -1,0 +1,147 @@
+/*
+ * M3taCron Global Styles
+ * 
+ * Design System: "Chromatic Minimalism"
+ * Font: JetBrains Mono (Primary), Orbitron (Headers)
+ * Aesthetic: Pure Black, Schematic Lines, No Radius.
+ */
+
+/* Import Fonts */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap');
+
+/* ==========================================================================
+   X-Wing Miniatures Font Setup
+   ========================================================================== */
+@font-face {
+    font-family: 'XWing';
+    src: url('/xwing-miniatures-font_LINK/xwing-miniatures.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'XWingShip';
+    src: url('/xwing-miniatures-font_LINK/xwing-miniatures-ships.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+/* ==========================================================================
+   Global Resets & Defaults
+   ========================================================================== */
+* {
+    border-radius: 0 !important;
+    /* STRICT: No rounded corners */
+}
+
+body {
+    background-color: #050505;
+    /* Deep Black */
+    color: #FFFFFF;
+    font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    /* Prevent global scrollbar */
+    height: 100vh;
+    width: 100vw;
+}
+
+.radix-themes {
+    background: #050505 !important;
+    box-shadow: none !important;
+}
+
+/* ==========================================================================
+   Scrollbar (Technical/Minimal)
+   ========================================================================== */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    /* Subtle, semi-transparent thumb */
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* ==========================================================================
+   Animations (Fast, Technical)
+   ========================================================================== */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes flash {
+    0% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+.animate-fade-in-up {
+    animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    /* Faster, sharper */
+    opacity: 0;
+}
+
+/* Stagger delays */
+.delay-100 {
+    animation-delay: 100ms;
+}
+
+.delay-200 {
+    animation-delay: 200ms;
+}
+
+.delay-300 {
+    animation-delay: 300ms;
+}
+
+.delay-400 {
+    animation-delay: 400ms;
+}
+
+.delay-500 {
+    animation-delay: 500ms;
+}
+
+/* ==========================================================================
+   Icon Mappings (Simplified for CSS usage if needed)
+   ========================================================================== */
+.xwing-miniatures-font {
+    font-family: 'XWing', sans-serif;
+    font-style: normal;
+    font-size: 1.2em;
+    line-height: 1;
+}
+
+.xwing-miniatures-ship {
+    font-family: 'XWingShip', sans-serif;
+    font-style: normal;
+    font-size: 1.2em;
+    line-height: 1;
+}
