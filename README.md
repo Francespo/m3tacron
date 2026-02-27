@@ -53,7 +53,14 @@ This project showcases a modern, Python-first architecture, designed to handle c
    ```bash
    pip install -r requirements.txt
    ```
-4. **Start the app**:
+4. **Environment setup (The Local Database)**:
+   The repository includes a `test.db` SQLite database so you can preview the app immediately without needing to scrape data or set up PostgreSQL.
+   Create a `.env` file in the root directory and add:
+   ```env
+   DATABASE_URL="sqlite:///test.db"
+   ```
+   *(Note: backend scripts and `reflex run` will automatically default to `test.db` if `DATABASE_URL` is omitted, but creating an `.env` is recommended for running local scraper scripts safely).*
+5. **Start the app**:
    ```bash
    reflex run
    ```
