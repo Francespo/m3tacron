@@ -54,8 +54,11 @@ This project showcases a modern, Python-first architecture, designed to handle c
    pip install -r requirements.txt
    ```
 4. **Environment setup (The Local Database)**:
-   The repository includes a `test.db` SQLite database so you can preview the app immediately without needing to scrape data or set up PostgreSQL.
-   Create a `.env` file in the root directory and add:
+   The repository includes a `seed.db` file containing demo data. Copy it to `test.db` so you can preview the app immediately without needing to scrape data or set up PostgreSQL:
+   ```bash
+   cp seed.db test.db
+   ```
+   Then create a `.env` file in the root directory and add:
    ```env
    DATABASE_URL="sqlite:///test.db"
    ```
