@@ -22,6 +22,6 @@ jobs:
           
       - name: Deploy to Reflex Cloud (Production)
         run: |
-          reflex deploy --app-name m3tacron --token ${{ secrets.REFLEX_TOKEN }} --env DATABASE_URL=${{ secrets.SUPABASE_PROD_DB_URL }} --no-interactive
+          reflex deploy --config cloud-prod.yml --token ${{ secrets.REFLEX_TOKEN }} --env DATABASE_URL=${{ secrets.SUPABASE_PROD_DB_URL }} --no-interactive
         env:
           REFLEX_ENV: prod

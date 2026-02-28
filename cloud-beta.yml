@@ -1,0 +1,3 @@
+name: m3tacron-beta
+description: Beta deployment for M3taCron
+envfile: .env.beta
