@@ -10,8 +10,21 @@ from ..data_structures.formats import Format
 from ..data_structures.data_source import DataSource
 from .filters import filter_query, get_active_formats
 
-from ...ui_utils.factions import get_faction_char
+# Mapping from XWS (lowercase) to X-Wing Font Character
+FACTION_CHARS = {
+    "rebelalliance": "!",
+    "galacticempire": "@",
+    "scumandvillainy": "#",
+    "resistance": "!", 
+    "firstorder": "+",
+    "galacticrepublic": "/",
+    "separatistalliance": ".",
+    "unknown": "?"
+}
 
+def get_faction_char(faction_xws: str) -> str:
+    """Get the single-character icon code for a faction."""
+    return FACTION_CHARS.get(faction_xws, "?")
 def aggregate_faction_stats(
     filters: dict,
     data_source: DataSource = DataSource.XWA
@@ -151,7 +164,10 @@ def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats:
             "xws": f["xws"],
             "icon_char": get_faction_char(f["xws"]),
             "games": f["games"],
-            "percentage": percentage
+            "percentage": percentage,
+            "win_rate": f["win_rate"],
+            "popularity": f["popularity"],
+            "wins": f["wins"]
         })
     
     # Get last tournament date
