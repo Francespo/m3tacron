@@ -1,11 +1,12 @@
 import reflex as rx
 import os
+import importlib
 
-config = rx.Config(
-    app_name="m3tacron",
-    db_url=os.environ.get("DATABASE_URL", "sqlite:///test.db"),
-    plugins=[
-        rx.plugins.SitemapPlugin(),
-        rx.plugins.TailwindV4Plugin(),
-    ],
-)
+# Determine which environment configuration to use (beta or prod)
+# Default to "prod" if not specified
+reflex_env = os.environ.get("REFLEX_ENV", "prod").lower()
+
+if reflex_env == "beta":
+    from rxconfig_beta import config
+else:
+    from rxconfig_prod import config
