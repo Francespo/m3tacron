@@ -41,10 +41,6 @@ body {
     font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
     margin: 0;
     padding: 0;
-    overflow: hidden;
-    /* Prevent global scrollbar */
-    height: 100vh;
-    width: 100vw;
 }
 
 .radix-themes {
