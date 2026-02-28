@@ -47,7 +47,6 @@ app = rx.App(
         "font_family": "'JetBrains Mono', 'Roboto Mono', monospace",
         "background_color": "#000000", # Pure Black
         "color": "#FFFFFF",
-        "overflow": "hidden", # Prevent global scrollbar
     },
 )
 
