@@ -24,3 +24,5 @@ jobs:
       - name: Deploy to Reflex Cloud (Beta)
         run: |
           reflex deploy --app-name m3tacron-beta --token ${{ secrets.REFLEX_TOKEN }} --env DATABASE_URL=${{ secrets.SUPABASE_BETA_DB_URL }} --no-interactive
+        env:
+          REFLEX_ENV: beta
