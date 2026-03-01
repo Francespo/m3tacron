@@ -7,6 +7,7 @@
 
 import { getFactionColor, FACTION_LABELS } from "@/lib/factions";
 import type { ListData } from "@/lib/types";
+import { FactionIcon, ShipIcon } from "./Icons";
 
 interface TopListRowProps {
     list: ListData;
@@ -19,17 +20,13 @@ export default function TopListRow({ list, value }: TopListRowProps) {
 
     return (
         <div
-            className="flex flex-col gap-1 px-3 py-2.5 w-full border-b border-border-terminal
+            className="flex flex-col gap-1 px-[14px] py-[10px] w-full border-b border-border-terminal
                  bg-[rgba(255,255,255,0.01)] hover:bg-[rgba(255,255,255,0.03)]
                  transition-colors cursor-default"
         >
-            {/* Header: faction dot + spacer + value */}
+            {/* Header: faction icon + spacer + value */}
             <div className="flex items-center gap-2 w-full">
-                <span
-                    className="w-3 h-3 rounded-full shrink-0"
-                    style={{ backgroundColor: color }}
-                    title={factionLabel}
-                />
+                <FactionIcon faction={list.faction_key} className="text-[1.2em]" />
                 <span className="text-xs text-text-secondary font-mono truncate">
                     {factionLabel}
                 </span>
@@ -41,14 +38,10 @@ export default function TopListRow({ list, value }: TopListRowProps) {
             {/* Pilot breakdown */}
             <div className="flex flex-col gap-0.5 pl-5">
                 {list.pilots.map((p, i) => (
-                    <div key={i} className="flex flex-col gap-0">
-                        <span className="text-sm font-bold text-text-primary truncate">
+                    <div key={i} className="flex flex-col gap-0 py-[2px]">
+                        <span className="flex items-center gap-2 text-sm font-bold text-text-primary truncate">
+                            {p.ship_icon && <ShipIcon xws={p.ship_icon} className="text-[1em]" />}
                             {p.name}
-                            {p.ship_name && (
-                                <span className="text-xs text-text-secondary font-normal ml-1.5">
-                                    ({p.ship_name})
-                                </span>
-                            )}
                         </span>
                         {p.upgrades.length > 0 && (
                             <div className="flex flex-wrap gap-x-1.5 gap-y-0">
