@@ -1,0 +1,1553 @@
+{
+  "factions": [
+    {
+      "name": "Galactic Empire",
+      "xws": "galacticempire",
+      "icon_char": "@",
+      "win_rate": 55.5,
+      "popularity": 118,
+      "games": 447,
+      "wins": 248,
+      "percentage": null,
+      "real_name": null
+    },
+    {
+      "name": "Scum and Villainy",
+      "xws": "scumandvillainy",
+      "icon_char": "#",
+      "win_rate": 51.9,
+      "popularity": 108,
+      "games": 418,
+      "wins": 217,
+      "percentage": null,
+      "real_name": null
+    },
+    {
+      "name": "Rebel Alliance",
+      "xws": "rebelalliance",
+      "icon_char": "!",
+      "win_rate": 45.7,
+      "popularity": 106,
+      "games": 383,
+      "wins": 175,
+      "percentage": null,
+      "real_name": null
+    },
+    {
+      "name": "Resistance",
+      "xws": "resistance",
+      "icon_char": "!",
+      "win_rate": 49.3,
+      "popularity": 74,
+      "games": 272,
+      "wins": 134,
+      "percentage": null,
+      "real_name": null
+    },
+    {
+      "name": "Galactic Republic",
+      "xws": "galacticrepublic",
+      "icon_char": "/",
+      "win_rate": 52.2,
+      "popularity": 61,
+      "games": 224,
+      "wins": 117,
+      "percentage": null,
+      "real_name": null
+    },
+    {
+      "name": "First Order",
+      "xws": "firstorder",
+      "icon_char": "+",
+      "win_rate": 52.1,
+      "popularity": 52,
+      "games": 192,
+      "wins": 100,
+      "percentage": null,
+      "real_name": null
+    },
+    {
+      "name": "Separatist Alliance",
+      "xws": "separatistalliance",
+      "icon_char": ".",
+      "win_rate": 54.1,
+      "popularity": 39,
+      "games": 146,
+      "wins": 79,
+      "percentage": null,
+      "real_name": null
+    }
+  ],
+  "faction_distribution": [
+    {
+      "name": "@",
+      "xws": "galacticempire",
+      "icon_char": "@",
+      "win_rate": 55.5,
+      "popularity": 118,
+      "games": 447,
+      "wins": 248,
+      "percentage": 21.5,
+      "real_name": "Galactic Empire"
+    },
+    {
+      "name": "#",
+      "xws": "scumandvillainy",
+      "icon_char": "#",
+      "win_rate": 51.9,
+      "popularity": 108,
+      "games": 418,
+      "wins": 217,
+      "percentage": 20.1,
+      "real_name": "Scum and Villainy"
+    },
+    {
+      "name": "!",
+      "xws": "rebelalliance",
+      "icon_char": "!",
+      "win_rate": 45.7,
+      "popularity": 106,
+      "games": 383,
+      "wins": 175,
+      "percentage": 18.4,
+      "real_name": "Rebel Alliance"
+    },
+    {
+      "name": "!",
+      "xws": "resistance",
+      "icon_char": "!",
+      "win_rate": 49.3,
+      "popularity": 74,
+      "games": 272,
+      "wins": 134,
+      "percentage": 13.1,
+      "real_name": "Resistance"
+    },
+    {
+      "name": "/",
+      "xws": "galacticrepublic",
+      "icon_char": "/",
+      "win_rate": 52.2,
+      "popularity": 61,
+      "games": 224,
+      "wins": 117,
+      "percentage": 10.8,
+      "real_name": "Galactic Republic"
+    },
+    {
+      "name": "+",
+      "xws": "firstorder",
+      "icon_char": "+",
+      "win_rate": 52.1,
+      "popularity": 52,
+      "games": 192,
+      "wins": 100,
+      "percentage": 9.2,
+      "real_name": "First Order"
+    },
+    {
+      "name": ".",
+      "xws": "separatistalliance",
+      "icon_char": ".",
+      "win_rate": 54.1,
+      "popularity": 39,
+      "games": 146,
+      "wins": 79,
+      "percentage": 7.0,
+      "real_name": "Separatist Alliance"
+    }
+  ],
+  "ships": [],
+  "lists": [
+    {
+      "signature": "Moff Tarkin",
+      "faction": "Galactic Empire",
+      "faction_key": "galacticempire",
+      "points": 50,
+      "count": 8,
+      "games": 30,
+      "win_rate": 76.7,
+      "total_loadout": 0,
+      "pilots": [
+        {
+          "name": "obsidiansquadronpilot",
+          "xws": "obsidiansquadronpilot",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 5,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "precisionionengines",
+              "xws": "precisionionengines",
+              "slot": "modification",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "obsidiansquadronpilot",
+          "xws": "obsidiansquadronpilot",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 5,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "precisionionengines",
+              "xws": "precisionionengines",
+              "slot": "modification",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "obsidiansquadronpilot",
+          "xws": "obsidiansquadronpilot",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 5,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "precisionionengines",
+              "xws": "precisionionengines",
+              "slot": "modification",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "obsidiansquadronpilot",
+          "xws": "obsidiansquadronpilot",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 5,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "precisionionengines",
+              "xws": "precisionionengines",
+              "slot": "modification",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "obsidiansquadronpilot",
+          "xws": "obsidiansquadronpilot",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 5,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "precisionionengines",
+              "xws": "precisionionengines",
+              "slot": "modification",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "obsidiansquadronpilot",
+          "xws": "obsidiansquadronpilot",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 5,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "precisionionengines",
+              "xws": "precisionionengines",
+              "slot": "modification",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "obsidiansquadronpilot",
+          "xws": "obsidiansquadronpilot",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 5,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "precisionionengines",
+              "xws": "precisionionengines",
+              "slot": "modification",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "imperialsupercommando",
+          "xws": "imperialsupercommando",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 15,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "perceptivecopilot",
+              "xws": "perceptivecopilot",
+              "slot": "crew",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "grandmofftarkin",
+              "xws": "grandmofftarkin",
+              "slot": "crew",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "garsaxon",
+              "xws": "garsaxon",
+              "slot": "crew",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "mandalorianoptics",
+              "xws": "mandalorianoptics",
+              "slot": "modification",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "dropseatbay",
+              "xws": "dropseatbay",
+              "slot": "modification",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "swivelwing",
+              "xws": "swivelwing",
+              "slot": "config",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "signature": "Interceptors",
+      "faction": "Galactic Empire",
+      "faction_key": "galacticempire",
+      "points": 50,
+      "count": 5,
+      "games": 12,
+      "win_rate": 66.7,
+      "total_loadout": 0,
+      "pilots": [
+        {
+          "name": "soontirfel",
+          "xws": "soontirfel",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 11,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "crackshot",
+              "xws": "crackshot",
+              "slot": "talent",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "predator",
+              "xws": "predator",
+              "slot": "talent",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "idenversio-battleofyavin",
+          "xws": "idenversio-battleofyavin",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 12,
+          "loadout": 0,
+          "upgrades": []
+        },
+        {
+          "name": "mausmonare-battleoverendor",
+          "xws": "mausmonare-battleoverendor",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 11,
+          "loadout": 0,
+          "upgrades": []
+        },
+        {
+          "name": "captainferoph",
+          "xws": "captainferoph",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 11,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "targetingcomputer",
+              "xws": "targetingcomputer",
+              "slot": "modification",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "emperorpalpatine",
+              "xws": "emperorpalpatine",
+              "slot": "crew",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "obsidiansquadronpilot",
+          "xws": "obsidiansquadronpilot",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 11,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "precisionionengines",
+              "xws": "precisionionengines",
+              "slot": "modification",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "signature": "Deathrain v3",
+      "faction": "Galactic Empire",
+      "faction_key": "galacticempire",
+      "points": 50,
+      "count": 3,
+      "games": 8,
+      "win_rate": 62.5,
+      "total_loadout": 0,
+      "pilots": [
+        {
+          "name": "darthvader-swz105",
+          "xws": "darthvader-swz105",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 17,
+          "loadout": 0,
+          "upgrades": []
+        },
+        {
+          "name": "soontirfel-battleoverendor",
+          "xws": "soontirfel-battleoverendor",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 14,
+          "loadout": 0,
+          "upgrades": []
+        },
+        {
+          "name": "deathrain",
+          "xws": "deathrain",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 13,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "experthandling",
+              "xws": "experthandling",
+              "slot": "talent",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "trajectorysimulator",
+              "xws": "trajectorysimulator",
+              "slot": "sensor",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "thermaldetonators",
+              "xws": "thermaldetonators",
+              "slot": "device",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "ionbombs",
+              "xws": "ionbombs",
+              "slot": "device",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "delayedfuses",
+              "xws": "delayedfuses",
+              "slot": "modification",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "wampa",
+          "xws": "wampa",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 6,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "precisionionengines",
+              "xws": "precisionionengines",
+              "slot": "modification",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "signature": "Roberto Mendez",
+      "faction": "First Order",
+      "faction_key": "firstorder",
+      "points": 50,
+      "count": 3,
+      "games": 17,
+      "win_rate": 82.4,
+      "total_loadout": 0,
+      "pilots": [
+        {
+          "name": "firstordercourier",
+          "xws": "firstordercourier",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 9,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "automatedtargetpriority",
+              "xws": "automatedtargetpriority",
+              "slot": "tech",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "biohexacryptcodes",
+              "xws": "biohexacryptcodes",
+              "slot": "tech",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "tacticalofficer",
+              "xws": "tacticalofficer",
+              "slot": "crew",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "agentterex",
+              "xws": "agentterex",
+              "slot": "crew",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "targetingcomputer",
+              "xws": "targetingcomputer",
+              "slot": "modification",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "kyloren",
+          "xws": "kyloren",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 16,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "brilliantevasion",
+              "xws": "brilliantevasion",
+              "slot": "force-power",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "sensorscramblers",
+              "xws": "sensorscramblers",
+              "slot": "tech",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "plasmatorpedoes",
+              "xws": "plasmatorpedoes",
+              "slot": "torpedo",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "breach",
+          "xws": "breach",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 11,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "proudtradition",
+              "xws": "proudtradition",
+              "slot": "talent",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "protontorpedoes",
+              "xws": "protontorpedoes",
+              "slot": "torpedo",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "bombletgenerator",
+              "xws": "bombletgenerator",
+              "slot": "device",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "majorvonreg",
+          "xws": "majorvonreg",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 14,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "outmaneuver",
+              "xws": "outmaneuver",
+              "slot": "talent",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "daredevil",
+              "xws": "daredevil",
+              "slot": "talent",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "ionmissiles",
+              "xws": "ionmissiles",
+              "slot": "missile",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "munitionsfailsafe",
+              "xws": "munitionsfailsafe",
+              "slot": "modification",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "signature": "KSEX",
+      "faction": "Rebel Alliance",
+      "faction_key": "rebelalliance",
+      "points": 50,
+      "count": 3,
+      "games": 14,
+      "win_rate": 50.0,
+      "total_loadout": 0,
+      "pilots": [
+        {
+          "name": "corranhorn",
+          "xws": "corranhorn",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 14,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "predator",
+              "xws": "predator",
+              "slot": "talent",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "elusive",
+              "xws": "elusive",
+              "slot": "talent",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "firecontrolsystem",
+              "xws": "firecontrolsystem",
+              "slot": "sensor",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "r3astromech",
+              "xws": "r3astromech",
+              "slot": "astromech",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "sabinewren",
+          "xws": "sabinewren",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 10,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "lonewolf",
+              "xws": "lonewolf",
+              "slot": "talent",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "leiaorgana",
+              "xws": "leiaorgana",
+              "slot": "crew",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "mandalorianoptics",
+              "xws": "mandalorianoptics",
+              "slot": "modification",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "wedgeantilles",
+          "xws": "wedgeantilles",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 14,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "predator",
+              "xws": "predator",
+              "slot": "talent",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "plasmatorpedoes",
+              "xws": "plasmatorpedoes",
+              "slot": "torpedo",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "r3astromech",
+              "xws": "r3astromech",
+              "slot": "astromech",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "servomotorsfoils",
+              "xws": "servomotorsfoils",
+              "slot": "config",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "esegetuketu",
+          "xws": "esegetuketu",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 12,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "perceptivecopilot",
+              "xws": "perceptivecopilot",
+              "slot": "crew",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "advancedslam",
+              "xws": "advancedslam",
+              "slot": "modification",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "signature": "Los Tres Diablos",
+      "faction": "Scum and Villainy",
+      "faction_key": "scumandvillainy",
+      "points": 50,
+      "count": 3,
+      "games": 14,
+      "win_rate": 42.9,
+      "total_loadout": 0,
+      "pilots": [
+        {
+          "name": "bobafett",
+          "xws": "bobafett",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 21,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "fearless",
+              "xws": "fearless",
+              "slot": "talent",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "thechild",
+              "xws": "thechild",
+              "slot": "crew",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "seismiccharges",
+              "xws": "seismiccharges",
+              "slot": "device",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "marauder",
+              "xws": "marauder",
+              "slot": "title",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "veterantailgunner",
+              "xws": "veterantailgunner",
+              "slot": "gunner",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "themandalorian",
+          "xws": "themandalorian",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 16,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "fearless",
+              "xws": "fearless",
+              "slot": "talent",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "jabbathehutt",
+              "xws": "jabbathehutt",
+              "slot": "crew",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "overtunedmodulators",
+              "xws": "overtunedmodulators",
+              "slot": "illicit",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "razorcrest",
+              "xws": "razorcrest",
+              "slot": "title",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "guri",
+          "xws": "guri",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 13,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "predator",
+              "xws": "predator",
+              "slot": "talent",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "advancedsensors",
+              "xws": "advancedsensors",
+              "slot": "sensor",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "signature": "Everyone Has Strain Strain, Strain, Strain",
+      "faction": "First Order",
+      "faction_key": "firstorder",
+      "points": 50,
+      "count": 3,
+      "games": 11,
+      "win_rate": 100.0,
+      "total_loadout": 0,
+      "pilots": [
+        {
+          "name": "kyloren",
+          "xws": "kyloren",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 16,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "extrememaneuvers",
+              "xws": "extrememaneuvers",
+              "slot": "force-power",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "plasmatorpedoes",
+              "xws": "plasmatorpedoes",
+              "slot": "torpedo",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "commandermalarus-xiclasslightshuttle",
+          "xws": "commandermalarus-xiclasslightshuttle",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 10,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "fanatical",
+              "xws": "fanatical",
+              "slot": "talent",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "biohexacryptcodes",
+              "xws": "biohexacryptcodes",
+              "slot": "tech",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "agentterex",
+              "xws": "agentterex",
+              "slot": "crew",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "epsilonsquadroncadet",
+          "xws": "epsilonsquadroncadet",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 6,
+          "loadout": 0,
+          "upgrades": []
+        },
+        {
+          "name": "epsilonsquadroncadet",
+          "xws": "epsilonsquadroncadet",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 6,
+          "loadout": 0,
+          "upgrades": []
+        },
+        {
+          "name": "epsilonsquadroncadet",
+          "xws": "epsilonsquadroncadet",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 6,
+          "loadout": 0,
+          "upgrades": []
+        },
+        {
+          "name": "epsilonsquadroncadet",
+          "xws": "epsilonsquadroncadet",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 6,
+          "loadout": 0,
+          "upgrades": []
+        }
+      ]
+    },
+    {
+      "signature": "Man's Laughter must've been quite the joke squad",
+      "faction": "Resistance",
+      "faction_key": "resistance",
+      "points": 50,
+      "count": 3,
+      "games": 13,
+      "win_rate": 38.5,
+      "total_loadout": 0,
+      "pilots": [
+        {
+          "name": "poedameron-swz68",
+          "xws": "poedameron-swz68",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 11,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "integratedsfoils",
+              "xws": "integratedsfoils",
+              "slot": "config",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "advancedoptics",
+              "xws": "advancedoptics",
+              "slot": "tech",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "r4astromech",
+              "xws": "r4astromech",
+              "slot": "astromech",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "marksmanship",
+              "xws": "marksmanship",
+              "slot": "talent",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "heroic",
+              "xws": "heroic",
+              "slot": "talent",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "nimichireen",
+          "xws": "nimichireen",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 14,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "integratedsfoils",
+              "xws": "integratedsfoils",
+              "slot": "config",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "sparepartscanisters",
+              "xws": "sparepartscanisters",
+              "slot": "modification",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "ferrospherepaint",
+              "xws": "ferrospherepaint",
+              "slot": "tech",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "bbastromech",
+              "xws": "bbastromech",
+              "slot": "astromech",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "tezanasz",
+          "xws": "tezanasz",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 11,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "m9g8",
+              "xws": "m9g8",
+              "slot": "astromech",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "dorsalturret",
+              "xws": "dorsalturret",
+              "slot": "turret",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "temminwexley-swz68",
+          "xws": "temminwexley-swz68",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 8,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "integratedsfoils",
+              "xws": "integratedsfoils",
+              "slot": "config",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "advancedoptics",
+              "xws": "advancedoptics",
+              "slot": "tech",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "vimoradi",
+          "xws": "vimoradi",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 11,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "patternanalyzer",
+              "xws": "patternanalyzer",
+              "slot": "tech",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "signature": "50 pt Fun",
+      "faction": "Galactic Republic",
+      "faction_key": "galacticrepublic",
+      "points": 50,
+      "count": 2,
+      "games": 4,
+      "win_rate": 100.0,
+      "total_loadout": 0,
+      "pilots": [
+        {
+          "name": "contrail",
+          "xws": "contrail",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 9,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "crackshot",
+              "xws": "crackshot",
+              "slot": "talent",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "r4astromech",
+              "xws": "r4astromech",
+              "slot": "astromech",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "alpha3bbesh",
+              "xws": "alpha3bbesh",
+              "slot": "config",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "ricolie",
+          "xws": "ricolie",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 11,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "daredevil",
+              "xws": "daredevil",
+              "slot": "talent",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "plasmatorpedoes",
+              "xws": "plasmatorpedoes",
+              "slot": "torpedo",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "firecontrolsystem",
+              "xws": "firecontrolsystem",
+              "slot": "sensor",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "r2c4",
+              "xws": "r2c4",
+              "slot": "astromech",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "obiwankenobi-delta7baethersprite",
+          "xws": "obiwankenobi-delta7baethersprite",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 14,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "heightenedperception",
+              "xws": "heightenedperception",
+              "slot": "force-power",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "r4pastromech",
+              "xws": "r4pastromech",
+              "slot": "astromech",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "anakinskywalker-delta7baethersprite",
+          "xws": "anakinskywalker-delta7baethersprite",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 16,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "heightenedperception",
+              "xws": "heightenedperception",
+              "slot": "force-power",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "extrememaneuvers",
+              "xws": "extrememaneuvers",
+              "slot": "force-power",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "r4p17",
+              "xws": "r4p17",
+              "slot": "astromech",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "signature": "Imperial Aces XWA50c",
+      "faction": "Galactic Empire",
+      "faction_key": "galacticempire",
+      "points": 49,
+      "count": 2,
+      "games": 4,
+      "win_rate": 25.0,
+      "total_loadout": 0,
+      "pilots": [
+        {
+          "name": "darthvader",
+          "xws": "darthvader",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 15,
+          "loadout": 0,
+          "upgrades": [
+            {
+              "name": "hate",
+              "xws": "hate",
+              "slot": "force-power",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            },
+            {
+              "name": "firecontrolsystem",
+              "xws": "firecontrolsystem",
+              "slot": "sensor",
+              "slot_icon": "",
+              "image": "",
+              "points": 0
+            }
+          ]
+        },
+        {
+          "name": "coloneljendon-battleoverendor",
+          "xws": "coloneljendon-battleoverendor",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 20,
+          "loadout": 0,
+          "upgrades": []
+        },
+        {
+          "name": "soontirfel-battleoverendor",
+          "xws": "soontirfel-battleoverendor",
+          "ship_name": "Unknown Ship",
+          "ship_icon": "",
+          "image": "",
+          "points": 14,
+          "loadout": 0,
+          "upgrades": []
+        }
+      ]
+    }
+  ],
+  "pilots": [],
+  "upgrades": [],
+  "last_sync": "2026-02-17",
+  "date_range": "2025-11-30 to 2026-02-28",
+  "total_tournaments": 80,
+  "total_players": 959
+}
