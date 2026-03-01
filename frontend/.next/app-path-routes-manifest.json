@@ -1,4 +1,9 @@
 {
   "/_not-found/page": "/_not-found",
+  "/cards/page": "/cards",
+  "/lists/page": "/lists",
+  "/tournaments/page": "/tournaments",
+  "/squadrons/page": "/squadrons",
+  "/ships/page": "/ships",
   "/page": "/"
 }

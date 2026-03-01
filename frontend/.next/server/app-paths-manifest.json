@@ -1,3 +1,9 @@
 {
+  "/_not-found/page": "app/_not-found/page.js",
+  "/cards/page": "app/cards/page.js",
+  "/lists/page": "app/lists/page.js",
+  "/tournaments/page": "app/tournaments/page.js",
+  "/squadrons/page": "app/squadrons/page.js",
+  "/ships/page": "app/ships/page.js",
   "/page": "app/page.js"
 }
