@@ -1,3 +1,0 @@
-name: m3tacron
-description: Production deployment for M3taCron
-envfile: .env.prod

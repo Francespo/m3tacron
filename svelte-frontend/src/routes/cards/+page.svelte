@@ -1,186 +1,314 @@
 <script lang="ts">
-    import { goto } from "$app/navigation";
-    import { page } from "$app/stores";
+    import FilterPanel from "$lib/components/FilterPanel.svelte";
+    import ActiveChips from "$lib/components/ActiveChips.svelte";
+    import {
+        getWinRateColor,
+        ALL_FACTIONS,
+        getFactionColor,
+        getFactionChar,
+        getFactionLabel,
+    } from "$lib/data/factions";
+    import { filters } from "$lib/stores/filters.svelte";
 
     let { data } = $props();
 
-    function switchTab(tab: string) {
-        const url = new URL($page.url);
-        url.searchParams.set("tab", tab);
-        url.searchParams.set("page", "0");
-        goto(url.toString());
+    let tab = $state<"pilots" | "upgrades">("pilots");
+    let page = $state(1);
+    let sortBy = $state("popularity");
+    let textSearch = $state("");
+    let selectedFactions = $state<string[]>([]);
+    const size = 20;
+
+    let items = $derived(data.items ?? []);
+    let total = $derived(data.total ?? 0);
+    let isXwa = $derived(filters.dataSource === "xwa");
+
+    function prevPage() {
+        if (page > 1) page--;
+    }
+    function nextPage() {
+        if (page * size < total) page++;
     }
 
-    function changePage(newPage: number) {
-        if (newPage < 0 || newPage >= Math.ceil(data.total / data.size)) return;
-        const url = new URL($page.url);
-        url.searchParams.set("page", newPage.toString());
-        goto(url.toString(), { keepFocus: true });
+    function toggleFaction(f: string) {
+        if (selectedFactions.includes(f)) {
+            selectedFactions = selectedFactions.filter((x) => x !== f);
+        } else {
+            selectedFactions = [...selectedFactions, f];
+        }
     }
-
-    const totalPages = $derived(Math.ceil(data.total / data.size));
 </script>
+
+{#snippet cardFilters()}
+    <div class="space-y-3">
+        <div class="flex items-center gap-2">
+            <span
+                class="text-xs font-bold tracking-widest text-primary font-mono"
+            >
+                CARD FILTERS
+            </span>
+        </div>
+
+        <!-- Basic / Advanced toggle -->
+        <div
+            class="flex bg-black border border-border-dark rounded-md overflow-hidden"
+        >
+            <button
+                class="flex-1 py-1 text-xs font-mono text-center bg-[#ffffff14] text-primary"
+                >Basic</button
+            >
+            <button
+                class="flex-1 py-1 text-xs font-mono text-center text-secondary hover:text-primary"
+                >Advanced</button
+            >
+        </div>
+
+        <!-- Sort By -->
+        <div class="space-y-1">
+            <span
+                class="text-xs font-mono font-bold tracking-wider text-secondary"
+                >Sort By</span
+            >
+            <select
+                class="w-full bg-black border border-border-dark rounded px-2 py-1.5 text-xs font-mono text-primary focus:border-primary focus:outline-none"
+                bind:value={sortBy}
+            >
+                <option value="popularity">Popularity</option>
+                <option value="win_rate">Win Rate</option>
+                <option value="games">Games</option>
+                <option value="name">Name</option>
+            </select>
+        </div>
+
+        <!-- Text Search -->
+        <div class="space-y-1">
+            <span
+                class="text-xs font-mono font-bold tracking-wider text-secondary"
+                >Text Search</span
+            >
+            <input
+                type="text"
+                placeholder="Search card text"
+                class="w-full bg-black border border-border-dark rounded px-2 py-1.5 text-xs font-mono text-primary placeholder:text-[#555] focus:border-primary focus:outline-none"
+                bind:value={textSearch}
+            />
+        </div>
+
+        <!-- Faction -->
+        <div class="space-y-1">
+            <span
+                class="text-xs font-mono font-bold tracking-wider text-secondary"
+                >Faction</span
+            >
+            <div class="space-y-1 max-h-[180px] overflow-y-auto">
+                {#each ALL_FACTIONS as f}
+                    <label
+                        class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
+                    >
+                        <input
+                            type="checkbox"
+                            class="rounded border-border-dark bg-black w-3 h-3"
+                            checked={selectedFactions.includes(f)}
+                            onchange={() => toggleFaction(f)}
+                        />
+                        <span
+                            class="font-xwing text-sm"
+                            style="color: {getFactionColor(f)};"
+                            >{getFactionChar(f)}</span
+                        >
+                        <span class="font-mono">{getFactionLabel(f)}</span>
+                    </label>
+                {/each}
+            </div>
+        </div>
+
+        <!-- Ship Chassis (placeholder) -->
+        <div class="space-y-1">
+            <span
+                class="text-xs font-mono font-bold tracking-wider text-secondary"
+                >Ship Chassis</span
+            >
+            <div class="text-xs text-secondary font-mono italic">
+                Expand to filter by chassis
+            </div>
+        </div>
+    </div>
+{/snippet}
 
 <svelte:head>
     <title>Cards | M3taCron</title>
 </svelte:head>
 
-<div class="flex flex-col md:flex-row h-[calc(100vh-60px)] md:h-screen">
-    <!-- Filter Sidebar -->
-    <div
-        class="w-full md:w-[350px] border-b md:border-b-0 md:border-r border-[#ffffff14] p-6 overflow-y-auto shrink-0 bg-terminal-bg relative z-10"
-    >
-        <h2
-            class="text-sm font-bold tracking-[1px] text-primary font-sans uppercase mb-6"
-        >
-            Card Filters
-        </h2>
+<div class="flex min-h-screen">
+    <FilterPanel extra={cardFilters} />
 
-        <!-- Type Tabs -->
-        <div class="flex flex-col gap-1 w-full mb-4">
-            <span class="text-xs font-bold text-secondary font-mono">Type</span>
-            <div class="flex gap-1">
-                <button
-                    onclick={() => switchTab("pilots")}
-                    class="flex-1 py-2 rounded text-sm font-mono transition-colors {data.tab ===
-                    'pilots'
-                        ? 'bg-[rgba(255,255,255,0.08)] text-primary'
-                        : 'bg-transparent text-secondary hover:text-primary'}"
-                    >Pilots</button
-                >
-                <button
-                    onclick={() => switchTab("upgrades")}
-                    class="flex-1 py-2 rounded text-sm font-mono transition-colors {data.tab ===
-                    'upgrades'
-                        ? 'bg-[rgba(255,255,255,0.08)] text-primary'
-                        : 'bg-transparent text-secondary hover:text-primary'}"
-                    >Upgrades</button
-                >
-            </div>
-        </div>
-    </div>
+    <main class="flex-1 p-6 md:p-8">
+        <ActiveChips />
 
-    <!-- Main Content -->
-    <div class="flex-1 p-6 md:p-8 overflow-y-auto h-full relative z-10">
-        <div class="border-b border-[#ffffff14] pb-6 mb-6">
-            <h1 class="text-[32px] font-sans font-bold text-primary">Cards</h1>
-        </div>
-
-        <div class="flex w-full mb-4">
-            <span class="text-sm text-secondary font-mono"
-                >{data.total}
-                {data.tab === "pilots" ? "Pilots" : "Upgrades"} Found</span
+        <!-- Tabs: Pilots / Upgrades -->
+        <div class="flex items-center gap-6 mb-6">
+            <button
+                class="text-lg font-sans font-bold transition-colors {tab ===
+                'pilots'
+                    ? 'text-primary'
+                    : 'text-secondary hover:text-primary'}"
+                onclick={() => {
+                    tab = "pilots";
+                    page = 1;
+                }}
             >
+                Pilots
+            </button>
+            <button
+                class="text-lg font-sans font-bold transition-colors {tab ===
+                'upgrades'
+                    ? 'text-primary'
+                    : 'text-secondary hover:text-primary'}"
+                onclick={() => {
+                    tab = "upgrades";
+                    page = 1;
+                }}
+            >
+                Upgrades
+            </button>
         </div>
 
-        {#if data.cards.length > 0}
-            <div class="flex flex-col gap-1 w-full max-w-[1000px]">
-                {#each data.cards as card, i (card.name + i)}
-                    <div
-                        class="flex items-center w-full min-h-[60px] p-3 border-b border-[#ffffff14] hover:bg-[rgba(255,255,255,0.02)] transition-colors"
-                    >
-                        <div class="flex flex-col flex-grow">
+        <!-- Card Grid -->
+        <div
+            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+        >
+            {#each items as card}
+                {@const wr = card.win_rate ?? 0}
+                {@const wrColor = getWinRateColor(wr)}
+
+                <div
+                    class="bg-terminal-panel border border-border-dark rounded-md overflow-hidden hover:border-secondary/40 transition-colors group"
+                >
+                    <!-- Card Image -->
+                    {#if card.image}
+                        <div
+                            class="relative w-full aspect-[5/7] overflow-hidden bg-black"
+                        >
+                            <img
+                                src={card.image}
+                                alt={card.name}
+                                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                loading="lazy"
+                            />
+                        </div>
+                    {:else}
+                        <div
+                            class="w-full aspect-[5/7] bg-[#0a0a0a] flex items-center justify-center"
+                        >
                             <span
-                                class="text-sm font-bold text-primary font-sans"
-                                >{card.name || "Unknown"}</span
+                                class="font-xwingship text-5xl text-secondary/30"
+                                >{card.ship_icon || "?"}</span
                             >
-                            {#if data.tab === "pilots" && card.ship}
-                                <span class="text-xs text-secondary italic"
-                                    >{card.ship}</span
-                                >
-                            {/if}
-                            {#if data.tab === "upgrades" && card.type}
-                                <span
-                                    class="text-xs text-cyan-400 font-mono uppercase"
-                                    >{card.type}</span
-                                >
+                        </div>
+                    {/if}
+
+                    <!-- Info -->
+                    <div class="p-3 space-y-2">
+                        <!-- Name + Ship -->
+                        <div>
+                            <h3
+                                class="text-sm font-sans font-bold text-primary leading-tight"
+                            >
+                                {card.name}
+                            </h3>
+                            {#if card.ship_name}
+                                <p class="text-xs font-mono text-secondary">
+                                    {card.ship_name}
+                                </p>
                             {/if}
                         </div>
-                        <div class="flex items-center gap-4 shrink-0">
-                            {#if card.popularity !== undefined}
-                                <div class="flex flex-col items-end">
+
+                        <!-- Stats Grid (2x2 or 2x2+1 for XWA) -->
+                        <div class="grid grid-cols-2 gap-1">
+                            <div
+                                class="text-center bg-[#ffffff05] rounded px-1 py-1"
+                            >
+                                <span class="text-xs font-mono text-primary"
+                                    >{card.lists ?? 0}</span
+                                >
+                                <span
+                                    class="text-[9px] font-mono text-secondary block"
+                                    >LISTS</span
+                                >
+                            </div>
+                            <div
+                                class="text-center bg-[#ffffff05] rounded px-1 py-1"
+                            >
+                                <span class="text-xs font-mono text-primary"
+                                    >{card.games ?? 0}</span
+                                >
+                                <span
+                                    class="text-[9px] font-mono text-secondary block"
+                                    >GAMES</span
+                                >
+                            </div>
+                            <div
+                                class="text-center bg-[#ffffff05] rounded px-1 py-1"
+                            >
+                                <span
+                                    class="text-xs font-mono font-bold"
+                                    style="color: {wrColor};"
+                                    >{wr.toFixed(1)}%</span
+                                >
+                                <span
+                                    class="text-[9px] font-mono text-secondary block"
+                                    >WR</span
+                                >
+                            </div>
+                            <div
+                                class="text-center bg-[#ffffff05] rounded px-1 py-1"
+                            >
+                                <span class="text-xs font-mono text-primary"
+                                    >{card.points ?? 0}</span
+                                >
+                                <span
+                                    class="text-[9px] font-mono text-secondary block"
+                                    >PTS</span
+                                >
+                            </div>
+                            {#if isXwa}
+                                <div
+                                    class="col-span-2 text-center bg-violet-900/10 rounded px-1 py-1"
+                                >
                                     <span
-                                        class="text-base font-bold text-primary font-mono"
-                                        >{card.popularity}</span
+                                        class="text-xs font-mono text-violet-300"
+                                        >{card.loadout ?? 0}</span
                                     >
                                     <span
-                                        class="text-[10px] text-secondary font-mono"
-                                        >LISTS</span
-                                    >
-                                </div>
-                            {/if}
-                            {#if card.win_rate !== undefined}
-                                <div class="flex flex-col items-end">
-                                    <span
-                                        class="text-base font-bold text-primary font-mono"
-                                        >{card.win_rate}%</span
-                                    >
-                                    <span
-                                        class="text-[10px] text-secondary font-mono"
-                                        >WR</span
+                                        class="text-[9px] font-mono text-violet-300/60 block"
+                                        >LV</span
                                     >
                                 </div>
                             {/if}
                         </div>
                     </div>
-                {/each}
-            </div>
-
-            {#if totalPages > 1}
-                <div
-                    class="flex justify-end items-center gap-2 mt-8 max-w-[1000px]"
-                >
-                    <button
-                        disabled={data.page === 0}
-                        onclick={() => changePage(data.page - 1)}
-                        class="p-2 border border-[#ffffff14] rounded bg-transparent text-secondary hover:bg-[rgba(255,255,255,0.05)] hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"><path d="m15 18-6-6 6-6" /></svg
-                        >
-                    </button>
-                    <span class="text-sm font-mono text-secondary px-2"
-                        >{data.page + 1} / {totalPages}</span
-                    >
-                    <button
-                        disabled={data.page >= totalPages - 1}
-                        onclick={() => changePage(data.page + 1)}
-                        class="p-2 border border-[#ffffff14] rounded bg-transparent text-secondary hover:bg-[rgba(255,255,255,0.05)] hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"><path d="m9 18 6-6-6-6" /></svg
-                        >
-                    </button>
                 </div>
-            {/if}
-            <div class="h-[60px]"></div>
-        {:else}
+            {/each}
+        </div>
+
+        <!-- Pagination -->
+        {#if total > size}
             <div
-                class="w-full border border-[#ffffff14] rounded-lg p-12 flex flex-col items-center justify-center bg-[rgba(255,255,255,0.01)] mt-8"
+                class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
             >
-                <h3
-                    class="text-base font-bold text-primary font-sans uppercase tracking-widest mb-2"
+                <button
+                    class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                    onclick={prevPage}
+                    disabled={page <= 1}>← Prev</button
                 >
-                    No Cards Found
-                </h3>
-                <p
-                    class="text-sm text-secondary font-sans text-center max-w-md"
+                <span class="text-xs font-mono text-secondary">Page {page}</span
                 >
-                    No data available.
-                </p>
+                <button
+                    class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                    onclick={nextPage}
+                    disabled={page * size >= total}>Next →</button
+                >
             </div>
         {/if}
-    </div>
+    </main>
 </div>
