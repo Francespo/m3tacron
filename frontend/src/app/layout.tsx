@@ -26,6 +26,8 @@ export const metadata: Metadata = {
     },
 };
 
+import { AppShell } from "@/components/AppShell";
+
 export default function RootLayout({
     children,
 }: {
@@ -37,7 +39,9 @@ export default function RootLayout({
                 <link rel="stylesheet" href="/xwing-miniatures-font/xwing-miniatures.css" />
             </head>
             <body className="bg-terminal-bg text-text-primary font-mono antialiased min-h-screen">
-                {children}
+                <AppShell>
+                    {children}
+                </AppShell>
             </body>
         </html>
     );
