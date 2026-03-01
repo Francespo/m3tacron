@@ -18,7 +18,7 @@ interface DashboardRankingsProps {
 }
 
 /** Sort helper: returns a sorted copy of the array by the given key. */
-function sortedBy<T extends Record<string, unknown>>(
+function sortedBy<T extends Record<string, any>>(
     items: T[],
     key: "popularity" | "win_rate"
 ): T[] {

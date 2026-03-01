@@ -1,7 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-    /* Turbopack is the default dev bundler in Next 15. */
+    async rewrites() {
+        return [
+            {
+                source: '/api/:path*',
+                destination: 'http://127.0.0.1:8001/api/:path*', // Proxy to Backend
+            },
+        ]
+    },
 };
 
 export default nextConfig;

@@ -12,11 +12,14 @@ import { fetchMetaSnapshot } from "@/lib/api";
 import MetaStatCard from "@/components/MetaStatCard";
 import DashboardRankings from "@/components/DashboardRankings";
 
-export default async function HomePage() {
+export default async function HomePage(props: { searchParams?: Promise<{ [key: string]: string | string[] | undefined }> }) {
+    const searchParams = props.searchParams ? await props.searchParams : {};
+    const source = (searchParams?.source as "xwa" | "legacy") || "xwa";
+
     let snapshot;
 
     try {
-        snapshot = await fetchMetaSnapshot("xwa");
+        snapshot = await fetchMetaSnapshot(source as "xwa" | "legacy");
     } catch {
         // Graceful fallback when backend is unavailable
         return (

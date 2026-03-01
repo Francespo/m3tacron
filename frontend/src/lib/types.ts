@@ -50,26 +50,43 @@ export interface FactionStat {
 export interface ShipStat {
     ship_name: string;
     ship_xws: string;
+    faction: string;
+    faction_xws: string;
+    win_rate: number | string;
     popularity: number;
-    win_rate: number;
+    games: number;
     [key: string]: unknown;
 }
 
 export interface PilotStat {
     name: string;
-    xws?: string;
-    faction: string;
-    ship_xws?: string;
+    xws: string;
+    count: number;
     popularity: number;
-    win_rate: number;
+    wins: number;
+    games: number;
+    faction: string;
+    ship: string;
+    ship_xws: string;
+    ship_icon: string;
+    image: string;
+    cost: number;
+    loadout: number;
+    win_rate: number | string;
     [key: string]: unknown;
 }
 
 export interface UpgradeStat {
     name: string;
-    xws?: string;
+    xws: string;
+    type: string;
+    count: number;
     popularity: number;
-    win_rate: number;
+    wins: number;
+    games: number;
+    image: string;
+    cost: number;
+    win_rate: number | string;
     [key: string]: unknown;
 }
 
@@ -84,4 +101,24 @@ export interface MetaSnapshotResponse {
     date_range: string;
     total_tournaments: number;
     total_players: number;
+}
+
+export interface PaginatedResponse<T> {
+    items: T[];
+    total: number;
+    page: number;
+    size: number;
+}
+
+export interface TournamentRow {
+    id: number;
+    name: string;
+    date: string;
+    players: number;
+    format_label: string;
+    badge_l1: string;
+    badge_l2: string;
+    platform_label: string;
+    location: string;
+    url: string;
 }
