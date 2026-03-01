@@ -52,3 +52,45 @@ class MetaSnapshotResponse(BaseModel):
     date_range: str
     total_tournaments: int
     total_players: int
+
+class TournamentRow(BaseModel):
+    id: int
+    name: str
+    date: str
+    players: int
+    format_label: str
+    badge_l1: str
+    badge_l2: str
+    platform_label: str
+    location: str
+    url: str
+
+class PaginatedTournamentsResponse(BaseModel):
+    items: List[TournamentRow]
+    total: int
+    page: int
+    size: int
+
+class PaginatedListsResponse(BaseModel):
+    items: List[ListData]
+    total: int
+    page: int
+    size: int
+
+class PaginatedPilotsResponse(BaseModel):
+    items: List[Dict[str, Any]]
+    total: int
+    page: int
+    size: int
+
+class PaginatedUpgradesResponse(BaseModel):
+    items: List[Dict[str, Any]]
+    total: int
+    page: int
+    size: int
+
+class PaginatedShipsResponse(BaseModel):
+    items: List[Dict[str, Any]]
+    total: int
+    page: int
+    size: int

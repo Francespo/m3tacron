@@ -10,8 +10,18 @@ from .analytics.factions import get_meta_snapshot
 from .data_structures.data_source import DataSource
 from .api.schemas import MetaSnapshotResponse
 from .api.formatters import enrich_list_data
+from .api.tournaments import router as tournaments_router
+from .api.lists import router as lists_router
+from .api.cards import router as cards_router
+from .api.ships import router as ships_router
 
 app = FastAPI(title="M3taCron Backend", version="1.0.0")
+
+# Include routers
+app.include_router(tournaments_router)
+app.include_router(lists_router)
+app.include_router(cards_router)
+app.include_router(ships_router)
 
 # Configure CORS for frontend access
 app.add_middleware(
