@@ -1,17 +1,16 @@
 import type { PageLoad } from './$types';
+import { API_BASE } from '$lib/api';
 
 export const load: PageLoad = async ({ fetch, url }) => {
     const page = url.searchParams.get('page') || '0';
-    const size = url.searchParams.get('size') || '10';
+    const size = url.searchParams.get('size') || '20';
     const search = url.searchParams.get('search') || '';
 
-    // fetch API
-    const apiUrl = new URL('http://127.0.0.1:8000/api/tournaments');
+    const apiUrl = new URL(`${API_BASE}/tournaments`);
     apiUrl.searchParams.set('page', page);
     apiUrl.searchParams.set('size', size);
     if (search) apiUrl.searchParams.set('search', search);
 
-    // Any formats, continents, etc.
     const formats = url.searchParams.getAll('formats');
     formats.forEach(f => apiUrl.searchParams.append('formats', f));
 
@@ -19,9 +18,8 @@ export const load: PageLoad = async ({ fetch, url }) => {
         const response = await fetch(apiUrl.toString());
         if (!response.ok) throw new Error('Failed to fetch tournaments');
         const data = await response.json();
-
         return {
-            tournaments: data.items,
+            items: data.items,
             total: data.total,
             page: parseInt(data.page),
             size: parseInt(data.size),
@@ -29,12 +27,6 @@ export const load: PageLoad = async ({ fetch, url }) => {
         };
     } catch (e) {
         console.error(e);
-        return {
-            tournaments: [],
-            total: 0,
-            page: 0,
-            size: 10,
-            search
-        }
+        return { items: [], total: 0, page: 0, size: 20, search };
     }
 };
