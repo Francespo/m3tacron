@@ -2,28 +2,116 @@
 	let { data } = $props();
 	let snapshot = data.data;
 
-    // We can use the CSS variables defined in app.css or inline
+    import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ArcElement } from 'chart.js';
+    import { Bar, Pie } from 'svelte-chartjs';
+
+    ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ArcElement);
+
+    // We can use the CSS variables defined in app.css or inline. Using hex directly for Chart.js
     const getFactionColor = (xws: string) => {
         const colors: Record<string, string> = {
-            "rebelalliance": "var(--color-rebel)",
-            "galacticempire": "var(--color-empire)",
-            "scumandvillainy": "var(--color-scum)",
-            "resistance": "var(--color-resistance)",
-            "firstorder": "var(--color-firstorder)",
-            "galacticrepublic": "var(--color-republic)",
-            "separatistalliance": "var(--color-separatist)",
-            "unknown": "var(--color-unknown)"
+            "rebelalliance": "#FF3333",
+            "galacticempire": "#2979FF",
+            "scumandvillainy": "#006400",
+            "resistance": "#FF8C00",
+            "firstorder": "#800020",
+            "galacticrepublic": "#E6D690",
+            "separatistalliance": "#607D8B",
+            "unknown": "#666666"
         };
         return colors[xws] || colors["unknown"];
+    };
+
+    let popularityData = { labels: [], datasets: [] };
+    let winRateData = { labels: [], datasets: [] };
+    let distributionData = { labels: [], datasets: [] };
+
+    let barOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                backgroundColor: '#0A0A0A',
+                titleColor: '#FFFFFF',
+                bodyColor: '#FFFFFF',
+                borderColor: '#333333',
+                borderWidth: 1,
+                titleFont: { family: 'Inter' },
+                bodyFont: { family: 'JetBrains Mono' }
+            }
+        },
+        scales: {
+            y: { beginAtZero: true, grid: { color: '#222' }, ticks: { color: '#aaa', font: { family: 'JetBrains Mono', size: 10 } } },
+            x: { grid: { display: false }, ticks: { color: '#aaa', font: { family: 'Inter', size: 11 } } }
+        }
+    };
+
+    let pieOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                backgroundColor: '#0A0A0A',
+                titleColor: '#FFFFFF',
+                bodyColor: '#FFFFFF',
+                borderColor: '#333333',
+                borderWidth: 1,
+                titleFont: { family: 'Inter' },
+                bodyFont: { family: 'JetBrains Mono' },
+                callbacks: {
+                    label: function(context: any) {
+                        let label = context.label || '';
+                        if (label) { label += ': '; }
+                        if (context.parsed !== null) { label += context.parsed + ' games'; }
+                        return label;
+                    }
+                }
+            }
+        }
     };
 
     // Calculate max values to normalize heights for bar charts
     let maxPopularity = 1;
     let maxWinRate = 100;
     
-    if (snapshot?.factions) {
-        maxPopularity = Math.max(...snapshot.factions.map(f => f.popularity), 1);
-    }
+    // Prepare chart data reactively
+    $effect(() => {
+        if (snapshot?.factions) {
+            maxPopularity = Math.max(...snapshot.factions.map(f => f.popularity), 1);
+            
+            popularityData = {
+                labels: snapshot.factions.map(f => f.name),
+                datasets: [{
+                    label: 'Lists',
+                    data: snapshot.factions.map(f => f.popularity),
+                    backgroundColor: snapshot.factions.map(f => getFactionColor(f.xws)),
+                    borderRadius: 4
+                }]
+            };
+
+            winRateData = {
+                labels: snapshot.factions.map(f => f.name),
+                datasets: [{
+                    label: 'Win Rate %',
+                    data: snapshot.factions.map(f => f.win_rate),
+                    backgroundColor: snapshot.factions.map(f => getFactionColor(f.xws)),
+                    borderRadius: 4
+                }]
+            };
+
+            distributionData = {
+                labels: snapshot.faction_distribution.map(d => d.real_name || d.name),
+                datasets: [{
+                    data: snapshot.faction_distribution.map(d => d.games),
+                    backgroundColor: snapshot.faction_distribution.map(d => getFactionColor(d.xws)),
+                    borderWidth: 0
+                }]
+            };
+        }
+    });
+
 </script>
 
 {#if data.error}
@@ -88,65 +176,40 @@
 			</div>
 		</div>
 
-		<!-- Native Charts Section -->
+		<!-- Chart.js Charts Section -->
 		<div class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
 			<!-- Popularity Bar Chart -->
 			<div class="terminal-panel flex flex-col gap-4 min-h-64">
 				<h2 class="font-bold font-mono text-sm tracking-wider">POPULARITY</h2>
-				<div class="flex-1 flex items-end justify-between gap-1 pt-6 border-b border-white/10 pb-1">
-					{#each snapshot.factions as faction}
-						<div class="flex flex-col items-center gap-2 group w-full relative">
-                            <!-- Tooltip on hover -->
-                            <div class="absolute -top-8 bg-black border border-white/10 px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity z-10 font-mono pointer-events-none whitespace-nowrap">
-                                {faction.name}: {faction.popularity}
-                            </div>
-                            <!-- The Bar itself -->
-							<div class="w-full rounded-t-sm transition-all duration-500 hover:brightness-125"
-                                 style="height: {(faction.popularity / maxPopularity) * 150}px; background-color: {getFactionColor(faction.xws)};">
-                            </div>
-							<!-- XWIing font icon as label -->
-							<span class="text-secondary text-sm" style="font-family: var(--font-xwing);">{faction.icon_char}</span>
-						</div>
-					{/each}
+				<div class="flex-1 w-full h-[250px] relative">
+					{#if popularityData.labels.length > 0}
+                        <Bar data={popularityData} options={barOptions} />
+                    {/if}
 				</div>
 			</div>
 
 			<!-- Win Rates Bar Chart -->
 			<div class="terminal-panel flex flex-col gap-4 min-h-64">
 				<h2 class="font-bold font-mono text-sm tracking-wider">WIN RATES (%)</h2>
-				<div class="flex-1 flex items-end justify-between gap-1 pt-6 border-b border-white/10 pb-1">
-					{#each snapshot.factions as faction}
-						<div class="flex flex-col items-center gap-2 group w-full relative">
-                            <div class="absolute -top-8 bg-black border border-white/10 px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity z-10 font-mono pointer-events-none whitespace-nowrap">
-                                {faction.name}: {faction.win_rate}%
-                            </div>
-							<div class="w-full rounded-t-sm transition-all duration-500 hover:brightness-125"
-                                 style="height: {(faction.win_rate / maxWinRate) * 150}px; background-color: {getFactionColor(faction.xws)}; opacity: {faction.win_rate > 0 ? 1 : 0.2}">
-                            </div>
-							<span class="text-secondary text-sm" style="font-family: var(--font-xwing);">{faction.icon_char}</span>
-						</div>
-					{/each}
+				<div class="flex-1 w-full h-[250px] relative">
+					{#if winRateData.labels.length > 0}
+                        <Bar data={winRateData} options={barOptions} />
+                    {/if}
 				</div>
 			</div>
 
-			<!-- Distribution (We use a simple stacked bar as pie placeholder is harder in pure HTML/CSS without conic-gradient complexity) -->
+			<!-- Distribution Pie Chart -->
 			<div class="terminal-panel flex flex-col gap-4 min-h-64">
 				<h2 class="font-bold font-mono text-sm tracking-wider">GAME DISTRIBUTION</h2>
-				<div class="flex flex-col gap-2 flex-1 justify-center">
-                    <!-- Stacked Horizontal Bar -->
-                    <div class="w-full h-6 flex rounded overflow-hidden">
-                        {#each snapshot.faction_distribution as dist}
-                            <div class="h-full hover:brightness-125 transition-all outline-none relative group cursor-crosshair"
-                                 style="width: {dist.percentage}%; background-color: {getFactionColor(dist.xws)};">
-                                <div class="absolute bottom-8 left-1/2 -translate-x-1/2 bg-black border border-white/10 px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 z-10 font-mono whitespace-nowrap">
-                                    {dist.name || dist.real_name}: {dist.percentage}%
-                                </div>
-                            </div>
-                        {/each}
+				<div class="flex-1 flex flex-col items-center w-full relative">
+                    <div class="h-[180px] w-full relative mb-4">
+					    {#if distributionData.labels.length > 0}
+                            <Pie data={distributionData} options={pieOptions} />
+                        {/if}
                     </div>
                     
-                    <!-- Legend -->
-                    <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mt-4">
+                    <!-- Legend below pie chart -->
+                    <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
                         {#each snapshot.faction_distribution as dist}
                             <div class="flex items-center gap-1">
                                 <span style="color: {getFactionColor(dist.xws)}; font-family: var(--font-xwing);">{dist.icon_char}</span>
