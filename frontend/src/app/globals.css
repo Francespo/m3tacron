@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+/* ============================================================
+   M3taCron Design System — CSS Custom Properties
+   Source of truth: m3tacron/theme.py
+   ============================================================ */
+
+@theme {
+  /* Canvas (Monochrome) */
+  --color-terminal-bg: #000000;
+  --color-terminal-panel: #0A0A0A;
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #AAAAAA;
+  --color-border-terminal: #333333;
+
+  /* Status */
+  --color-status-victory: #FFFFFF;
+  --color-status-defeat: #666666;
+
+  /* Faction Colors */
+  --color-faction-rebel: #FF3333;
+  --color-faction-empire: #2979FF;
+  --color-faction-scum: #006400;
+  --color-faction-resistance: #FF8C00;
+  --color-faction-firstorder: #800020;
+  --color-faction-republic: #E6D690;
+  --color-faction-separatist: #607D8B;
+  --color-faction-unknown: #666666;
+
+  /* Radius */
+  --radius-panel: 6px;
+
+  /* Font families (fallbacks — actual loading via next/font) */
+  --font-sans: "Inter", "Segoe UI", "Roboto", sans-serif;
+  --font-mono: "JetBrains Mono", "Roboto Mono", monospace;
+}
+
+/* ============================================================
+   Global Resets
+   ============================================================ */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  background-color: var(--color-terminal-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================================
+   Reusable panel utility
+   ============================================================ */
+
+.panel {
+  background-color: var(--color-terminal-panel);
+  border: 1px solid var(--color-border-terminal);
+  border-radius: var(--radius-panel);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  padding: 1rem;
+}
