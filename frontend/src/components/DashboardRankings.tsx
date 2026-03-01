@@ -77,6 +77,8 @@ export default function DashboardRankings({
                                 name={s.ship_name}
                                 value={`${s.popularity} Lists`}
                                 subvalue={`${s.win_rate}% WR`}
+                                isShip={true}
+                                shipXws={s.ship_xws}
                             />
                         ));
                     }}
