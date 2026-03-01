@@ -1,21 +1,61 @@
 {
   "pages": {
+    "/_not-found/page": [
+      "static/chunks/webpack-c488494a514e29a7.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-ebd51be49873d76c.js",
+      "static/chunks/main-app-ff02dd9d1f96358f.js",
+      "static/chunks/app/_not-found/page-9086b29baab5d618.js"
+    ],
+    "/layout": [
+      "static/chunks/webpack-c488494a514e29a7.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-ebd51be49873d76c.js",
+      "static/chunks/main-app-ff02dd9d1f96358f.js",
+      "static/css/066b296c1904bf5d.css",
+      "static/chunks/app/layout-d0823aab087bf029.js"
+    ],
+    "/cards/page": [
+      "static/chunks/webpack-c488494a514e29a7.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-ebd51be49873d76c.js",
+      "static/chunks/main-app-ff02dd9d1f96358f.js",
+      "static/chunks/app/cards/page-6f3d403c91c1a1ac.js"
+    ],
+    "/lists/page": [
+      "static/chunks/webpack-c488494a514e29a7.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-ebd51be49873d76c.js",
+      "static/chunks/main-app-ff02dd9d1f96358f.js",
+      "static/chunks/app/lists/page-6f3d403c91c1a1ac.js"
+    ],
+    "/tournaments/page": [
+      "static/chunks/webpack-c488494a514e29a7.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-ebd51be49873d76c.js",
+      "static/chunks/main-app-ff02dd9d1f96358f.js",
+      "static/chunks/app/tournaments/page-6f3d403c91c1a1ac.js"
+    ],
+    "/squadrons/page": [
+      "static/chunks/webpack-c488494a514e29a7.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-ebd51be49873d76c.js",
+      "static/chunks/main-app-ff02dd9d1f96358f.js",
+      "static/chunks/app/squadrons/page-6f3d403c91c1a1ac.js"
+    ],
+    "/ships/page": [
+      "static/chunks/webpack-c488494a514e29a7.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-ebd51be49873d76c.js",
+      "static/chunks/main-app-ff02dd9d1f96358f.js",
+      "static/chunks/app/ships/page-6f3d403c91c1a1ac.js"
+    ],
     "/page": [
-      "static/chunks/[root-of-the-server]__b0269ac6._.css",
-      "static/chunks/node_modules_next_dist_8db7fb1f._.js",
-      "static/chunks/src_app_layout_tsx_0a548d63._.js",
-      "static/chunks/node_modules_next_dist_client_components_builtin_global-error_965bdf4f.js",
-      "static/chunks/_bf3138ad._.js",
-      "static/chunks/src_app_page_tsx_965bdf4f._.js",
-      "static/chunks/[turbopack]_browser_dev_hmr-client_hmr-client_ts_57d40746._.js",
-      "static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js",
-      "static/chunks/node_modules_next_dist_compiled_next-devtools_index_a9cb0712.js",
-      "static/chunks/node_modules_next_dist_compiled_5150ccfd._.js",
-      "static/chunks/node_modules_next_dist_client_cf1d9188._.js",
-      "static/chunks/node_modules_next_dist_b0daae9a._.js",
-      "static/chunks/node_modules_@swc_helpers_cjs_b3dc30d6._.js",
-      "static/chunks/_a0ff3932._.js",
-      "static/chunks/turbopack-_cdba956c._.js"
+      "static/chunks/webpack-c488494a514e29a7.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-ebd51be49873d76c.js",
+      "static/chunks/main-app-ff02dd9d1f96358f.js",
+      "static/chunks/app/page-3aa2ae2a1e092a78.js"
     ]
   }
 }
