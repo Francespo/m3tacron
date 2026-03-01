@@ -10,9 +10,10 @@ const FACTION_ICONS: Record<string, string> = {
     separatistalliance: "xwing-miniatures-font-separatists",
 };
 
-export function FactionIcon({ faction, className = "" }: { faction: string; className?: string }) {
-    const iconClass = FACTION_ICONS[faction] ?? "";
-    const color = getFactionColor(faction);
+export function FactionIcon({ faction, factionXws, className = "" }: { faction?: string; factionXws?: string; className?: string }) {
+    const key = faction || factionXws || "";
+    const iconClass = FACTION_ICONS[key] ?? "";
+    const color = getFactionColor(key);
 
     if (!iconClass) return null;
 
@@ -24,7 +25,21 @@ export function FactionIcon({ faction, className = "" }: { faction: string; clas
     );
 }
 
-export function ShipIcon({ xws, className = "" }: { xws: string; className?: string }) {
+export function UpgradeIcon({ slot, className = "" }: { slot: string; className?: string }) {
+    if (!slot) return null;
+
+    // Normalize slot for icon name
+    const iconClass = `xwing-miniatures-font-${slot.toLowerCase().replace(/ /g, '')}`;
+
+    return (
+        <i
+            className={`xwing-miniatures-font ${iconClass} ${className}`}
+            style={{ fontStyle: "normal" }}
+        />
+    );
+}
+
+export function ShipIcon({ xws, className = "", style }: { xws: string; className?: string; style?: React.CSSProperties }) {
     if (!xws) return null;
 
     // Normalize XWS for icons (e.g. tieininterceptor -> tieinterceptor)
