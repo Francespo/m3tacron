@@ -1,23 +1,28 @@
 {
-	"name": "frontend",
+	"name": "m3tacron-frontend",
+	"version": "0.1.0",
 	"private": true,
-	"version": "0.0.1",
-	"type": "module",
 	"scripts": {
-		"dev": "vite dev",
-		"build": "vite build",
-		"preview": "vite preview",
-		"prepare": "svelte-kit sync || echo ''",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+		"dev": "next dev --turbopack -p 3000",
+		"build": "next build",
+		"start": "next start -p 3000",
+		"lint": "next lint"
+	},
+	"dependencies": {
+		"next": "^15.3.3",
+		"react": "^19.1.0",
+		"react-dom": "^19.1.0"
 	},
 	"devDependencies": {
-		"@sveltejs/adapter-auto": "^7.0.0",
-		"@sveltejs/kit": "^2.50.2",
-		"@sveltejs/vite-plugin-svelte": "^6.2.4",
-		"svelte": "^5.51.0",
-		"svelte-check": "^4.4.2",
-		"typescript": "^5.9.3",
-		"vite": "^7.3.1"
+		"@eslint/eslintrc": "^3",
+		"@tailwindcss/postcss": "^4",
+		"@types/node": "^22",
+		"@types/react": "^19",
+		"@types/react-dom": "^19",
+		"eslint": "^9",
+		"eslint-config-next": "^15.3.3",
+		"postcss": "^8",
+		"tailwindcss": "^4",
+		"typescript": "^5"
 	}
 }
