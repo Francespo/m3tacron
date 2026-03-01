@@ -33,6 +33,9 @@ export default function RootLayout({
 }) {
     return (
         <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+            <head>
+                <link rel="stylesheet" href="/xwing-miniatures-font/xwing-miniatures.css" />
+            </head>
             <body className="bg-terminal-bg text-text-primary font-mono antialiased min-h-screen">
                 {children}
             </body>

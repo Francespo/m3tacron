@@ -6,6 +6,7 @@
  */
 
 import { getFactionColor } from "@/lib/factions";
+import { ShipIcon, FactionIcon } from "./Icons";
 
 interface TopItemRowProps {
     rank: number;
@@ -13,6 +14,8 @@ interface TopItemRowProps {
     value: string;
     subvalue?: string;
     factionKey?: string;
+    isShip?: boolean;
+    shipXws?: string;
 }
 
 export default function TopItemRow({
@@ -21,6 +24,8 @@ export default function TopItemRow({
     value,
     subvalue,
     factionKey,
+    isShip,
+    shipXws,
 }: TopItemRowProps) {
     // Colored left accent for faction items
     const accentColor = factionKey ? getFactionColor(factionKey) : undefined;
@@ -31,15 +36,23 @@ export default function TopItemRow({
                  bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.05)]
                  transition-colors cursor-default"
         >
-            {/* Rank badge */}
-            <div
-                className="w-8 h-8 flex items-center justify-center rounded-full
-                   border border-border-terminal shrink-0 font-mono text-sm
-                   font-bold text-text-secondary"
-                style={accentColor ? { borderColor: accentColor, color: accentColor } : undefined}
-            >
-                #{rank}
-            </div>
+            {/* Icon or Rank badge */}
+            {isShip && shipXws ? (
+                <div className="w-8 h-8 flex items-center justify-center rounded bg-[rgba(255,255,255,0.05)] shrink-0 mr-1">
+                    <ShipIcon xws={shipXws} className="text-[1.3em] text-text-primary" />
+                </div>
+            ) : factionKey ? (
+                <div className="w-8 h-8 flex items-center justify-center rounded-full border border-border-terminal shrink-0 mr-1"
+                    style={{ borderColor: accentColor }}>
+                    <FactionIcon faction={factionKey} className="text-[1.2em]" />
+                </div>
+            ) : (
+                <div className="w-8 h-8 flex items-center justify-center rounded-full
+                       border border-border-terminal shrink-0 font-mono text-sm
+                       font-bold text-text-secondary mr-1">
+                    #{rank}
+                </div>
+            )}
 
             {/* Name + subvalue */}
             <div className="flex flex-col min-w-0 flex-1">
