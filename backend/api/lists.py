@@ -127,7 +127,7 @@ def get_lists(
                 ship_xws = pilot_info.get("ship_xws", "")
                 ship_name = pilot_info.get("ship", "Unknown Ship")
                 ship_icon_name = get_ship_icon_name(ship_xws)
-                pilot_image = pilot_info.get("image", "")
+                pilot_image = pilot_info.get("image") or ""
                 pilot_points = p.get("points", pilot_info.get("cost", 0))
                 
                 rich_upgrades = []
@@ -140,13 +140,20 @@ def get_lists(
                             upg_info = get_upgrade_info(item_id) or {}
                             norm_slot = slot.lower()
                             if norm_slot == "configuration": norm_slot = "config"
+                            
+                            raw_cost = upg_info.get("cost", {})
+                            if isinstance(raw_cost, dict):
+                                upg_points = raw_cost.get("value", 0)
+                            else:
+                                upg_points = raw_cost if isinstance(raw_cost, int) else 0
+
                             rich_upgrades.append(UpgradeData(
                                 name=upg_info.get("name", item_id),
                                 xws=item_id,
                                 slot=norm_slot,
                                 slot_icon="",
-                                image=upg_info.get("image", ""),
-                                points=upg_info.get("cost", {}).get("value", 0)
+                                image=upg_info.get("image") or "",
+                                points=upg_points
                             ))
                 elif isinstance(upgrades_data, list):
                     for item_id in upgrades_data:
@@ -154,20 +161,27 @@ def get_lists(
                         slot = get_upgrade_slot(item_id)
                         norm_slot = slot.lower()
                         if norm_slot == "configuration": norm_slot = "config"
+                        
+                        raw_cost = upg_info.get("cost", {})
+                        if isinstance(raw_cost, dict):
+                            upg_points = raw_cost.get("value", 0)
+                        else:
+                            upg_points = raw_cost if isinstance(raw_cost, int) else 0
+
                         rich_upgrades.append(UpgradeData(
                             name=upg_info.get("name", item_id),
                             xws=item_id,
                             slot=norm_slot,
                             slot_icon="",
-                            image=upg_info.get("image", ""),
-                            points=upg_info.get("cost", {}).get("value", 0)
+                            image=upg_info.get("image") or "",
+                            points=upg_points
                         ))
                 
                 rich_pilots.append(PilotData(
                     name=pilot_name,
                     xws=pid,
                     ship_name=ship_name,
-                    ship_icon=ship_icon_name,
+                    ship_icon=ship_icon_name or "",
                     image=pilot_image,
                     points=pilot_points,
                     loadout=pilot_info.get("loadout", 0),

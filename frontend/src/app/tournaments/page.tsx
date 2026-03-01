@@ -1,8 +1,9 @@
+import { TournamentsBrowser } from "@/components/tournaments/TournamentsBrowser";
+
 export default function TournamentsPage() {
     return (
-        <div className="p-8">
-            <h1 className="text-3xl font-sans font-medium text-text-primary mb-4 tracking-wide">TOURNAMENTS</h1>
-            <p className="text-text-secondary font-mono">This section is currently under construction as we migrate from Reflex to Next.js.</p>
-        </div>
+        <main className="w-full max-w-[1400px] mx-auto p-4 md:p-8">
+            <TournamentsBrowser />
+        </main>
     );
 }
