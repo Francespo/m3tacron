@@ -94,3 +94,34 @@ class PaginatedShipsResponse(BaseModel):
     total: int
     page: int
     size: int
+
+class PlayerStandingsRow(BaseModel):
+    id: int
+    name: str
+    rank: int
+    swiss_rank: int
+    cut_rank: Optional[int] = None
+    wins: int
+    losses: int
+    faction: str
+    faction_xws: str
+    has_list: bool
+    list_json: Optional[Dict[str, Any]] = None
+
+class MatchRow(BaseModel):
+    round: int
+    type: str
+    player1: str
+    player2: str
+    player1_id: int
+    player2_id: int
+    score1: int
+    score2: int
+    winner_id: int
+    scenario: str
+
+class TournamentDetailResponse(BaseModel):
+    tournament: TournamentRow
+    players_swiss: List[PlayerStandingsRow]
+    players_cut: List[PlayerStandingsRow]
+    matches: List[MatchRow]

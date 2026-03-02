@@ -148,25 +148,35 @@
         <!-- Tabs: Pilots / Upgrades -->
         <div class="flex items-center gap-6 mb-6">
             <button
-                class="text-lg font-sans font-bold transition-colors {tab ===
+                class="text-lg font-sans font-bold transition-colors {data.tab ===
                 'pilots'
                     ? 'text-primary'
                     : 'text-secondary hover:text-primary'}"
                 onclick={() => {
-                    tab = "pilots";
-                    page = 1;
+                    import("$app/navigation").then(({ goto }) =>
+                        goto("?tab=pilots&page=0", {
+                            keepFocus: true,
+                            noScroll: true,
+                            replaceState: true,
+                        }),
+                    );
                 }}
             >
                 Pilots
             </button>
             <button
-                class="text-lg font-sans font-bold transition-colors {tab ===
+                class="text-lg font-sans font-bold transition-colors {data.tab ===
                 'upgrades'
                     ? 'text-primary'
                     : 'text-secondary hover:text-primary'}"
                 onclick={() => {
-                    tab = "upgrades";
-                    page = 1;
+                    import("$app/navigation").then(({ goto }) =>
+                        goto("?tab=upgrades&page=0", {
+                            keepFocus: true,
+                            noScroll: true,
+                            replaceState: true,
+                        }),
+                    );
                 }}
             >
                 Upgrades
