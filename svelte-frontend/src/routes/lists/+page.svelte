@@ -7,6 +7,8 @@
         getFactionLabel,
         getFactionColor,
     } from "$lib/data/factions";
+    import { goto } from "$app/navigation";
+    import { filters } from "$lib/stores/filters.svelte";
 
     let { data } = $props();
 
@@ -18,6 +20,30 @@
     const size = 20;
     let items = $derived(data.items ?? []);
     let total = $derived(data.total ?? 0);
+
+    // Re-fetch when local filters change
+    $effect(() => {
+        const params = new URLSearchParams();
+        params.set("page", String(page - 1));
+        params.set("size", String(size));
+        params.set(
+            "sort_metric",
+            sortBy === "win_rate"
+                ? "Win Rate"
+                : sortBy === "points"
+                  ? "Points Cost"
+                  : "Games",
+        );
+        params.set("sort_direction", "desc");
+        params.set("min_games", String(minGames));
+        params.set("data_source", filters.dataSource);
+        for (const f of selectedFactions) params.append("factions", f);
+        goto(`?${params.toString()}`, {
+            keepFocus: true,
+            noScroll: true,
+            replaceState: true,
+        });
+    });
 
     function prevPage() {
         if (page > 1) page--;

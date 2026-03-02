@@ -66,9 +66,9 @@
                     <!-- Pilot Header: Ship Icon + Name -->
                     <div class="flex items-center gap-2">
                         {#if pilot.ship_icon}
-                            <span class="font-xwingship text-2xl text-secondary"
-                                >{pilot.ship_icon}</span
-                            >
+                            <i
+                                class="xwing-miniatures-ship xwing-miniatures-ship-{pilot.ship_icon} text-2xl text-secondary"
+                            ></i>
                         {/if}
                         <div>
                             <a

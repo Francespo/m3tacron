@@ -9,10 +9,10 @@
         getFactionLabel,
     } from "$lib/data/factions";
     import { filters } from "$lib/stores/filters.svelte";
+    import { goto } from "$app/navigation";
 
     let { data } = $props();
 
-    let tab = $state<"pilots" | "upgrades">("pilots");
     let page = $state(1);
     let sortBy = $state("popularity");
     let textSearch = $state("");
@@ -22,6 +22,46 @@
     let items = $derived(data.items ?? []);
     let total = $derived(data.total ?? 0);
     let isXwa = $derived(filters.dataSource === "xwa");
+
+    // Let URL load logic handle the tab, we will drive updates
+    $effect(() => {
+        const params = new URLSearchParams();
+        params.set("tab", data.tab);
+        params.set("page", String(page - 1));
+        params.set("size", String(size));
+        params.set("data_source", filters.dataSource);
+        params.set("sort_metric", sortBy);
+        if (textSearch) params.set("search", textSearch);
+        for (const format of filters.selectedFormats)
+            params.append("formats", format);
+        for (const f of selectedFactions) params.append("factions", f);
+
+        goto(`?${params.toString()}`, {
+            keepFocus: true,
+            noScroll: true,
+            replaceState: true,
+        });
+    });
+
+    // Let URL load logic handle the tab, we will drive updates
+    $effect(() => {
+        const params = new URLSearchParams();
+        params.set("tab", data.tab);
+        params.set("page", String(page - 1));
+        params.set("size", String(size));
+        params.set("data_source", filters.dataSource);
+        params.set("sort_metric", sortBy);
+        if (textSearch) params.set("search", textSearch);
+        for (const format of filters.selectedFormats)
+            params.append("formats", format);
+        for (const f of selectedFactions) params.append("factions", f);
+
+        goto(`?${params.toString()}`, {
+            keepFocus: true,
+            noScroll: true,
+            replaceState: true,
+        });
+    });
 
     function prevPage() {
         if (page > 1) page--;
@@ -196,13 +236,11 @@
                 >
                     <!-- Card Image -->
                     {#if card.image}
-                        <div
-                            class="relative w-full aspect-[5/7] overflow-hidden bg-black"
-                        >
+                        <div class="relative w-full overflow-hidden bg-black">
                             <img
                                 src={card.image}
                                 alt={card.name}
-                                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                class="w-full h-auto object-contain group-hover:scale-105 transition-transform duration-300"
                                 loading="lazy"
                             />
                         </div>
@@ -210,10 +248,10 @@
                         <div
                             class="w-full aspect-[5/7] bg-[#0a0a0a] flex items-center justify-center"
                         >
-                            <span
-                                class="font-xwingship text-5xl text-secondary/30"
-                                >{card.ship_icon || "?"}</span
-                            >
+                            <i
+                                class="xwing-miniatures-ship xwing-miniatures-ship-{card.ship_xws ||
+                                    ''} text-5xl text-secondary/30"
+                            ></i>
                         </div>
                     {/if}
 

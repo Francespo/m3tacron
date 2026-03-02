@@ -2,6 +2,7 @@
     import FilterPanel from "$lib/components/FilterPanel.svelte";
     import ActiveChips from "$lib/components/ActiveChips.svelte";
     import { filters } from "$lib/stores/filters.svelte";
+    import { goto } from "$app/navigation";
 
     let { data } = $props();
 
@@ -11,6 +12,29 @@
     // Derive filtered items from data + global filters
     let items = $derived(data.items ?? []);
     let total = $derived(data.total ?? 0);
+
+    $effect(() => {
+        const params = new URLSearchParams();
+        params.set("page", String(page - 1));
+        params.set("size", String(size));
+        params.set("data_source", filters.dataSource);
+        for (const format of filters.selectedFormats)
+            params.append("formats", format);
+        // Date filters
+        if (filters.dateStart) params.set("date_start", filters.dateStart);
+        if (filters.dateEnd) params.set("date_end", filters.dateEnd);
+        // Location filters
+        for (const c of filters.selectedContinents)
+            params.append("continent", c);
+        for (const c of filters.selectedCountries) params.append("country", c);
+        for (const c of filters.selectedCities) params.append("city", c);
+
+        goto(`?${params.toString()}`, {
+            keepFocus: true,
+            noScroll: true,
+            replaceState: true,
+        });
+    });
 
     function prevPage() {
         if (page > 1) page--;

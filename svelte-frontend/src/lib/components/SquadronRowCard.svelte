@@ -71,9 +71,9 @@
                     <span class="text-xs font-mono font-bold text-secondary"
                         >{ship.count}x</span
                     >
-                    <span class="font-xwing text-lg text-primary"
-                        >{ship.icon}</span
-                    >
+                    <i
+                        class="xwing-miniatures-ship xwing-miniatures-ship-{ship.icon} text-lg text-primary"
+                    ></i>
                     <span
                         class="text-xs font-mono text-primary truncate max-w-[120px]"
                         title={ship.name}>{ship.name}</span

@@ -6,6 +6,8 @@
         getFactionChar,
         getWinRateColor,
     } from "$lib/data/factions";
+    import { goto } from "$app/navigation";
+    import { filters } from "$lib/stores/filters.svelte";
 
     let { data } = $props();
 
@@ -13,6 +15,22 @@
     let total = $derived(data.total ?? 0);
     let page = $state(1);
     const size = 50;
+
+    // Trigger URL updates on filter changes
+    $effect(() => {
+        const params = new URLSearchParams();
+        params.set("page", String(page - 1));
+        params.set("size", String(size));
+        params.set("data_source", filters.dataSource);
+        for (const format of filters.selectedFormats)
+            params.append("formats", format);
+
+        goto(`?${params.toString()}`, {
+            keepFocus: true,
+            noScroll: true,
+            replaceState: true,
+        });
+    });
 
     function prevPage() {
         if (page > 1) page--;
@@ -65,19 +83,18 @@
                         {getFactionChar(factionKey)}
                     </span>
 
-                    <!-- Ship Icon (from X-Wing ship font) -->
-                    <span
-                        class="font-xwingship text-5xl group-hover:scale-110 transition-transform"
+                    <!-- Ship Icon (from X-Wing ship font via CSS pseudo-element) -->
+                    <i
+                        class="xwing-miniatures-ship xwing-miniatures-ship-{ship.ship_xws ||
+                            ''} text-5xl group-hover:scale-110 transition-transform"
                         style="color: {factionColor};"
-                    >
-                        {ship.ship_icon || "?"}
-                    </span>
+                    ></i>
 
                     <!-- Ship Name -->
                     <span
                         class="text-xs font-sans font-bold text-primary text-center leading-tight"
                     >
-                        {ship.name || "Unknown Ship"}
+                        {ship.ship_name || "Unknown Ship"}
                     </span>
 
                     <!-- Stats Grid (2x2) -->
