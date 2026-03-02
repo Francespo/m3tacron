@@ -66,3 +66,16 @@ body {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   padding: 1rem;
 }
+
+/* ============================================================
+   Main Content Area — sidebar offset
+   WHY: The global `* { margin: 0 }` reset overrides Tailwind's
+   arbitrary-value classes. This dedicated rule ensures the main
+   content area properly clears the fixed navigation sidebar.
+   ============================================================ */
+
+@media (min-width: 768px) {
+  .main-content-area {
+    margin-left: 260px;
+  }
+}
