@@ -85,9 +85,9 @@ export function ShipsBrowser() {
     };
 
     return (
-        <div className="flex flex-col md:flex-row w-full gap-8 text-white">
+        <div className="flex flex-col lg:flex-row w-full gap-8 text-white p-6 lg:p-10 pb-32">
             {/* Filter Sidebar */}
-            <div className="w-full md:min-w-[280px] md:max-w-[280px] shrink-0 flex flex-col gap-6">
+            <div className="w-full lg:min-w-[260px] lg:max-w-[260px] shrink-0 flex flex-col gap-6">
 
                 {/* Content Source Filter */}
                 <div className="flex flex-col gap-2 mb-2">
@@ -120,7 +120,7 @@ export function ShipsBrowser() {
                             className="bg-terminal-bg border border-border-terminal rounded-md p-2 text-sm text-text-primary font-mono focus:outline-none focus:border-text-primary flex-1"
                         >
                             <option value="Popularity">Popularity</option>
-                            <option value="Items">Games</option>
+                            <option value="Games">Games</option>
                             <option value="Win Rate">Win Rate</option>
                         </select>
                         <button
