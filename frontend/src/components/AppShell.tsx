@@ -43,16 +43,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
             {/* Main Content Area */}
             <main
-                className={`
-                    pt-[60px] md:pt-0 
-                    md:ml-[260px] 
-                    transition-all duration-200 min-h-screen
-                `}
+                className="pt-[60px] md:pt-0 transition-all duration-200 min-h-screen main-content-area"
             >
-                {/* Note: since Sidebar manages its own collapsed state internally in this simple setup, 
-                    the margin might need to be dynamic. 
-                    Let's use a simpler approach: fixed width 260px for now to ensure it works.
-                    A real implementation would sync the state via Context. */}
                 {children}
             </main>
         </div>
