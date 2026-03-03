@@ -2,8 +2,6 @@
 
 A centralized meta-aggregator for X-Wing Miniatures Game competitive data.
 
-**[Live Demo (Placeholder)](https://your-reflex-deploy-url.com)**
-
 <details open>
 <summary><strong>Table of Contents</strong></summary>
 
@@ -28,50 +26,67 @@ M3tacron brings together competitive data from different platforms so you don't 
 
 ## Under the Hood & Setup
 
-This project showcases a modern, Python-first architecture, designed to handle complex data aggregation while serving a reactive frontend from a unified codebase.
+### Architecture
 
-### Architecture Highlights
-- **Full-Stack Reflex**: Built entirely with [Reflex](https://reflex.dev/). This eliminates the traditional Javascript/Python context switch, allowing rich UI components (React under the hood) to be written and managed purely in Python.
-- **Advanced Scraping with Playwright**: Features an object-oriented ingestion pipeline. It leverages **Playwright** for robust, browser-based scraping to handle dynamic JavaScript-rendered content, standardizing disparate data structures from third-party platforms (Longshanks, Rollbetter, Listfortress) into a unified internal model.
-- **Event-Driven State**: Leverages Reflex's `State` system for sophisticated, real-time client interactions—managing global filters, cross-component communication, and dynamic data pagination without heavy page reloads.
-- **Data Layer (SQLite & Supabase)**: Powered by SQLite (via SQLModel/SQLAlchemy integration) for rapid, lightweight local development and testing, with a streamlined migration path to **Supabase** (PostgreSQL) for scalable, high-performance production deployments.
+M3tacron uses a decoupled architecture with two independent layers:
+
+- **Frontend** — [SvelteKit](https://svelte.dev/docs/kit) + [Tailwind CSS v4](https://tailwindcss.com/) + [Chart.js](https://www.chartjs.org/). A fast, server-rendered UI with client-side navigation and reactive data fetching.
+- **Backend** — [FastAPI](https://fastapi.tiangolo.com/) (Python). A RESTful API serving tournament data, analytics, and meta snapshots.
+- **Scraping** — An object-oriented ingestion pipeline leveraging **Playwright** for robust, browser-based scraping of dynamic JavaScript-rendered content from Longshanks, Rollbetter, and Listfortress.
+- **Data Layer** — SQLite (via SQLModel/SQLAlchemy) for local development, with a migration path to **Supabase** (PostgreSQL) for production.
 
 ### Running it locally
 
 1. **Clone the repo**:
    ```bash
-   git clone https://github.com/yourusername/m3tacron.git
+   git clone https://github.com/Francespo/m3tacron.git
    cd m3tacron
    ```
-2. **Set up a virtual environment**:
+
+2. **Set up the Python backend**:
    ```bash
    python -m venv .venv
-   .venv\Scripts\activate  # On Windows
-   # source .venv/bin/activate on macOS/Linux
-   ```
-3. **Install dependencies**:
-   ```bash
+   .venv\Scripts\activate        # Windows
+   # source .venv/bin/activate   # macOS/Linux
    pip install -r requirements.txt
    ```
-4. **Environment setup (The Local Database)**:
-   The repository includes a `seed.db` file containing demo data. Copy it to `test.db` so you can preview the app immediately without needing to scrape data or set up PostgreSQL:
+
+3. **Prepare the local database**:
+   The repository includes a `seed.db` with demo data. Copy it so you can preview the app immediately:
    ```bash
    cp seed.db test.db
    ```
-   Then create a `.env` file in the root directory and add:
+   Then create a `.env` file in the root directory:
    ```env
    DATABASE_URL="sqlite:///test.db"
    ```
-   *(Note: backend scripts and `reflex run` will automatically default to `test.db` if `DATABASE_URL` is omitted, but creating an `.env` is recommended for running local scraper scripts safely).*
-5. **Start the app**:
+
+4. **Install frontend dependencies**:
    ```bash
-   reflex run
+   cd frontend
+   npm install
+   cd ..
    ```
+
+5. **Start both servers**:
+
+   **Terminal 1 — Backend** (from project root):
+   ```bash
+   python -m uvicorn backend.main:app --reload --port 8100
+   ```
+
+   **Terminal 2 — Frontend** (from `frontend/`):
+   ```bash
+   cd frontend
+   npm run dev
+   ```
+
+   The site will be available at `http://localhost:5173`, with the API at `http://localhost:8100`.
 
 ---
 
 ## Disclaimer
 
-**M3tacron** is an unofficial fan project and is not endorsed by, sponsored by, or affiliated with Lucasfilm Ltd., Disney, Fantasy Flight Games, or Atomic Mass Games. 
+**M3tacron** is an unofficial fan project and is not endorsed by, sponsored by, or affiliated with Lucasfilm Ltd., Disney, Fantasy Flight Games, or Atomic Mass Games.
 
 All Star Wars characters, names, images, and related content are trademarks and/or copyrights of their respective property owners. The data aggregated by this tool is strictly for informational and non-commercial purposes.

@@ -10,7 +10,7 @@ from ..utils.xwing_data.pilots import load_all_pilots
 from ..data_structures.factions import Faction
 from ..data_structures.formats import Format
 from ..data_structures.data_source import DataSource
-from .filters import filter_query
+from .filters import filter_query, apply_tournament_filters
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
 
 
@@ -52,14 +52,18 @@ def aggregate_ship_stats(
         all_pilots = load_all_pilots(data_source)
         
         
-        allowed_formats = filters.get("allowed_formats", None)
-        allowed_date_start = filters.get("date_start", None)
-        allowed_date_end = filters.get("date_end", None)
+        allowed_formats = filters.get("allowed_formats") or None
+        allowed_date_start = filters.get("date_start") or None
+        allowed_date_end = filters.get("date_end") or None
         
+<<<<<<< Updated upstream
+
+=======
         # Location Filters
-        allowed_continents = set(filters.get("continent", []))
-        allowed_countries = set(filters.get("country", []))
-        allowed_cities = set(filters.get("city", []))
+        allowed_continents = set(filters.get("continent") or [])
+        allowed_countries = set(filters.get("country") or [])
+        allowed_cities = set(filters.get("city") or [])
+>>>>>>> Stashed changes
         
         # Build ship stats: key = (ship_xws, faction_xws)
         # Value = {ship_name, ship_xws, faction, faction_xws, wins, games, lists}
@@ -93,7 +97,11 @@ def aggregate_ship_stats(
                     "wins": 0,
                     "games": 0,
                     "lists": set(),  # Track unique lists
+                    "pilots_count": 0,
                 }
+            
+            # Increment pilot count
+            ship_stats[key]["pilots_count"] += 1
         
         # Aggregate stats from tournament data
         for result, tournament in rows:
@@ -104,24 +112,9 @@ def aggregate_ship_stats(
             if allowed_formats is not None and t_fmt not in allowed_formats:
                 continue
             
-            # Date Filter
-            t_date = str(tournament.date) if tournament.date else ""
-            if allowed_date_start and t_date < allowed_date_start:
+            # Location Filtering (centralized helper)
+            if not apply_tournament_filters(tournament, filters):
                 continue
-            if allowed_date_end and t_date > allowed_date_end:
-                continue
-
-            # Location Filtering
-            if allowed_continents or allowed_countries or allowed_cities:
-                loc = tournament.location
-                if not loc:
-                    continue
-                if allowed_continents and (not loc.continent or loc.continent not in allowed_continents):
-                    continue
-                if allowed_countries and (not loc.country or loc.country not in allowed_countries):
-                    continue
-                if allowed_cities and (not loc.city or loc.city not in allowed_cities):
-                    continue
             
             xws = result.list_json
             if not xws or not isinstance(xws, dict):
@@ -214,7 +207,6 @@ def aggregate_ship_stats(
                 win_rate = round((wins / games) * 100, 1)
             else:
                 win_rate = "NA"
-            
             results.append({
                 "ship_name": data["ship_name"],
                 "ship_xws": data["ship_xws"],
@@ -223,6 +215,7 @@ def aggregate_ship_stats(
                 "win_rate": win_rate,
                 "popularity": popularity,
                 "games": games,
+                "pilots_count": data["pilots_count"],
             })
         
         # Apply faction filter (filter by faction label)
