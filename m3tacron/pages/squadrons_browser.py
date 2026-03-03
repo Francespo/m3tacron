@@ -426,7 +426,7 @@ class SquadronsState(PaginationMixin):
                 # Let's use all known pilots for a complete filter.
                 self.all_ships = sorted(list(set(p["ship"] for p in all_pilots.values() if "ship" in p)))
     
-    def open_detail(self, signature: str):
+    async def open_detail(self, signature: str):
         self.selected_squadron = signature
         faction, ships = parse_squadron_signature(signature)
         self.current_ships = ships
@@ -461,6 +461,7 @@ class SquadronsState(PaginationMixin):
         # Re-fetch matching lists to analyze pilots
         # We respect the current filters to show relevant data
         
+        gs = await self.get_state(GlobalFilterState)
         with Session(engine) as session:
             query = select(PlayerResult, Tournament).where(PlayerResult.tournament_id == Tournament.id)
             rows = session.exec(query).all()
@@ -506,9 +507,12 @@ class SquadronsState(PaginationMixin):
                 "percent": round(count / max(sum(pilot_variations.values()), 1) * 100, 1)
             })
 
+        # Find the squadron in cached data to get total list count
+        squadron_item = next((s for s in self.squadrons_data if s["signature"] == signature), None)
+        list_count = squadron_item["count"] if squadron_item else 0
+
         self.squadron_details = {
-            "subtitle": f"{squadron['faction']} • {squadron['count']} lists", # subtitle - Wait, 'squadron' var isn't available here effectively unless passed. 
-            # We can reconstruct it or just use generic text.
+            "subtitle": f"{Faction.from_xws(faction).label} • {list_count} lists",
             "faction": Faction.from_xws(faction).label,
             "faction_key": faction,
             "faction_color": faction_color,
@@ -718,11 +722,21 @@ def render_squadron_detail() -> rx.Component:
                 # Header with Faction Icon
                 rx.hstack(
                     faction_icon(SquadronsState.squadron_details["faction_key"], size="2em"),
-                    rx.heading(
-                        SquadronsState.squadron_details["faction"], 
-                        size="5", 
-                        font_family=SANS_FONT,
-                        color=SquadronsState.squadron_details["faction_color"]
+                    rx.vstack(
+                        rx.heading(
+                            SquadronsState.squadron_details["faction"], 
+                            size="5", 
+                            font_family=SANS_FONT,
+                            color=SquadronsState.squadron_details["faction_color"]
+                        ),
+                        rx.text(
+                            SquadronsState.squadron_details["subtitle"],
+                            size="1",
+                            color=TEXT_SECONDARY,
+                            font_family=MONOSPACE_FONT
+                        ),
+                        align_items="start",
+                        spacing="0"
                     ),
                     width="100%",
                     align="center",
