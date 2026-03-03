@@ -10,7 +10,19 @@ from ..data_structures.formats import Format
 from ..data_structures.data_source import DataSource
 from .filters import filter_query, get_active_formats, apply_tournament_filters
 
-from ...ui_utils.factions import get_faction_char
+def get_faction_char(xws: str) -> str:
+    '''Fallback for missing ui_utils faction character mapping'''
+    mapping = {
+        "rebelalliance": "!",
+        "galacticempire": '"',
+        "scumandvillainy": "#",
+        "resistance": "$",
+        "firstorder": "%",
+        "galacticrepublic": "&",
+        "separatistalliance": "'",
+    }
+    return mapping.get(xws, "")
+
 
 def aggregate_faction_stats(
     filters: dict,
