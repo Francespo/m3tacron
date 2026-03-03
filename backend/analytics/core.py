@@ -189,10 +189,10 @@ def aggregate_card_stats(
                          if not legacy_keys.isdisjoint(allowed_formats):
                              show_card = True
                 else:
-                    # No formats selected? Should imply showing nothing? 
-                    # Or fallback to showing everything? 
-                    # Ideally nothing.
-                    pass 
+                    if data_source == DataSource.XWA and is_legal:
+                        show_card = True
+                    elif data_source == DataSource.LEGACY:
+                        show_card = True
 
                 if not show_card:
                     continue
@@ -397,7 +397,10 @@ def aggregate_card_stats(
                          if not legacy_keys.isdisjoint(allowed_formats):
                              show_card = True
                 else:
-                    pass 
+                    if data_source == DataSource.XWA and is_legal:
+                        show_card = True
+                    elif data_source == DataSource.LEGACY:
+                        show_card = True
 
                 if not show_card:
                     continue
@@ -571,6 +574,8 @@ def aggregate_card_stats(
             # Ensure display name fallback
             if not s_data.get("name"):
                  s_data["name"] = xws_id
+            
+            s_data["points"] = s_data.get("cost", 0)
             
             results.append(s_data)
             

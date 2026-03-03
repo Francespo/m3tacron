@@ -52,9 +52,9 @@ def aggregate_ship_stats(
         all_pilots = load_all_pilots(data_source)
         
         
-        allowed_formats = filters.get("allowed_formats", None)
-        allowed_date_start = filters.get("date_start", None)
-        allowed_date_end = filters.get("date_end", None)
+        allowed_formats = filters.get("allowed_formats") or None
+        allowed_date_start = filters.get("date_start") or None
+        allowed_date_end = filters.get("date_end") or None
         
 
         
@@ -90,7 +90,11 @@ def aggregate_ship_stats(
                     "wins": 0,
                     "games": 0,
                     "lists": set(),  # Track unique lists
+                    "pilots_count": 0,
                 }
+            
+            # Increment pilot count
+            ship_stats[key]["pilots_count"] += 1
         
         # Aggregate stats from tournament data
         for result, tournament in rows:
@@ -196,7 +200,6 @@ def aggregate_ship_stats(
                 win_rate = round((wins / games) * 100, 1)
             else:
                 win_rate = "NA"
-            
             results.append({
                 "ship_name": data["ship_name"],
                 "ship_xws": data["ship_xws"],
@@ -205,6 +208,7 @@ def aggregate_ship_stats(
                 "win_rate": win_rate,
                 "popularity": popularity,
                 "games": games,
+                "pilots_count": data["pilots_count"],
             })
         
         # Apply faction filter (filter by faction label)

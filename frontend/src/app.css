@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+@font-face {
+    font-family: 'XWing';
+    src: url('/fonts/xwing-miniatures-font/xwing-miniatures.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'XWingShip';
+    src: url('/fonts/xwing-miniatures-font/xwing-miniatures-ships.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@theme {
+    --color-terminal-bg: #000000;
+    --color-terminal-panel: #0A0A0A;
+    --color-primary: #FFFFFF;
+    --color-secondary: #AAAAAA;
+    --color-border-dark: #333333;
+    --color-status-victory: #FFFFFF;
+    --color-status-defeat: #666666;
+
+    --color-rebel: #FF3333;
+    --color-empire: #2979FF;
+    --color-scum: #006400;
+    --color-resistance: #FF8C00;
+    --color-firstorder: #800020;
+    --color-republic: #E6D690;
+    --color-separatist: #607D8B;
+    --color-unknown: #666666;
+
+    --font-sans: "Inter", "Segoe UI", "Roboto", sans-serif;
+    --font-mono: "JetBrains Mono", "Roboto Mono", monospace;
+    --font-xwing: "XWing", sans-serif;
+    --font-xwingship: "XWingShip", sans-serif;
+
+    --radius-lg: 6px;
+    --radius-md: 6px;
+    --radius-sm: 6px;
+}
+
+body {
+    background-color: var(--color-terminal-bg);
+    color: var(--color-primary);
+    font-family: var(--font-sans);
+    margin: 0;
+    padding: 0;
+}

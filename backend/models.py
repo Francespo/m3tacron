@@ -25,6 +25,7 @@ class Tournament(SQLModel, table=True):
     """
     Represents a competitive X-Wing event.
     """
+    id: int | None = Field(default=None, primary_key=True)
     name: str
     date: date
     location: Location | None = Field(default=Location(city="Unknown", country="Unknown", continent="Unknown"), sa_column=Column(LocationType))
@@ -51,6 +52,7 @@ class PlayerResult(SQLModel, table=True):
     """
     A player's performance in a tournament.
     """
+    id: int | None = Field(default=None, primary_key=True)
     tournament_id: int = Field(foreign_key="tournament.id")
     player_name: str = Field()
     team_name: str | None = Field(default=None)
