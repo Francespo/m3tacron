@@ -10,7 +10,7 @@ from ..utils.xwing_data.ships import load_all_ships
 from ..data_structures.factions import Faction
 from ..data_structures.formats import Format, MacroFormat
 from ..data_structures.data_source import DataSource
-from .filters import filter_query, get_active_formats
+from .filters import filter_query, get_active_formats, apply_tournament_filters
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
 
 def aggregate_card_stats(
@@ -130,14 +130,8 @@ def aggregate_card_stats(
         # Base Size filter: dict of size -> bool
         base_sizes = filters.get("base_sizes", {})
 
-        # Location Filters
-        filter_continents = filters.get("continent", None)
-        filter_countries = filters.get("country", None)
-        filter_cities = filters.get("city", None)
-        
-        allowed_continents = set(filter_continents) if filter_continents else set()
-        allowed_countries = set(filter_countries) if filter_countries else set()
-        allowed_cities = set(filter_cities) if filter_cities else set()
+
+
 
         # INITIALIZE STATS WITH ALL CARDS
         # This ensures we show cards with 0 usage.
@@ -195,10 +189,10 @@ def aggregate_card_stats(
                          if not legacy_keys.isdisjoint(allowed_formats):
                              show_card = True
                 else:
-                    # No formats selected? Should imply showing nothing? 
-                    # Or fallback to showing everything? 
-                    # Ideally nothing.
-                    pass 
+                    if data_source == DataSource.XWA and is_legal:
+                        show_card = True
+                    elif data_source == DataSource.LEGACY:
+                        show_card = True
 
                 if not show_card:
                     continue
@@ -322,6 +316,7 @@ def aggregate_card_stats(
                     "name": p_info.get("name", pid),
                     "xws": pid,
                     "count": 0, "popularity": 0, "wins": 0, "games": 0,
+                    "lists": 0,
                     "faction": p_info.get("faction", ""), 
                     "ship": p_info.get("ship", ""),
                     "ship_xws": p_info.get("ship_xws", ""),
@@ -402,7 +397,10 @@ def aggregate_card_stats(
                          if not legacy_keys.isdisjoint(allowed_formats):
                              show_card = True
                 else:
-                    pass 
+                    if data_source == DataSource.XWA and is_legal:
+                        show_card = True
+                    elif data_source == DataSource.LEGACY:
+                        show_card = True
 
                 if not show_card:
                     continue
@@ -445,6 +443,7 @@ def aggregate_card_stats(
                     "xws": u_xws,
                     "type": display_type,
                     "count": 0, "popularity": 0, "wins": 0, "games": 0,
+                    "lists": 0,
                     "image": u_info.get("image", ""),
                     "cost": int(u_info.get("cost", {}).get("value", 0) if isinstance(u_info.get("cost"), dict) else (u_info.get("cost") or 0))
                 }
@@ -458,20 +457,9 @@ def aggregate_card_stats(
                 if t_fmt not in allowed_formats:
                     continue
 
-            # Location Filtering
-            if allowed_continents or allowed_countries or allowed_cities:
-                loc = tournament.location
-                if not loc:
-                    continue
-                
-                if allowed_continents and (not loc.continent or loc.continent not in allowed_continents):
-                    continue
-                    
-                if allowed_countries and (not loc.country or loc.country not in allowed_countries):
-                    continue
-                    
-                if allowed_cities and (not loc.city or loc.city not in allowed_cities):
-                    continue
+            # Location Filtering (centralized helper)
+            if not apply_tournament_filters(tournament, filters):
+                continue
 
             xws = result.list_json
             if not xws or not isinstance(xws, dict): continue
@@ -524,6 +512,7 @@ def aggregate_card_stats(
                         s = stats[pid]
                         s["count"] += 1
                         s["popularity"] += 1
+                        s["lists"] += 1
                         s["wins"] += wins
                         s["games"] += games
                     else:
@@ -569,6 +558,7 @@ def aggregate_card_stats(
                                 s = stats[u_xws]
                                 s["count"] += 1
                                 s["popularity"] += 1
+                                s["lists"] += 1
                                 s["wins"] += wins
                                 s["games"] += games
 
@@ -584,6 +574,8 @@ def aggregate_card_stats(
             # Ensure display name fallback
             if not s_data.get("name"):
                  s_data["name"] = xws_id
+            
+            s_data["points"] = s_data.get("cost", 0)
             
             results.append(s_data)
             
