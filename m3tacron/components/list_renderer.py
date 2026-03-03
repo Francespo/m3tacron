@@ -203,7 +203,7 @@ def render_pilot_block(pilot: PilotData) -> rx.Component:
                  align="center",
                  width="100%",
                  cursor="pointer",
-                 on_click=rx.redirect(f"/cards?pilot={pilot.xws}") # Redirect to card browser filter
+                 on_click=rx.redirect(f"/pilot/{pilot.xws}") # Redirect to pilot detail page
             ),
             
             # Upgrades
