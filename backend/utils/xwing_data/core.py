@@ -5,7 +5,7 @@ from ...data_structures.data_source import DataSource
 
 # Path to data directories
 # m3tacron/backend/utils/xwing_data/core.py -> up to root
-ROOT_DIR = Path(__file__).parents[4]
+ROOT_DIR = Path(__file__).parents[3]
 EXTERNAL_DATA_DIR = ROOT_DIR / "external_data"
 
 XWA_DATA_DIR = EXTERNAL_DATA_DIR / "xwing-data2" / "data"
