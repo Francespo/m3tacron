@@ -101,6 +101,7 @@ def aggregate_list_stats(
             win_rate = round((data["wins"] / data["games"]) * 100, 1) if data["games"] > 0 else 0.0
             
             results.append({
+                "signature": key,
                 "name": data["name"],
                 "faction": data["faction"],
                 "win_rate": win_rate,
