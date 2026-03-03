@@ -22,6 +22,13 @@ BORDER_COLOR = "#333333"     # Dividers
 STATUS_VICTORY = "#FFFFFF"   
 STATUS_DEFEAT = "#666666"    
 
+# Reusable text truncation style (apply via `style=TRUNCATE_TEXT`)
+TRUNCATE_TEXT = {
+    "overflow": "hidden",
+    "text_overflow": "ellipsis",
+    "white_space": "nowrap",
+}
+
 # -----------------------------------------------------------------------------
 # 2. SEMANTIC FACTION COLORS (MANDATORY)
 # -----------------------------------------------------------------------------
