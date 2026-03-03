@@ -1,0 +1,78 @@
+name: Scrape Tournaments
+
+permissions:
+  contents: write
+
+on:
+  schedule:
+    # Run at 08:00 UTC every day
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to scrape'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - longshanks
+          - rollbetter
+          - listfortress
+      time_range:
+        description: 'Time range (preset or YYYY-MM-DD)'
+        required: true
+        default: 'yesterday'
+        type: string
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        
+    - name: Install Playwright browsers
+      run: |
+        playwright install chromium --with-deps
+        
+    - name: Run Scraper
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        PYTHONPATH: .
+      run: |
+        # Use inputs if available, otherwise default to all/yesterday
+        PLATFORM="${{ inputs.platform }}"
+        TIME_RANGE="${{ inputs.time_range }}"
+        
+        if [ -z "$PLATFORM" ]; then PLATFORM="all"; fi
+        if [ -z "$TIME_RANGE" ]; then TIME_RANGE="yesterday"; fi
+        
+        python -m m3tacron.scripts.scrape_tournaments --platform "$PLATFORM" --time-range "$TIME_RANGE"
+    
+    - name: Upload Database Artifact
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: main-db
+        path: main.db
+        retention-days: 5
+
+    - name: Commit and Push Changes
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add main.db
+        git commit -m "Update main.db with latest tournament data" || exit 0
+        git push

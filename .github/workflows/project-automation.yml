@@ -1,0 +1,57 @@
+name: Project V2 Automation
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  sync_project_fields:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Parse Issue Body for Priority and Size
+        id: parse
+        env:
+          BODY: ${{ github.event.issue.body }}
+        run: |
+          
+          # Extract Priority and Size using regex
+          if [[ "$BODY" =~ \*\*Priority:\*\*\ (Urgent\ \&\ Important|Not\ Urgent\ \&\ Important|Urgent\ \&\ Not\ Important|Not\ Urgent\ \&\ Not\ Important) ]]; then
+            PRIORITY="${BASH_REMATCH[1]}"
+            echo "PRIORITY=$PRIORITY" >> $GITHUB_ENV
+          fi
+          
+          if [[ "$BODY" =~ \*\*Size:\*\*\ (S|M|L) ]]; then
+            SIZE="${BASH_REMATCH[1]}"
+            echo "SIZE=$SIZE" >> $GITHUB_ENV
+          fi
+
+      - name: Add Issue to Project and Update Fields
+        env:
+          GH_TOKEN: ${{ secrets.AGENT_GITHUB_TOKEN }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          PROJECT_NUMBER: 1
+          OWNER: "francespo"
+        run: |
+          echo "Adding issue to project..."
+          
+          # 1. Ensure issue is in the project and get the item ID
+          ITEM_ID=$(gh project item-add $PROJECT_NUMBER --owner $OWNER --url $ISSUE_URL --format json --jq '.id')
+          
+          if [ -z "$ITEM_ID" ]; then
+            echo "Failed to add issue to project."
+            exit 1
+          fi
+          
+          echo "Item ID: $ITEM_ID"
+
+          # 2. Update Priority if found
+          if [ -n "$PRIORITY" ]; then
+            echo "Setting Priority to $PRIORITY..."
+            gh project item-edit --id $ITEM_ID --field-id $(gh project field-list $PROJECT_NUMBER --owner $OWNER --format json --jq '.fields[] | select(.name=="Priority") | .id') --single-select-option-id $(gh project field-list $PROJECT_NUMBER --owner $OWNER --format json --jq '.fields[] | select(.name=="Priority") | .options[] | select(.name=="'"$PRIORITY"'") | .id') --project-id $(gh project view $PROJECT_NUMBER --owner $OWNER --format json --jq '.id')
+          fi
+
+          # 3. Update Size if found
+          if [ -n "$SIZE" ]; then
+            echo "Setting Size to $SIZE..."
+            gh project item-edit --id $ITEM_ID --field-id $(gh project field-list $PROJECT_NUMBER --owner $OWNER --format json --jq '.fields[] | select(.name=="Size") | .id') --single-select-option-id $(gh project field-list $PROJECT_NUMBER --owner $OWNER --format json --jq '.fields[] | select(.name=="Size") | .options[] | select(.name=="'"$SIZE"'") | .id') --project-id $(gh project view $PROJECT_NUMBER --owner $OWNER --format json --jq '.id')
+          fi
