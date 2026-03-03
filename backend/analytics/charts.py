@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 from ..database import engine
 from ..models import PlayerResult, Tournament
 from ..data_structures.formats import Format
-from .filters import filter_query
+from .filters import filter_query, apply_tournament_filters
 
 def get_card_usage_history(
     filters: dict,
@@ -43,6 +43,10 @@ def get_card_usage_history(
             t_fmt_raw = tournament.format
             t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
             if allowed_formats and t_fmt not in allowed_formats:
+                continue
+
+            # Location Filtering
+            if not apply_tournament_filters(tournament, filters):
                 continue
                 
             date_key = tournament.date.strftime("%Y-%m")

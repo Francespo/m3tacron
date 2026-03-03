@@ -8,7 +8,7 @@ from ..models import PlayerResult, Tournament
 from ..data_structures.factions import Faction
 from ..data_structures.formats import Format
 from ..data_structures.data_source import DataSource
-from .filters import filter_query, get_active_formats
+from .filters import filter_query, get_active_formats, apply_tournament_filters
 
 from ...ui_utils.factions import get_faction_char
 
@@ -48,6 +48,10 @@ def aggregate_faction_stats(
             t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
             
             if allowed_formats is not None and t_fmt not in allowed_formats:
+                continue
+
+            # Location Filtering
+            if not apply_tournament_filters(tournament, filters):
                 continue
                 
             xws = result.list_json
