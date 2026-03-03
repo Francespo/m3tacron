@@ -6,7 +6,7 @@ from sqlmodel import Session, select, func
 from ..database import engine
 from ..models import PlayerResult, Tournament
 from ..data_structures.data_source import DataSource
-from .filters import filter_query, get_active_formats
+from .filters import filter_query, get_active_formats, apply_tournament_filters
 import json
 
 def aggregate_list_stats(
@@ -37,6 +37,10 @@ def aggregate_list_stats(
             
             allowed_formats = get_active_formats(filters.get("allowed_formats", None))
             if allowed_formats and t_fmt not in allowed_formats:
+                continue
+
+            # Location Filtering
+            if not apply_tournament_filters(tournament, filters):
                 continue
 
             xws = result.list_json
