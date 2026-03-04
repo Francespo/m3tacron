@@ -34,7 +34,7 @@
                 console.error("Dashboard Fetch Error:", err);
                 if (!isCancelled) {
                     error = true;
-                    errorMsg = err.message || String(err);
+                    errorMsg = `URL: ${API_BASE}/meta-snapshot?data_source=${source} | Error: ${err.message || String(err)}`;
                     loading = false;
                 }
             });
