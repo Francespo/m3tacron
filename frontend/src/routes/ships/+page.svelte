@@ -122,7 +122,7 @@
         <!-- Ships Heatmap Grid -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {#each items as ship}
-                {@const wr = ship.win_rate ?? 0}
+                {@const wr = Number(ship.win_rate ?? 0)}
                 {@const wrColor = getWinRateColor(wr)}
                 {@const games = ship.games ?? 0}
                 {@const lists = ship.lists ?? ship.count ?? 0}
