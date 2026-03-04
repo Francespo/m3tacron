@@ -56,8 +56,6 @@ def aggregate_ship_stats(
         allowed_date_start = filters.get("date_start") or None
         allowed_date_end = filters.get("date_end") or None
         
-
-        
         # Build ship stats: key = (ship_xws, faction_xws)
         # Value = {ship_name, ship_xws, faction, faction_xws, wins, games, lists}
         ship_stats: dict[tuple[str, str], dict] = {}

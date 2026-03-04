@@ -344,7 +344,7 @@
                                     <span
                                         class="text-[10px] font-bold"
                                         style="color: {wrColor};"
-                                        >{wr.toFixed(1)}%</span
+                                        >{wr === "NA" ? "NA" : Number(wr).toFixed(1) + "%"}</span
                                     >
                                     <span
                                         class="text-[9px] font-mono text-secondary"
