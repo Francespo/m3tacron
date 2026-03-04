@@ -1,12 +1,52 @@
 param (
     [int]$bport = 8000,
-    [int]$fport = 5173
+    [int]$fport = 3000
 )
 
-Write-Host "Starting Backend (FastAPI) on port $bport..." -ForegroundColor Green
-Start-Process powershell -ArgumentList "-NoExit -Command `"& .\.venv\Scripts\Activate.ps1; uvicorn backend.main:app --reload --host 0.0.0.0 --port $bport`""
+function Get-FreePort {
+    param([int]$StartingPort)
+    $port = $StartingPort
+    while ($true) {
+        try {
+            $tcpListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $port)
+            $tcpListener.Start()
+            $tcpListener.Stop()
+            return $port
+        }
+        catch {
+            $port++
+        }
+    }
+}
 
-Write-Host "Starting Frontend (Svelte) on port $fport..." -ForegroundColor Blue
-Start-Process powershell -ArgumentList "-NoExit -Command `"cd frontend; `$env:VITE_API_BASE='http://127.0.0.1:$bport/api'; npm run dev -- --port $fport`""
+Write-Host "Finding available ports..." -ForegroundColor Cyan
 
-Write-Host "Servers started in two new windows!" -ForegroundColor Cyan
+$actualBport = Get-FreePort -StartingPort $bport
+$actualFport = Get-FreePort -StartingPort $fport
+
+$backendUrl = "http://127.0.0.1:$actualBport"
+$frontendUrl = "http://localhost:$actualFport"
+
+Write-Host "==========================================" -ForegroundColor Cyan
+Write-Host "Backend (FastAPI) will be available at: " -NoNewline; Write-Host $backendUrl -ForegroundColor Green
+Write-Host "Frontend (Svelte) will be available at: " -NoNewline; Write-Host $frontendUrl -ForegroundColor Blue
+Write-Host "==========================================" -ForegroundColor Cyan
+Write-Host "Starting servers in THIS terminal. Press CTRL+C to stop both." -ForegroundColor Yellow
+
+# Start Backend in the background without a new window
+$backendProcess = Start-Process powershell -ArgumentList "-NoProfile -Command `"& .\.venv\Scripts\Activate.ps1; uvicorn backend.main:app --reload --host 0.0.0.0 --port $actualBport`"" -NoNewWindow -PassThru
+
+# Ensure the backend process is killed when the script stops or is interrupted
+try {
+    # Start Frontend in the foreground
+    Push-Location frontend
+    $env:VITE_API_BASE = "$backendUrl/api"
+    npm run dev -- --port $actualFport
+}
+finally {
+    Write-Host "`nStopping servers..." -ForegroundColor Yellow
+    if ($backendProcess -and !$backendProcess.HasExited) {
+        Stop-Process -Id $backendProcess.Id -Force
+    }
+    Pop-Location
+}

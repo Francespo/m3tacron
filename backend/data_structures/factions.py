@@ -73,3 +73,20 @@ class Faction(StrEnum):
                 return faction
                 
         return cls.UNKNOWN
+
+FACTION_CHARS = {
+    "rebelalliance": "!",
+    "galacticempire": "@",
+    "scumandvillainy": "#",
+    "resistance": "!",
+    "firstorder": "+",
+    "galacticrepublic": "/",
+    "separatistalliance": ".",
+    "unknown": "?"
+}
+
+def get_faction_char(faction_xws: str) -> str:
+    """
+    Returns the corresponding icon character for the faction.
+    """
+    return FACTION_CHARS.get(faction_xws, "?")
