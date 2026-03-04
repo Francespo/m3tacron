@@ -14,8 +14,7 @@ from .api.tournaments import router as tournaments_router
 from .api.lists import router as lists_router
 from .api.squadrons import router as squadrons_router
 from .api.cards import router as cards_router
-from .api.ships import router as api_ships_router  # imported from .api.ships natively from main
-from .routers.ships import router as ships_router # my local router for issue 38 
+from .api.ships import router as ships_router
 from .api.pilot_detail import router as pilot_detail_router
 from .api.ship_detail import router as ship_detail_router
 from .api.squadron_detail import router as squadron_detail_router
@@ -51,8 +50,6 @@ def on_startup():
 def read_root():
     return {"status": "Backend is running"}
 
-# Ship/chassis API
-app.include_router(ships_router, prefix="/api")
 
 @app.get("/api/meta-snapshot", response_model=MetaSnapshotResponse)
 def get_snapshot(data_source: str = Query("xwa", description="Data source: xwa or legacy")):

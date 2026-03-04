@@ -10,19 +10,27 @@ router = APIRouter(prefix="/api/ships", tags=["Ships"])
 
 @router.get("/all")
 def get_all_ships(data_source: str = Query("xwa")):
+    """Return every chassis once, with all playable factions merged."""
     ds_enum = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
     ships_data = load_all_ships(ds_enum)
-    
-    # Format for filter UI: id (xws), name, factions
-    results = []
+
+    # Aggregate: same xws across faction dirs → one entry with factions[]
+    merged: dict[str, dict] = {}
     for xws, info in ships_data.items():
-        results.append({
-            "xws": xws,
-            "name": info.get("name", xws),
-            "factions": info.get("factions", []),
-        })
-    # Sort alphabetically by name
-    results.sort(key=lambda x: x["name"])
+        faction = info.get("faction", "")
+        # Normalise faction to xws-style key (lowercase, no spaces)
+        faction_xws = faction.lower().replace(" ", "") if faction else "unknown"
+        if xws in merged:
+            if faction_xws not in merged[xws]["factions"]:
+                merged[xws]["factions"].append(faction_xws)
+        else:
+            merged[xws] = {
+                "xws": xws,
+                "name": info.get("name", xws),
+                "factions": [faction_xws] if faction_xws else [],
+            }
+
+    results = sorted(merged.values(), key=lambda x: x["name"])
     return results
 
 @router.get("", response_model=PaginatedShipsResponse)

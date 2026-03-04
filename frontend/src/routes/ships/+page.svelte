@@ -1,10 +1,13 @@
 <script lang="ts">
     import FilterPanel from "$lib/components/FilterPanel.svelte";
     import SortSelector from "$lib/components/SortSelector.svelte";
+    import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
     import {
         getFactionColor,
         getFactionChar,
+        getFactionLabel,
         getWinRateColor,
+        ALL_FACTIONS,
     } from "$lib/data/factions";
     import { goto } from "$app/navigation";
     import { filters } from "$lib/stores/filters.svelte";
@@ -16,6 +19,7 @@
     let page = $state(1);
     let sortBy = $state("Popularity");
     let sortDirection = $state("desc");
+    let selectedFactions = $state<string[]>([]);
     const size = 50;
 
     // Trigger URL updates on filter changes
@@ -26,9 +30,10 @@
         params.set("data_source", filters.dataSource);
         params.set("sort_metric", sortBy);
         params.set("sort_direction", sortDirection);
-        if (filters.searchName) params.set("search", filters.searchName);
         for (const format of filters.selectedFormats)
             params.append("formats", format);
+        for (const f of selectedFactions) params.append("factions", f);
+        for (const s of filters.selectedShips) params.append("ships", s);
 
         goto(`?${params.toString()}`, {
             keepFocus: true,
@@ -43,6 +48,14 @@
     function nextPage() {
         if (page * size < total) page++;
     }
+
+    function toggleFaction(f: string) {
+        if (selectedFactions.includes(f)) {
+            selectedFactions = selectedFactions.filter((x) => x !== f);
+        } else {
+            selectedFactions = [...selectedFactions, f];
+        }
+    }
 </script>
 
 {#snippet shipFilters()}
@@ -50,6 +63,9 @@
         <span class="text-xs font-bold tracking-widest text-primary font-mono">
             SHIP FILTERS
         </span>
+
+        <!-- Chassis dropdown filter -->
+        <ShipChassisFilter {selectedFactions} />
 
         <SortSelector
             bind:sortBy
@@ -61,6 +77,34 @@
                 { value: "Name", label: "Name" },
             ]}
         />
+
+        <!-- Faction -->
+        <div class="space-y-1">
+            <span
+                class="text-xs font-mono font-bold tracking-wider text-secondary"
+                >Faction</span
+            >
+            <div class="space-y-1 max-h-[180px] overflow-y-auto">
+                {#each ALL_FACTIONS as f}
+                    <label
+                        class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
+                    >
+                        <input
+                            type="checkbox"
+                            class="rounded border-border-dark bg-black w-3 h-3"
+                            checked={selectedFactions.includes(f)}
+                            onchange={() => toggleFaction(f)}
+                        />
+                        <span
+                            class="font-xwing text-sm"
+                            style="color: {getFactionColor(f)};"
+                            >{getFactionChar(f)}</span
+                        >
+                        <span class="font-mono">{getFactionLabel(f)}</span>
+                    </label>
+                {/each}
+            </div>
+        </div>
     </div>
 {/snippet}
 
@@ -89,7 +133,7 @@
 
                 <a href="/ship/{ship.ship_xws || ''}" class="block group">
                     <div
-                        class="relative bg-terminal-panel border border-border-dark rounded-md p-4 flex flex-col items-center gap-2 hover:border-secondary/50 transition-all group"
+                        class="relative bg-terminal-panel border border-border-dark rounded-md p-4 flex flex-col items-center gap-2 hover:border-secondary/50 group-hover:scale-[1.03] group-hover:-translate-y-1 transition-all duration-200"
                         style="box-shadow: 0 0 20px {factionColor}{Math.round(
                             glowOpacity * 255,
                         )
@@ -107,7 +151,7 @@
                         <!-- Ship Icon (from X-Wing ship font via CSS pseudo-element) -->
                         <i
                             class="xwing-miniatures-ship xwing-miniatures-ship-{ship.ship_xws ||
-                                ''} group-hover:scale-105 transition-transform"
+                                ''} transition-transform"
                             style="color: {factionColor}; opacity: 0.9; font-size: 10rem; line-height: 1;"
                         ></i>
 
