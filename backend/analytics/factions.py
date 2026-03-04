@@ -166,7 +166,10 @@ def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats:
             "real_name": f["name"], # Keep original for reference if needed
             "xws": f["xws"],
             "icon_char": get_faction_char(f["xws"]),
+            "win_rate": f["win_rate"],
+            "popularity": f["popularity"],
             "games": f["games"],
+            "wins": f["wins"],
             "percentage": percentage
         })
     
