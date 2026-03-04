@@ -1,6 +1,5 @@
 <script lang="ts">
     import { browser } from "$app/environment";
-    import { API_BASE } from "$lib/api";
     import { filters } from "$lib/stores/filters.svelte";
     import ContentSourceToggle from "$lib/components/ContentSourceToggle.svelte";
 
@@ -18,7 +17,8 @@
         error = false;
         errorMsg = "";
 
-        fetch(`${API_BASE}/meta-snapshot?data_source=${source}`)
+        const targetUrl = `/api/meta-snapshot?data_source=${source}`;
+        fetch(targetUrl)
             .then((res) => {
                 if (!res.ok)
                     throw new Error(`HTTP error! status: ${res.status}`);
@@ -34,7 +34,7 @@
                 console.error("Dashboard Fetch Error:", err);
                 if (!isCancelled) {
                     error = true;
-                    errorMsg = `URL: ${API_BASE}/meta-snapshot?data_source=${source} | Error: ${err.message || String(err)}`;
+                    errorMsg = `URL: ${targetUrl} | Error: ${err.message || String(err)}`;
                     loading = false;
                 }
             });
