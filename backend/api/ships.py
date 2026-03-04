@@ -32,6 +32,7 @@ def get_ships(
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Popularity"),
     sort_direction: str = Query("desc"),
+    search: Optional[str] = Query(None),
     
     formats: Optional[List[str]] = Query(None),
     factions: Optional[List[str]] = Query(None),
@@ -60,6 +61,7 @@ def get_ships(
         "continent": continent,
         "country": country,
         "city": city,
+        "search_name": search,
     }
 
     data = aggregate_ship_stats(filters, criteria, s_dir, ds_enum)
