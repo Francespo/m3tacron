@@ -223,9 +223,11 @@
             class="p-6 bg-terminal-panel border border-border-dark shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] rounded-md text-center"
         >
             <p class="text-secondary font-mono animate-pulse">
-                {error
-                    ? "Failed to fetch data."
-                    : "Loading or fetching data..."}
+                {#if error}
+                    Failed to fetch data: {errorMsg}
+                {:else}
+                    Loading or fetching data...
+                {/if}
             </p>
         </div>
     {:else}
