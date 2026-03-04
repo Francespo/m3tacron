@@ -243,7 +243,7 @@
             class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6"
         >
             {#each items as card}
-                {@const wr = card.win_rate ?? 0}
+                {@const wr = Number(card.win_rate ?? 0)}
                 {@const wrColor = getWinRateColor(wr)}
                 {@const fColor = card.faction
                     ? getFactionColor(card.faction)

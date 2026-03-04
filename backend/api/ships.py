@@ -14,23 +14,20 @@ def get_all_ships(data_source: str = Query("xwa")):
     ds_enum = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
     ships_data = load_all_ships(ds_enum)
 
-    # Aggregate: same xws across faction dirs → one entry with factions[]
-    merged: dict[str, dict] = {}
+    # Extract ships directly with all their factions
+    results: list[dict] = []
     for xws, info in ships_data.items():
-        faction = info.get("faction", "")
-        # Normalise faction to xws-style key (lowercase, no spaces)
-        faction_xws = faction.lower().replace(" ", "") if faction else "unknown"
-        if xws in merged:
-            if faction_xws not in merged[xws]["factions"]:
-                merged[xws]["factions"].append(faction_xws)
-        else:
-            merged[xws] = {
-                "xws": xws,
-                "name": info.get("name", xws),
-                "factions": [faction_xws] if faction_xws else [],
-            }
+        factions_xws = [
+            f.lower().replace(" ", "") if f else "unknown" 
+            for f in info.get("factions", [])
+        ]
+        results.append({
+            "xws": xws,
+            "name": info.get("name", xws),
+            "factions": list(set(factions_xws)),
+        })
 
-    results = sorted(merged.values(), key=lambda x: x["name"])
+    results = sorted(results, key=lambda x: x["name"])
     return results
 
 @router.get("", response_model=PaginatedShipsResponse)

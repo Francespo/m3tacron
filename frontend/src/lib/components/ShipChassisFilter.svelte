@@ -13,7 +13,7 @@
     let isLoading = $state(false);
 
     // Filter by search text AND by active factions
-    let filteredShips = $derived(() => {
+    let filteredShips = $derived.by(() => {
         let result = ships;
 
         // Text search
@@ -115,12 +115,12 @@
                     <div class="text-xs text-secondary font-mono py-2">
                         Loading...
                     </div>
-                {:else if filteredShips().length === 0}
+                {:else if filteredShips.length === 0}
                     <div class="text-xs text-secondary font-mono py-2">
                         No ships match.
                     </div>
                 {:else}
-                    {#each filteredShips() as ship}
+                    {#each filteredShips as ship}
                         <label
                             class="flex items-center gap-2 py-1 px-1 rounded hover:bg-white/5 cursor-pointer group"
                         >
