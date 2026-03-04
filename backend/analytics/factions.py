@@ -5,7 +5,7 @@ Faction Analytics - Aggregation Logic for Factions.
 from sqlmodel import Session, select, func
 from ..database import engine
 from ..models import PlayerResult, Tournament
-from ..data_structures.factions import Faction
+from ..data_structures.factions import Faction, get_faction_char
 from ..data_structures.formats import Format
 from ..data_structures.data_source import DataSource
 from .filters import filter_query, get_active_formats
@@ -26,6 +26,7 @@ _FACTION_CHARS = {
 def get_faction_char(faction_xws: str) -> str:
     """Return the X-Wing font character for a faction XWS identifier."""
     return _FACTION_CHARS.get(faction_xws, "?")
+
 
 def aggregate_faction_stats(
     filters: dict,

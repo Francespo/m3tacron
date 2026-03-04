@@ -56,6 +56,7 @@ def aggregate_ship_stats(
         allowed_date_start = filters.get("date_start") or None
         allowed_date_end = filters.get("date_end") or None
         
+
         # Location Filters
         allowed_continents = set(filters.get("continent") or [])
         allowed_countries = set(filters.get("country") or [])
