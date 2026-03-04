@@ -129,7 +129,7 @@
 
         {#if data.tab === "pilots"}
             <div class="mt-4">
-                <ShipChassisFilter />
+                <ShipChassisFilter {selectedFactions} />
             </div>
         {/if}
 
@@ -187,17 +187,6 @@
                         <span class="font-mono">{getFactionLabel(f)}</span>
                     </label>
                 {/each}
-            </div>
-        </div>
-
-        <!-- Ship Chassis (placeholder) -->
-        <div class="space-y-1">
-            <span
-                class="text-xs font-mono font-bold tracking-wider text-secondary"
-                >Ship Chassis</span
-            >
-            <div class="text-xs text-secondary font-mono italic">
-                Expand to filter by chassis
             </div>
         </div>
     </div>

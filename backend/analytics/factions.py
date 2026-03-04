@@ -10,7 +10,22 @@ from ..data_structures.formats import Format
 from ..data_structures.data_source import DataSource
 from .filters import filter_query, get_active_formats
 
-from ...ui_utils.factions import get_faction_char
+
+# Faction icon chars (X-Wing Miniatures Font) — mirrors frontend factions.ts
+_FACTION_CHARS = {
+    "rebelalliance": "!",
+    "galacticempire": "@",
+    "scumandvillainy": "#",
+    "resistance": "!",
+    "firstorder": "+",
+    "galacticrepublic": "/",
+    "separatistalliance": ".",
+    "unknown": "?",
+}
+
+def get_faction_char(faction_xws: str) -> str:
+    """Return the X-Wing font character for a faction XWS identifier."""
+    return _FACTION_CHARS.get(faction_xws, "?")
 
 def aggregate_faction_stats(
     filters: dict,

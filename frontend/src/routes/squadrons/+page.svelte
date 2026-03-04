@@ -2,11 +2,15 @@
     import FilterPanel from "$lib/components/FilterPanel.svelte";
     import ActiveChips from "$lib/components/ActiveChips.svelte";
     import SquadronRowCard from "$lib/components/SquadronRowCard.svelte";
+    import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
     import {
         ALL_FACTIONS,
         getFactionLabel,
         getFactionColor,
+        getFactionChar,
     } from "$lib/data/factions";
+    import { goto } from "$app/navigation";
+    import { filters } from "$lib/stores/filters.svelte";
 
     let { data } = $props();
 
@@ -17,6 +21,23 @@
     const size = 20;
     let items = $derived(data.items ?? []);
     let total = $derived(data.total ?? 0);
+
+    // Re-fetch when filters change
+    $effect(() => {
+        const params = new URLSearchParams();
+        params.set("page", String(page - 1));
+        params.set("size", String(size));
+        params.set("sort_metric", sortBy);
+        params.set("data_source", filters.dataSource);
+        for (const f of selectedFactions) params.append("factions", f);
+        for (const s of filters.selectedShips) params.append("ships", s);
+
+        goto(`?${params.toString()}`, {
+            keepFocus: true,
+            noScroll: true,
+            replaceState: true,
+        });
+    });
 
     function prevPage() {
         if (page > 1) page--;
@@ -39,6 +60,8 @@
         <span class="text-xs font-bold tracking-widest text-primary font-mono">
             SQUADRON FILTERS
         </span>
+
+        <ShipChassisFilter {selectedFactions} />
 
         <!-- Sort By -->
         <div class="space-y-1">

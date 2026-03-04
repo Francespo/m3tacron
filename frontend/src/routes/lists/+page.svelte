@@ -9,6 +9,7 @@
     } from "$lib/data/factions";
     import { goto } from "$app/navigation";
     import { filters } from "$lib/stores/filters.svelte";
+    import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
 
     let { data } = $props();
 
@@ -32,6 +33,7 @@
         params.set("min_games", String(minGames));
         params.set("data_source", filters.dataSource);
         for (const f of selectedFactions) params.append("factions", f);
+        for (const s of filters.selectedShips) params.append("ships", s);
         goto(`?${params.toString()}`, {
             keepFocus: true,
             noScroll: true,
@@ -60,6 +62,8 @@
         <span class="text-xs font-bold tracking-widest text-primary font-mono">
             LIST FILTERS
         </span>
+
+        <ShipChassisFilter {selectedFactions} />
 
         <SortSelector
             bind:sortBy
