@@ -7,35 +7,41 @@
     let meta = $state<any>(null);
     let loading = $state(true);
     let error = $state(false);
+    let errorMsg = $state("");
 
     $effect(() => {
         if (!browser) return;
         const source = filters.dataSource;
         let isCancelled = false;
-        
+
         loading = true;
         error = false;
-        
+        errorMsg = "";
+
         fetch(`${API_BASE}/meta-snapshot?data_source=${source}`)
-            .then(res => {
-                if (!res.ok) throw new Error("Failed to fetch");
+            .then((res) => {
+                if (!res.ok)
+                    throw new Error(`HTTP error! status: ${res.status}`);
                 return res.json();
             })
-            .then(data => {
+            .then((data) => {
                 if (!isCancelled) {
                     meta = data;
                     loading = false;
                 }
             })
-            .catch(err => {
-                console.error(err);
+            .catch((err) => {
+                console.error("Dashboard Fetch Error:", err);
                 if (!isCancelled) {
                     error = true;
+                    errorMsg = err.message || String(err);
                     loading = false;
                 }
             });
-            
-        return () => { isCancelled = true; };
+
+        return () => {
+            isCancelled = true;
+        };
     });
 
     function getFactionColor(xws: string) {
@@ -191,13 +197,23 @@
 </script>
 
 <div class="min-h-screen p-6 font-sans">
-    <header class="mb-8 flex flex-col md:flex-row md:items-start justify-between gap-4 w-full">
-        <div class="pl-4 border-l-4 border-primary pb-2 pr-4 bg-gradient-to-r from-[rgba(255,255,255,0.03)] to-transparent max-w-fit">
-            <h1 class="text-3xl font-mono uppercase tracking-widest font-bold text-primary drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
-                M3taCron<br/><span class="text-secondary text-2xl font-light">Dashboard</span>
+    <header
+        class="mb-8 flex flex-col md:flex-row md:items-start justify-between gap-4 w-full"
+    >
+        <div
+            class="pl-4 border-l-4 border-primary pb-2 pr-4 bg-gradient-to-r from-[rgba(255,255,255,0.03)] to-transparent max-w-fit"
+        >
+            <h1
+                class="text-3xl font-mono uppercase tracking-widest font-bold text-primary"
+            >
+                M3taCron<br /><span class="text-secondary text-2xl font-light"
+                    >Dashboard</span
+                >
             </h1>
         </div>
-        <div class="w-full md:w-64 bg-terminal-panel border border-border-dark p-3 rounded-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+        <div
+            class="w-full md:w-64 bg-terminal-panel border border-border-dark p-3 rounded-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+        >
             <ContentSourceToggle />
         </div>
     </header>
@@ -207,7 +223,9 @@
             class="p-6 bg-terminal-panel border border-border-dark shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] rounded-md text-center"
         >
             <p class="text-secondary font-mono animate-pulse">
-                {error ? "Failed to fetch data." : "Loading or fetching data..."}
+                {error
+                    ? "Failed to fetch data."
+                    : "Loading or fetching data..."}
             </p>
         </div>
     {:else}
