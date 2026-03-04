@@ -39,9 +39,13 @@ def get_tournaments(
     search: Optional[str] = None,
     formats: Optional[List[str]] = Query(None),
     platforms: Optional[List[str]] = Query(None),
-    continents: Optional[List[str]] = Query(None),
-    countries: Optional[List[str]] = Query(None),
-    cities: Optional[List[str]] = Query(None),
+    continent: Optional[List[str]] = Query(None),
+    country: Optional[List[str]] = Query(None),
+    city: Optional[List[str]] = Query(None),
+    date_start: Optional[str] = Query(None),
+    date_end: Optional[str] = Query(None),
+    player_count_min: Optional[int] = Query(None),
+    player_count_max: Optional[int] = Query(None),
 ):
     with Session(engine) as session:
         query = select(Tournament)
@@ -52,12 +56,20 @@ def get_tournaments(
             query = query.where(Tournament.format.in_(formats))
         if platforms:
             query = query.where(Tournament.platform.in_(platforms))
-        if continents:
-            query = query.where(func.json_extract(Tournament.location, '$.continent').in_(continents))
-        if countries:
-            query = query.where(func.json_extract(Tournament.location, '$.country').in_(countries))
-        if cities:
-            query = query.where(func.json_extract(Tournament.location, '$.city').in_(cities))
+        if continent:
+            query = query.where(func.json_extract(Tournament.location, '$.continent').in_(continent))
+        if country:
+            query = query.where(func.json_extract(Tournament.location, '$.country').in_(country))
+        if city:
+            query = query.where(func.json_extract(Tournament.location, '$.city').in_(city))
+        if date_start:
+            query = query.where(Tournament.date >= date_start)
+        if date_end:
+            query = query.where(Tournament.date <= date_end)
+        if player_count_min is not None:
+            query = query.where(Tournament.player_count >= player_count_min)
+        if player_count_max is not None:
+            query = query.where(Tournament.player_count <= player_count_max)
             
         # Apply sorting
         if sort_metric == "Players":

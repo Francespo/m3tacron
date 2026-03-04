@@ -31,7 +31,19 @@
         params.set("sort_direction", sortDirection);
         params.set("min_games", String(minGames));
         params.set("data_source", filters.dataSource);
+
         for (const f of selectedFactions) params.append("factions", f);
+        for (const format of filters.selectedFormats)
+            params.append("formats", format);
+        for (const p of filters.selectedPlatforms)
+            params.append("platforms", p);
+        for (const c of filters.selectedContinents)
+            params.append("continent", c);
+        for (const c of filters.selectedCountries) params.append("country", c);
+        for (const c of filters.selectedCities) params.append("city", c);
+        if (filters.dateStart) params.set("date_start", filters.dateStart);
+        if (filters.dateEnd) params.set("date_end", filters.dateEnd);
+
         goto(`?${params.toString()}`, {
             keepFocus: true,
             noScroll: true,
