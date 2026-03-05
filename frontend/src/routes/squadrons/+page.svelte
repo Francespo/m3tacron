@@ -61,8 +61,6 @@
             SQUADRON FILTERS
         </span>
 
-        <ShipChassisFilter {selectedFactions} />
-
         <!-- Sort By -->
         <div class="space-y-1">
             <span
@@ -107,6 +105,8 @@
                 {/each}
             </div>
         </div>
+
+        <ShipChassisFilter {selectedFactions} />
     </div>
 {/snippet}
 
