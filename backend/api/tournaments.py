@@ -1,14 +1,19 @@
 from fastapi import APIRouter, Query
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from sqlmodel import Session, select, func
 from ..database import engine
 from ..models import Tournament, PlayerResult
 from ..data_structures.formats import Format
 from ..data_structures.platforms import Platform
 from .schemas import PaginatedTournamentsResponse, TournamentRow, TournamentDetailResponse
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/tournaments", tags=["Tournaments"])
 
+class LocationHierarchy(BaseModel):
+    continent: str
+    country: str
+    city: str
 def _split_format_badge(format_label: str) -> tuple[str, str]:
     label = format_label.upper() if format_label else "UNK"
     if "STANDARD" in label:
@@ -29,6 +34,45 @@ def _split_format_badge(format_label: str) -> tuple[str, str]:
     if len(words) >= 2: return words[0][:4], words[1][:4]
     if len(label) > 4: return label[:4], label[4:8]
     return label, ""
+
+@router.get("/locations", response_model=Dict[str, Dict[str, List[str]]])
+def get_locations():
+    """
+    Get all unique available locations structured as Continent -> Country -> list of Cities.
+    """
+    with Session(engine) as session:
+        stmt = select(
+            func.json_extract(Tournament.location, '$.continent').label('continent'),
+            func.json_extract(Tournament.location, '$.country').label('country'),
+            func.json_extract(Tournament.location, '$.city').label('city')
+        ).distinct()
+        
+        rows = session.exec(stmt).all()
+        
+        locations = {}
+        for row in rows:
+            continent = row.continent or 'Unknown'
+            country = row.country or 'Unknown'
+            city = row.city or 'Unknown'
+            
+            if continent == 'Unknown' and country == 'Unknown' and city == 'Unknown':
+                continue
+                
+            if continent not in locations:
+                locations[continent] = {}
+            if country not in locations[continent]:
+                locations[continent][country] = set()
+            if city != 'Unknown':
+                locations[continent][country].add(city)
+                
+        # Convert sets to sorted lists
+        result = {}
+        for cont, countries in locations.items():
+            result[cont] = {}
+            for country, cities in sorted(countries.items()):
+                result[cont][country] = sorted(list(cities))
+                
+        return result
 
 @router.get("", response_model=PaginatedTournamentsResponse)
 def get_tournaments(
