@@ -1,23 +1,84 @@
 <script lang="ts">
+    import { onMount } from "svelte";
     import { filters } from "$lib/stores/filters.svelte";
+    import { API_BASE } from "$lib/api";
 
     let dateOpen = $state(false);
     let locationOpen = $state(false);
     let formatOpen = $state(false);
     let platformOpen = $state(false);
 
-    // Available options
-    const continents = [
-        "Africa",
-        "Asia",
-        "Europe",
-        "North America",
-        "Oceania",
-        "South America",
-        "Unknown",
-        "Unknown",
-        "Virtual",
-    ];
+    let locationSearch = $state("");
+    let locationHierarchy = $state<Record<string, Record<string, string[]>>>(
+        {},
+    );
+
+    onMount(async () => {
+        try {
+            const res = await fetch(`${API_BASE}/tournaments/locations`);
+            if (res.ok) {
+                locationHierarchy = await res.json();
+            }
+        } catch (e) {
+            console.error("Failed to load locations", e);
+        }
+    });
+
+    let availableContinents = $derived(Object.keys(locationHierarchy).sort());
+
+    let availableCountries = $derived(() => {
+        let countries = new Set<string>();
+        let conts =
+            filters.selectedContinents.length > 0
+                ? filters.selectedContinents
+                : availableContinents;
+        for (const c of conts) {
+            if (locationHierarchy[c]) {
+                Object.keys(locationHierarchy[c]).forEach((co) =>
+                    countries.add(co),
+                );
+            }
+        }
+        return Array.from(countries).sort();
+    });
+
+    let availableCities = $derived(() => {
+        let cities = new Set<string>();
+        let conts =
+            filters.selectedContinents.length > 0
+                ? filters.selectedContinents
+                : availableContinents;
+        for (const c of conts) {
+            if (!locationHierarchy[c]) continue;
+            let countryKeys =
+                filters.selectedCountries.length > 0
+                    ? filters.selectedCountries.filter(
+                          (cO) => locationHierarchy[c][cO],
+                      )
+                    : Object.keys(locationHierarchy[c]);
+
+            for (const co of countryKeys) {
+                locationHierarchy[c][co]?.forEach((city) => cities.add(city));
+            }
+        }
+        return Array.from(cities).sort();
+    });
+
+    let filteredContinents = $derived(
+        availableContinents.filter((c) =>
+            c.toLowerCase().includes(locationSearch.toLowerCase()),
+        ),
+    );
+    let filteredCountries = $derived(
+        availableCountries().filter((c) =>
+            c.toLowerCase().includes(locationSearch.toLowerCase()),
+        ),
+    );
+    let filteredCities = $derived(
+        availableCities().filter((c) =>
+            c.toLowerCase().includes(locationSearch.toLowerCase()),
+        ),
+    );
 
     const platforms = [
         { id: "longshanks", label: "Longshanks" },
@@ -55,6 +116,26 @@
             );
         } else {
             filters.selectedContinents = [...filters.selectedContinents, c];
+        }
+    }
+
+    function toggleCountry(c: string) {
+        if (filters.selectedCountries.includes(c)) {
+            filters.selectedCountries = filters.selectedCountries.filter(
+                (x) => x !== c,
+            );
+        } else {
+            filters.selectedCountries = [...filters.selectedCountries, c];
+        }
+    }
+
+    function toggleCity(c: string) {
+        if (filters.selectedCities.includes(c)) {
+            filters.selectedCities = filters.selectedCities.filter(
+                (x) => x !== c,
+            );
+        } else {
+            filters.selectedCities = [...filters.selectedCities, c];
         }
     }
 
@@ -151,20 +232,101 @@
             >
         </button>
         {#if locationOpen}
-            <div class="pb-3 space-y-1 pl-2 max-h-[200px] overflow-y-auto">
-                {#each continents as c}
-                    <label
-                        class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
-                    >
-                        <input
-                            type="checkbox"
-                            class="rounded border-border-dark bg-black w-3 h-3"
-                            checked={filters.selectedContinents.includes(c)}
-                            onchange={() => toggleContinent(c)}
-                        />
-                        <span class="font-mono">{c}</span>
-                    </label>
-                {/each}
+            <div class="pb-3 space-y-3 pl-2 pr-1 text-xs">
+                <!-- Mini Search Bar -->
+                <input
+                    type="text"
+                    placeholder="Search locations..."
+                    class="w-full bg-black border border-border-dark rounded px-2 py-1.5 font-mono text-primary focus:border-primary focus:outline-none placeholder:text-secondary/50"
+                    bind:value={locationSearch}
+                />
+
+                <!-- Continents -->
+                {#if filteredContinents.length > 0}
+                    <div>
+                        <span
+                            class="font-bold text-primary font-mono tracking-wider opacity-70 uppercase block mb-1"
+                            >Continents</span
+                        >
+                        <div class="max-h-[100px] overflow-y-auto space-y-1">
+                            {#each filteredContinents as c}
+                                <label
+                                    class="flex items-center gap-2 cursor-pointer text-secondary hover:text-primary"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        class="rounded border-border-dark bg-black w-3 h-3"
+                                        checked={filters.selectedContinents.includes(
+                                            c,
+                                        )}
+                                        onchange={() => toggleContinent(c)}
+                                    />
+                                    <span class="font-mono truncate" title={c}
+                                        >{c}</span
+                                    >
+                                </label>
+                            {/each}
+                        </div>
+                    </div>
+                {/if}
+
+                <!-- Countries -->
+                {#if filteredCountries.length > 0}
+                    <div>
+                        <span
+                            class="font-bold text-primary font-mono tracking-wider opacity-70 uppercase block mb-1"
+                            >Countries</span
+                        >
+                        <div class="max-h-[120px] overflow-y-auto space-y-1">
+                            {#each filteredCountries as c}
+                                <label
+                                    class="flex items-center gap-2 cursor-pointer text-secondary hover:text-primary"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        class="rounded border-border-dark bg-black w-3 h-3"
+                                        checked={filters.selectedCountries.includes(
+                                            c,
+                                        )}
+                                        onchange={() => toggleCountry(c)}
+                                    />
+                                    <span class="font-mono truncate" title={c}
+                                        >{c}</span
+                                    >
+                                </label>
+                            {/each}
+                        </div>
+                    </div>
+                {/if}
+
+                <!-- Cities -->
+                {#if filteredCities.length > 0}
+                    <div>
+                        <span
+                            class="font-bold text-primary font-mono tracking-wider opacity-70 uppercase block mb-1"
+                            >Cities</span
+                        >
+                        <div class="max-h-[120px] overflow-y-auto space-y-1">
+                            {#each filteredCities as c}
+                                <label
+                                    class="flex items-center gap-2 cursor-pointer text-secondary hover:text-primary"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        class="rounded border-border-dark bg-black w-3 h-3"
+                                        checked={filters.selectedCities.includes(
+                                            c,
+                                        )}
+                                        onchange={() => toggleCity(c)}
+                                    />
+                                    <span class="font-mono truncate" title={c}
+                                        >{c}</span
+                                    >
+                                </label>
+                            {/each}
+                        </div>
+                    </div>
+                {/if}
             </div>
         {/if}
     </div>
