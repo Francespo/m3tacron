@@ -234,6 +234,14 @@ def aggregate_card_stats(
                 
                 # Initiative Range Filter (replaces grid)
                 p_init = p_info.get("initiative", 0)
+                if p_init is None:
+                    p_init = 0
+                else:
+                    try:
+                        p_init = int(p_init)
+                    except (ValueError, TypeError):
+                        p_init = 0
+
                 if p_init < init_min or p_init > init_max:
                     continue
                 

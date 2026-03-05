@@ -12,7 +12,7 @@ def filter_query(query, filters: dict):
         filters: Dictionary containing optional keys:
             - date_start: str (YYYY-MM-DD)
             - date_end: str (YYYY-MM-DD)
-            - platform: str (e.g. "longshanks") — exact match on Tournament.platform
+            - platforms: list[str] — list of allowed platforms
             - player_count_min: int — minimum Tournament.player_count
             - player_count_max: int — maximum Tournament.player_count
     """
@@ -26,8 +26,8 @@ def filter_query(query, filters: dict):
         query = query.where(Tournament.date <= filters["date_end"])
 
     # Platform Filter
-    if filters.get("platform"):
-        query = query.where(Tournament.platform == filters["platform"])
+    if filters.get("platforms"):
+        query = query.where(Tournament.platform.in_(filters["platforms"]))
 
     # Player Count Range Filters
     if filters.get("player_count_min") is not None:
