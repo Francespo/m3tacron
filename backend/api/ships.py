@@ -39,6 +39,11 @@ def get_ships(
     continent: Optional[List[str]] = Query(None),
     country: Optional[List[str]] = Query(None),
     city: Optional[List[str]] = Query(None),
+    platforms: Optional[List[str]] = Query(None),
+    date_start: Optional[str] = Query(None),
+    date_end: Optional[str] = Query(None),
+    player_count_min: Optional[int] = Query(None),
+    player_count_max: Optional[int] = Query(None),
 ):
     try:
         ds_enum = DataSource(data_source)
@@ -60,6 +65,11 @@ def get_ships(
         "continent": continent,
         "country": country,
         "city": city,
+        "platforms": platforms,
+        "date_start": date_start,
+        "date_end": date_end,
+        "player_count_min": player_count_min,
+        "player_count_max": player_count_max,
     }
 
     data = aggregate_ship_stats(filters, criteria, s_dir, ds_enum)

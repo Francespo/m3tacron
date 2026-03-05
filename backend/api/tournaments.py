@@ -1,14 +1,19 @@
 from fastapi import APIRouter, Query
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from sqlmodel import Session, select, func
 from ..database import engine
 from ..models import Tournament, PlayerResult
 from ..data_structures.formats import Format
 from ..data_structures.platforms import Platform
 from .schemas import PaginatedTournamentsResponse, TournamentRow, TournamentDetailResponse
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/tournaments", tags=["Tournaments"])
 
+class LocationHierarchy(BaseModel):
+    continent: str
+    country: str
+    city: str
 def _split_format_badge(format_label: str) -> tuple[str, str]:
     label = format_label.upper() if format_label else "UNK"
     if "STANDARD" in label:
@@ -30,6 +35,45 @@ def _split_format_badge(format_label: str) -> tuple[str, str]:
     if len(label) > 4: return label[:4], label[4:8]
     return label, ""
 
+@router.get("/locations", response_model=Dict[str, Dict[str, List[str]]])
+def get_locations():
+    """
+    Get all unique available locations structured as Continent -> Country -> list of Cities.
+    """
+    with Session(engine) as session:
+        stmt = select(
+            func.json_extract(Tournament.location, '$.continent').label('continent'),
+            func.json_extract(Tournament.location, '$.country').label('country'),
+            func.json_extract(Tournament.location, '$.city').label('city')
+        ).distinct()
+        
+        rows = session.exec(stmt).all()
+        
+        locations = {}
+        for row in rows:
+            continent = row.continent or 'Unknown'
+            country = row.country or 'Unknown'
+            city = row.city or 'Unknown'
+            
+            if continent == 'Unknown' and country == 'Unknown' and city == 'Unknown':
+                continue
+                
+            if continent not in locations:
+                locations[continent] = {}
+            if country not in locations[continent]:
+                locations[continent][country] = set()
+            if city != 'Unknown':
+                locations[continent][country].add(city)
+                
+        # Convert sets to sorted lists
+        result = {}
+        for cont, countries in locations.items():
+            result[cont] = {}
+            for country, cities in sorted(countries.items()):
+                result[cont][country] = sorted(list(cities))
+                
+        return result
+
 @router.get("", response_model=PaginatedTournamentsResponse)
 def get_tournaments(
     page: int = Query(0, ge=0),
@@ -39,9 +83,13 @@ def get_tournaments(
     search: Optional[str] = None,
     formats: Optional[List[str]] = Query(None),
     platforms: Optional[List[str]] = Query(None),
-    continents: Optional[List[str]] = Query(None),
-    countries: Optional[List[str]] = Query(None),
-    cities: Optional[List[str]] = Query(None),
+    continent: Optional[List[str]] = Query(None),
+    country: Optional[List[str]] = Query(None),
+    city: Optional[List[str]] = Query(None),
+    date_start: Optional[str] = Query(None),
+    date_end: Optional[str] = Query(None),
+    player_count_min: Optional[int] = Query(None),
+    player_count_max: Optional[int] = Query(None),
 ):
     with Session(engine) as session:
         query = select(Tournament)
@@ -52,12 +100,20 @@ def get_tournaments(
             query = query.where(Tournament.format.in_(formats))
         if platforms:
             query = query.where(Tournament.platform.in_(platforms))
-        if continents:
-            query = query.where(func.json_extract(Tournament.location, '$.continent').in_(continents))
-        if countries:
-            query = query.where(func.json_extract(Tournament.location, '$.country').in_(countries))
-        if cities:
-            query = query.where(func.json_extract(Tournament.location, '$.city').in_(cities))
+        if continent:
+            query = query.where(func.json_extract(Tournament.location, '$.continent').in_(continent))
+        if country:
+            query = query.where(func.json_extract(Tournament.location, '$.country').in_(country))
+        if city:
+            query = query.where(func.json_extract(Tournament.location, '$.city').in_(city))
+        if date_start:
+            query = query.where(Tournament.date >= date_start)
+        if date_end:
+            query = query.where(Tournament.date <= date_end)
+        if player_count_min is not None:
+            query = query.where(Tournament.player_count >= player_count_min)
+        if player_count_max is not None:
+            query = query.where(Tournament.player_count <= player_count_max)
             
         # Apply sorting
         if sort_metric == "Players":
