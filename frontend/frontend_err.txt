@@ -1,0 +1,22 @@
+Error: CORS error: No 'Access-Control-Allow-Origin' header is present on the requested resource
+    at universal_fetch (C:/Users/franc/Documents/m3tacron-issue-37/frontend/node_modules/@sveltejs/kit/src/runtime/server/page/load_data.js:319:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+Error: CORS error: No 'Access-Control-Allow-Origin' header is present on the requested resource
+    at universal_fetch (C:/Users/franc/Documents/m3tacron-issue-37/frontend/node_modules/@sveltejs/kit/src/runtime/server/page/load_data.js:319:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[1;31m[404] GET /favicon.ico[0m
+
+[1;31m[500] GET /cards[0m
+TypeError: wr.toFixed is not a function
+    at $$render_inner (src\routes\cards\+page.svelte:347:46)
+    at eval (src\routes\cards\+page.svelte:428:5)
+    at Renderer.child (node_modules\svelte\src\internal\server\renderer.js:214:18)
+    at Renderer.component (node_modules\svelte\src\internal\server\renderer.js:319:22)
+    at _page (src\routes\cards\+page.svelte:26:13)
+    at C:\Users\franc\Documents\m3tacron-issue-37\frontend\.svelte-kit\generated\root.svelte:44:17
+    at C:\Users\franc\Documents\m3tacron-issue-37\frontend\src\routes\+layout.svelte:28:12
+    at Renderer.child (node_modules\svelte\src\internal\server\renderer.js:214:18)
+    at Renderer.component (node_modules\svelte\src\internal\server\renderer.js:319:22)
+    at _layout (src\routes\+layout.svelte:14:13)
+Avoid calling `fetch` eagerly during server-side rendering — put your `fetch` calls inside `onMount` or a `load` function instead
