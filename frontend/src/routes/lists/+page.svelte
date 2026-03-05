@@ -63,8 +63,6 @@
             LIST FILTERS
         </span>
 
-        <ShipChassisFilter {selectedFactions} />
-
         <SortSelector
             bind:sortBy
             bind:sortDirection
@@ -117,6 +115,8 @@
                 {/each}
             </div>
         </div>
+
+        <ShipChassisFilter {selectedFactions} />
     </div>
 {/snippet}
 

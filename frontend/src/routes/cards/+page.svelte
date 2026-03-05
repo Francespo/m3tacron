@@ -127,12 +127,6 @@
             <AdvancedFilters isPilotsTab={data.tab === "pilots"} />
         {/if}
 
-        {#if data.tab === "pilots"}
-            <div class="mt-4">
-                <ShipChassisFilter {selectedFactions} />
-            </div>
-        {/if}
-
         <SortSelector
             bind:sortBy
             bind:sortDirection
@@ -189,6 +183,10 @@
                 {/each}
             </div>
         </div>
+
+        {#if data.tab === "pilots"}
+            <ShipChassisFilter {selectedFactions} />
+        {/if}
     </div>
 {/snippet}
 
