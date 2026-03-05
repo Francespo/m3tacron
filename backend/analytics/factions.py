@@ -8,7 +8,21 @@ from ..models import PlayerResult, Tournament
 from ..data_structures.factions import Faction, get_faction_char
 from ..data_structures.formats import Format
 from ..data_structures.data_source import DataSource
-from .filters import filter_query, get_active_formats
+from .filters import filter_query, get_active_formats, apply_tournament_filters
+
+def get_faction_char(xws: str) -> str:
+    '''Fallback for missing ui_utils faction character mapping'''
+    mapping = {
+        "rebelalliance": "!",
+        "galacticempire": '"',
+        "scumandvillainy": "#",
+        "resistance": "$",
+        "firstorder": "%",
+        "galacticrepublic": "&",
+        "separatistalliance": "'",
+    }
+    return mapping.get(xws, "")
+
 
 def aggregate_faction_stats(
     filters: dict,
@@ -46,6 +60,10 @@ def aggregate_faction_stats(
             t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
             
             if allowed_formats is not None and t_fmt not in allowed_formats:
+                continue
+
+            # Location Filtering
+            if not apply_tournament_filters(tournament, filters):
                 continue
                 
             xws = result.list_json
@@ -148,10 +166,10 @@ def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats:
             "real_name": f["name"], # Keep original for reference if needed
             "xws": f["xws"],
             "icon_char": get_faction_char(f["xws"]),
+            "win_rate": f["win_rate"],
+            "popularity": f["popularity"],
             "games": f["games"],
             "wins": f["wins"],
-            "win_rate": round((f["wins"] / f["games"]) * 100, 1) if f["games"] > 0 else 0.0,
-            "popularity": f["popularity"],
             "percentage": percentage
         })
     

@@ -55,7 +55,9 @@
                           ? "text-orange-400"
                           : "text-gray-400"}
                 >
-                    [{list.win_rate.toFixed(1)}% WR]
+                    [{list.win_rate === "NA"
+                        ? "NA"
+                        : Number(list.win_rate ?? 0).toFixed(1)}% WR]
                 </span>
                 <span class="text-secondary tracking-tight">
                     ({list.games} G)
