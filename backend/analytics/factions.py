@@ -149,6 +149,9 @@ def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats:
             "xws": f["xws"],
             "icon_char": get_faction_char(f["xws"]),
             "games": f["games"],
+            "wins": f["wins"],
+            "win_rate": round((f["wins"] / f["games"]) * 100, 1) if f["games"] > 0 else 0.0,
+            "popularity": f["popularity"],
             "percentage": percentage
         })
     
