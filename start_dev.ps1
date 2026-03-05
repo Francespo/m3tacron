@@ -34,7 +34,7 @@ Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "Starting servers in THIS terminal. Press CTRL+C to stop both." -ForegroundColor Yellow
 
 # Start Backend in the background without a new window
-$backendProcess = Start-Process powershell -ArgumentList "-NoProfile -Command `"& .\.venv\Scripts\Activate.ps1; uvicorn backend.main:app --reload --host 0.0.0.0 --port $actualBport`"" -NoNewWindow -PassThru
+$backendProcess = Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList "-NoProfile -Command `"& .\.venv\Scripts\Activate.ps1; uvicorn backend.main:app --reload --host 0.0.0.0 --port $actualBport`"" -NoNewWindow -PassThru
 
 # Ensure the backend process is killed when the script stops or is interrupted
 try {

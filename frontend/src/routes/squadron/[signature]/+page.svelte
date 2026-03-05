@@ -130,7 +130,7 @@
                             class="text-lg font-mono font-bold"
                             style="color: {getWinRateColor(stats.win_rate)}"
                         >
-                            {stats.win_rate.toFixed(1)}%
+                            {stats.win_rate === "NA" ? "NA" : Number(stats.win_rate ?? 0).toFixed(1)}%
                         </span>
                     </div>
                 </div>
@@ -208,7 +208,7 @@
                                 class="text-right font-mono text-xs font-bold"
                                 style="color: {getWinRateColor(p.win_rate)}"
                             >
-                                {p.win_rate.toFixed(1)}%
+                                {p.win_rate === "NA" ? "NA" : Number(p.win_rate ?? 0).toFixed(1)}%
                             </div>
                         </a>
                     {/each}
@@ -264,7 +264,7 @@
                                     class="text-sm font-mono font-bold"
                                     style="color: {getWinRateColor(
                                         list.win_rate,
-                                    )}">{list.win_rate.toFixed(1)}%</span
+                                    )}">{list.win_rate === "NA" ? "NA" : Number(list.win_rate ?? 0).toFixed(1)}%</span
                                 >
                             </div>
                             <div class="flex flex-col">

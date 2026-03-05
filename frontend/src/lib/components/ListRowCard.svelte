@@ -48,14 +48,18 @@
                 >
                     {list.points ?? 0} pts
                     {#if list.original_points && list.original_points !== list.points}
-                        <span class="text-secondary/60 text-[10px] ml-1">(orig. {list.original_points})</span>
+                        <span class="text-secondary/60 text-[10px] ml-1"
+                            >(orig. {list.original_points})</span
+                        >
                     {/if}
                 </span>
                 <span
                     class="px-1.5 py-0.5 rounded text-[11px] font-mono font-bold"
                     style="background-color: {wrColor}22; color: {wrColor};"
                 >
-                    {(list.win_rate ?? 0).toFixed(1)}% WR
+                    {list.win_rate === "NA"
+                        ? "NA"
+                        : Number(list.win_rate ?? 0).toFixed(1) + "%"} WR
                 </span>
                 {#if isXwa}
                     <span
