@@ -19,9 +19,13 @@
 
         const targetUrl = `/api/meta-snapshot?data_source=${source}`;
         fetch(targetUrl)
-            .then((res) => {
-                if (!res.ok)
-                    throw new Error(`HTTP error! status: ${res.status}`);
+            .then(async (res) => {
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(
+                        `HTTP error! status: ${res.status}, Details: ${errData.error || "unknown"}`,
+                    );
+                }
                 return res.json();
             })
             .then((data) => {
@@ -200,13 +204,11 @@
     <header
         class="mb-8 flex flex-col md:flex-row md:items-start justify-between gap-4 w-full"
     >
-        <div
-            class="pl-4 border-l-4 border-primary pb-2 pr-4 bg-gradient-to-r from-[rgba(255,255,255,0.03)] to-transparent max-w-fit"
-        >
+        <div>
             <h1
                 class="text-3xl font-mono uppercase tracking-widest font-bold text-primary"
             >
-                M3taCron<br /><span class="text-secondary text-2xl font-light"
+                M3taCron <span class="text-secondary text-2xl font-light"
                     >Dashboard</span
                 >
             </h1>
