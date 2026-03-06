@@ -57,6 +57,10 @@ def aggregate_ship_stats(
         allowed_date_end = filters.get("date_end") or None
 
         
+        # Location Filters
+        allowed_continents = set(filters.get("continent") or [])
+        allowed_countries = set(filters.get("country") or [])
+        allowed_cities = set(filters.get("city") or [])
         # Build ship stats: key = (ship_xws, faction_xws)
         # Value = {ship_name, ship_xws, faction, faction_xws, wins, games, lists}
         ship_stats: dict[tuple[str, str], dict] = {}
@@ -131,10 +135,6 @@ def aggregate_ship_stats(
             wins = s_wins + c_wins
             games = wins + s_losses + c_losses + s_draws + c_draws
 
-            
-            # Track which ships appeared in this list
-            list_id = (result.tournament_id, result.player_name)
-            ships_in_list = set()
             
             # Track which ships appeared in this list
             list_id = (result.tournament_id, result.player_name)

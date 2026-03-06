@@ -12,6 +12,8 @@
         options: { value: string; label: string }[];
     } = $props();
 
+    let sortedOptions = $derived([...options].sort((a,b) => a.label.localeCompare(b.label)));
+
     function toggleDirection() {
         sortDirection = sortDirection === "desc" ? "asc" : "desc";
     }
@@ -26,7 +28,7 @@
             class="flex-1 bg-black border border-border-dark rounded px-2 py-1.5 text-xs font-mono text-primary focus:border-primary focus:outline-none"
             bind:value={sortBy}
         >
-            {#each options as option}
+            {#each sortedOptions as option}
                 <option value={option.value}>{option.label}</option>
             {/each}
         </select>
@@ -49,10 +51,8 @@
                     ? 'rotate-180'
                     : ''}"
             >
-                <path d="m3 16 4 4 4-4" />
-                <path d="M7 20V4" />
-                <path d="m21 8-4-4-4 4" />
-                <path d="M17 4v16" />
+                <path d="M12 5v14" />
+                <path d="m19 12-7 7-7-7" />
             </svg>
         </button>
     </div>

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { getFactionColor } from "$lib/data/factions";
+    import { getFactionColor, getFactionLabel } from "$lib/data/factions";
 
     let { list } = $props<{ list: any }>();
 
@@ -41,7 +41,7 @@
                     class="text-sm font-bold font-mono tracking-wide"
                     style="color: {fColor};"
                 >
-                    {list.faction}
+                    {getFactionLabel(list.faction_key)}
                 </span>
             </div>
 
