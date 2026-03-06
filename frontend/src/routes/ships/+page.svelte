@@ -1,10 +1,13 @@
 <script lang="ts">
     import FilterPanel from "$lib/components/FilterPanel.svelte";
     import SortSelector from "$lib/components/SortSelector.svelte";
+    import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
     import {
         getFactionColor,
         getFactionChar,
+        getFactionLabel,
         getWinRateColor,
+        ALL_FACTIONS,
     } from "$lib/data/factions";
     import { goto } from "$app/navigation";
     import { filters } from "$lib/stores/filters.svelte";
@@ -16,6 +19,8 @@
     let page = $state(1);
     let sortBy = $state("Popularity");
     let sortDirection = $state("desc");
+    let selectedFactions = $state<string[]>([]);
+    let factionOpen = $state(false);
     const size = 50;
 
     // Trigger URL updates on filter changes
@@ -26,9 +31,10 @@
         params.set("data_source", filters.dataSource);
         params.set("sort_metric", sortBy);
         params.set("sort_direction", sortDirection);
-        if (filters.searchName) params.set("search", filters.searchName);
         for (const format of filters.selectedFormats)
             params.append("formats", format);
+        for (const f of selectedFactions) params.append("factions", f);
+        for (const s of filters.selectedShips) params.append("ships", s);
         for (const p of filters.selectedPlatforms)
             params.append("platforms", p);
         for (const c of filters.selectedContinents)
@@ -51,6 +57,14 @@
     function nextPage() {
         if (page * size < total) page++;
     }
+
+    function toggleFaction(f: string) {
+        if (selectedFactions.includes(f)) {
+            selectedFactions = selectedFactions.filter((x) => x !== f);
+        } else {
+            selectedFactions = [...selectedFactions, f];
+        }
+    }
 </script>
 
 {#snippet shipFilters()}
@@ -69,6 +83,66 @@
                 { value: "Name", label: "Name" },
             ]}
         />
+
+        <!-- Faction -->
+        <div class="border-b border-border-dark mt-1">
+            <button
+                class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary transition-colors"
+                onclick={() => (factionOpen = !factionOpen)}
+            >
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-mono font-bold tracking-wider">
+                        Faction
+                    </span>
+                    {#if selectedFactions.length > 0}
+                        <span
+                            class="text-[10px] bg-white/10 text-secondary px-1.5 rounded-full font-mono"
+                        >
+                            {selectedFactions.length}
+                        </span>
+                    {/if}
+                </div>
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="transition-transform {factionOpen
+                        ? 'rotate-180'
+                        : ''}"><path d="m6 9 6 6 6-6" /></svg
+                >
+            </button>
+
+            {#if factionOpen}
+                <div class="pb-3 space-y-1 max-h-[180px] overflow-y-auto pl-2">
+                    {#each ALL_FACTIONS as f}
+                        <label
+                            class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
+                        >
+                            <input
+                                type="checkbox"
+                                class="rounded border-border-dark bg-black w-3 h-3"
+                                checked={selectedFactions.includes(f)}
+                                onchange={() => toggleFaction(f)}
+                            />
+                            <span
+                                class="font-xwing text-sm"
+                                style="color: {getFactionColor(f)};"
+                                >{getFactionChar(f)}</span
+                            >
+                            <span class="font-mono">{getFactionLabel(f)}</span>
+                        </label>
+                    {/each}
+                </div>
+            {/if}
+        </div>
+
+        <ShipChassisFilter {selectedFactions} />
     </div>
 {/snippet}
 
@@ -86,7 +160,7 @@
         <!-- Ships Heatmap Grid -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {#each items as ship}
-                {@const wr = ship.win_rate ?? 0}
+                {@const wr = Number(ship.win_rate ?? 0)}
                 {@const wrColor = getWinRateColor(wr)}
                 {@const games = ship.games ?? 0}
                 {@const lists = ship.lists ?? ship.count ?? 0}
@@ -97,7 +171,7 @@
 
                 <a href="/ship/{ship.ship_xws || ''}" class="block group">
                     <div
-                        class="relative bg-terminal-panel border border-border-dark rounded-md p-4 flex flex-col items-center gap-2 hover:border-secondary/50 transition-all group"
+                        class="relative bg-terminal-panel border border-border-dark rounded-md p-4 flex flex-col items-center gap-2 hover:border-secondary/50 group-hover:scale-[1.03] group-hover:-translate-y-1 transition-all duration-200"
                         style="box-shadow: 0 0 20px {factionColor}{Math.round(
                             glowOpacity * 255,
                         )
@@ -115,7 +189,7 @@
                         <!-- Ship Icon (from X-Wing ship font via CSS pseudo-element) -->
                         <i
                             class="xwing-miniatures-ship xwing-miniatures-ship-{ship.ship_xws ||
-                                ''} group-hover:scale-105 transition-transform"
+                                ''} transition-transform"
                             style="color: {factionColor}; opacity: 0.9; font-size: 10rem; line-height: 1;"
                         ></i>
 

@@ -55,6 +55,7 @@ def aggregate_ship_stats(
         allowed_formats = filters.get("allowed_formats") or None
         allowed_date_start = filters.get("date_start") or None
         allowed_date_end = filters.get("date_end") or None
+
         
         # Location Filters
         allowed_continents = set(filters.get("continent") or [])
@@ -134,10 +135,6 @@ def aggregate_ship_stats(
             wins = s_wins + c_wins
             games = wins + s_losses + c_losses + s_draws + c_draws
 
-            
-            # Track which ships appeared in this list
-            list_id = (result.tournament_id, result.player_name)
-            ships_in_list = set()
             
             # Track which ships appeared in this list
             list_id = (result.tournament_id, result.player_name)
@@ -234,6 +231,12 @@ def aggregate_ship_stats(
         ship_filter = filters.get("ship", [])
         if ship_filter:
             results = [r for r in results if r["ship_xws"] in ship_filter]
+            
+        # Apply search filter (filter by ship name)
+        search_filter = filters.get("search_name")
+        if search_filter:
+            search_str = search_filter.lower()
+            results = [r for r in results if search_str in r["ship_name"].lower()]
         
         # Sorting
         reverse = (sort_direction == SortDirection.DESCENDING)
