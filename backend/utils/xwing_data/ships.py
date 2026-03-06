@@ -25,17 +25,23 @@ def load_all_ships(source: DataSource = DataSource.XWA) -> dict:
                 
                 xws_id = ship_data.get("xws", "")
                 if xws_id:
-                    # Basic ship info
-                    all_ships[xws_id] = {
-                        "name": ship_data.get("name", "Unknown Ship"),
-                        "xws": xws_id,
-                        "faction": ship_data.get("faction", ""),
-                        "icon": ship_data.get("icon", ""),
-                        "size": ship_data.get("size", "Small"),
-                        "stats": ship_data.get("stats", []),
-                        "actions": ship_data.get("actions", []),
-                        "maneuvers": ship_data.get("maneuvers", []),
-                    }
+                    faction_val = ship_data.get("faction", "")
+                    if xws_id not in all_ships:
+                        # Basic ship info
+                        all_ships[xws_id] = {
+                            "name": ship_data.get("name", "Unknown Ship"),
+                            "xws": xws_id,
+                            "faction": faction_val,
+                            "factions": [faction_val] if faction_val else [],
+                            "icon": ship_data.get("icon", ""),
+                            "size": ship_data.get("size", "Small"),
+                            "stats": ship_data.get("stats", []),
+                            "actions": ship_data.get("actions", []),
+                            "maneuvers": ship_data.get("maneuvers", []),
+                        }
+                    else:
+                        if faction_val and faction_val not in all_ships[xws_id]["factions"]:
+                            all_ships[xws_id]["factions"].append(faction_val)
             except Exception:
                 continue
             
