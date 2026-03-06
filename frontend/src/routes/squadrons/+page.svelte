@@ -2,6 +2,7 @@
     import FilterPanel from "$lib/components/FilterPanel.svelte";
     import ActiveChips from "$lib/components/ActiveChips.svelte";
     import SquadronRowCard from "$lib/components/SquadronRowCard.svelte";
+    import SortSelector from "$lib/components/SortSelector.svelte";
     import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
     import {
         ALL_FACTIONS,
@@ -15,7 +16,8 @@
     let { data } = $props();
 
     let page = $state(1);
-    let sortBy = $state("games");
+    let sortBy = $state("Games");
+    let sortDirection = $state("desc");
     let selectedFactions = $state<string[]>([]);
     let factionOpen = $state(false);
 
@@ -23,12 +25,13 @@
     let items = $derived(data.items ?? []);
     let total = $derived(data.total ?? 0);
 
-    // Re-fetch when filters change
+    // Re-fetch when filters change (URL synchronization)
     $effect(() => {
         const params = new URLSearchParams();
         params.set("page", String(page - 1));
         params.set("size", String(size));
         params.set("sort_metric", sortBy);
+        params.set("sort_direction", sortDirection);
         params.set("data_source", filters.dataSource);
         for (const f of selectedFactions) params.append("factions", f);
         for (const s of filters.selectedShips) params.append("ships", s);
@@ -63,20 +66,15 @@
         </span>
 
         <!-- Sort By -->
-        <div class="space-y-1">
-            <span
-                class="text-xs font-mono font-bold tracking-wider text-secondary"
-                >Sort By</span
-            >
-            <select
-                class="w-full bg-black border border-border-dark rounded px-2 py-1.5 text-xs font-mono text-primary focus:border-primary focus:outline-none"
-                bind:value={sortBy}
-            >
-                <option value="games">Games (Most)</option>
-                <option value="win_rate">Win Rate (Best)</option>
-                <option value="popularity">Popularity</option>
-            </select>
-        </div>
+        <SortSelector
+            bind:sortBy
+            bind:sortDirection
+            options={[
+                { value: "Games", label: "Games (Most)" },
+                { value: "Win Rate", label: "Win Rate (Best)" },
+                { value: "Popularity", label: "Popularity" },
+            ]}
+        />
 
         <!-- Faction Checkboxes -->
         <div class="border-b border-border-dark mt-1">
