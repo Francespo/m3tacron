@@ -18,6 +18,7 @@ def get_squadrons(
     
     formats: Optional[List[str]] = Query(None),
     factions: Optional[List[str]] = Query(None),
+    ships: Optional[List[str]] = Query(None),
     min_games: int = Query(0, ge=0),
 ):
     try:
@@ -28,6 +29,8 @@ def get_squadrons(
     filters = {}
     if formats:
         filters["allowed_formats"] = formats
+    if ships:
+        filters["ships"] = ships
         
     raw_data = aggregate_squadron_stats(filters, sort_metric=SortingCriteria.GAMES, sort_direction=SortDirection.DESCENDING, data_source=ds_enum)
     
