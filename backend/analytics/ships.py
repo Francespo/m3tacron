@@ -56,14 +56,10 @@ def aggregate_ship_stats(
         allowed_date_start = filters.get("date_start") or None
         allowed_date_end = filters.get("date_end") or None
         
-<<<<<<< Updated upstream
-
-=======
         # Location Filters
         allowed_continents = set(filters.get("continent") or [])
         allowed_countries = set(filters.get("country") or [])
         allowed_cities = set(filters.get("city") or [])
->>>>>>> Stashed changes
         
         # Build ship stats: key = (ship_xws, faction_xws)
         # Value = {ship_name, ship_xws, faction, faction_xws, wins, games, lists}
