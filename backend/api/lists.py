@@ -17,6 +17,7 @@ def get_lists(
     
     formats: Optional[List[str]] = Query(None),
     factions: Optional[List[str]] = Query(None),
+    ships: Optional[List[str]] = Query(None),
     min_games: int = Query(0, ge=0),
     points_min: int = Query(0, ge=0),
     points_max: int = Query(200, ge=0),
@@ -43,6 +44,7 @@ def get_lists(
         "date_end": date_end,
         "player_count_min": player_count_min,
         "player_count_max": player_count_max,
+        "ships": ships,
     }
     if formats:
         filters["allowed_formats"] = formats

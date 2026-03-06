@@ -10,19 +10,24 @@ router = APIRouter(prefix="/api/ships", tags=["Ships"])
 
 @router.get("/all")
 def get_all_ships(data_source: str = Query("xwa")):
+    """Return every chassis once, with all playable factions merged."""
     ds_enum = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
     ships_data = load_all_ships(ds_enum)
-    
-    # Format for filter UI: id (xws), name, factions
-    results = []
+
+    # Extract ships directly with all their factions
+    results: list[dict] = []
     for xws, info in ships_data.items():
+        factions_xws = [
+            f.lower().replace(" ", "") if f else "unknown" 
+            for f in info.get("factions", [])
+        ]
         results.append({
             "xws": xws,
             "name": info.get("name", xws),
-            "factions": info.get("factions", []),
+            "factions": list(set(factions_xws)),
         })
-    # Sort alphabetically by name
-    results.sort(key=lambda x: x["name"])
+
+    results = sorted(results, key=lambda x: x["name"])
     return results
 
 @router.get("", response_model=PaginatedShipsResponse)
@@ -32,6 +37,7 @@ def get_ships(
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Popularity"),
     sort_direction: str = Query("desc"),
+    search: Optional[str] = Query(None),
     
     formats: Optional[List[str]] = Query(None),
     factions: Optional[List[str]] = Query(None),
@@ -65,6 +71,7 @@ def get_ships(
         "continent": continent,
         "country": country,
         "city": city,
+        "search_name": search,
         "platforms": platforms,
         "date_start": date_start,
         "date_end": date_end,

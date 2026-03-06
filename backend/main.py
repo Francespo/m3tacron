@@ -50,6 +50,7 @@ def on_startup():
 def read_root():
     return {"status": "Backend is running"}
 
+
 @app.get("/api/meta-snapshot", response_model=MetaSnapshotResponse)
 def get_snapshot(data_source: str = Query("xwa", description="Data source: xwa or legacy")):
     ds_enum = DataSource.XWA if data_source == "xwa" else DataSource.LEGACY

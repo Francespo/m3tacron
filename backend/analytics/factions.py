@@ -24,6 +24,24 @@ def get_faction_char(xws: str) -> str:
     return mapping.get(xws, "")
 
 
+
+# Faction icon chars (X-Wing Miniatures Font) — mirrors frontend factions.ts
+_FACTION_CHARS = {
+    "rebelalliance": "!",
+    "galacticempire": "@",
+    "scumandvillainy": "#",
+    "resistance": "!",
+    "firstorder": "+",
+    "galacticrepublic": "/",
+    "separatistalliance": ".",
+    "unknown": "?",
+}
+
+def get_faction_char(faction_xws: str) -> str:
+    """Return the X-Wing font character for a faction XWS identifier."""
+    return _FACTION_CHARS.get(faction_xws, "?")
+
+
 def aggregate_faction_stats(
     filters: dict,
     data_source: DataSource = DataSource.XWA
