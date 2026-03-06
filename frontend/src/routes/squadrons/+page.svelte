@@ -2,21 +2,43 @@
     import FilterPanel from "$lib/components/FilterPanel.svelte";
     import ActiveChips from "$lib/components/ActiveChips.svelte";
     import SquadronRowCard from "$lib/components/SquadronRowCard.svelte";
+    import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
     import {
         ALL_FACTIONS,
         getFactionLabel,
         getFactionColor,
+        getFactionChar,
     } from "$lib/data/factions";
+    import { goto } from "$app/navigation";
+    import { filters } from "$lib/stores/filters.svelte";
 
     let { data } = $props();
 
     let page = $state(1);
     let sortBy = $state("games");
     let selectedFactions = $state<string[]>([]);
+    let factionOpen = $state(false);
 
     const size = 20;
     let items = $derived(data.items ?? []);
     let total = $derived(data.total ?? 0);
+
+    // Re-fetch when filters change
+    $effect(() => {
+        const params = new URLSearchParams();
+        params.set("page", String(page - 1));
+        params.set("size", String(size));
+        params.set("sort_metric", sortBy);
+        params.set("data_source", filters.dataSource);
+        for (const f of selectedFactions) params.append("factions", f);
+        for (const s of filters.selectedShips) params.append("ships", s);
+
+        goto(`?${params.toString()}`, {
+            keepFocus: true,
+            noScroll: true,
+            replaceState: true,
+        });
+    });
 
     function prevPage() {
         if (page > 1) page--;
@@ -57,33 +79,65 @@
         </div>
 
         <!-- Faction Checkboxes -->
-        <div class="space-y-1">
-            <span
-                class="text-xs font-mono font-bold tracking-wider text-secondary"
-                >Faction</span
+        <div class="border-b border-border-dark mt-1">
+            <button
+                class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary transition-colors"
+                onclick={() => (factionOpen = !factionOpen)}
             >
-            <div class="space-y-1 max-h-[200px] overflow-y-auto">
-                {#each ALL_FACTIONS as f}
-                    <label
-                        class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
-                    >
-                        <input
-                            type="checkbox"
-                            class="rounded border-border-dark bg-black w-3 h-3"
-                            checked={selectedFactions.includes(f)}
-                            onchange={() => toggleFaction(f)}
-                        />
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-mono font-bold tracking-wider">
+                        Faction
+                    </span>
+                    {#if selectedFactions.length > 0}
                         <span
-                            class="font-xwing text-sm"
-                            style="color: {getFactionColor(f)};"
+                            class="text-[10px] bg-white/10 text-secondary px-1.5 rounded-full font-mono"
                         >
-                            {#if f === "rebelalliance"}!{:else if f === "galacticempire"}@{:else if f === "scumandvillainy"}#{:else if f === "resistance"}!{:else if f === "firstorder"}+{:else if f === "galacticrepublic"}/{:else if f === "separatistalliance"}.{/if}
+                            {selectedFactions.length}
                         </span>
-                        <span class="font-mono">{getFactionLabel(f)}</span>
-                    </label>
-                {/each}
-            </div>
+                    {/if}
+                </div>
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="transition-transform {factionOpen
+                        ? 'rotate-180'
+                        : ''}"><path d="m6 9 6 6 6-6" /></svg
+                >
+            </button>
+
+            {#if factionOpen}
+                <div class="pb-3 space-y-1 max-h-[200px] overflow-y-auto pl-2">
+                    {#each ALL_FACTIONS as f}
+                        <label
+                            class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
+                        >
+                            <input
+                                type="checkbox"
+                                class="rounded border-border-dark bg-black w-3 h-3"
+                                checked={selectedFactions.includes(f)}
+                                onchange={() => toggleFaction(f)}
+                            />
+                            <span
+                                class="font-xwing text-sm"
+                                style="color: {getFactionColor(f)};"
+                            >
+                                {getFactionChar(f)}
+                            </span>
+                            <span class="font-mono">{getFactionLabel(f)}</span>
+                        </label>
+                    {/each}
+                </div>
+            {/if}
         </div>
+
+        <ShipChassisFilter {selectedFactions} />
     </div>
 {/snippet}
 
