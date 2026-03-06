@@ -7,8 +7,9 @@ from .models import Tournament, PlayerResult, Match
 from dotenv import load_dotenv
 load_dotenv()
 
-# Default to local sqlite if no DATABASE_URL is provided (e.g. via GitHub Secrets)
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///test.db")
+# Default to local sqlite if no DATABASE_URL is provided
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'test.db')}")
 
 # Force PostgreSQL compatibility if using Supabase (SQLModel needs 'postgresql+psycopg2://' or similar often)
 if DATABASE_URL.startswith("postgres://"):

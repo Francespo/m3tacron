@@ -34,6 +34,14 @@
             params.append("formats", format);
         for (const f of selectedFactions) params.append("factions", f);
         for (const s of filters.selectedShips) params.append("ships", s);
+        for (const p of filters.selectedPlatforms)
+            params.append("platforms", p);
+        for (const c of filters.selectedContinents)
+            params.append("continent", c);
+        for (const c of filters.selectedCountries) params.append("country", c);
+        for (const c of filters.selectedCities) params.append("city", c);
+        if (filters.dateStart) params.set("date_start", filters.dateStart);
+        if (filters.dateEnd) params.set("date_end", filters.dateEnd);
 
         goto(`?${params.toString()}`, {
             keepFocus: true,
@@ -169,7 +177,9 @@
                                 <span
                                     class="text-xs font-mono font-bold"
                                     style="color: {wrColor};"
-                                    >{wr.toFixed(1)}%</span
+                                    >{wr === "NA"
+                                        ? "NA"
+                                        : Number(wr).toFixed(1) + "%"}</span
                                 >
                                 <span
                                     class="text-[9px] font-mono text-secondary block"

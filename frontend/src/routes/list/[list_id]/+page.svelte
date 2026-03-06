@@ -94,7 +94,7 @@
                             class="text-lg font-mono font-bold"
                             style="color: {getWinRateColor(stats.win_rate)}"
                         >
-                            {stats.win_rate.toFixed(1)}%
+                            {stats.win_rate === "NA" ? "NA" : Number(stats.win_rate ?? 0).toFixed(1)}%
                         </span>
                     </div>
 
