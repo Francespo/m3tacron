@@ -66,80 +66,108 @@
     let selectedCount = $derived(filters.selectedShips.length);
 </script>
 
-<div class="space-y-1 mt-3">
-    <div class="flex items-center justify-between">
-        <span
-            class="text-xs font-mono font-bold tracking-wider text-secondary uppercase"
-        >
-            Ship Chassis
-        </span>
-        {#if selectedCount > 0}
-            <span
-                class="text-[10px] bg-white/10 text-secondary px-1.5 rounded-full font-mono"
-                >{selectedCount}</span
-            >
-        {/if}
-    </div>
-
-    <div class="space-y-2">
-        <!-- Quick search within chassis list -->
-        <input
-            type="text"
-            placeholder="Search ships..."
-            class="w-full bg-black border border-border-dark rounded px-2 py-1 text-xs font-mono text-primary placeholder-secondary focus:border-primary focus:outline-none mt-1"
-            bind:value={search}
-        />
-
-        <!-- Scrollable chassis list -->
-        <div
-            class="max-h-[180px] overflow-y-auto pr-1 space-y-1 chassis-scrollbar"
-        >
-            {#if isLoading && ships.length === 0}
-                <div class="text-xs text-secondary font-mono">Loading...</div>
-            {:else if filteredShips.length === 0}
-                <div class="text-xs text-secondary font-mono">
-                    No ships match.
-                </div>
-            {:else}
-                {#each filteredShips as ship}
-                    <label
-                        class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary group"
-                    >
-                        <!-- Toggle checkbox -->
-                        <input
-                            type="checkbox"
-                            class="rounded border-border-dark bg-black w-3 h-3 flex-shrink-0"
-                            checked={filters.selectedShips.includes(ship.xws)}
-                            onchange={() => toggleShip(ship.xws)}
-                        />
-
-                        <!-- Ship icon (X-Wing miniatures ship font) - Uncolored -->
-                        <i
-                            class="xwing-miniatures-ship xwing-miniatures-ship-{ship.xws} text-sm flex-shrink-0"
-                        ></i>
-
-                        <!-- Ship name -->
-                        <span class="font-mono truncate flex-grow text-xs">
-                            {ship.name}
-                        </span>
-
-                        <!-- Faction symbols (colored) -->
-                        <span class="flex items-center gap-0.5 flex-shrink-0">
-                            {#each ship.factions as faction}
-                                <span
-                                    class="font-xwing text-sm drop-shadow-sm opacity-90"
-                                    style="color: {getFactionColor(faction)};"
-                                    title={getFactionLabel(faction)}
-                                >
-                                    {getFactionChar(faction)}
-                                </span>
-                            {/each}
-                        </span>
-                    </label>
-                {/each}
+<div class="border-b border-border-dark mt-1">
+    <button
+        class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary transition-colors"
+        onclick={() => (isOpen = !isOpen)}
+    >
+        <div class="flex items-center gap-2">
+            <span class="text-xs font-mono font-bold tracking-wider">
+                Ship Chassis
+            </span>
+            {#if selectedCount > 0}
+                <span
+                    class="text-[10px] bg-white/10 text-secondary px-1.5 rounded-full font-mono"
+                >
+                    {selectedCount}
+                </span>
             {/if}
         </div>
-    </div>
+        <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="transition-transform {isOpen ? 'rotate-180' : ''}"
+            ><path d="m6 9 6 6 6-6" /></svg
+        >
+    </button>
+
+    {#if isOpen}
+        <div class="pb-3 space-y-2 pl-2">
+            <!-- Quick search within chassis list -->
+            <input
+                type="text"
+                placeholder="Search ships..."
+                class="w-full bg-black border border-border-dark rounded px-2 py-1 text-xs font-mono text-primary placeholder-secondary focus:border-primary focus:outline-none"
+                bind:value={search}
+            />
+
+            <!-- Scrollable chassis list -->
+            <div
+                class="max-h-[180px] overflow-y-auto pr-1 space-y-1 chassis-scrollbar"
+            >
+                {#if isLoading && ships.length === 0}
+                    <div class="text-xs text-secondary font-mono">
+                        Loading...
+                    </div>
+                {:else if filteredShips.length === 0}
+                    <div class="text-xs text-secondary font-mono">
+                        No ships match.
+                    </div>
+                {:else}
+                    {#each filteredShips as ship}
+                        <label
+                            class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary group"
+                        >
+                            <!-- Toggle checkbox -->
+                            <input
+                                type="checkbox"
+                                class="rounded border-border-dark bg-black w-3 h-3 flex-shrink-0"
+                                checked={filters.selectedShips.includes(
+                                    ship.xws,
+                                )}
+                                onchange={() => toggleShip(ship.xws)}
+                            />
+
+                            <!-- Ship icon (X-Wing miniatures ship font) - Uncolored -->
+                            <i
+                                class="xwing-miniatures-ship xwing-miniatures-ship-{ship.xws} text-sm flex-shrink-0"
+                            ></i>
+
+                            <!-- Ship name -->
+                            <span class="font-mono truncate flex-grow text-xs">
+                                {ship.name}
+                            </span>
+
+                            <!-- Faction symbols (colored) -->
+                            <span
+                                class="flex items-center gap-0.5 flex-shrink-0"
+                            >
+                                {#each ship.factions as faction}
+                                    <span
+                                        class="font-xwing text-sm drop-shadow-sm opacity-90"
+                                        style="color: {getFactionColor(
+                                            faction,
+                                        )};"
+                                        title={getFactionLabel(faction)}
+                                    >
+                                        {getFactionChar(faction)}
+                                    </span>
+                                {/each}
+                            </span>
+                        </label>
+                        {#if false}{/if}
+                    {/each}
+                {/if}
+            </div>
+        </div>
+    {/if}
 </div>
 
 <style>
