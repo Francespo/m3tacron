@@ -20,6 +20,7 @@
     let sortBy = $state("Popularity");
     let sortDirection = $state("desc");
     let selectedFactions = $state<string[]>([]);
+    let factionOpen = $state(false);
     const size = 50;
 
     // Trigger URL updates on filter changes
@@ -84,31 +85,61 @@
         />
 
         <!-- Faction -->
-        <div class="space-y-1">
-            <span
-                class="text-xs font-mono font-bold tracking-wider text-secondary"
-                >Faction</span
+        <div class="border-b border-border-dark mt-1">
+            <button
+                class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary transition-colors"
+                onclick={() => (factionOpen = !factionOpen)}
             >
-            <div class="space-y-1 max-h-[180px] overflow-y-auto">
-                {#each ALL_FACTIONS as f}
-                    <label
-                        class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
-                    >
-                        <input
-                            type="checkbox"
-                            class="rounded border-border-dark bg-black w-3 h-3"
-                            checked={selectedFactions.includes(f)}
-                            onchange={() => toggleFaction(f)}
-                        />
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-mono font-bold tracking-wider">
+                        Faction
+                    </span>
+                    {#if selectedFactions.length > 0}
                         <span
-                            class="font-xwing text-sm"
-                            style="color: {getFactionColor(f)};"
-                            >{getFactionChar(f)}</span
+                            class="text-[10px] bg-white/10 text-secondary px-1.5 rounded-full font-mono"
                         >
-                        <span class="font-mono">{getFactionLabel(f)}</span>
-                    </label>
-                {/each}
-            </div>
+                            {selectedFactions.length}
+                        </span>
+                    {/if}
+                </div>
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="transition-transform {factionOpen
+                        ? 'rotate-180'
+                        : ''}"><path d="m6 9 6 6 6-6" /></svg
+                >
+            </button>
+
+            {#if factionOpen}
+                <div class="pb-3 space-y-1 max-h-[180px] overflow-y-auto pl-2">
+                    {#each ALL_FACTIONS as f}
+                        <label
+                            class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
+                        >
+                            <input
+                                type="checkbox"
+                                class="rounded border-border-dark bg-black w-3 h-3"
+                                checked={selectedFactions.includes(f)}
+                                onchange={() => toggleFaction(f)}
+                            />
+                            <span
+                                class="font-xwing text-sm"
+                                style="color: {getFactionColor(f)};"
+                                >{getFactionChar(f)}</span
+                            >
+                            <span class="font-mono">{getFactionLabel(f)}</span>
+                        </label>
+                    {/each}
+                </div>
+            {/if}
         </div>
 
         <ShipChassisFilter {selectedFactions} />

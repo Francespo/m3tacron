@@ -1,3 +1,0 @@
-﻿36	OPEN	Migrate from Reflex to SvelteKit + FastAPI	enhancement, frontend, backend	2026-03-03T11:14:38Z
-20	OPEN	Combat Probability Calculator (Simulator)	enhancement, backend	2026-02-27T12:31:58Z
-19	OPEN	Meta Trends Over Time (Chronicles)	enhancement, backend	2026-03-03T11:12:25Z
