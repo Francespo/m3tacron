@@ -32,9 +32,14 @@ def _build_filters(
     is_limited: bool = False,
     is_not_limited: bool = False,
     base_sizes: Optional[List[str]] = None,
+    platforms: Optional[List[str]] = None,
     continent: Optional[List[str]] = None,
     country: Optional[List[str]] = None,
     city: Optional[List[str]] = None,
+    date_start: Optional[str] = None,
+    date_end: Optional[str] = None,
+    player_count_min: Optional[int] = None,
+    player_count_max: Optional[int] = None,
 ) -> dict:
     
     # Base sizes mapping
@@ -68,9 +73,14 @@ def _build_filters(
         "is_limited": is_limited,
         "is_not_limited": is_not_limited,
         "base_sizes": sizes_dict,
+        "platforms": platforms,
         "continent": continent,
         "country": country,
         "city": city,
+        "date_start": date_start,
+        "date_end": date_end,
+        "player_count_min": player_count_min,
+        "player_count_max": player_count_max,
         "include_epic": False
     }
 
@@ -106,9 +116,14 @@ def get_pilots(
     is_limited: bool = Query(False),
     is_not_limited: bool = Query(False),
     base_sizes: Optional[List[str]] = Query(None),
+    platforms: Optional[List[str]] = Query(None),
     continent: Optional[List[str]] = Query(None),
     country: Optional[List[str]] = Query(None),
     city: Optional[List[str]] = Query(None),
+    date_start: Optional[str] = Query(None),
+    date_end: Optional[str] = Query(None),
+    player_count_min: Optional[int] = Query(None),
+    player_count_max: Optional[int] = Query(None),
 ):
     try:
         ds_enum = DataSource(data_source)
@@ -134,7 +149,9 @@ def get_pilots(
         agility_min=agility_min, agility_max=agility_max, attack_min=attack_min,
         attack_max=attack_max, init_min=init_min, init_max=init_max,
         is_unique=is_unique, is_limited=is_limited, is_not_limited=is_not_limited,
-        base_sizes=base_sizes, continent=continent, country=country, city=city
+        base_sizes=base_sizes, platforms=platforms, continent=continent, country=country, city=city,
+        date_start=date_start, date_end=date_end,
+        player_count_min=player_count_min, player_count_max=player_count_max
     )
 
     data = aggregate_card_stats(filters, criteria, s_dir, "pilots", ds_enum)
@@ -158,9 +175,14 @@ def get_upgrades(
     search_text: str = Query(""),
     points_min: Optional[int] = Query(None),
     points_max: Optional[int] = Query(None),
+    platforms: Optional[List[str]] = Query(None),
     continent: Optional[List[str]] = Query(None),
     country: Optional[List[str]] = Query(None),
     city: Optional[List[str]] = Query(None),
+    date_start: Optional[str] = Query(None),
+    date_end: Optional[str] = Query(None),
+    player_count_min: Optional[int] = Query(None),
+    player_count_max: Optional[int] = Query(None),
 ):
     try:
         ds_enum = DataSource(data_source)
@@ -180,7 +202,9 @@ def get_upgrades(
     filters = _build_filters(
         formats=formats, factions=factions, upgrade_types=upgrade_types,
         search_text=search_text, points_min=points_min, points_max=points_max,
-        continent=continent, country=country, city=city
+        platforms=platforms, continent=continent, country=country, city=city,
+        date_start=date_start, date_end=date_end,
+        player_count_min=player_count_min, player_count_max=player_count_max
     )
 
     data = aggregate_card_stats(filters, criteria, s_dir, "upgrades", ds_enum)
