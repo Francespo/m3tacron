@@ -1,8 +1,52 @@
 <script lang="ts">
     import { browser } from "$app/environment";
+    import { filters } from "$lib/stores/filters.svelte";
+    import ContentSourceToggle from "$lib/components/ContentSourceToggle.svelte";
 
-    let { data } = $props();
-    let meta = $derived(data.data);
+    let meta = $state<any>(null);
+    let loading = $state(true);
+    let error = $state(false);
+    let errorMsg = $state("");
+
+    $effect(() => {
+        if (!browser) return;
+        const source = filters.dataSource;
+        let isCancelled = false;
+
+        loading = true;
+        error = false;
+        errorMsg = "";
+
+        const targetUrl = `/api/meta-snapshot?data_source=${source}`;
+        fetch(targetUrl)
+            .then(async (res) => {
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(
+                        `HTTP error! status: ${res.status}, Details: ${errData.error || "unknown"}`,
+                    );
+                }
+                return res.json();
+            })
+            .then((data) => {
+                if (!isCancelled) {
+                    meta = data;
+                    loading = false;
+                }
+            })
+            .catch((err) => {
+                console.error("Dashboard Fetch Error:", err);
+                if (!isCancelled) {
+                    error = true;
+                    errorMsg = `URL: ${targetUrl} | Error: ${err.message || String(err)}`;
+                    loading = false;
+                }
+            });
+
+        return () => {
+            isCancelled = true;
+        };
+    });
 
     function getFactionColor(xws: string) {
         const colors: Record<string, string> = {
@@ -157,21 +201,35 @@
 </script>
 
 <div class="min-h-screen p-6 font-sans">
-    <header class="mb-8 pl-4 border-l-4 border-primary">
-        <h1 class="text-3xl font-mono uppercase tracking-widest font-bold">
-            M3taCron Dashboard
-        </h1>
-        <p class="text-secondary text-sm font-mono mt-2">
-            Data Source: XWA / Analysis Mode
-        </p>
+    <header
+        class="mb-8 flex flex-col md:flex-row md:items-start justify-between gap-4 w-full"
+    >
+        <div>
+            <h1
+                class="text-3xl font-mono uppercase tracking-widest font-bold text-primary"
+            >
+                M3taCron <span class="text-secondary text-2xl font-light"
+                    >Dashboard</span
+                >
+            </h1>
+        </div>
+        <div
+            class="w-full md:w-64 bg-terminal-panel border border-border-dark p-3 rounded-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+        >
+            <ContentSourceToggle />
+        </div>
     </header>
 
-    {#if !meta}
+    {#if loading || !meta}
         <div
             class="p-6 bg-terminal-panel border border-border-dark shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] rounded-md text-center"
         >
             <p class="text-secondary font-mono animate-pulse">
-                Loading or failed to fetch data...
+                {#if error}
+                    Failed to fetch data: {errorMsg}
+                {:else}
+                    Loading or fetching data...
+                {/if}
             </p>
         </div>
     {:else}
