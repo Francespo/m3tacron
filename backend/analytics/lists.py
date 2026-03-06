@@ -50,6 +50,16 @@ def aggregate_list_stats(
             pilots = xws.get("pilots", [])
             if not pilots: continue
             
+            req_ships = filters.get("ships")
+            if req_ships:
+                ship_matched = False
+                for p in pilots:
+                    if p.get("ship") in req_ships:
+                        ship_matched = True
+                        break
+                if not ship_matched:
+                    continue
+            
             # Simple canonical representation for grouping
             pilot_list = []
             for p in pilots:

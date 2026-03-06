@@ -1,7 +1,7 @@
 <script lang="ts">
 	import "../app.css"; // Global Tailwind + Fonts
 	import Sidebar from "$lib/components/Sidebar.svelte";
-	import type { Snippet } from 'svelte';
+	import type { Snippet } from "svelte";
 
 	let { children }: { children: Snippet } = $props();
 </script>

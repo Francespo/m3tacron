@@ -55,6 +55,7 @@ def aggregate_ship_stats(
         allowed_formats = filters.get("allowed_formats") or None
         allowed_date_start = filters.get("date_start") or None
         allowed_date_end = filters.get("date_end") or None
+
         
         # Build ship stats: key = (ship_xws, faction_xws)
         # Value = {ship_name, ship_xws, faction, faction_xws, wins, games, lists}
@@ -230,6 +231,12 @@ def aggregate_ship_stats(
         ship_filter = filters.get("ship", [])
         if ship_filter:
             results = [r for r in results if r["ship_xws"] in ship_filter]
+            
+        # Apply search filter (filter by ship name)
+        search_filter = filters.get("search_name")
+        if search_filter:
+            search_str = search_filter.lower()
+            results = [r for r in results if search_str in r["ship_name"].lower()]
         
         # Sorting
         reverse = (sort_direction == SortDirection.DESCENDING)
