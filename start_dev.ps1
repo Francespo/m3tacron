@@ -24,7 +24,7 @@ Write-Host "Finding available ports..." -ForegroundColor Cyan
 $actualBport = Get-FreePort -StartingPort $bport
 $actualFport = Get-FreePort -StartingPort $fport
 
-$backendUrl = "http://127.0.0.1:$actualBport"
+$backendUrl = "http://localhost:$actualBport"
 $frontendUrl = "http://localhost:$actualFport"
 
 Write-Host "==========================================" -ForegroundColor Cyan
