@@ -20,13 +20,30 @@ def get_lists(
     min_games: int = Query(0, ge=0),
     points_min: int = Query(0, ge=0),
     points_max: int = Query(200, ge=0),
+    platforms: Optional[List[str]] = Query(None),
+    continent: Optional[List[str]] = Query(None),
+    country: Optional[List[str]] = Query(None),
+    city: Optional[List[str]] = Query(None),
+    date_start: Optional[str] = Query(None),
+    date_end: Optional[str] = Query(None),
+    player_count_min: Optional[int] = Query(None),
+    player_count_max: Optional[int] = Query(None),
 ):
     try:
         ds_enum = DataSource(data_source)
     except ValueError:
         ds_enum = DataSource.XWA
 
-    filters = {}
+    filters = {
+        "platforms": platforms,
+        "continent": continent,
+        "country": country,
+        "city": city,
+        "date_start": date_start,
+        "date_end": date_end,
+        "player_count_min": player_count_min,
+        "player_count_max": player_count_max,
+    }
     if formats:
         filters["allowed_formats"] = formats
         
