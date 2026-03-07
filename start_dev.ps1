@@ -7,15 +7,25 @@ function Get-FreePort {
     param([int]$StartingPort)
     $port = $StartingPort
     while ($true) {
+        Write-Host "Checking port $port... " -NoNewline
         try {
-            $tcpListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $port)
+            # Try to bind to IPv6Any on the port (covers IPv4 and IPv6)
+            $tcpListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::IPv6Any, $port)
             $tcpListener.Start()
             $tcpListener.Stop()
-            return $port
+            
+            # Double check with Get-NetTCPConnection for OS-level confirmation
+            $occupied = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
+            if (-not $occupied) {
+                Write-Host "Available!" -ForegroundColor Green
+                return $port
+            }
+            Write-Host "Occupied (OS reports active connection)." -ForegroundColor Yellow
         }
         catch {
-            $port++
+            Write-Host "Occupied (Failed to bind)." -ForegroundColor Yellow
         }
+        $port++
     }
 }
 
