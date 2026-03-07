@@ -14,7 +14,7 @@ class MacroFormat(StrEnum):
         match self:
             case MacroFormat.V2_5: return "2.5"
             case MacroFormat.V2_0: return "2.0"
-            case MacroFormat.OTHER: return "Unknown/Other"
+            case MacroFormat.OTHER: return "Unknown"
 
 
     def formats(self) -> list[str]:
@@ -46,7 +46,7 @@ class Format(StrEnum):
             case Format.LEGACY_X2PO: return "Legacy (X2PO)"
             case Format.LEGACY_XLC: return "Legacy (XLC)"
             case Format.FFG: return "FFG"
-            case _: return "Unknown/Other"
+            case _: return "Unknown"
             
             
     @property

@@ -160,7 +160,7 @@ def get_tournaments(
                     loc_str = ", ".join(unique_parts)
 
             # Format Badge
-            f_label = Format(t.format).label if t.format in {f.value for f in Format} else (t.format or "Unknown/Other")
+            f_label = Format(t.format).label if t.format in {f.value for f in Format} else (t.format or "Unknown")
             b1, b2 = _split_format_badge(f_label)
             
             p_label = Platform(t.platform).label if t.platform in Platform._value2member_map_ else str(t.platform)
@@ -204,7 +204,7 @@ def get_tournament_detail(tournament_id: int):
             unique_parts = [p for p in parts if not (p in seen or seen.add(p))]
             if unique_parts: loc_str = ", ".join(unique_parts)
             
-        f_label = Format(t.format).label if t.format in {f.value for f in Format} else (t.format or "Unknown/Other")
+        f_label = Format(t.format).label if t.format in {f.value for f in Format} else (t.format or "Unknown")
         b1, b2 = _split_format_badge(f_label)
         p_label = Platform(t.platform).label if t.platform in Platform._value2member_map_ else str(t.platform)
         
