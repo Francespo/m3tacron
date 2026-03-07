@@ -191,21 +191,29 @@ def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats:
             "percentage": percentage
         })
     
+    # Helper to filter and sort
+    def filter_and_sort(items, min_games):
+        filtered = [x for x in items if x.get("games", 0) >= min_games and x.get("win_rate") != "NA"]
+        filtered.sort(key=lambda x: float(x.get("win_rate", 0)), reverse=True)
+        return filtered
+
     # Get last tournament date
     with Session(engine) as session:
         last_tournament = session.exec(select(Tournament).order_by(Tournament.date.desc())).first()
         last_sync = last_tournament.date.strftime("%Y-%m-%d") if last_tournament else "Never"
         
-    pilot_stats = [p for p in pilot_stats if p["popularity"] > 0]
-    upgrade_stats = [u for u in upgrade_stats if u["popularity"] > 0]
+    top_ships = filter_and_sort(ship_stats, 100)
+    top_lists = filter_and_sort(list_stats, 10)
+    top_pilots = filter_and_sort(pilot_stats, 30)
+    top_upgrades = filter_and_sort(upgrade_stats, 150)
     
     return {
         "factions": faction_stats[:10],
         "faction_distribution": faction_distribution,
-        "ships": ship_stats[:10],
-        "lists": list_stats[:10],
-        "pilots": pilot_stats[:10],
-        "upgrades": upgrade_stats[:10],
+        "ships": top_ships[:10],
+        "lists": top_lists[:10],
+        "pilots": top_pilots[:10],
+        "upgrades": top_upgrades[:10],
         "last_sync": last_sync,
         "date_range": f"{date_str} to {end_date.strftime('%Y-%m-%d')}"
     }
