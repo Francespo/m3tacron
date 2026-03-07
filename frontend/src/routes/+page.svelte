@@ -642,7 +642,7 @@
                     Top Meta Lists
                 </h2>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
-                    {#each (meta.lists || []).slice(0, 3) as list}
+                    {#each (meta.lists || []).slice(0, 5) as list}
                         <div
                             class="p-4 bg-[rgba(255,255,255,0.01)] border border-border-dark hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer w-full flex flex-col gap-3 rounded-md"
                         >
