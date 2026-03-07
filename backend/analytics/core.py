@@ -7,7 +7,7 @@ from ..models import PlayerResult, Tournament
 from ..utils.xwing_data.pilots import get_pilot_name, get_pilot_info, load_all_pilots
 from ..utils.xwing_data.upgrades import get_upgrade_name, load_all_upgrades
 from ..utils.xwing_data.ships import load_all_ships
-from ..data_structures.factions import Faction
+from ..data_structures.factions import Faction, get_faction_char
 from ..data_structures.formats import Format, MacroFormat
 from ..data_structures.data_source import DataSource
 from .filters import filter_query, get_active_formats, apply_tournament_filters
@@ -325,7 +325,8 @@ def aggregate_card_stats(
                     "xws": pid,
                     "count": 0, "popularity": 0, "wins": 0, "games": 0,
                     "lists": 0,
-                    "faction": p_info.get("faction", ""), 
+                    "faction": Faction.from_xws(p_info.get("faction", "")).label, 
+                    "faction_xws": p_info.get("faction", ""),
                     "ship": p_info.get("ship", ""),
                     "ship_xws": p_info.get("ship_xws", ""),
                     "ship_icon": p_info.get("ship_icon", ""),
@@ -584,6 +585,8 @@ def aggregate_card_stats(
                  s_data["name"] = xws_id
             
             s_data["points"] = s_data.get("cost", 0)
+            if mode == "pilots":
+                s_data["icon_char"] = get_faction_char(s_data.get("faction_xws", ""))
             
             results.append(s_data)
             
