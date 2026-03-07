@@ -7,7 +7,7 @@
     <title>{t ? t.name : "Tournament"} | M3taCron</title>
 </svelte:head>
 
-<div class="p-6 md:p-8 max-w-[1000px]">
+<div class="p-6 md:p-8 max-w-[1400px] mx-auto">
     {#if t}
         <!-- Header -->
         <div class="border-b border-[#ffffff14] pb-6 mb-6">
@@ -30,7 +30,7 @@
                     >Format</span
                 >
                 <span class="text-lg font-bold text-primary font-mono"
-                    >{t.format_label}</span
+                    >{t.format_label === 'Other' || t.format_label === 'Unknown' ? 'Unknown/Other' : t.format_label}</span
                 >
             </div>
             <div
@@ -166,11 +166,11 @@
                             <div class="flex items-center gap-3 p-3 border-b border-[#ffffff14] last:border-0 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
                                 <span class="text-xs font-mono text-secondary w-6 text-center">{m.round}</span>
                                 {#if m.scenario}
-                                    <span class="px-2 py-1 bg-[rgba(255,255,255,0.05)] border border-[#ffffff14] rounded text-[10px] uppercase font-mono text-secondary truncate max-w-[80px]" title={m.scenario}>{m.scenario}</span>
+                                    <span class="px-2 py-1 bg-[rgba(255,255,255,0.05)] border border-[#ffffff14] rounded text-[10px] uppercase font-mono text-secondary truncate max-w-[140px]" title={m.scenario}>{m.scenario}</span>
                                 {:else}
-                                    <div class="w-[80px]"></div>
+                                    <div class="w-[140px]"></div>
                                 {/if}
-                                <div class="flex-1 flex items-center justify-between bg-[rgba(255,255,255,0.02)] rounded p-2">
+                                <div class="flex-1 flex items-center justify-between bg-[rgba(255,255,255,0.02)] rounded p-2 gap-2">
                                     <span class="font-mono text-sm text-left flex-1 truncate pr-2 {m.winner_id === m.player1_id ? 'text-green-400 font-bold' : 'text-primary'}" title={m.player1}>{m.player1}</span>
                                     <div class="flex items-center justify-center gap-1 font-mono text-sm w-12 font-bold">
                                         <span class={m.winner_id === m.player1_id ? 'text-green-400' : 'text-red-400'}>{m.score1}</span>

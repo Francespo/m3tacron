@@ -21,5 +21,5 @@ class Scenario(StrEnum):
             case Scenario.SALVAGE_MISSION: return "Salvage Mission"
             case Scenario.SCRAMBLE_THE_TRANSMISSIONS: return "Scramble the Transmissions"
             case Scenario.NO_SCENARIO: return "No Scenario"
-            case Scenario.OTHER_UNKNOWN: return "Other/Unknown"
+            case Scenario.OTHER_UNKNOWN: return "Unknown"
 
