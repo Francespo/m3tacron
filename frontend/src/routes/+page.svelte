@@ -67,8 +67,8 @@
             rebelalliance: "xwing-miniatures-font-rebel",
             galacticempire: "xwing-miniatures-font-empire",
             scumandvillainy: "xwing-miniatures-font-scum",
-            resistance: "xwing-miniatures-font-rebel",
-            firstorder: "xwing-miniatures-font-firstorder",
+            resistance: "xwing-miniatures-font-resistance",
+            firstorder: "xwing-miniatures-font-firstorder-detailed",
             galacticrepublic: "xwing-miniatures-font-republic",
             separatistalliance: "xwing-miniatures-font-separatists",
             unknown: "",
@@ -485,9 +485,10 @@
                                         ></i>
                                         <span
                                             class="text-[12px] text-secondary truncate min-w-0 pointer-events-none"
-                                            >{pilot.faction || "Unknown"} - {pilot.ship ||
-                                                "Unknown Ship"}</span
                                         >
+                                            {pilot.faction} - {pilot.ship ||
+                                                "Unknown Ship"}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -709,3 +710,12 @@
         </div>
     {/if}
 </div>
+
+<style>
+    :global(.xwing-miniatures-font-resistance:before) {
+        content: "$";
+    }
+    :global(.xwing-miniatures-font-firstorder-detailed:before) {
+        content: "%";
+    }
+</style>
