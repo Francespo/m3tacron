@@ -12,14 +12,16 @@
         options: { value: string; label: string }[];
     } = $props();
 
-    let sortedOptions = $derived([...options].sort((a,b) => a.label.localeCompare(b.label)));
+    let sortedOptions = $derived(
+        [...options].sort((a, b) => a.label.localeCompare(b.label)),
+    );
 
     function toggleDirection() {
         sortDirection = sortDirection === "desc" ? "asc" : "desc";
     }
 </script>
 
-<div class="space-y-1 mt-4">
+<div class="space-y-1">
     <span class="text-xs font-mono font-bold tracking-wider text-secondary"
         >Sort By</span
     >
