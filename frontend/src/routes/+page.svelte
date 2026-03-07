@@ -366,130 +366,138 @@
             </div>
         </div>
 
-        <!-- Asymmetrical Layout: Main Content (Lists) and Sidebar (Factions) -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-2 flex flex-col">
-                <div
-                    class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full"
-                >
-                    <h2
-                        class="text-sm font-mono font-bold uppercase mb-4 text-primary"
-                    >
-                        Top Lists
-                    </h2>
-
-                    <div class="w-full">
-                        {#each (meta.lists || []).slice(0, 10) as list}
-                            <div
-                                class="py-[10px] px-[14px] bg-[rgba(255,255,255,0.01)] border-b border-border-dark hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer w-full flex flex-col gap-1"
-                            >
-                                <div class="flex w-full items-center mb-1">
-                                    <div
-                                        class="w-6 h-6 flex items-center justify-center mr-3 text-lg"
-                                    >
-                                        <i
-                                            class="xwing-miniatures-font {getFactionIconClass(
-                                                list.faction_key,
-                                            )}"
-                                        ></i>
-                                    </div>
-                                    <div class="w-full"></div>
-                                    <span
-                                        class="text-sm font-mono font-bold text-primary"
-                                        >{list.win_rate}% WR</span
-                                    >
-                                </div>
-
-                                <div class="flex flex-col gap-2 w-full ml-9">
-                                    {#each list.pilots || [] as pilot}
-                                        <div
-                                            class="flex flex-col items-start w-full py-[2px] gap-1"
-                                        >
-                                            <div
-                                                class="flex items-center gap-2 text-primary"
-                                            >
-                                                <i
-                                                    class="xwing-miniatures-ship {getShipIconClass(
-                                                        pilot.ship_icon,
-                                                    )} text-lg"
-                                                ></i>
-                                                <span
-                                                    class="text-[15px] font-bold text-primary"
-                                                    >{pilot.name}</span
-                                                >
-                                            </div>
-                                            <div class="flex flex-wrap w-full">
-                                                {#each pilot.upgrades || [] as upgrade}
-                                                    <span
-                                                        class="text-xs text-secondary mr-[6px]"
-                                                        >{upgrade.name}</span
-                                                    >
-                                                {/each}
-                                            </div>
-                                        </div>
-                                    {/each}
-                                </div>
-                            </div>
-                        {/each}
-                    </div>
+        <!-- Section 1: Factions -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <div class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col">
+                <h2 class="text-sm font-mono font-bold uppercase mb-4 text-primary">Faction Performance</h2>
+                <div class="h-[250px] w-full relative">
+                    {#if barData}
+                        <canvas use:chartAction={{ type: "bar", data: barData, options: barOptions }}></canvas>
+                    {/if}
                 </div>
             </div>
 
-            <div class="flex flex-col gap-6 w-full">
-                <div
-                    class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
-                >
-                    <h2
-                        class="text-sm font-mono font-bold uppercase mb-4 text-primary"
-                    >
-                        Faction Performance
-                    </h2>
-                    <div class="h-[250px] w-full relative">
-                        {#if barData}
-                            <canvas
-                                use:chartAction={{
-                                    type: "bar",
-                                    data: barData,
-                                    options: barOptions,
-                                }}
-                            ></canvas>
-                        {/if}
-                    </div>
+            <div class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col">
+                <h2 class="text-sm font-mono font-bold uppercase mb-4 text-primary">Game Distribution</h2>
+                <div class="h-[180px] w-full relative mb-4">
+                    {#if pieData}
+                        <canvas use:chartAction={{ type: "pie", data: pieData, options: pieOptions }}></canvas>
+                    {/if}
                 </div>
+                <div class="flex flex-wrap justify-center w-full mt-2">
+                    {#each meta.faction_distribution || [] as dist}
+                        <div class="flex items-center gap-[6px] text-xs font-mono text-secondary mr-3 mb-[6px]">
+                            <i class="xwing-miniatures-font {getFactionIconClass(dist.xws)} text-sm"></i>
+                            <span>{dist.percentage}%</span>
+                        </div>
+                    {/each}
+                </div>
+            </div>
+        </div>
 
-                <div
-                    class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
-                >
-                    <h2
-                        class="text-sm font-mono font-bold uppercase mb-4 text-primary"
-                    >
-                        Game Distribution
-                    </h2>
-                    <div class="h-[180px] w-full relative mb-4">
-                        {#if pieData}
-                            <canvas
-                                use:chartAction={{
-                                    type: "pie",
-                                    data: pieData,
-                                    options: pieOptions,
-                                }}
-                            ></canvas>
-                        {/if}
-                    </div>
-                    <div class="flex flex-wrap justify-center w-full mt-2">
-                        {#each meta.faction_distribution || [] as dist}
-                            <div
-                                class="flex items-center gap-[6px] text-xs font-mono text-secondary mr-3 mb-[6px]"
-                            >
-                                <i
-                                    class="xwing-miniatures-font {getFactionIconClass(
-                                        dist.xws,
-                                    )} text-sm"
-                                ></i>
-                                <span>{dist.percentage}%</span>
+        <!-- Section 2: Leaderboards -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Top Pilots -->
+            <div class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col">
+                <h2 class="text-sm font-mono font-bold uppercase mb-4 text-primary">Top Pilots</h2>
+                <div class="w-full flex flex-col">
+                    {#each (meta.pilots || []).slice(0, 5) as pilot}
+                        <div class="py-[8px] border-b border-border-dark flex items-center justify-between w-full last:border-0 relative">
+                            <div class="flex items-center gap-3 overflow-hidden mr-2">
+                                <div class="w-6 flex justify-center flex-shrink-0">
+                                    <i class="xwing-miniatures-font {getFactionIconClass((pilot.faction || '').toLowerCase().replace(/[^a-z0-9]/g, ''))} text-secondary text-lg"></i>
+                                </div>
+                                <div class="flex flex-col overflow-hidden min-w-0">
+                                    <span class="text-sm font-bold text-primary truncate" title="{pilot.name}">{pilot.name}</span>
+                                    <span class="text-[11px] text-secondary truncate" title="{pilot.ship || 'Unknown Ship'}">{pilot.ship || 'Unknown Ship'}</span>
+                                </div>
                             </div>
-                        {/each}
-                    </div>
+                            <div class="flex flex-col items-end flex-shrink-0 text-right">
+                                <span class="text-sm font-mono font-bold text-primary">{pilot.win_rate}% WR</span>
+                                <span class="text-[10px] text-secondary">{pilot.games} games</span>
+                            </div>
+                        </div>
+                    {/each}
+                </div>
+            </div>
+
+            <!-- Top Upgrades -->
+            <div class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col">
+                <h2 class="text-sm font-mono font-bold uppercase mb-4 text-primary">Top Upgrades</h2>
+                <div class="w-full flex flex-col">
+                    {#each (meta.upgrades || []).slice(0, 5) as upgrade}
+                        <div class="py-[8px] border-b border-border-dark flex items-center justify-between w-full last:border-0 relative">
+                            <div class="flex items-center gap-3 overflow-hidden mr-2">
+                                <div class="flex flex-col overflow-hidden min-w-0">
+                                    <span class="text-sm font-bold text-primary truncate" title="{upgrade.name}">{upgrade.name}</span>
+                                    <span class="text-[11px] text-secondary truncate" title="{upgrade.type}">{upgrade.type}</span>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end flex-shrink-0 text-right">
+                                <span class="text-sm font-mono font-bold text-primary">{upgrade.win_rate}% WR</span>
+                                <span class="text-[10px] text-secondary">{upgrade.games} games</span>
+                            </div>
+                        </div>
+                    {/each}
+                </div>
+            </div>
+
+            <!-- Top Ships -->
+            <div class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col">
+                <h2 class="text-sm font-mono font-bold uppercase mb-4 text-primary">Top Ships</h2>
+                <div class="w-full flex flex-col">
+                    {#each (meta.ships || []).slice(0, 5) as ship}
+                        <div class="py-[8px] border-b border-border-dark flex items-center justify-between w-full last:border-0 relative">
+                            <div class="flex items-center gap-3 overflow-hidden mr-2">
+                                <div class="w-6 flex justify-center flex-shrink-0">
+                                    <i class="xwing-miniatures-ship {getShipIconClass(ship.ship_xws)} text-secondary text-lg"></i>
+                                </div>
+                                <div class="flex flex-col overflow-hidden min-w-0 relative">
+                                    <span class="text-sm font-bold text-primary truncate min-w-0" title="{ship.ship_name}">{ship.ship_name}</span>
+                                    <div class="flex items-center gap-1 min-w-0">
+                                        <i class="xwing-miniatures-font {getFactionIconClass(ship.faction_xws)} text-[10px] text-secondary"></i>
+                                        <span class="text-[11px] text-secondary truncate min-w-0 pointer-events-none">{ship.faction}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end flex-shrink-0 text-right ml-2 pr-1">
+                                <span class="text-sm font-mono font-bold text-primary shrink-0">{ship.win_rate}% WR</span>
+                                <span class="text-[10px] text-secondary shrink-0">{ship.games} games</span>
+                            </div>
+                        </div>
+                    {/each}
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 3: Meta Lists -->
+        <div class="w-full">
+            <div class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col">
+                <h2 class="text-sm font-mono font-bold uppercase mb-4 text-primary">Top Meta Lists</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+                    {#each (meta.lists || []).slice(0, 3) as list}
+                        <div class="p-4 bg-[rgba(255,255,255,0.01)] border border-border-dark hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer w-full flex flex-col gap-3 rounded-md">
+                            <div class="flex w-full items-start justify-between border-b border-border-dark pb-3">
+                                <div class="flex items-center gap-2 overflow-hidden mr-2">
+                                    <i class="xwing-miniatures-font {getFactionIconClass(list.faction_key)} text-secondary text-xl font-bold"></i>
+                                    <span class="text-sm font-bold text-primary truncate" title={list.name || 'Unnamed List'}>{list.name || 'Unnamed List'}</span>
+                                </div>
+                                <div class="flex flex-col items-end flex-shrink-0">
+                                    <span class="text-sm font-mono font-bold text-primary">{list.win_rate}% WR</span>
+                                    <span class="text-[10px] text-secondary">{list.games} games</span>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-col gap-1 w-full flex-grow">
+                                {#each list.pilots || [] as pilot}
+                                    <div class="flex items-center gap-2">
+                                        <i class="xwing-miniatures-ship {getShipIconClass(pilot.ship_icon)} text-secondary w-5 text-center text-sm"></i>
+                                        <span class="text-xs text-secondary truncate">{pilot.name}</span>
+                                    </div>
+                                {/each}
+                            </div>
+                        </div>
+                    {/each}
                 </div>
             </div>
         </div>
