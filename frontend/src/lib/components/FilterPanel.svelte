@@ -2,6 +2,7 @@
     import ContentSourceToggle from "./ContentSourceToggle.svelte";
     import TournamentFilters from "./TournamentFilters.svelte";
     import ActiveFilters from "./ActiveFilters.svelte";
+    import { filters } from "$lib/stores/filters.svelte";
     import type { Snippet } from "svelte";
 
     let { extra }: { extra?: Snippet } = $props();
@@ -19,7 +20,9 @@
     <!-- 2) Active Filters (Chips & Global Reset) -->
     <ActiveFilters />
 
-    <div class="h-px bg-border-dark"></div>
+    {#if filters.activeChips.length > 0}
+        <div class="h-px bg-border-dark"></div>
+    {/if}
 
     <!-- 3) Global Tournament Formats & Logistics -->
     <TournamentFilters />
