@@ -21,6 +21,8 @@ def _split_format_badge(format_label: str) -> tuple[str, str]:
     if "EXTENDED" in label:
         label = label.replace("EXTENDED", "").strip()
     
+    if "UNKNOWN" in label or "OTHER" in label: return "UNK", ""
+    if label == "UNK": return "UNK", ""
     if label == "AMG": return "AMG", ""
     if label == "XWA": return "XWA", ""
     if "LEGACY (X2PO)" in label: return "LGCY", "X2PO"
@@ -158,7 +160,7 @@ def get_tournaments(
                     loc_str = ", ".join(unique_parts)
 
             # Format Badge
-            f_label = Format(t.format).label if t.format in {f.value for f in Format} else (t.format or "Other")
+            f_label = Format(t.format).label if t.format in {f.value for f in Format} else (t.format or "Unknown/Other")
             b1, b2 = _split_format_badge(f_label)
             
             p_label = Platform(t.platform).label if t.platform in Platform._value2member_map_ else str(t.platform)
@@ -202,7 +204,7 @@ def get_tournament_detail(tournament_id: int):
             unique_parts = [p for p in parts if not (p in seen or seen.add(p))]
             if unique_parts: loc_str = ", ".join(unique_parts)
             
-        f_label = Format(t.format).label if t.format in {f.value for f in Format} else (t.format or "Other")
+        f_label = Format(t.format).label if t.format in {f.value for f in Format} else (t.format or "Unknown/Other")
         b1, b2 = _split_format_badge(f_label)
         p_label = Platform(t.platform).label if t.platform in Platform._value2member_map_ else str(t.platform)
         

@@ -14,8 +14,6 @@
     <!-- 1) Global Header / Source Toggle -->
     <ContentSourceToggle />
 
-    <div class="h-px bg-border-dark"></div>
-
     <!-- 2) Active Filters (Chips & Global Reset) -->
     <ActiveFilters />
 
@@ -24,7 +22,6 @@
 
     <!-- Page-specific extra filters -->
     {#if extra}
-        <div class="h-px bg-border-dark"></div>
         {@render extra()}
     {/if}
 </aside>

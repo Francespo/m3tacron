@@ -46,7 +46,7 @@ class Format(StrEnum):
             case Format.LEGACY_X2PO: return "Legacy (X2PO)"
             case Format.LEGACY_XLC: return "Legacy (XLC)"
             case Format.FFG: return "FFG"
-            case _: return "Other"
+            case _: return "Unknown/Other"
             
             
     @property
