@@ -513,7 +513,7 @@
                     Top Upgrades
                 </h2>
                 <div class="w-full flex flex-col">
-                    {#each (meta.upgrades || []).slice(0, 5) as upgrade}
+                    {#each (meta.upgrades || []).slice(0, 6) as upgrade}
                         <div
                             class="py-[12px] border-b border-border-dark flex items-center justify-between w-full last:border-0 relative"
                         >
