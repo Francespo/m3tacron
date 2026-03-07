@@ -650,15 +650,15 @@
                                 class="flex w-full items-start justify-between border-b border-border-dark pb-3"
                             >
                                 <div
-                                    class="flex items-center gap-2 overflow-hidden mr-2"
+                                    class="flex items-center gap-2 overflow-hidden mr-2 h-12"
                                 >
                                     <i
                                         class="xwing-miniatures-font {getFactionIconClass(
                                             list.faction_key,
-                                        )} text-secondary text-2xl font-bold"
+                                        )} text-secondary text-2xl font-bold flex-shrink-0"
                                     ></i>
                                     <span
-                                        class="text-base font-bold text-primary truncate"
+                                        class="text-base font-bold text-primary line-clamp-2 leading-tight"
                                         title={list.name || "Unnamed List"}
                                         >{list.name || "Unnamed List"}</span
                                     >
