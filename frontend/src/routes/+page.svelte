@@ -664,7 +664,7 @@
                                     <i
                                         class="xwing-miniatures-font {getFactionIconClass(
                                             list.faction_xws,
-                                        )} text-2xl font-bold flex-shrink-0"
+                                        )} text-2xl flex-shrink-0"
                                         style="color: {getFactionColor(
                                             list.faction_xws,
                                         )}"
