@@ -719,7 +719,4 @@
 </div>
 
 <style>
-    :global(.xwing-miniatures-font-resistance:before) {
-        content: "$";
-    }
 </style>
