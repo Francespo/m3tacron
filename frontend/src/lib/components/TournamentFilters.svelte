@@ -169,7 +169,7 @@
     </div>
 
     <!-- Date Range Accordion -->
-    <div>
+    <div class="border-b border-border-dark">
         <button
             class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary transition-colors"
             onclick={() => (dateOpen = !dateOpen)}
@@ -209,7 +209,7 @@
     </div>
 
     <!-- Location Accordion -->
-    <div>
+    <div class="border-b border-border-dark">
         <button
             class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary transition-colors"
             onclick={() => (locationOpen = !locationOpen)}
@@ -332,7 +332,7 @@
     </div>
 
     <!-- Format Accordion -->
-    <div>
+    <div class="border-b border-border-dark">
         <button
             class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary transition-colors"
             onclick={() => (formatOpen = !formatOpen)}
@@ -384,7 +384,7 @@
     </div>
 
     <!-- Platform Filter Section -->
-    <div>
+    <div class="border-b border-border-dark">
         <button
             class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary transition-colors"
             onclick={() => (platformOpen = !platformOpen)}
