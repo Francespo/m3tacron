@@ -458,7 +458,12 @@
                                     <i
                                         class="xwing-miniatures-ship {getShipIconClass(
                                             pilot.ship_xws || pilot.ship_icon,
-                                        )} text-secondary text-2xl"
+                                        )} text-2xl"
+                                        style="color: {getFactionColor(
+                                            (pilot.faction || '')
+                                                .toLowerCase()
+                                                .replace(/[^a-z0-9]/g, ''),
+                                        )}"
                                     ></i>
                                 </div>
                                 <div
@@ -587,7 +592,10 @@
                                     <i
                                         class="xwing-miniatures-ship {getShipIconClass(
                                             ship.ship_xws,
-                                        )} text-secondary text-2xl"
+                                        )} text-2xl"
+                                        style="color: {getFactionColor(
+                                            ship.faction_xws,
+                                        )}"
                                     ></i>
                                 </div>
                                 <div
@@ -655,7 +663,10 @@
                                     <i
                                         class="xwing-miniatures-font {getFactionIconClass(
                                             list.faction_key,
-                                        )} text-secondary text-2xl font-bold flex-shrink-0"
+                                        )} text-2xl font-bold flex-shrink-0"
+                                        style="color: {getFactionColor(
+                                            list.faction_key,
+                                        )}"
                                     ></i>
                                     <span
                                         class="text-base font-bold text-primary line-clamp-2 leading-tight"
