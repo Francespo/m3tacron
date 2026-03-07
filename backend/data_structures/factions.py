@@ -79,7 +79,7 @@ FACTION_CHARS = {
     "galacticempire": "@",
     "scumandvillainy": "#",
     "resistance": "$",
-    "firstorder": "%",
+    "firstorder": "+",
     "galacticrepublic": "/",
     "separatistalliance": ".",
     "unknown": "?"

@@ -68,7 +68,7 @@
             galacticempire: "xwing-miniatures-font-empire",
             scumandvillainy: "xwing-miniatures-font-scum",
             resistance: "xwing-miniatures-font-resistance",
-            firstorder: "xwing-miniatures-font-firstorder-detailed",
+            firstorder: "xwing-miniatures-font-firstorder",
             galacticrepublic: "xwing-miniatures-font-republic",
             separatistalliance: "xwing-miniatures-font-separatists",
             unknown: "",
@@ -458,12 +458,7 @@
                                     <i
                                         class="xwing-miniatures-ship {getShipIconClass(
                                             pilot.ship_xws || pilot.ship_icon,
-                                        )} text-2xl"
-                                        style="color: {getFactionColor(
-                                            (pilot.faction || '')
-                                                .toLowerCase()
-                                                .replace(/[^a-z0-9]/g, ''),
-                                        )}"
+                                        )} text-2xl text-white"
                                     ></i>
                                 </div>
                                 <div
@@ -481,7 +476,12 @@
                                                 (pilot.faction || '')
                                                     .toLowerCase()
                                                     .replace(/[^a-z0-9]/g, ''),
-                                            )} text-[11px] text-secondary"
+                                            )} text-[11px]"
+                                            style="color: {getFactionColor(
+                                                (pilot.faction || '')
+                                                    .toLowerCase()
+                                                    .replace(/[^a-z0-9]/g, ''),
+                                            )}"
                                         ></i>
                                         <span
                                             class="text-[12px] text-secondary truncate min-w-0 pointer-events-none"
@@ -593,10 +593,7 @@
                                     <i
                                         class="xwing-miniatures-ship {getShipIconClass(
                                             ship.ship_xws,
-                                        )} text-2xl"
-                                        style="color: {getFactionColor(
-                                            ship.faction_xws,
-                                        )}"
+                                        )} text-2xl text-white"
                                     ></i>
                                 </div>
                                 <div
@@ -613,7 +610,10 @@
                                         <i
                                             class="xwing-miniatures-font {getFactionIconClass(
                                                 ship.faction_xws,
-                                            )} text-[11px] text-secondary"
+                                            )} text-[11px]"
+                                            style="color: {getFactionColor(
+                                                ship.faction_xws,
+                                            )}"
                                         ></i>
                                         <span
                                             class="text-[12px] text-secondary truncate min-w-0 pointer-events-none"
@@ -663,17 +663,24 @@
                                 >
                                     <i
                                         class="xwing-miniatures-font {getFactionIconClass(
-                                            list.faction_key,
+                                            list.faction_xws,
                                         )} text-2xl font-bold flex-shrink-0"
                                         style="color: {getFactionColor(
-                                            list.faction_key,
+                                            list.faction_xws,
                                         )}"
                                     ></i>
-                                    <span
-                                        class="text-base font-bold text-primary line-clamp-2 leading-tight"
-                                        title={list.name || "Unnamed List"}
-                                        >{list.name || "Unnamed List"}</span
-                                    >
+                                    <div class="flex flex-col min-w-0">
+                                        <span
+                                            class="text-base font-bold text-primary line-clamp-2 leading-tight"
+                                            title={list.name || "Unnamed List"}
+                                            >{list.name || "Unnamed List"}</span
+                                        >
+                                        <span
+                                            class="text-[10px] text-secondary uppercase tracking-tighter opacity-70"
+                                        >
+                                            {list.faction}
+                                        </span>
+                                    </div>
                                 </div>
                                 <div
                                     class="flex flex-col items-end flex-shrink-0"
@@ -714,8 +721,5 @@
 <style>
     :global(.xwing-miniatures-font-resistance:before) {
         content: "$";
-    }
-    :global(.xwing-miniatures-font-firstorder-detailed:before) {
-        content: "%";
     }
 </style>
