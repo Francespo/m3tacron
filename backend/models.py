@@ -9,7 +9,7 @@ Defines:
 """
 import logging
 from sqlmodel import Field, Relationship, SQLModel
-from datetime import date
+from datetime import date, datetime
 from sqlalchemy import JSON, Column, String
 
 from .data_structures.formats import Format
@@ -96,3 +96,31 @@ class Match(SQLModel, table=True):
     # Debug fields for name matching
     p1_name_temp: str | None = Field(default=None)
     p2_name_temp: str | None = Field(default=None)
+
+class Supporter(SQLModel, table=True):
+    """
+    Represents a community supporter.
+    """
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(index=True)
+    email: str | None = Field(default=None, index=True)
+    total_contributed: float = Field(default=0.0)
+    last_contribution: datetime = Field(default_factory=datetime.now)
+    is_anonymous: bool = Field(default=False)
+
+    contributions: list["Contribution"] = Relationship(back_populates="supporter")
+
+
+class Contribution(SQLModel, table=True):
+    """
+    A single donation or contribution.
+    """
+    id: int | None = Field(default=None, primary_key=True)
+    supporter_id: int | None = Field(default=None, foreign_key="supporter.id")
+    amount: float
+    currency: str = Field(default="USD")
+    message: str | None = Field(default=None)
+    date: datetime = Field(default_factory=datetime.now)
+    ko_fi_transaction_id: str | None = Field(default=None, index=True)
+
+    supporter: Supporter | None = Relationship(back_populates="contributions")

@@ -2,7 +2,7 @@ import os
 from sqlmodel import create_engine, SQLModel
 
 # Explicitly import models to ensure they are registered with SQLModel.metadata
-from .models import Tournament, PlayerResult, Match
+from .models import Tournament, PlayerResult, Match, Supporter, Contribution
 
 from dotenv import load_dotenv
 load_dotenv()
