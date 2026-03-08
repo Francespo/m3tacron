@@ -24,6 +24,8 @@ class ListData(BaseModel):
     name: str = ""
     faction: str = ""
     faction_key: str = ""
+    faction_xws: str = ""
+    icon_char: str = ""
     points: int = 0
     original_points: int = 0
     count: int = 0
