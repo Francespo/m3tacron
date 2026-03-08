@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
+from datetime import datetime
 
 class UpgradeData(BaseModel):
     name: str = ""
@@ -129,3 +130,19 @@ class TournamentDetailResponse(BaseModel):
     players_swiss: List[PlayerStandingsRow]
     players_cut: List[PlayerStandingsRow]
     matches: List[MatchRow]
+
+class FundTier(BaseModel):
+    name: str
+    target: float
+    current: float
+    description: str
+
+class FundStatusResponse(BaseModel):
+    total_raised: float
+    tiers: List[FundTier]
+
+class SupporterResponse(BaseModel):
+    name: str
+    amount: float
+    date: datetime
+    message: Optional[str] = None
