@@ -40,9 +40,7 @@
         <h1
             class="text-4xl md:text-6xl font-mono font-bold tracking-tighter uppercase"
         >
-            Keeping <span class="text-secondary/20 font-light italic"
-                >M3taCron</span
-            >
+            Keeping <span class="text-secondary/80">M3taCron</span>
             Alive
         </h1>
     </header>
@@ -55,27 +53,79 @@
             class="lg:col-span-8 flex flex-col h-full overflow-y-auto pr-4 custom-scrollbar"
         >
             <p
-                class="text-secondary/80 text-base md:text-lg leading-relaxed mb-10 font-sans italic"
+                class="text-secondary/80 text-base md:text-lg leading-relaxed mb-6 font-sans italic"
             >
-                M3taCron is a labor of love for the community. I dedicate a huge
-                chunk of my free time to keeping this station fully operational,
-                far from the grasp of the Empire (and ad services). Your support
-                helps pay for hosting and keeps the hyperspace lanes open.
-                Donating Galactic Credits is entirely optional—contribute only
-                if you truly want to help fuel the hyperdrive and improve this
-                terminal!
+                M3taCron runs on passion, community, and free time, far from the
+                Empire's reach and annoying ad networks. This station is free,
+                but keeping it alive requires resources. Every donation goes
+                straight to covering monthly server costs first, while any
+                overflow fuels new development!
             </p>
 
-            <div class="mb-16 flex justify-start">
+            <div
+                class="flex items-start gap-3 mb-10 py-3 px-4 border border-primary/20 bg-primary/5 rounded-sm"
+            >
+                <!-- Lucide Heart Icon -->
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="w-5 h-5 text-red-500 shrink-0 mt-0.5 opacity-80"
+                    ><path
+                        d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"
+                    /></svg
+                >
+                <p
+                    class="text-[13px] text-secondary/90 leading-relaxed font-sans"
+                >
+                    To those who decide to support the project monthly: thank
+                    you! As a gesture of gratitude, you'll have a direct channel
+                    to discuss new feature requests with me. If they fit the
+                    system, I'll make them a priority. <em
+                        >May the Force be with you, always.</em
+                    >
+                </p>
+            </div>
+
+            <div class="mb-16 flex justify-start relative group inline-block">
+                <!-- Glowing Aura -->
+                <div
+                    class="absolute -inset-1 bg-white/10 blur-xl rounded-sm animate-pulse opacity-60 group-hover:opacity-100 group-hover:bg-white/30 transition-all duration-500"
+                ></div>
+
                 <a
                     href="https://ko-fi.com/m3tacron"
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="group relative inline-flex px-12 py-6 bg-primary text-terminal-bg font-mono font-bold uppercase tracking-[0.2em] text-lg transition-all hover:scale-[1.02] active:scale-[0.98] overflow-hidden"
+                    class="relative inline-flex px-12 py-6 bg-primary text-terminal-bg font-mono font-bold uppercase tracking-[0.2em] text-lg transition-all hover:scale-[1.02] active:scale-[0.98] overflow-hidden animate-heartbeat hover:![animation-play-state:paused]"
                 >
                     <span class="relative z-10 flex items-center gap-4">
-                        <span class="text-2xl">☕</span>
-                        Treat me to a coffee
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="24"
+                            height="24"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            class="w-6 h-6"
+                            ><path
+                                d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"
+                            /><path
+                                d="M12 5 9.04 7.96a2.17 2.17 0 0 0 0 3.08v0c.82.82 2.13.85 3 .07l2.07-1.9a2.82 2.82 0 0 1 3.79 0l2.96 2.66"
+                            /><path d="m18 15-2-2" /><path
+                                d="m15 18-2-2"
+                            /></svg
+                        >
+                        Donate
                     </span>
                     <!-- Hover glow -->
                     <div
@@ -170,5 +220,20 @@
                 transparent 50%
             ),
             linear-gradient(rgba(10, 10, 10, 1) 0%, rgba(0, 0, 0, 1) 100%);
+    }
+
+    @keyframes heartbeat {
+        0%,
+        100% {
+            transform: scale(1);
+        }
+        50% {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
+        }
+    }
+
+    .animate-heartbeat {
+        animation: heartbeat 2.5s ease-in-out infinite;
     }
 </style>
