@@ -37,65 +37,69 @@
 								>%</span
 							>
 						</div>
-					{:else}
-						<div class="text-xs font-mono text-secondary mb-1">
-							COLLECTED
-						</div>
-						<div
-							class="text-lg font-mono font-bold leading-none text-primary"
-						>
-							{tier.current.toFixed(0)}€
-						</div>
 					{/if}
 				</div>
 			</div>
 
-			<div class="relative">
-				<!-- Background track -->
-				<div
-					class="h-3 w-full bg-terminal-panel border border-border-dark overflow-hidden"
-				>
-					<!-- Progress fill -->
+			{#if tier.target}
+				<div class="relative">
+					<!-- Background track -->
 					<div
-						class="h-full bg-primary relative transition-all duration-1000 ease-out"
-						style="width: {getPercentage(
-							tier.current,
-							tier.target,
-						)}%"
+						class="h-3 w-full bg-terminal-panel border border-border-dark overflow-hidden"
 					>
-						<!-- Scanning line effect -->
+						<!-- Progress fill -->
 						<div
-							class="absolute inset-y-0 right-0 w-px bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)] z-10"
-						></div>
-						<!-- Subtle inner glow -->
-						<div
-							class="absolute inset-0 bg-gradient-to-r from-white/5 to-white/20"
-						></div>
+							class="h-full bg-primary relative transition-all duration-1000 ease-out"
+							style="width: {getPercentage(
+								tier.current,
+								tier.target,
+							)}%"
+						>
+							<!-- Scanning line effect -->
+							<div
+								class="absolute inset-y-0 right-0 w-px bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)] z-10"
+							></div>
+							<!-- Subtle inner glow -->
+							<div
+								class="absolute inset-0 bg-gradient-to-r from-white/5 to-white/20"
+							></div>
+						</div>
 					</div>
-				</div>
 
-				<!-- Amount labels -->
-				<div class="flex justify-between mt-1.5">
-					<span
-						class="text-[10px] font-mono text-secondary/60 tracking-tighter uppercase italic"
-					>
-						{#if tier.target}
+					<!-- Amount labels -->
+					<div class="flex justify-between mt-1.5">
+						<span
+							class="text-[10px] font-mono text-secondary/60 tracking-tighter uppercase italic"
+						>
 							Sustainability Goal
-						{:else}
-							Community Monthly Pot
-						{/if}
-					</span>
-					<span class="text-[10px] font-mono text-primary font-bold">
-						{#if tier.target}
+						</span>
+						<span
+							class="text-[10px] font-mono text-primary font-bold"
+						>
 							{tier.current.toFixed(0)}€
 							<span class="text-secondary/40 mx-1">/</span>
 							{tier.target.toFixed(0)}€
-						{:else}
-							{tier.current.toFixed(0)}€ THIS MONTH
-						{/if}
-					</span>
+						</span>
+					</div>
 				</div>
-			</div>
+			{:else}
+				<div
+					class="mt-2 p-4 border border-border-dark/30 bg-terminal-panel/30 flex items-center justify-between"
+				>
+					<span
+						class="text-xs font-mono text-secondary/60 uppercase tracking-widest"
+					>
+						Monthly Pot
+					</span>
+					<div class="text-2xl font-mono font-bold text-primary">
+						{tier.current.toFixed(0)}€
+						<span
+							class="text-[10px] text-secondary/40 font-normal tracking-widest ml-2 block sm:inline"
+							>THIS MONTH</span
+						>
+					</div>
+				</div>
+			{/if}
 		</div>
 	{/each}
 </div>
