@@ -63,7 +63,7 @@
             </p>
 
             <div
-                class="flex items-start gap-3 mb-10 py-3 px-4 border border-primary/20 bg-primary/5 rounded-sm"
+                class="flex items-center gap-3 mb-10 py-4 px-5 border border-primary/20 bg-primary/5 rounded-sm"
             >
                 <!-- Lucide Heart Icon -->
                 <svg
@@ -87,9 +87,8 @@
                     To those who decide to support the project monthly: thank
                     you! As a gesture of gratitude, you'll have a direct channel
                     to discuss new feature requests with me. If they fit the
-                    system, I'll make them a priority. <em
-                        >May the Force be with you, always.</em
-                    >
+                    system, I'll make them a priority.
+                    <br /><em>May the Force be with you, always.</em>
                 </p>
             </div>
 
@@ -98,7 +97,7 @@
                     href="https://ko-fi.com/m3tacron"
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="relative inline-flex px-12 py-6 bg-primary text-terminal-bg font-mono font-bold uppercase tracking-[0.2em] text-lg transition-all hover:scale-[1.02] active:scale-[0.98] overflow-hidden animate-heartbeat hover:![animation-play-state:paused]"
+                    class="relative inline-flex px-12 py-6 bg-primary text-terminal-bg font-mono font-bold uppercase tracking-[0.2em] text-lg transition-all hover:scale-[1.02] active:scale-[0.98] overflow-hidden animate-heartbeat hover:![animation-play-state:paused] rounded-xl"
                 >
                     <span class="relative z-10 flex items-center gap-4">
                         <svg
@@ -129,7 +128,7 @@
                 </a>
             </div>
 
-            <div class="flex flex-col">
+            <div class="flex flex-col mt-auto pt-10">
                 <div class="flex items-center gap-4 mb-8">
                     <h2
                         class="text-lg font-mono font-bold uppercase tracking-[0.3em] shrink-0"
@@ -166,22 +165,24 @@
         </section>
 
         <!-- Right Column (1/3) -->
-        <section class="lg:col-span-4 flex flex-col h-full overflow-hidden">
+        <section class="lg:col-span-4 flex flex-col h-full">
             <div class="flex items-center gap-4 mb-8">
                 <div
-                    class="h-[1px] flex-1 bg-gradient-to-l from-border-dark to-transparent"
+                    class="h-[1px] flex-1 bg-gradient-to-l from-secondary/30 to-transparent"
                 ></div>
                 <h2
                     class="text-lg font-mono font-bold uppercase tracking-[0.3em] shrink-0 text-secondary"
                 >
-                    The Vanguard Registry
+                    Galactic Patrons
                 </h2>
                 <div
-                    class="h-[1px] flex-1 bg-gradient-to-r from-border-dark to-transparent"
+                    class="h-[1px] flex-1 bg-gradient-to-r from-secondary/30 to-transparent"
                 ></div>
             </div>
 
-            <div class="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-1">
+            <div
+                class="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-1 mb-4"
+            >
                 {#if loading}
                     <div class="space-y-4 opacity-10">
                         {#each Array(6) as _}
@@ -196,7 +197,9 @@
             </div>
 
             {#if !loading && supporters.length > 0}
-                <div class="mt-8 text-center shrink-0">
+                <div
+                    class="text-center shrink-0 border-t border-border-dark/30 pt-6"
+                >
                     <p
                         class="text-[9px] text-secondary/30 font-mono tracking-widest uppercase italic max-w-xs mx-auto"
                     >
@@ -228,7 +231,7 @@
         }
         50% {
             transform: scale(1.05);
-            box-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
+            box-shadow: 0 0 25px rgba(255, 255, 255, 0.4);
         }
     }
 
