@@ -22,24 +22,25 @@ def get_fund_status():
         total_raised = session.exec(total_query).one()
         total_raised = float(total_raised) if total_raised else 0.0
         
+        # Calculate monthly raised (current month)
+        now = datetime.now()
+        first_of_month = datetime(now.year, now.month, 1)
+        monthly_query = select(func.sum(Contribution.amount)).where(Contribution.date >= first_of_month)
+        monthly_raised = session.exec(monthly_query).one()
+        monthly_raised = float(monthly_raised) if monthly_raised else 0.0
+
         tiers = [
             FundTier(
-                name="Hosting & Infrastructure",
+                name="Server & Maintenance",
                 target=120.0,
                 current=min(total_raised, 120.0),
-                description="Ensures the site stays live and fast (Annual target)."
+                description="Keeps the lights on. (120€ / year)"
             ),
             FundTier(
-                name="Developer Fund",
-                target=500.0,
-                current=min(total_raised, 500.0),
-                description="Supports the massive time and effort put into building M3taCron."
-            ),
-            FundTier(
-                name="Next Milestone: Auto-Alerts",
-                target=1000.0,
-                current=min(total_raised, 1000.0),
-                description="Funding for automated Discord/Telegram tournament alerts."
+                name="A Beer for the Dev",
+                target=None,
+                current=monthly_raised,
+                description="What we collected together this month to support the work."
             )
         ]
 
