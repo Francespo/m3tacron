@@ -84,17 +84,17 @@
 				</div>
 			{:else}
 				<div
-					class="mt-2 p-4 border border-border-dark/30 bg-terminal-panel/30 flex items-center justify-between"
+					class="mt-2 p-4 border-l-4 border-primary bg-primary/5 flex items-center justify-between"
 				>
 					<span
-						class="text-xs font-mono text-secondary/60 uppercase tracking-widest"
+						class="text-xs font-mono text-secondary/90 uppercase tracking-widest"
 					>
-						Monthly Pot
+						Maintenance & Development
 					</span>
 					<div class="text-2xl font-mono font-bold text-primary">
 						{tier.current.toFixed(0)}€
 						<span
-							class="text-[10px] text-secondary/40 font-normal tracking-widest ml-2 block sm:inline"
+							class="text-[10px] text-secondary/60 font-normal tracking-widest ml-2 block sm:inline"
 							>THIS MONTH</span
 						>
 					</div>
