@@ -31,16 +31,16 @@ def get_fund_status():
 
         tiers = [
             FundTier(
-                name="Server & Maintenance",
-                target=120.0,
-                current=min(total_raised, 120.0),
-                description="Keeps the lights on. (120€ / year)"
+                name="Server Cost",
+                target=15.0,
+                current=min(monthly_raised, 15.0),
+                description="M3-TA droid works tirelessly to keep the power grid online and the database reactors stable. (15€ / month)"
             ),
             FundTier(
-                name="Developer Credits",
+                name="Maintenance & Development",
                 target=None,
-                current=monthly_raised,
-                description="Optional monthly Galactic Credits to fuel the hyperdrive and support the developer's free time."
+                current=max(0.0, monthly_raised - 15.0),
+                description="Overflow credits beyond basic maintenance needs. This pool directly sustains the long hours spent building new modules and upgrading the station."
             )
         ]
 
