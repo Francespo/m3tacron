@@ -37,10 +37,10 @@ def get_fund_status():
                 description="Keeps the lights on. (120€ / year)"
             ),
             FundTier(
-                name="A Beer for the Dev",
+                name="Developer Credits",
                 target=None,
                 current=monthly_raised,
-                description="What we collected together this month to support the work."
+                description="Optional monthly Galactic Credits to fuel the hyperdrive and support the developer's free time."
             )
         ]
 
