@@ -324,7 +324,7 @@ class TournamentDetailResponse(BaseModel):
 
 class FundTier(BaseModel):
     name: str
-    target: float
+    target: Optional[float] = None
     current: float
     description: str
 
