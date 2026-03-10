@@ -13,22 +13,17 @@
 	}
 </script>
 
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+<div class="grid grid-cols-1 gap-4">
 	{#each supporters as supporter}
-		<div class="relative group">
+		<div class="relative">
 			<!-- Terminal card border effect -->
 			<div
-				class="absolute -inset-[0.5px] bg-border-dark group-hover:bg-primary/20 transition-colors duration-300"
+				class="absolute -inset-[0.5px] bg-border-dark rounded-xl"
 			></div>
 
 			<div
-				class="relative h-full p-4 bg-terminal-panel/80 backdrop-blur-sm flex flex-col justify-between overflow-hidden"
+				class="relative h-full p-4 bg-black/80 backdrop-blur-sm border border-primary/10 flex flex-col justify-between overflow-hidden rounded-xl"
 			>
-				<!-- Corner accent -->
-				<div
-					class="absolute top-0 right-0 w-6 h-6 border-t border-r border-border-dark opacity-40"
-				></div>
-
 				<div>
 					<div class="flex justify-between items-start mb-3">
 						<h4
@@ -37,7 +32,7 @@
 							{supporter.name}
 						</h4>
 						<span
-							class="text-[9px] font-mono text-secondary/50 shrink-0 ml-2"
+							class="text-[9px] font-mono text-secondary/70 shrink-0 ml-2"
 						>
 							{formatDate(supporter.date)}
 						</span>
@@ -46,16 +41,16 @@
 					{#if supporter.message}
 						<div class="mb-4 relative">
 							<span
-								class="absolute -left-2 top-0 text-primary/20 text-lg font-serif"
+								class="absolute -left-2 top-0 text-primary/40 text-lg font-serif"
 								>"</span
 							>
 							<p
-								class="text-[11px] text-secondary leading-relaxed italic line-clamp-3"
+								class="text-xs text-white/90 leading-relaxed italic line-clamp-3 relative z-10"
 							>
 								{supporter.message}
 							</p>
 							<span
-								class="absolute -right-1 bottom-0 text-primary/20 text-lg font-serif"
+								class="absolute -right-1 bottom-0 text-primary/40 text-lg font-serif"
 								>"</span
 							>
 						</div>
@@ -75,12 +70,12 @@
 					class="pt-3 border-t border-border-dark/50 flex items-center justify-between mt-auto"
 				>
 					<span
-						class="text-[10px] uppercase text-secondary/40 font-mono tracking-widest"
-						>Confirmed Contribution</span
+						class="text-[10px] uppercase text-secondary/60 font-mono tracking-widest"
+						>Transmitted</span
 					>
-					<span class="text-xs font-mono text-primary font-bold">
+					<span class="text-sm font-mono text-primary font-bold">
 						{supporter.amount.toFixed(2)}<span
-							class="text-[10px] text-secondary/60">€</span
+							class="text-[10px] text-secondary/60 ml-0.5">€</span
 						>
 					</span>
 				</div>
@@ -88,7 +83,7 @@
 		</div>
 	{:else}
 		<div
-			class="col-span-full py-20 flex flex-col items-center justify-center border border-dashed border-border-dark/40 bg-terminal-panel/20"
+			class="col-span-full py-20 flex flex-col items-center justify-center border border-dashed border-border-dark/40 bg-terminal-panel/20 rounded-xl"
 		>
 			<p
 				class="text-xs font-mono text-secondary/40 uppercase tracking-[0.3em] mb-2"
