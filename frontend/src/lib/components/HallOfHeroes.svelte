@@ -39,20 +39,18 @@
 					</div>
 
 					{#if supporter.message}
-						<div class="mb-4 relative">
-							<span
-								class="absolute -left-2 top-0 text-primary/40 text-lg font-serif"
-								>"</span
-							>
+						<div class="mb-4">
 							<p
-								class="text-xs text-white/90 leading-relaxed italic line-clamp-3 relative z-10"
+								class="text-xs text-white/90 leading-relaxed italic line-clamp-3"
 							>
-								{supporter.message}
+								<span
+									class="text-primary/40 text-base font-serif mr-0.5"
+									>"</span
+								>{supporter.message}<span
+									class="text-primary/40 text-base font-serif ml-0.5"
+									>"</span
+								>
 							</p>
-							<span
-								class="absolute -right-1 bottom-0 text-primary/40 text-lg font-serif"
-								>"</span
-							>
 						</div>
 					{:else}
 						<div
