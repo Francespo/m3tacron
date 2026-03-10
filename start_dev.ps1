@@ -44,7 +44,8 @@ Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "Starting servers in THIS terminal. Press CTRL+C to stop both." -ForegroundColor Yellow
 
 # Start Backend in the background without a new window
-$backendProcess = Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList "-NoProfile -Command `"& .\.venv\Scripts\Activate.ps1; uvicorn backend.main:app --reload --host 0.0.0.0 --port $actualBport`"" -NoNewWindow -PassThru
+# Limit reload to the backend directory so it doesn't choke on the .venv junction
+$backendProcess = Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList "-NoProfile -Command `"& .\.venv\Scripts\Activate.ps1; python -m uvicorn backend.main:app --reload --reload-dir backend --host 0.0.0.0 --port $actualBport`"" -NoNewWindow -PassThru
 
 # Ensure the backend process is killed when the script stops or is interrupted
 try {
