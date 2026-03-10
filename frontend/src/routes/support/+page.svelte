@@ -32,9 +32,11 @@
     <title>Support M3taCron | Maintenance & Evolution</title>
 </svelte:head>
 
-<div class="max-w-6xl mx-auto px-6 py-12 lg:py-24">
+<div
+    class="max-w-6xl mx-auto px-6 py-8 lg:py-12 h-screen flex flex-col justify-center overflow-hidden"
+>
     <!-- Hero Section -->
-    <header class="mb-24 text-center relative">
+    <header class="mb-12 text-center relative">
         <!-- Subtle background element -->
         <div
             class="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 bg-primary/5 blur-[120px] rounded-full -z-10"
@@ -49,7 +51,7 @@
         </div>
 
         <h1
-            class="text-5xl md:text-7xl font-mono font-bold tracking-tighter mb-8 uppercase"
+            class="text-4xl md:text-6xl font-mono font-bold tracking-tighter mb-6 uppercase"
         >
             Keeping <span class="text-secondary/20 font-light italic"
                 >M3taCron</span
@@ -58,25 +60,22 @@
         </h1>
 
         <p
-            class="text-secondary/80 max-w-2xl mx-auto text-sm md:text-lg leading-relaxed mb-12 font-sans italic"
+            class="text-secondary/80 max-w-2xl mx-auto text-sm md:text-base leading-relaxed mb-8 font-sans italic"
         >
-            M3taCron is a labor of love, built by the community for the
-            community. I dedicate a huge chunk of my free time to keeping this
-            station fully operational, far from the grasp of the Empire (and
-            corporate sponsors). Your support helps me pay for hosting and keeps
-            the hyperspace lanes open. Donating Galactic Credits is completely
-            optional—only contribute if you truly want to help fuel the
-            hyperdrive!
+            M3taCron is a labor of love for the community. I dedicate a huge
+            chunk of my free time to keeping this station fully operational, far
+            from the grasp of the Empire (and ad services). Your support helps
+            pay for hosting and keeps the hyperspace lanes open. Donating
+            Galactic Credits is entirely optional—contribute only if you truly
+            want to help fuel the hyperdrive and improve this terminal!
         </p>
 
-        <div
-            class="flex flex-col sm:flex-row items-center justify-center gap-8"
-        >
+        <div class="flex items-center justify-center">
             <a
                 href="https://ko-fi.com/m3tacron"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="group relative px-12 py-5 bg-primary text-terminal-bg font-mono font-bold uppercase tracking-[0.2em] text-sm transition-all hover:scale-[1.02] active:scale-[0.98] overflow-hidden"
+                class="group relative px-10 py-4 bg-primary text-terminal-bg font-mono font-bold uppercase tracking-[0.2em] text-sm transition-all hover:scale-[1.02] active:scale-[0.98] overflow-hidden"
             >
                 <span class="relative z-10 flex items-center gap-3">
                     <span class="text-lg">☕</span>
@@ -87,32 +86,17 @@
                     class="absolute inset-0 bg-white shadow-[0_0_30px_rgba(255,255,255,0.6)] opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                 ></div>
             </a>
-
-            <div class="text-left py-2 pl-8 border-l border-border-dark">
-                <div
-                    class="text-[10px] text-secondary/40 uppercase tracking-[0.3em] mb-1 font-mono"
-                >
-                    Heartbeat Standing
-                </div>
-                <div
-                    class="text-3xl font-mono font-bold tracking-tighter text-primary flex items-baseline gap-2"
-                >
-                    {fundStatus.total_raised.toFixed(0)}€
-                    <span
-                        class="text-xs text-secondary/40 italic font-normal uppercase tracking-widest"
-                        >Raised so far</span
-                    >
-                </div>
-            </div>
         </div>
     </header>
 
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-16 lg:gap-24 items-start">
+    <div
+        class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start h-full overflow-hidden"
+    >
         <!-- Evolution Fund Column -->
-        <section class="lg:col-span-7">
-            <div class="flex items-center gap-6 mb-12">
+        <section class="lg:col-span-7 flex flex-col h-full">
+            <div class="flex items-center gap-4 mb-8">
                 <h2
-                    class="text-xl font-mono font-bold uppercase tracking-[0.3em] shrink-0"
+                    class="text-lg font-mono font-bold uppercase tracking-[0.3em] shrink-0"
                 >
                     Community Fund
                 </h2>
@@ -145,10 +129,10 @@
         </section>
 
         <!-- Hall of Heroes Column -->
-        <section class="lg:col-span-5">
-            <div class="flex items-center gap-6 mb-12">
+        <section class="lg:col-span-5 flex flex-col h-full overflow-hidden">
+            <div class="flex items-center gap-4 mb-8">
                 <h2
-                    class="text-xl font-mono font-bold uppercase tracking-[0.3em] shrink-0 text-secondary"
+                    class="text-lg font-mono font-bold uppercase tracking-[0.3em] shrink-0 text-secondary"
                 >
                     Hall of Heroes
                 </h2>
@@ -157,7 +141,7 @@
                 ></div>
             </div>
 
-            <div class="space-y-6">
+            <div class="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-1">
                 {#if loading}
                     <div class="space-y-4 opacity-10">
                         {#each Array(6) as _}
