@@ -51,6 +51,10 @@ $backendProcess = Start-Process powershell -WorkingDirectory $PSScriptRoot -Argu
 try {
     # Start Frontend in the foreground
     Push-Location frontend
+    if (-not (Test-Path "node_modules")) {
+        Write-Host "First time in this worktree? Installing frontend dependencies..." -ForegroundColor Yellow
+        npm install
+    }
     $env:VITE_API_BASE = "$backendUrl/api"
     npm run dev -- --port $actualFport
 }
