@@ -61,9 +61,12 @@
             class="text-secondary/80 max-w-2xl mx-auto text-sm md:text-lg leading-relaxed mb-12 font-sans italic"
         >
             M3taCron is a labor of love, built by the community for the
-            community. There are no ads, no sponsors, and no corporate backing.
-            Your support helps me keep the server online and the tournament data
-            flowing.
+            community. I dedicate a huge chunk of my free time to keeping this
+            station fully operational, far from the grasp of the Empire (and
+            corporate sponsors). Your support helps me pay for hosting and keeps
+            the hyperspace lanes open. Donating Galactic Credits is completely
+            optional—only contribute if you truly want to help fuel the
+            hyperdrive!
         </p>
 
         <div
@@ -139,78 +142,6 @@
             {:else}
                 <EvolutionProgressBar tiers={fundStatus.tiers} />
             {/if}
-
-            <!-- Why Support box -->
-            <div class="mt-16 relative overflow-hidden">
-                <div class="absolute inset-0 bg-terminal-panel/30 -z-10"></div>
-                <div
-                    class="absolute top-0 left-0 w-1 h-full bg-primary/20"
-                ></div>
-
-                <div class="p-8 border border-border-dark/50">
-                    <h4
-                        class="text-xs font-mono font-bold uppercase text-primary/80 mb-6 tracking-[0.4em] flex items-center gap-3"
-                    >
-                        <span class="text-primary tracking-tighter">[!]</span>
-                        Why help M3taCron?
-                    </h4>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div class="space-y-2">
-                            <span
-                                class="text-[10px] font-mono text-primary/40 uppercase tracking-widest block"
-                                >01 / Transparency</span
-                            >
-                            <p
-                                class="text-[11px] text-secondary leading-relaxed"
-                            >
-                                Every contribution is tracked and accounted for.
-                                We show exactly how the funds are distributed
-                                across hosting and development.
-                            </p>
-                        </div>
-                        <div class="space-y-2">
-                            <span
-                                class="text-[10px] font-mono text-primary/40 uppercase tracking-widest block"
-                                >02 / Independence</span
-                            >
-                            <p
-                                class="text-[11px] text-secondary leading-relaxed"
-                            >
-                                No ads, no trackers, no selling data. Community
-                                support ensures M3taCron remains a tool for
-                                players, not for profit.
-                            </p>
-                        </div>
-                        <div class="space-y-2">
-                            <span
-                                class="text-[10px] font-mono text-primary/40 uppercase tracking-widest block"
-                                >03 / Longevity</span
-                            >
-                            <p
-                                class="text-[11px] text-secondary leading-relaxed"
-                            >
-                                Funding base infrastructure ensures M3taCron
-                                stays online for years to come, preserving the
-                                history of X-Wing competition.
-                            </p>
-                        </div>
-                        <div class="space-y-2">
-                            <span
-                                class="text-[10px] font-mono text-primary/40 uppercase tracking-widest block"
-                                >04 / Continuous Improvement</span
-                            >
-                            <p
-                                class="text-[11px] text-secondary leading-relaxed"
-                            >
-                                Your support helps cover the costs of tools and
-                                licenses needed to keep adding new features and
-                                improving the data quality for everyone.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </section>
 
         <!-- Hall of Heroes Column -->
