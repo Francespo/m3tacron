@@ -45,22 +45,25 @@
         >
             <span class="w-1.5 h-1.5 bg-primary rounded-full animate-pulse"
             ></span>
-            Project Sustainability Protocol
+            Community heartbeat
         </div>
 
         <h1
             class="text-5xl md:text-7xl font-mono font-bold tracking-tighter mb-8 uppercase"
         >
-            Support <span class="text-secondary/20 font-light italic">the</span>
-            Evolution
+            Keeping <span class="text-secondary/20 font-light italic"
+                >M3taCron</span
+            >
+            Alive
         </h1>
 
         <p
-            class="text-secondary/80 max-w-2xl mx-auto text-sm md:text-lg leading-relaxed mb-12 font-sans"
+            class="text-secondary/80 max-w-2xl mx-auto text-sm md:text-lg leading-relaxed mb-12 font-sans italic"
         >
-            M3taCron is built by the community, for the community. We are 100%
-            independent, ad-free, and open-source. Your contributions directly
-            fund our infrastructure and new feature development.
+            M3taCron is a labor of love, built by the community for the
+            community. There are no ads, no sponsors, and no corporate backing.
+            Your support helps me keep the server online and the tournament data
+            flowing.
         </p>
 
         <div
@@ -74,7 +77,7 @@
             >
                 <span class="relative z-10 flex items-center gap-3">
                     <span class="text-lg">☕</span>
-                    Contribute via Ko-fi
+                    Treat me to a coffee
                 </span>
                 <!-- Hover glow -->
                 <div
@@ -86,15 +89,15 @@
                 <div
                     class="text-[10px] text-secondary/40 uppercase tracking-[0.3em] mb-1 font-mono"
                 >
-                    Current Standing
+                    Heartbeat Standing
                 </div>
                 <div
                     class="text-3xl font-mono font-bold tracking-tighter text-primary flex items-baseline gap-2"
                 >
-                    ${fundStatus.total_raised.toFixed(0)}
+                    {fundStatus.total_raised.toFixed(0)}€
                     <span
                         class="text-xs text-secondary/40 italic font-normal uppercase tracking-widest"
-                        >Total Raised</span
+                        >Raised so far</span
                     >
                 </div>
             </div>
@@ -108,7 +111,7 @@
                 <h2
                     class="text-xl font-mono font-bold uppercase tracking-[0.3em] shrink-0"
                 >
-                    Evolution Fund
+                    Community Fund
                 </h2>
                 <div
                     class="h-[1px] flex-1 bg-gradient-to-r from-border-dark to-transparent"
@@ -149,7 +152,7 @@
                         class="text-xs font-mono font-bold uppercase text-primary/80 mb-6 tracking-[0.4em] flex items-center gap-3"
                     >
                         <span class="text-primary tracking-tighter">[!]</span>
-                        Why Support M3taCron?
+                        Why help M3taCron?
                     </h4>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -195,14 +198,14 @@
                         <div class="space-y-2">
                             <span
                                 class="text-[10px] font-mono text-primary/40 uppercase tracking-widest block"
-                                >04 / Development</span
+                                >04 / Continuous Improvement</span
                             >
                             <p
                                 class="text-[11px] text-secondary leading-relaxed"
                             >
-                                Reaching milestones unlocks complex new features
-                                like automated discord alerts, better analytics,
-                                and deeper list insights.
+                                Your support helps cover the costs of tools and
+                                licenses needed to keep adding new features and
+                                improving the data quality for everyone.
                             </p>
                         </div>
                     </div>
