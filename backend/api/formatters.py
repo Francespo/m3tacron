@@ -125,7 +125,7 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
     return ListData(
         signature=stats.get("signature", "Unknown Signature") or "Unknown Signature",
         name=stats.get("name", "Unknown List") or "Unknown List",
-        faction=f_label,
+        faction=f_key,
         faction_key=f_key,
         faction_xws=stats.get("faction_xws", f_key),
         icon_char=stats.get("icon_char", ""),
