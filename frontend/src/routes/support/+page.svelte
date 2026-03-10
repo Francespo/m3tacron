@@ -76,13 +76,13 @@
                     stroke-width="2"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    class="w-5 h-5 text-red-500 shrink-0 mt-0.5 opacity-80"
+                    class="w-5 h-5 text-secondary/80 shrink-0 opacity-80"
                     ><path
                         d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"
                     /></svg
                 >
                 <p
-                    class="text-[13px] text-secondary/90 leading-relaxed font-sans"
+                    class="text-[13px] text-secondary/90 leading-relaxed font-sans self-center"
                 >
                     To those who decide to support the project monthly: thank
                     you! As a gesture of gratitude, you'll have a direct channel
@@ -93,12 +93,7 @@
                 </p>
             </div>
 
-            <div class="mb-16 flex justify-start relative group inline-block">
-                <!-- Glowing Aura -->
-                <div
-                    class="absolute -inset-1 bg-white/10 blur-xl rounded-sm animate-pulse opacity-60 group-hover:opacity-100 group-hover:bg-white/30 transition-all duration-500"
-                ></div>
-
+            <div class="mb-16 flex justify-center relative group">
                 <a
                     href="https://ko-fi.com/m3tacron"
                     target="_blank"
@@ -173,10 +168,13 @@
         <!-- Right Column (1/3) -->
         <section class="lg:col-span-4 flex flex-col h-full overflow-hidden">
             <div class="flex items-center gap-4 mb-8">
+                <div
+                    class="h-[1px] flex-1 bg-gradient-to-l from-border-dark to-transparent"
+                ></div>
                 <h2
                     class="text-lg font-mono font-bold uppercase tracking-[0.3em] shrink-0 text-secondary"
                 >
-                    Hall of Heroes
+                    The Vanguard Registry
                 </h2>
                 <div
                     class="h-[1px] flex-1 bg-gradient-to-r from-border-dark to-transparent"
@@ -202,8 +200,9 @@
                     <p
                         class="text-[9px] text-secondary/30 font-mono tracking-widest uppercase italic max-w-xs mx-auto"
                     >
-                        Recognizing the most recent champions. Anonymous
-                        donations are encrypted and hidden from the terminal.
+                        Honoring the galaxy's brightest sparks. Heroes who
+                        prefer to stay anonymous are protected by a cloaking
+                        device.
                     </p>
                 </div>
             {/if}
