@@ -71,7 +71,7 @@
 				>
 					<span
 						class="text-[10px] uppercase text-secondary/60 font-mono tracking-widest"
-						>Transmitted</span
+						>Donated</span
 					>
 					<span class="text-sm font-mono text-primary font-bold">
 						{supporter.amount.toFixed(2)}<span
