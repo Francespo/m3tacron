@@ -53,7 +53,7 @@
             class="lg:col-span-8 flex flex-col h-full overflow-y-auto pr-4 custom-scrollbar"
         >
             <p
-                class="text-secondary/80 text-base md:text-lg leading-relaxed mb-6 font-sans italic"
+                class="text-secondary/80 text-base md:text-lg leading-relaxed mb-6 font-sans italic text-center"
             >
                 M3taCron runs on passion, community, and free time, far from the
                 Empire's reach and annoying ad networks. This station is free,
@@ -63,7 +63,7 @@
             </p>
 
             <div
-                class="flex items-center gap-3 mb-10 py-4 px-5 border border-primary/20 bg-primary/5 rounded-sm"
+                class="flex flex-col items-center text-center gap-2 mb-10 py-4 px-5 border border-primary/20 bg-primary/5 rounded-sm"
             >
                 <!-- Lucide Heart Icon -->
                 <svg
@@ -82,7 +82,7 @@
                     /></svg
                 >
                 <p
-                    class="text-[13px] text-secondary/90 leading-relaxed font-sans self-center"
+                    class="text-[13px] text-secondary/90 leading-relaxed font-sans"
                 >
                     To those who decide to support the project monthly: thank
                     you! As a gesture of gratitude, you'll have a direct channel
