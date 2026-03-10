@@ -113,8 +113,9 @@
 			<span class="text-secondary font-sans text-xs font-bold"
 				>M3taCron Analytics</span
 			>
-			<span class="text-secondary font-sans text-xs"
-				>Built by Francespo</span
+			<span
+				class="text-secondary font-sans text-xs flex items-center gap-1"
+				>Made with <span class="text-red-500">❤️</span> by Francespo</span
 			>
 
 			<div class="w-full h-px bg-white/5 my-2"></div>
