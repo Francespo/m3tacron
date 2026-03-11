@@ -3,8 +3,9 @@ import { API_BASE } from '$lib/api';
 
 export async function GET({ url, fetch }) {
     const source = url.searchParams.get('data_source') || 'xwa';
+    const includeEpic = url.searchParams.get('include_epic') || 'false';
     try {
-        const res = await fetch(`${API_BASE}/meta-snapshot?data_source=${source}`);
+        const res = await fetch(`${API_BASE}/meta-snapshot?data_source=${source}&include_epic=${includeEpic}`);
         if (!res.ok) {
             throw new Error(`Backend error: ${res.status}`);
         }

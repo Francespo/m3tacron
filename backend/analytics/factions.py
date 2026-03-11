@@ -110,7 +110,7 @@ def aggregate_faction_stats(
         results.sort(key=lambda x: x["popularity"], reverse=True)
         return results
 
-def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats: list[str] | None = None) -> dict:
+def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats: list[str] | None = None, include_epic: bool = False) -> dict:
     """
     Get a high-level summary of the current meta (last 90 days).
     """
@@ -123,6 +123,7 @@ def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats:
     
     filters = {
         "date_start": date_str,
+        "include_epic": include_epic
     }
     if allowed_formats:
         filters["allowed_formats"] = get_active_formats(allowed_formats)

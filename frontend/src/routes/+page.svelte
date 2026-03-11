@@ -17,7 +17,7 @@
         error = false;
         errorMsg = "";
 
-        const targetUrl = `/api/meta-snapshot?data_source=${source}`;
+        const targetUrl = `/api/meta-snapshot?data_source=${source}&include_epic=${filters.includeEpic}`;
         fetch(targetUrl)
             .then(async (res) => {
                 if (!res.ok) {

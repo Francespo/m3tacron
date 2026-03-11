@@ -53,6 +53,7 @@ def aggregate_ship_stats(
         
         
         allowed_formats = filters.get("allowed_formats") or None
+        include_epic = filters.get("include_epic", False)
         allowed_date_start = filters.get("date_start") or None
         allowed_date_end = filters.get("date_end") or None
 
@@ -73,6 +74,15 @@ def aggregate_ship_stats(
             
             if not ship_xws or not faction:
                 continue
+
+            # Epic-only exclusion: skip pilots playable ONLY in Epic
+            is_epic = p_info.get("epic", False)
+            is_legal = p_info.get("valid_in_standard", False)
+            is_wild = p_info.get("wildspace", False)
+            
+            if not include_epic:
+                if is_epic and not is_legal and not is_wild:
+                    continue
                 
             # Normalize faction to xws format
             try:
@@ -174,7 +184,15 @@ def aggregate_ship_stats(
                     # Fallback visibility if no formats selected
                     show_pilot = is_legal or is_wild
                 
+                # Epic Content Toggle
+                if include_epic and is_epic:
+                    show_pilot = True
+                
                 if not show_pilot:
+                    continue
+
+                # Epic-only exclusion: skip pilots playable ONLY in Epic
+                if not include_epic and is_epic and not is_legal and not is_wild:
                     continue
                 
                 key = (ship_xws, faction_xws)

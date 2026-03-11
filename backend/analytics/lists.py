@@ -8,6 +8,7 @@ from ..models import PlayerResult, Tournament
 from ..data_structures.factions import Faction, get_faction_char
 from ..data_structures.data_source import DataSource
 from .filters import filter_query, get_active_formats, apply_tournament_filters
+from ..utils.xwing_data.pilots import load_all_pilots
 import json
 
 def aggregate_list_stats(
@@ -30,7 +31,11 @@ def aggregate_list_stats(
         # A more robust solution would use a canonical list hash.
         
         list_stats = {}
-        
+
+        # Epic filter: exclude lists containing any epic-only pilot
+        include_epic = filters.get("include_epic", False)
+        all_pilots = load_all_pilots(data_source)
+
         for result, tournament in rows:
             # Format filter optimization
             t_fmt_raw = tournament.format
@@ -50,6 +55,24 @@ def aggregate_list_stats(
                 
             pilots = xws.get("pilots", [])
             if not pilots: continue
+
+            # Epic-only list exclusion: skip entire list if ANY pilot is epic-only
+            if not include_epic:
+                has_epic_only = False
+                for p in pilots:
+                    pid = p.get("id") or p.get("name")
+                    if not pid:
+                        continue
+                    p_info = all_pilots.get(pid, {})
+                    is_epic = p_info.get("epic", False)
+                    is_legal = p_info.get("valid_in_standard", False)
+                    is_wild = p_info.get("wildspace", False)
+                    if is_epic and not is_legal and not is_wild:
+                        has_epic_only = True
+                        break
+                if has_epic_only:
+                    continue
+
             
             req_ships = filters.get("ships")
             if req_ships:

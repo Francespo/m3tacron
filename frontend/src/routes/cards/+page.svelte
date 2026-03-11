@@ -21,7 +21,15 @@
     let textSearch = $state("");
     let selectedFactions = $state<string[]>([]);
     let factionOpen = $state(false);
+    let isAdvanced = $state(false);
     const size = 20;
+
+    // Initialize store from URL if present
+    $effect.pre(() => {
+        if (data.includeEpic !== undefined) {
+            filters.includeEpic = data.includeEpic;
+        }
+    });
 
     let items = $derived(data.items ?? []);
     let total = $derived(data.total ?? 0);
@@ -51,6 +59,8 @@
         for (const c of filters.selectedCities) params.append("city", c);
         if (filters.dateStart) params.set("date_start", filters.dateStart);
         if (filters.dateEnd) params.set("date_end", filters.dateEnd);
+        params.set("include_epic", String(filters.includeEpic));
+
 
         // Advanced Filters
         if (filters.pointsMin) params.set("points_min", filters.pointsMin);

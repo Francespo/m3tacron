@@ -40,6 +40,7 @@ def _build_filters(
     date_end: Optional[str] = None,
     player_count_min: Optional[int] = None,
     player_count_max: Optional[int] = None,
+    include_epic: bool = False,
 ) -> dict:
     
     # Base sizes mapping
@@ -81,7 +82,7 @@ def _build_filters(
         "date_end": date_end,
         "player_count_min": player_count_min,
         "player_count_max": player_count_max,
-        "include_epic": False
+        "include_epic": include_epic
     }
 
 
@@ -124,6 +125,7 @@ def get_pilots(
     date_end: Optional[str] = Query(None),
     player_count_min: Optional[int] = Query(None),
     player_count_max: Optional[int] = Query(None),
+    include_epic: bool = Query(False),
 ):
     try:
         ds_enum = DataSource(data_source)
@@ -151,7 +153,8 @@ def get_pilots(
         is_unique=is_unique, is_limited=is_limited, is_not_limited=is_not_limited,
         base_sizes=base_sizes, platforms=platforms, continent=continent, country=country, city=city,
         date_start=date_start, date_end=date_end,
-        player_count_min=player_count_min, player_count_max=player_count_max
+        player_count_min=player_count_min, player_count_max=player_count_max,
+        include_epic=include_epic
     )
 
     data = aggregate_card_stats(filters, criteria, s_dir, "pilots", ds_enum)
@@ -183,6 +186,7 @@ def get_upgrades(
     date_end: Optional[str] = Query(None),
     player_count_min: Optional[int] = Query(None),
     player_count_max: Optional[int] = Query(None),
+    include_epic: bool = Query(False),
 ):
     try:
         ds_enum = DataSource(data_source)
@@ -204,7 +208,8 @@ def get_upgrades(
         search_text=search_text, points_min=points_min, points_max=points_max,
         platforms=platforms, continent=continent, country=country, city=city,
         date_start=date_start, date_end=date_end,
-        player_count_min=player_count_min, player_count_max=player_count_max
+        player_count_min=player_count_min, player_count_max=player_count_max,
+        include_epic=include_epic
     )
 
     data = aggregate_card_stats(filters, criteria, s_dir, "upgrades", ds_enum)
