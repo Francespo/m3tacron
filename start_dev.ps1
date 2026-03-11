@@ -7,15 +7,25 @@ function Get-FreePort {
     param([int]$StartingPort)
     $port = $StartingPort
     while ($true) {
+        Write-Host "Checking port $port... " -NoNewline
         try {
-            $tcpListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $port)
+            # Try to bind to IPv6Any on the port (covers IPv4 and IPv6)
+            $tcpListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::IPv6Any, $port)
             $tcpListener.Start()
             $tcpListener.Stop()
-            return $port
+            
+            # Double check with Get-NetTCPConnection for OS-level confirmation
+            $occupied = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
+            if (-not $occupied) {
+                Write-Host "Available!" -ForegroundColor Green
+                return $port
+            }
+            Write-Host "Occupied (OS reports active connection)." -ForegroundColor Yellow
         }
         catch {
-            $port++
+            Write-Host "Occupied (Failed to bind)." -ForegroundColor Yellow
         }
+        $port++
     }
 }
 
@@ -34,12 +44,17 @@ Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "Starting servers in THIS terminal. Press CTRL+C to stop both." -ForegroundColor Yellow
 
 # Start Backend in the background without a new window
-$backendProcess = Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList "-NoProfile -Command `"& .\.venv\Scripts\Activate.ps1; uvicorn backend.main:app --reload --host 0.0.0.0 --port $actualBport`"" -NoNewWindow -PassThru
+# Limit reload to the backend directory so it doesn't choke on the .venv junction
+$backendProcess = Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList "-NoProfile -Command `"& .\.venv\Scripts\Activate.ps1; python -m uvicorn backend.main:app --reload --reload-dir backend --host 0.0.0.0 --port $actualBport`"" -NoNewWindow -PassThru
 
 # Ensure the backend process is killed when the script stops or is interrupted
 try {
     # Start Frontend in the foreground
     Push-Location frontend
+    if (-not (Test-Path "node_modules")) {
+        Write-Host "First time in this worktree? Installing frontend dependencies..." -ForegroundColor Yellow
+        npm install
+    }
     $env:VITE_API_BASE = "$backendUrl/api"
     npm run dev -- --port $actualFport
 }
