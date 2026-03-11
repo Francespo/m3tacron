@@ -325,7 +325,7 @@ def aggregate_card_stats(
                     "xws": pid,
                     "count": 0, "popularity": 0, "wins": 0, "games": 0,
                     "lists": 0,
-                    "faction": Faction.from_xws(p_info.get("faction", "")).label, 
+                    "faction": p_info.get("faction", ""), 
                     "faction_xws": p_info.get("faction", ""),
                     "ship": p_info.get("ship", ""),
                     "ship_xws": p_info.get("ship_xws", ""),
