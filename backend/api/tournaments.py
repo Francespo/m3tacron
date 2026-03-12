@@ -50,8 +50,8 @@ def get_tournaments(
                 date=t.date.strftime("%Y-%m-%d"),
                 players=t.player_count,
                 format_label=format_obj.label,
-                badge_l1=format_obj.label if format_obj != Format.OTHER else "STD",
-                badge_l2=format_location(t.location),
+                badge_l1=format_obj.badge_label if format_obj != Format.OTHER else "STD",
+                badge_l2=format_obj.macro.badge_label if format_obj != Format.OTHER else "???",
                 platform_label=t.platform.value if hasattr(t.platform, 'value') else (t.platform or "unknown"),
                 location=format_location(t.location),
                 url=t.url or "#"
@@ -98,8 +98,8 @@ def get_tournament_detail(tournament_id: int):
             date=t.date.strftime("%Y-%m-%d"),
             players=t.player_count,
             format_label=format_obj.label,
-            badge_l1=format_obj.label if format_obj != Format.OTHER else "STD",
-            badge_l2=format_location(t.location),
+            badge_l1=format_obj.badge_label if format_obj != Format.OTHER else "STD",
+            badge_l2=format_obj.macro.badge_label if format_obj != Format.OTHER else "???",
             platform_label=t.platform.value if hasattr(t.platform, 'value') else (t.platform or "unknown"),
             location=format_location(t.location),
             url=t.url or "#"

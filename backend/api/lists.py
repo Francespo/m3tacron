@@ -39,8 +39,13 @@ def get_lists(
             # Map identifiers to xws fields
             pilot_id = p.get("id", "")
             pilot_xws = pilot_id.lower().replace(" ", "")
-            ship_name_raw = p.get("ship_name", "")
-            ship_icon = ship_name_raw.lower().replace(" ", "").replace("-", "")
+            ship_name_raw = p.get("ship_name") or p.get("ship") or ""
+            
+            # Robust normalization for font-based icons
+            # Example: "T-65 X-wing" -> "t65xwing"
+            # The CSS uses classes like .icon-t65xwing
+            import re
+            ship_icon = re.sub(r'[^a-zA-Z0-9]', '', ship_name_raw.lower())
             
             pilots.append(PilotData(
                 name=p.get("name", ""),

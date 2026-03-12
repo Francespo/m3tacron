@@ -16,6 +16,14 @@ class MacroFormat(StrEnum):
             case MacroFormat.V2_0: return "2.0"
             case MacroFormat.OTHER: return "Unknown"
 
+    @property
+    def badge_label(self) -> str:
+        """Short label for UI badges."""
+        match self:
+            case MacroFormat.V2_5: return "2.5"
+            case MacroFormat.V2_0: return "2.0"
+            case _: return "???"
+
 
     def formats(self) -> list[str]:
         """Return list of corresponding formats."""
@@ -47,6 +55,17 @@ class Format(StrEnum):
             case Format.LEGACY_XLC: return "Legacy (XLC)"
             case Format.FFG: return "FFG"
             case _: return "Unknown"
+
+    @property
+    def badge_label(self) -> str:
+        """Concise label for UI badges."""
+        match self:
+            case Format.AMG: return "AMG"
+            case Format.XWA: return "XWA"
+            case Format.LEGACY_X2PO: return "LGC"
+            case Format.LEGACY_XLC: return "XLC"
+            case Format.FFG: return "FFG"
+            case _: return "???"
             
             
     @property
