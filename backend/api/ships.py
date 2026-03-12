@@ -1,86 +1,56 @@
-from fastapi import APIRouter, Query, Depends
-from typing import Optional, List, Dict, Any
+from fastapi import APIRouter, Depends
 from ..analytics.ships import aggregate_ship_stats
-from ..data_structures.sorting_order import SortingCriteria, SortDirection
 from ..data_structures.data_source import DataSource
-from .schemas import PaginatedShipsResponse
-from ..utils.xwing_data.ships import load_all_ships
+from .schemas import PaginatedShipsResponse, ShipRow
+from .filters import ShipFilterParams
 
 router = APIRouter(prefix="/api/ships", tags=["Ships"])
 
-@router.get("/all")
-def get_all_ships(data_source: str = Query("xwa")):
-    """Return every chassis once, with all playable factions merged."""
-    ds_enum = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
-    ships_data = load_all_ships(ds_enum)
-
-    # Extract ships directly with all their factions
-    results: list[dict] = []
-    for xws, info in ships_data.items():
-        factions_xws = [
-            f.lower().replace(" ", "") if f else "unknown" 
-            for f in info.get("factions", [])
-        ]
-        results.append({
-            "xws": xws,
-            "name": info.get("name", xws),
-            "factions": list(set(factions_xws)),
-        })
-
-    results = sorted(results, key=lambda x: x["name"])
-    return results
-
 @router.get("", response_model=PaginatedShipsResponse)
 def get_ships(
-    page: int = Query(0, ge=0),
-    size: int = Query(20, ge=1, le=100),
-    data_source: str = Query("xwa"),
-    sort_metric: str = Query("Popularity"),
-    sort_direction: str = Query("desc"),
-    search: Optional[str] = Query(None),
-    
-    formats: Optional[List[str]] = Query(None),
-    factions: Optional[List[str]] = Query(None),
-    ships: Optional[List[str]] = Query(None),
-    continent: Optional[List[str]] = Query(None),
-    country: Optional[List[str]] = Query(None),
-    city: Optional[List[str]] = Query(None),
-    platforms: Optional[List[str]] = Query(None),
-    date_start: Optional[str] = Query(None),
-    date_end: Optional[str] = Query(None),
-    player_count_min: Optional[int] = Query(None),
-    player_count_max: Optional[int] = Query(None),
+    filters: ShipFilterParams = Depends(),
 ):
     try:
-        ds_enum = DataSource(data_source)
+        ds_enum = DataSource(filters.data_source)
     except ValueError:
         ds_enum = DataSource.XWA
 
-    criteria_map = {
-        "Games": SortingCriteria.GAMES,
-        "Popularity": SortingCriteria.POPULARITY,
-        "Win Rate": SortingCriteria.WINRATE,
-    }
-    criteria = criteria_map.get(sort_metric, SortingCriteria.POPULARITY)
-    s_dir = SortDirection.DESCENDING if sort_direction == "desc" else SortDirection.ASCENDING
+    # Map filter params to analytics engine
+    a_filters = {}
+    if filters.factions:
+        a_filters["faction"] = filters.factions # Ships analytics uses 'faction' not 'factions'
+    if filters.ships:
+        a_filters["ship"] = filters.ships # Ships analytics uses 'ship' not 'ships'
 
-    filters = {
-        "allowed_formats": formats,
-        "faction": factions,
-        "ship": ships,
-        "continent": continent,
-        "country": country,
-        "city": city,
-        "search_name": search,
-        "platforms": platforms,
-        "date_start": date_start,
-        "date_end": date_end,
-        "player_count_min": player_count_min,
-        "player_count_max": player_count_max,
-    }
-
-    data = aggregate_ship_stats(filters, criteria, s_dir, ds_enum)
-    total = len(data)
-    items = data[page * size : (page + 1) * size]
+    raw_data = aggregate_ship_stats(a_filters, data_source=ds_enum)
     
-    return PaginatedShipsResponse(items=items, total=total, page=page, size=size)
+    # Sort and Paginate
+    reverse = filters.sort_direction == "desc"
+    if filters.sort_metric == "Win Rate":
+        def sort_key(x):
+            wr = x.get("win_rate", 0)
+            return float(wr) if wr != "NA" else -1.0
+        raw_data.sort(key=sort_key, reverse=reverse)
+    elif filters.sort_metric == "Games":
+        raw_data.sort(key=lambda x: x.get("games", 0), reverse=reverse)
+    else: # Popularity / Count
+        raw_data.sort(key=lambda x: x.get("popularity", 0), reverse=reverse)
+        
+    total = len(raw_data)
+    items_raw = raw_data[filters.page * filters.size : (filters.page + 1) * filters.size]
+    
+    items = []
+    for s in items_raw:
+        items.append(ShipRow(
+            ship_name=s["ship_name"],
+            ship_xws=s["ship_xws"],
+            faction=s.get("faction", "Unknown"),
+            faction_xws=s.get("faction_xws", ""),
+            icon_char=s.get("icon_char", ""),
+            win_rate=s.get("win_rate", 0.0) if s.get("win_rate") != "NA" else 0.0,
+            popularity=s.get("popularity", 0),
+            games=s.get("games", 0),
+            pilots_count=s.get("pilots_count", 0)
+        ))
+        
+    return PaginatedShipsResponse(items=items, total=total, page=filters.page, size=filters.size)
