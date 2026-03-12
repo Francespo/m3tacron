@@ -12,7 +12,9 @@ import json
 
 def aggregate_list_stats(
     filters: dict,
-    limit: int = 10,
+    limit: int = 20,
+    sort_metric: str = "popularity",
+    sort_direction: str = "desc",
     data_source: DataSource = DataSource.XWA
 ) -> list[dict]:
     """
@@ -127,6 +129,13 @@ def aggregate_list_stats(
                 "pilots": data["pilots"]
             })
             
-        # Defaults to sorting by popularity
-        results.sort(key=lambda x: x["popularity"], reverse=True)
+        # Sorting
+        rev = sort_direction == "desc"
+        if sort_metric == "win_rate":
+            results.sort(key=lambda x: x["win_rate"], reverse=rev)
+        elif sort_metric == "games":
+            results.sort(key=lambda x: x["games"], reverse=rev)
+        else: # popularit/count
+            results.sort(key=lambda x: x["popularity"], reverse=rev)
+
         return results[:limit]
