@@ -1,9 +1,7 @@
 from .schemas import ListData, PilotData, UpgradeData
 from ..utils.xwing_data.pilots import get_pilot_info
-from ..utils.xwing_data.ships import get_ship_icon_name
 from ..utils.xwing_data.upgrades import get_upgrade_info, get_upgrade_slot
 from ..data_structures.factions import Faction
-
 from ..data_structures.data_source import DataSource
 
 def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListData:
@@ -18,10 +16,7 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
         pilot_info = get_pilot_info(pid, source=source) or {}
         
         pilot_name = pilot_info.get("name", pid)
-        ship_xws = pilot_info.get("ship_xws", "")
         ship_name = pilot_info.get("ship", "Unknown Ship")
-        ship_icon_name = get_ship_icon_name(ship_xws)
-        pilot_image = pilot_info.get("image", "")
         
         # Prioritize external_data cost over DB cost if available
         pilot_points_raw = pilot_info.get("cost", p.get("points", 0))
@@ -47,7 +42,6 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
                     norm_slot = slot.lower()
                     if norm_slot == "configuration": norm_slot = "config"
                     
-                    # Prioritize external_data cost
                     upg_cost = upg_info.get("cost")
                     if isinstance(upg_cost, dict):
                         upg_cost = upg_cost.get("value", 0)
@@ -62,18 +56,15 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
                         name=upg_info.get("name", item_id),
                         xws=item_id,
                         slot=norm_slot,
-                        slot_icon="",
-                        image=upg_info.get("image", ""),
                         points=upg_cost
                     ))
         elif isinstance(upgrades_data, list):
             for item_id in upgrades_data:
                 upg_info = get_upgrade_info(item_id, source=source) or {}
                 slot = get_upgrade_slot(item_id)
-                norm_slot = slot.lower()
+                norm_slot = slot.lower() if slot else "unknown"
                 if norm_slot == "configuration": norm_slot = "config"
                 
-                # Prioritize external_data cost
                 upg_cost = upg_info.get("cost")
                 if isinstance(upg_cost, dict):
                     upg_cost = upg_cost.get("value", 0)
@@ -88,8 +79,6 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
                     name=upg_info.get("name", item_id),
                     xws=item_id,
                     slot=norm_slot,
-                    slot_icon="",
-                    image=upg_info.get("image", ""),
                     points=upg_cost
                 ))
         
@@ -97,19 +86,12 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
             name=pilot_name,
             xws=pid,
             ship_name=ship_name,
-            ship_icon=ship_icon_name,
-            image=pilot_image,
             points=pilot_points,
             loadout=pilot_loadout,
             upgrades=rich_upgrades
         ))
     
     f_key = stats.get("faction", "unknown")
-    try:
-        f_label = Faction.from_xws(f_key).label
-    except:
-        f_label = f_key.title()
-
     try: points = int(stats.get("points", 0))
     except (ValueError, TypeError): points = 0
     
@@ -125,10 +107,7 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
     return ListData(
         signature=stats.get("signature", "Unknown Signature") or "Unknown Signature",
         name=stats.get("name", "Unknown List") or "Unknown List",
-        faction=f_label,
-        faction_key=f_key,
         faction_xws=stats.get("faction_xws", f_key),
-        icon_char=stats.get("icon_char", ""),
         points=calculated_points,
         original_points=points,
         count=count,
