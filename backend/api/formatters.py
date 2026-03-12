@@ -1,7 +1,6 @@
 from .schemas import ListData, PilotData, UpgradeData
 from ..utils.xwing_data.pilots import get_pilot_info
 from ..utils.xwing_data.upgrades import get_upgrade_info, get_upgrade_slot
-from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
 
 def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListData:
@@ -18,7 +17,6 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
         pilot_name = pilot_info.get("name", pid)
         ship_name = pilot_info.get("ship", "Unknown Ship")
         
-        # Prioritize external_data cost over DB cost if available
         pilot_points_raw = pilot_info.get("cost", p.get("points", 0))
         pilot_loadout_raw = pilot_info.get("loadout", 0)
         
@@ -58,29 +56,6 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
                         slot=norm_slot,
                         points=upg_cost
                     ))
-        elif isinstance(upgrades_data, list):
-            for item_id in upgrades_data:
-                upg_info = get_upgrade_info(item_id, source=source) or {}
-                slot = get_upgrade_slot(item_id)
-                norm_slot = slot.lower() if slot else "unknown"
-                if norm_slot == "configuration": norm_slot = "config"
-                
-                upg_cost = upg_info.get("cost")
-                if isinstance(upg_cost, dict):
-                    upg_cost = upg_cost.get("value", 0)
-                
-                try: upg_cost = int(upg_cost or 0)
-                except: upg_cost = 0
-                
-                if source == DataSource.LEGACY:
-                    calculated_points += upg_cost
-
-                rich_upgrades.append(UpgradeData(
-                    name=upg_info.get("name", item_id),
-                    xws=item_id,
-                    slot=norm_slot,
-                    points=upg_cost
-                ))
         
         rich_pilots.append(PilotData(
             name=pilot_name,
@@ -91,26 +66,26 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
             upgrades=rich_upgrades
         ))
     
-    f_key = stats.get("faction", "unknown")
-    try: points = int(stats.get("points", 0))
-    except (ValueError, TypeError): points = 0
+    f_raw = stats.get("faction", "Unknown")
+    f_xws = f_raw.lower().replace(" ", "").replace("-", "")
     
-    try: count = int(stats.get("popularity", 0))
-    except (ValueError, TypeError): count = 0
+    try: points = int(stats.get("points", 0))
+    except: points = 0
     
     try: games = int(stats.get("games", 0))
-    except (ValueError, TypeError): games = 0
+    except: games = 0
     
     try: win_rate = float(stats.get("win_rate", 0.0))
-    except (ValueError, TypeError): win_rate = 0.0
-
+    except: win_rate = 0.0
+    
     return ListData(
-        signature=stats.get("signature", "Unknown Signature") or "Unknown Signature",
-        name=stats.get("name", "Unknown List") or "Unknown List",
-        faction_xws=stats.get("faction_xws", f_key),
-        points=calculated_points,
+        signature=stats.get("signature", ""),
+        name=stats.get("name", "Untitled"),
+        faction=f_raw,
+        faction_xws=f_xws,
+        points=calculated_points if source == DataSource.LEGACY else points,
         original_points=points,
-        count=count,
+        count=stats.get("popularity", 0),
         games=games,
         win_rate=win_rate,
         total_loadout=total_loadout,

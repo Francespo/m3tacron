@@ -45,7 +45,7 @@ def get_ships(
             ship_name=s["ship_name"],
             ship_xws=s["ship_xws"],
             faction=s.get("faction", "Unknown"),
-            faction_xws=s.get("faction_xws", ""),
+            faction_xws=s.get("faction", "").lower().replace(" ", "").replace("-", ""),
             icon_char=s.get("icon_char", ""),
             win_rate=s.get("win_rate", 0.0) if s.get("win_rate") != "NA" else 0.0,
             popularity=s.get("popularity", 0),

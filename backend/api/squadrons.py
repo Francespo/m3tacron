@@ -33,10 +33,13 @@ def get_squadrons(
     
     items = []
     for sq in items_raw:
+        faction_raw = sq.get("faction", "Unknown")
+        faction_xws = faction_raw.lower().replace(" ", "").replace("-", "")
+        
         items.append(SquadronRow(
             signature=sq["signature"],
-            faction=sq.get("faction", "Unknown"),
-            faction_key=sq.get("faction", "").lower().replace(" ", ""),
+            faction=faction_raw,
+            faction_xws=faction_xws,
             games=sq.get("games", 0),
             win_rate=sq.get("win_rate", 0.0),
             count=sq.get("count", 0),

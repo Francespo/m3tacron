@@ -11,6 +11,7 @@ class PilotData(BaseModel):
     name: str = ""
     xws: str = ""
     ship_name: str = ""
+    ship_icon: str = ""
     points: int = 0
     loadout: int = 0
     upgrades: List[UpgradeData] = []
@@ -118,6 +119,15 @@ class ShipRow(BaseModel):
     games: int
     pilots_count: int
 
+class SquadronRow(BaseModel):
+    signature: str
+    faction: str
+    faction_xws: str
+    games: int
+    win_rate: float
+    count: int
+    pilots: List[Dict[str, str]]
+
 class PaginatedPilotsResponse(BaseModel):
     items: List[PilotRow]
     total: int
@@ -135,6 +145,23 @@ class PaginatedShipsResponse(BaseModel):
     total: int
     page: int
     size: int
+
+class PaginatedSquadronsResponse(BaseModel):
+    items: List[SquadronRow]
+    total: int
+    page: int
+    size: int
+
+class PilotInfo(BaseModel):
+    name: str
+    xws: str
+    image: str
+    ship: Optional[str] = None
+    ship_xws: Optional[str] = None
+    faction: Optional[str] = None
+    faction_xws: Optional[str] = None
+    cost: Optional[int] = None
+    loadout: Optional[int] = None
 
 class PlayerStandingsRow(BaseModel):
     id: int
@@ -166,30 +193,6 @@ class TournamentDetailResponse(BaseModel):
     players_swiss: List[PlayerStandingsRow]
     players_cut: List[PlayerStandingsRow]
     matches: List[MatchRow]
-
-class SquadronRow(BaseModel):
-    signature: str
-    faction: str
-    faction_key: str
-    games: int
-    win_rate: float
-    count: int
-    pilots: List[Dict[str, str]]
-
-class PaginatedSquadronsResponse(BaseModel):
-    items: List[SquadronRow]
-    total: int
-    page: int
-    size: int
-
-class PilotInfo(BaseModel):
-    name: str
-    xws: str
-    image: str
-    ship: Optional[str] = None
-    faction: Optional[str] = None
-    cost: Optional[int] = None
-    loadout: Optional[int] = None
 
 class ChartDataPoint(BaseModel):
     date: str
