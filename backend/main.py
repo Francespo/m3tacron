@@ -59,7 +59,7 @@ def get_snapshot(data_source: str = Query("xwa", description="Data source: xwa o
     snapshot = get_meta_snapshot(ds_enum, allowed_formats=None)
     
     raw_lists = snapshot.get("lists", [])
-    enriched_lists = [enrich_list_data(l) for l in raw_lists]
+    enriched_lists = [enrich_list_data(l, source=ds_enum) for l in raw_lists]
     
     total_tournaments = 0
     total_players = 0

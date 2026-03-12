@@ -6,7 +6,7 @@ Aggregates statistics (win rate, popularity, games) per ship per faction.
 from sqlmodel import Session, select
 from ..database import engine
 from ..models import PlayerResult, Tournament
-from ..utils.xwing_data.pilots import load_all_pilots
+from ..utils.xwing_data.pilots import load_all_pilots, get_pilot_info
 from ..data_structures.factions import Faction, get_faction_char
 from ..data_structures.formats import Format
 from ..data_structures.data_source import DataSource
@@ -120,7 +120,7 @@ def aggregate_ship_stats(
             list_faction = xws.get("faction", "unknown")
             try:
                 faction_enum = Faction.from_xws(list_faction)
-                faction_xws = faction_enum.xws
+                faction_xws = faction_enum.value
             except (ValueError, AttributeError):
                 faction_xws = list_faction.lower().replace(" ", "")
             
@@ -145,7 +145,9 @@ def aggregate_ship_stats(
                 if not pid:
                     continue
                     
-                p_info = all_pilots.get(pid, {})
+                p_info = get_pilot_info(pid, source=data_source)
+                if not p_info:
+                    continue
                 ship_xws = p_info.get("ship_xws", "")
                 
                 if not ship_xws:

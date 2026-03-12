@@ -32,22 +32,34 @@ def get_lists(
                 for slot, items_list in p["upgrades"].items():
                     if isinstance(items_list, list):
                         for u_name in items_list:
-                            upgrades.append(UpgradeData(name=u_name, xws=u_name))
+                            # Standardize identifiers for Option A
+                            xws_clean = u_name.lower().replace(" ", "")
+                            upgrades.append(UpgradeData(name=u_name, xws=xws_clean, slot=slot))
+            
+            # Map identifiers to xws fields
+            pilot_id = p.get("id", "")
+            pilot_xws = pilot_id.lower().replace(" ", "")
+            ship_name_raw = p.get("ship_name", "")
+            ship_icon = ship_name_raw.lower().replace(" ", "").replace("-", "")
             
             pilots.append(PilotData(
                 name=p.get("name", ""),
-                xws=p.get("id", ""),
-                ship_name=p.get("ship_name", ""),
+                xws=pilot_xws,
+                ship_name=ship_name_raw,
+                ship_icon=ship_icon,
                 points=p.get("points", 0),
                 loadout=p.get("loadout", 0),
                 upgrades=upgrades
             ))
             
+        faction_raw = l.get("faction", "")
+        faction_xws = faction_raw.lower().replace(" ", "").replace("-", "")
+
         items.append(ListData(
             signature=l["signature"],
             name=l.get("name", "Untitled"),
-            faction=l.get("faction", ""),
-            faction_xws=l.get("faction", ""),
+            faction=faction_raw,
+            faction_xws=faction_xws,
             points=l.get("points", 0),
             original_points=l.get("points", 0),
             count=l.get("popularity", 0),

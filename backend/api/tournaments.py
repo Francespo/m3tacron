@@ -4,7 +4,8 @@ from ..database import engine
 from ..models import Tournament
 from ..analytics.filters import filter_query
 from ..data_structures.data_source import DataSource
-from .schemas import PaginatedTournamentsResponse, TournamentRow
+from ..data_structures.formats import Format
+from .schemas import PaginatedTournamentsResponse, TournamentRow, TournamentDetailResponse, PlayerStandingsRow, MatchRow
 from .filters import TournamentFilterParams
 
 router = APIRouter(prefix="/api/tournaments", tags=["Tournaments"])
@@ -41,13 +42,15 @@ def get_tournaments(
 
         items = []
         for t in results:
+            format_obj = t.format if isinstance(t.format, Format) else (Format(t.format) if t.format in [f.value for f in Format] else Format.OTHER)
+            
             items.append(TournamentRow(
                 id=t.id,
                 name=t.name,
                 date=t.date.strftime("%Y-%m-%d"),
                 players=t.player_count,
-                format_label=t.format.value if hasattr(t.format, 'value') else (t.format or "other"),
-                badge_l1="Standard" if t.player_count > 50 else ("Small" if t.player_count < 10 else "Medium"),
+                format_label=format_obj.label,
+                badge_l1=format_obj.label if format_obj != Format.OTHER else "STD",
                 badge_l2=format_location(t.location),
                 platform_label=t.platform.value if hasattr(t.platform, 'value') else (t.platform or "unknown"),
                 location=format_location(t.location),
@@ -55,3 +58,84 @@ def get_tournaments(
             ))
             
         return PaginatedTournamentsResponse(items=items, total=total, page=filters.page, size=filters.size)
+@router.get("/locations")
+def get_locations():
+    """Returns a list of unique tournament locations (city, country)."""
+    with Session(engine) as session:
+        # This is a bit complex with SQLModel's Location type, so we'll do it in memory or with a raw select
+        # For simplicity and correctness with the custom type:
+        all_tournaments = session.exec(select(Tournament)).all()
+        locations = set()
+        for t in all_tournaments:
+            if t.location:
+                formatted = f"{t.location.city}, {t.location.country}"
+                if t.location.city != "Unknown":
+                    locations.add(formatted)
+        
+        return sorted(list(locations))
+
+@router.get("/{tournament_id}", response_model=TournamentDetailResponse)
+def get_tournament_detail(tournament_id: int):
+    """Returns full details for a specific tournament."""
+    from ..models import PlayerResult, Match
+    
+    with Session(engine) as session:
+        t = session.get(Tournament, tournament_id)
+        if not t:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Tournament not found")
+            
+        def format_location(loc):
+            if not loc: return "Online"
+            parts = [p for p in [loc.city, loc.country] if p]
+            return ", ".join(parts) if parts else "Global"
+
+        format_obj = t.format if isinstance(t.format, Format) else (Format(t.format) if t.format in [f.value for f in Format] else Format.OTHER)
+
+        tournament_row = TournamentRow(
+            id=t.id,
+            name=t.name,
+            date=t.date.strftime("%Y-%m-%d"),
+            players=t.player_count,
+            format_label=format_obj.label,
+            badge_l1=format_obj.label if format_obj != Format.OTHER else "STD",
+            badge_l2=format_location(t.location),
+            platform_label=t.platform.value if hasattr(t.platform, 'value') else (t.platform or "unknown"),
+            location=format_location(t.location),
+            url=t.url or "#"
+        )
+        
+        # Get players
+        from sqlalchemy import case
+        players_query = select(PlayerResult).where(PlayerResult.tournament_id == tournament_id).order_by(
+            case((PlayerResult.cut_rank != None, PlayerResult.cut_rank), else_=999), 
+            PlayerResult.swiss_rank
+        )
+        players = session.exec(players_query).all()
+        
+            
+        
+        # Helper for player names
+        p_names = {p.id: p.player_name for p in players}
+        
+        match_rows = []
+        for m in matches:
+            match_rows.append(MatchRow(
+                round=m.round_number,
+                type=m.round_type.value if hasattr(m.round_type, 'value') else str(m.round_type),
+                player1=p_names.get(m.player1_id, "Unknown"),
+                player2=p_names.get(m.player2_id, "Unknown"),
+                player1_id=m.player1_id or 0,
+                player2_id=m.player2_id or 0,
+                score1=m.player1_score,
+                score2=m.player2_score,
+                winner_id=m.winner_id or 0,
+                scenario=m.scenario.value if hasattr(m.scenario, 'value') else str(m.scenario)
+            ))
+            
+        return TournamentDetailResponse(
+            tournament=tournament_row,
+            players_swiss=[p for p in player_rows if p.cut_rank is None],
+            players_cut=[p for p in player_rows if p.cut_rank is not None],
+            matches=match_rows
+        )

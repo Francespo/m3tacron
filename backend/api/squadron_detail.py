@@ -1,5 +1,7 @@
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Depends
 from sqlmodel import Session, select
+from typing import List, Dict, Any
+
 from ..database import engine
 from ..models import PlayerResult, Tournament
 from ..analytics.filters import filter_query, get_active_formats
@@ -8,7 +10,6 @@ from ..data_structures.data_source import DataSource
 from .formatters import enrich_list_data
 from .schemas import SquadronRow, SquadronPilotRow, ListData
 from .filters import BaseFilterParams
-from typing import List
 
 router = APIRouter(prefix="/api/squadron", tags=["Squadron Detail"])
 
@@ -34,7 +35,7 @@ def get_squadron_stats(
             t_fmt_raw = tournament.format
             t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
             
-            allowed_fmt = get_active_formats(None) # TODO: Support format filtering in squadron detail if needed
+            allowed_fmt = get_active_formats(None)
             if allowed_fmt and t_fmt not in allowed_fmt:
                 continue
 
@@ -67,11 +68,11 @@ def get_squadron_stats(
         return SquadronRow(
             signature=signature,
             faction=faction,
-            faction_key=faction.lower().replace(" ", ""),
+            faction_xws=faction.lower().replace(" ", "").replace("-", ""),
             games=games,
-            win_rate=round(wins / games * 100, 1),
+            win_rate=round(wins / games * 100, 1) if games > 0 else 0.0,
             count=count,
-            pilots=[] # Statistics endpoint doesn't return full pilot list usually, keeping empty to match schema
+            pilots=[]
         )
 
 @router.get("/{signature:path}/pilots", response_model=List[SquadronPilotRow])
@@ -80,7 +81,6 @@ def get_squadron_pilots(
     filters: BaseFilterParams = Depends(),
 ):
     """Get pilot breakdown for a specific squadron signature."""
-    api_filters = {"allowed_formats": filters.formats}
     pilot_stats = {}
     total_games = 0
     
@@ -88,14 +88,14 @@ def get_squadron_pilots(
         query = select(PlayerResult, Tournament).where(
             PlayerResult.tournament_id == Tournament.id
         )
-        query = filter_query(query, filters)
+        query = filter_query(query, filters.model_dump())
         rows = session.exec(query).all()
         
         for result, tournament in rows:
             t_fmt_raw = tournament.format
             t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
             
-            allowed_fmt = get_active_formats(filters.get("allowed_formats", None))
+            allowed_fmt = get_active_formats(None)
             if allowed_fmt and t_fmt not in allowed_fmt:
                 continue
 
@@ -152,10 +152,12 @@ def get_squadron_lists(
     filters: BaseFilterParams = Depends(),
 ):
     """Get top performing lists that use exactly this squadron signature."""
-    ds_enum = DataSource(filters.data_source) if filters.data_source in ("xwa", "legacy") else DataSource.XWA
-    
-    api_filters = {"allowed_formats": filters.formats}
-    all_lists = aggregate_list_stats(filters=api_filters, limit=1000, data_source=ds_enum)
+    try:
+        ds_enum = DataSource(filters.data_source)
+    except ValueError:
+        ds_enum = DataSource.XWA
+        
+    all_lists = aggregate_list_stats(limit=1000, data_source=ds_enum)
     
     squadron_lists = []
     for l in all_lists:
@@ -163,8 +165,8 @@ def get_squadron_lists(
         ships = sorted([p.get("ship") or "unknown" for p in pilots])
         sig = ", ".join(ships)
         
-        if sig == signature:
-            squadron_lists.append(enrich_list_data(l, source=ds_enum))
+        if sig == signature or sig.replace(" ", "") == signature.replace(" ", ""):
+            squadron_lists.append(enrich_list_data(l))
             
     squadron_lists.sort(key=lambda x: x.games, reverse=True)
     return squadron_lists[:20]

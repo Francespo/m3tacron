@@ -23,7 +23,18 @@ def get_pilot_info(
 ):
     ds = DataSource(filters.data_source) if filters.data_source in ("xwa", "legacy") else DataSource.XWA
     all_pilots = load_all_pilots(ds)
-    info = all_pilots.get(pilot_xws, {"name": pilot_xws, "xws": pilot_xws, "image": ""})
+    info_raw = all_pilots.get(pilot_xws, {"name": pilot_xws, "xws": pilot_xws, "image": ""})
+    
+    # Standardize identifiers
+    faction = info_raw.get("faction") or ""
+    ship = info_raw.get("ship") or ""
+    
+    info = {
+        **info_raw,
+        "faction_xws": faction.lower().replace(" ", "").replace("-", ""),
+        "ship_xws": ship.lower().replace(" ", "").replace("-", "")
+    }
+    
     return PilotInfo(**info)
 
 @router.get("/{pilot_xws}/upgrades", response_model=PaginatedUpgradesResponse)
