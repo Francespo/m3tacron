@@ -2,7 +2,6 @@
 Location data structure.
 """
 import json
-from typing import Self
 from sqlalchemy import JSON, TypeDecorator
 from pydantic import BaseModel
 

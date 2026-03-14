@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Query
-from typing import Optional, List, Dict, Any
 from sqlmodel import Session, select, func
 from ..database import engine
 from ..models import Tournament, PlayerResult
@@ -37,7 +36,7 @@ def _split_format_badge(format_label: str) -> tuple[str, str]:
     if len(label) > 4: return label[:4], label[4:8]
     return label, ""
 
-@router.get("/locations", response_model=Dict[str, Dict[str, List[str]]])
+@router.get("/locations", response_model=dict[str, dict[str, list[str]]])
 def get_locations():
     """
     Get all unique available locations structured as Continent -> Country -> list of Cities.
@@ -82,16 +81,16 @@ def get_tournaments(
     size: int = Query(20, ge=1, le=100),
     sort_metric: str = Query("Date"),
     sort_direction: str = Query("desc"),
-    search: Optional[str] = None,
-    formats: Optional[List[str]] = Query(None),
-    platforms: Optional[List[str]] = Query(None),
-    continent: Optional[List[str]] = Query(None),
-    country: Optional[List[str]] = Query(None),
-    city: Optional[List[str]] = Query(None),
-    date_start: Optional[str] = Query(None),
-    date_end: Optional[str] = Query(None),
-    player_count_min: Optional[int] = Query(None),
-    player_count_max: Optional[int] = Query(None),
+    search: str | None = None,
+    formats: list[str] | None = Query(None),
+    platforms: list[str] | None = Query(None),
+    continent: list[str] | None = Query(None),
+    country: list[str] | None = Query(None),
+    city: list[str] | None = Query(None),
+    date_start: str | None = Query(None),
+    date_end: str | None = Query(None),
+    player_count_min: int | None = Query(None),
+    player_count_max: int | None = Query(None),
 ):
     with Session(engine) as session:
         query = select(Tournament)

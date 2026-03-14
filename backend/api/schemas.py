@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import Any
 
 class UpgradeData(BaseModel):
     name: str = ""
@@ -17,7 +17,7 @@ class PilotData(BaseModel):
     image: str = ""
     points: int = 0
     loadout: int = 0
-    upgrades: List[UpgradeData] = []
+    upgrades: list[UpgradeData] = []
 
 class ListData(BaseModel):
     signature: str = ""
@@ -32,7 +32,7 @@ class ListData(BaseModel):
     games: int = 0
     win_rate: float = 0.0
     total_loadout: int = 0
-    pilots: List[PilotData] = []
+    pilots: list[PilotData] = []
 
 class FactionStat(BaseModel):
     name: str
@@ -42,16 +42,16 @@ class FactionStat(BaseModel):
     popularity: int
     games: int
     wins: int
-    percentage: Optional[float] = None
-    real_name: Optional[str] = None
+    percentage: float | None = None
+    real_name: str | None = None
 
 class MetaSnapshotResponse(BaseModel):
-    factions: List[FactionStat]
-    faction_distribution: List[FactionStat]
-    ships: List[Dict[str, Any]]
-    lists: List[ListData]
-    pilots: List[Dict[str, Any]]
-    upgrades: List[Dict[str, Any]]
+    factions: list[FactionStat]
+    faction_distribution: list[FactionStat]
+    ships: list[dict[str, Any]]
+    lists: list[ListData]
+    pilots: list[dict[str, Any]]
+    upgrades: list[dict[str, Any]]
     last_sync: str
     date_range: str
     total_tournaments: int
@@ -70,31 +70,31 @@ class TournamentRow(BaseModel):
     url: str
 
 class PaginatedTournamentsResponse(BaseModel):
-    items: List[TournamentRow]
+    items: list[TournamentRow]
     total: int
     page: int
     size: int
 
 class PaginatedListsResponse(BaseModel):
-    items: List[ListData]
+    items: list[ListData]
     total: int
     page: int
     size: int
 
 class PaginatedPilotsResponse(BaseModel):
-    items: List[Dict[str, Any]]
+    items: list[dict[str, Any]]
     total: int
     page: int
     size: int
 
 class PaginatedUpgradesResponse(BaseModel):
-    items: List[Dict[str, Any]]
+    items: list[dict[str, Any]]
     total: int
     page: int
     size: int
 
 class PaginatedShipsResponse(BaseModel):
-    items: List[Dict[str, Any]]
+    items: list[dict[str, Any]]
     total: int
     page: int
     size: int
@@ -104,13 +104,13 @@ class PlayerStandingsRow(BaseModel):
     name: str
     rank: int
     swiss_rank: int
-    cut_rank: Optional[int] = None
+    cut_rank: int | None = None
     wins: int
     losses: int
     faction: str
     faction_xws: str
     has_list: bool
-    list_json: Optional[Dict[str, Any]] = None
+    list_json: dict[str, Any] | None = None
 
 class MatchRow(BaseModel):
     round: int
@@ -126,6 +126,6 @@ class MatchRow(BaseModel):
 
 class TournamentDetailResponse(BaseModel):
     tournament: TournamentRow
-    players_swiss: List[PlayerStandingsRow]
-    players_cut: List[PlayerStandingsRow]
-    matches: List[MatchRow]
+    players_swiss: list[PlayerStandingsRow]
+    players_cut: list[PlayerStandingsRow]
+    matches: list[MatchRow]
