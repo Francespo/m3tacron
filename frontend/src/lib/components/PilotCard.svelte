@@ -90,7 +90,7 @@
                         </div>
                         {#if fChar}
                             <span
-                                class="font-xwing text-lg drop-shadow-md opacity-90 flex-shrink-0"
+                                class="font-xwing font-normal text-lg drop-shadow-md opacity-90 flex-shrink-0"
                                 style="color: {fColor}; filter: brightness(1.2);"
                             >
                                 {fChar}
