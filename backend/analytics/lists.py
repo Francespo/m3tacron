@@ -139,7 +139,7 @@ def aggregate_list_stats(
             results.append({
                 "signature": key,
                 "name": data["name"],
-                "faction": faction_enum.label,
+                "faction": f_xws,
                 "faction_xws": f_xws,
                 "icon_char": get_faction_char(f_xws),
                 "win_rate": win_rate,

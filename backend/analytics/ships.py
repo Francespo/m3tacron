@@ -98,7 +98,7 @@ def aggregate_ship_stats(
                 ship_stats[key] = {
                     "ship_name": ship_name,
                     "ship_xws": ship_xws,
-                    "faction": faction_display,
+                    "faction": faction_xws,
                     "faction_xws": faction_xws,
                     "wins": 0,
                     "games": 0,
@@ -220,7 +220,7 @@ def aggregate_ship_stats(
             results.append({
                 "ship_name": data["ship_name"],
                 "ship_xws": data["ship_xws"],
-                "faction": data["faction"],
+                "faction": data["faction_xws"],
                 "faction_xws": data["faction_xws"],
                 "icon_char": get_faction_char(data["faction_xws"]),
                 "win_rate": win_rate,

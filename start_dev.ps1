@@ -43,6 +43,18 @@ Write-Host "Frontend (Svelte) will be available at: " -NoNewline; Write-Host $fr
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "Starting servers in THIS terminal. Press CTRL+C to stop both." -ForegroundColor Yellow
 
+function Stop-ProcessTree {
+    param([int]$ParentId)
+    # Recursively find and stop all child processes
+    Get-CimInstance Win32_Process -Filter "ParentProcessId = $ParentId" | ForEach-Object {
+        Stop-ProcessTree -ParentId $_.ProcessId
+    }
+    # Stop the process itself if it hasn't exited
+    if (Get-Process -Id $ParentId -ErrorAction SilentlyContinue) {
+        Stop-Process -Id $ParentId -Force -ErrorAction SilentlyContinue
+    }
+}
+
 # Start Backend in the background without a new window
 # Limit reload to the backend directory so it doesn't choke on the .venv junction
 $backendProcess = Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList "-NoProfile -Command `"& .\.venv\Scripts\Activate.ps1; python -m uvicorn backend.main:app --reload --reload-dir backend --host 0.0.0.0 --port $actualBport`"" -NoNewWindow -PassThru
@@ -60,8 +72,8 @@ try {
 }
 finally {
     Write-Host "`nStopping servers..." -ForegroundColor Yellow
-    if ($backendProcess -and !$backendProcess.HasExited) {
-        Stop-Process -Id $backendProcess.Id -Force
+    if ($backendProcess) {
+        Stop-ProcessTree -ParentId $backendProcess.Id
     }
     Pop-Location
 }
