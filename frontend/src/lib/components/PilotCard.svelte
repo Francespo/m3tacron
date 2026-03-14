@@ -84,17 +84,20 @@
                                     size="1rem"
                                     color="white"
                                     isShip={true}
+                                    className="drop-shadow-md opacity-90"
+                                    style="filter: brightness(1.1);"
                                 />
                             </div>
                             <span class="truncate">{pilot.name}</span>
                         </div>
                         {#if fChar}
-                            <span
-                                class="font-xwing font-normal text-lg drop-shadow-md opacity-90 flex-shrink-0"
-                                style="color: {fColor}; filter: brightness(1.2);"
-                            >
-                                {fChar}
-                            </span>
+                            <StatIcon
+                                type={fChar}
+                                size="1.125rem"
+                                color={fColor}
+                                className="drop-shadow-md opacity-90 flex-shrink-0"
+                                style="filter: brightness(1.2);"
+                            />
                         {/if}
                     </h3>
                 {/if}

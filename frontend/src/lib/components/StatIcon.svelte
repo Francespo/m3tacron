@@ -44,12 +44,14 @@
         size = "1em",
         color = "currentColor",
         className = "",
+        style = "",
         isShip = false,
     }: {
         type: StatType | string;
         size?: string;
         color?: string;
         className?: string;
+        style?: string;
         isShip?: boolean;
     } = $props();
     // Map of internal types to font characters based on xwing-miniatures.css
@@ -182,7 +184,7 @@
 
 <span
     class="xwing-icon {className}"
-    style="font-size: {size}; color: {color}; font-family: {fontFamily};"
+    style="font-size: {size}; color: {color}; font-family: {fontFamily}; {style}"
     aria-hidden="true"
 >
     {iconChar}
