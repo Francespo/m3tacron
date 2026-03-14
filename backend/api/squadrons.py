@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Query
-from typing import Optional, List
 from ..analytics.squadrons import aggregate_squadron_stats
 from ..data_structures.data_source import DataSource
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
@@ -16,9 +15,9 @@ def get_squadrons(
     sort_metric: str = Query("Games"),
     sort_direction: str = Query("desc"),
     
-    formats: Optional[List[str]] = Query(None),
-    factions: Optional[List[str]] = Query(None),
-    ships: Optional[List[str]] = Query(None),
+    formats: list[str] | None = Query(None),
+    factions: list[str] | None = Query(None),
+    ships: list[str] | None = Query(None),
     min_games: int = Query(0, ge=0),
 ):
     try:
