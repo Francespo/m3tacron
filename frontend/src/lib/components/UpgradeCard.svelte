@@ -71,6 +71,8 @@
                                         type={upgrade.slot_xws}
                                         size="1rem"
                                         color="white"
+                                        className="drop-shadow-md opacity-90"
+                                        style="filter: brightness(1.1);"
                                     />
                                 </div>
                             {/if}
@@ -83,6 +85,8 @@
                                             type={extraSlot}
                                             size="1rem"
                                             color="white"
+                                            className="drop-shadow-md opacity-90"
+                                            style="filter: brightness(1.1);"
                                         />
                                     </div>
                                 {/each}
