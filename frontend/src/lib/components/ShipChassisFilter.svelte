@@ -39,16 +39,18 @@
     // Initial load
     onMount(async () => {
         isLoading = true;
-        ships = await fetchAllShips(filters.dataSource);
+        ships = await fetchAllShips(filters.dataSource, filters.includeEpic);
         isLoading = false;
     });
 
-    // Re-fetch when data source changes
+    // Re-fetch when data source or includeEpic changes
     let currentDataSource = $state(filters.dataSource);
+    let currentIncludeEpic = $state(filters.includeEpic);
     $effect(() => {
-        if (currentDataSource !== filters.dataSource) {
+        if (currentDataSource !== filters.dataSource || currentIncludeEpic !== filters.includeEpic) {
             currentDataSource = filters.dataSource;
-            fetchAllShips(filters.dataSource).then((data) => (ships = data));
+            currentIncludeEpic = filters.includeEpic;
+            fetchAllShips(filters.dataSource, filters.includeEpic).then((data) => (ships = data));
         }
     });
 

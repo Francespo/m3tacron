@@ -43,6 +43,7 @@ def get_pilot_upgrades(
     formats: list[str] | None = Query(None),
     search_text: str = Query(""),
     upgrade_types: list[str] | None = Query(None),
+    include_epic: bool = Query(False),
 ):
     """Return upgrade stats filtered to this pilot's lists."""
     ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
@@ -54,7 +55,7 @@ def get_pilot_upgrades(
         "search_text": search_text,
         "upgrade_type": upgrade_types or [],
         "pilot_id": pilot_xws,
-        "include_epic": False,
+        "include_epic": include_epic,
     }
     data = aggregate_card_stats(filters, criteria, direction, "upgrades", ds)
     total = len(data)
@@ -69,11 +70,12 @@ def get_pilot_chart(
     data_source: str = Query("xwa"),
     formats: list[str] | None = Query(None),
     comparison: list[str] | None = Query(None),
+    include_epic: bool = Query(False),
 ):
     """Return monthly usage history for the pilot and optional comparisons."""
     filters = {
         "allowed_formats": formats,
-        "include_epic": False,
+        "include_epic": include_epic,
     }
     chart_data = get_card_usage_history(
         filters,

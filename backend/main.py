@@ -52,11 +52,14 @@ def read_root():
 
 
 @app.get("/api/meta-snapshot", response_model=MetaSnapshotResponse)
-def get_snapshot(data_source: str = Query("xwa", description="Data source: xwa or legacy")):
+def get_snapshot(
+    data_source: str = Query("xwa", description="Data source: xwa or legacy"),
+    include_epic: bool = Query(False, description="Include epic content")
+):
     ds_enum = DataSource.XWA if data_source == "xwa" else DataSource.LEGACY
     
     # We parse what HomeState loaded
-    snapshot = get_meta_snapshot(ds_enum, allowed_formats=None)
+    snapshot = get_meta_snapshot(ds_enum, allowed_formats=None, include_epic=include_epic)
     
     raw_lists = snapshot.get("lists", [])
     enriched_lists = [enrich_list_data(l) for l in raw_lists]

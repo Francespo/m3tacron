@@ -18,9 +18,17 @@ export const load: PageLoad = async ({ fetch, url }) => {
         const response = await fetch(apiUrl.toString());
         if (!response.ok) throw new Error('Failed to fetch lists');
         const data = await response.json();
-        return { items: data.items, total: data.total, page: parseInt(data.page), size: parseInt(data.size), sort_metric, sort_direction };
+        return { 
+            items: data.items, 
+            total: data.total, 
+            page: parseInt(data.page), 
+            size: parseInt(data.size), 
+            sort_metric, 
+            sort_direction,
+            includeEpic: url.searchParams.get('include_epic') === 'true'
+        };
     } catch (e) {
         console.error(e);
-        return { items: [], total: 0, page: 0, size: 20, sort_metric, sort_direction };
+        return { items: [], total: 0, page: 0, size: 20, sort_metric, sort_direction, includeEpic: false };
     }
 };

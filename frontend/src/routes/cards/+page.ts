@@ -18,9 +18,16 @@ export const load: PageLoad = async ({ fetch, url }) => {
         const response = await fetch(apiUrl.toString());
         if (!response.ok) throw new Error('Failed to fetch cards');
         const data = await response.json();
-        return { items: data.items, total: data.total, page: parseInt(data.page), size: parseInt(data.size), tab };
+        return { 
+            items: data.items, 
+            total: data.total, 
+            page: parseInt(data.page), 
+            size: parseInt(data.size), 
+            tab,
+            includeEpic: url.searchParams.get('include_epic') === 'true'
+        };
     } catch (e) {
         console.error(e);
-        return { items: [], total: 0, page: 0, size: 20, tab };
+        return { items: [], total: 0, page: 0, size: 20, tab, includeEpic: false };
     }
 };

@@ -43,6 +43,7 @@ def aggregate_card_stats(
         type_filter = filters.get("upgrade_type") # For upgrades
         text_filter = filters.get("search_text", "").lower()
         ship_filter = filters.get("ship")
+        include_epic = filters.get("include_epic", False)
         initiative_filter = filters.get("initiative")
         
         # New Context Filters
@@ -154,9 +155,6 @@ def aggregate_card_stats(
                 if data_source == DataSource.XWA:
                     if p_loadout < loadout_min or p_loadout > loadout_max:
                         continue
-                        
-                        
-                include_epic_content = filters.get("include_epic", False)
 
                 # Strict Format Visibility Filter
                 is_legal = p_info.get("valid_in_standard", False)
@@ -193,6 +191,10 @@ def aggregate_card_stats(
                         show_card = True
                     elif data_source == DataSource.LEGACY:
                         show_card = True
+                
+                # Epic Content Toggle: if true, show all epic pilots
+                if include_epic and is_epic:
+                    show_card = True
 
                 if not show_card:
                     continue
@@ -410,6 +412,10 @@ def aggregate_card_stats(
                         show_card = True
                     elif data_source == DataSource.LEGACY:
                         show_card = True
+                
+                # Epic Content Toggle
+                if include_epic and is_epic:
+                    show_card = True
 
                 if not show_card:
                     continue

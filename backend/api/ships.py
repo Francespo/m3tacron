@@ -50,6 +50,7 @@ def get_ships(
     date_end: Optional[str] = Query(None),
     player_count_min: Optional[int] = Query(None),
     player_count_max: Optional[int] = Query(None),
+    include_epic: bool = Query(False),
 ):
     try:
         ds_enum = DataSource(data_source)
@@ -77,6 +78,7 @@ def get_ships(
         "date_end": date_end,
         "player_count_min": player_count_min,
         "player_count_max": player_count_max,
+        "include_epic": include_epic,
     }
 
     data = aggregate_ship_stats(filters, criteria, s_dir, ds_enum)

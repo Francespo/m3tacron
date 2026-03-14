@@ -13,10 +13,18 @@
     import { filters } from "$lib/stores/filters.svelte";
 
     let { data } = $props();
+    let page = $state(1);
+    const size = 50;
+
+    // Initialize store from URL if present
+    $effect.pre(() => {
+        if (data.includeEpic !== undefined) {
+            filters.includeEpic = data.includeEpic;
+        }
+    });
 
     let items = $derived(data.items ?? []);
     let total = $derived(data.total ?? 0);
-    let page = $state(1);
     let sortBy = $state("Popularity");
     let sortDirection = $state("desc");
     let selectedFactions = $state<string[]>([]);
@@ -43,6 +51,8 @@
         for (const c of filters.selectedCities) params.append("city", c);
         if (filters.dateStart) params.set("date_start", filters.dateStart);
         if (filters.dateEnd) params.set("date_end", filters.dateEnd);
+        params.set("include_epic", String(filters.includeEpic));
+
 
         goto(`?${params.toString()}`, {
             keepFocus: true,

@@ -45,6 +45,7 @@ def get_ship_pilots(
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Popularity"),
     sort_direction: str = Query("desc"),
+    include_epic: bool = Query(False),
 ):
     """Return pilot stats filtered to this ship."""
     ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
@@ -58,7 +59,7 @@ def get_ship_pilots(
 
     filters = {
         "ship": [ship_xws],
-        "include_epic": False,
+        "include_epic": include_epic,
     }
     data = aggregate_card_stats(filters, criteria, direction, "pilots", ds)
     return {"pilots": data}

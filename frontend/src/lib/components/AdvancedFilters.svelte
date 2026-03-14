@@ -81,7 +81,7 @@
             >
                 <input
                     type="checkbox"
-                    class="rounded border-border-dark bg-black w-3 h-3"
+                    class="rounded border-border-dark bg-black w-3 h-3 text-red-500 focus:ring-red-500"
                     bind:checked={filters.isUnique}
                 />
                 <span class="font-mono">Unique</span>
@@ -91,7 +91,7 @@
             >
                 <input
                     type="checkbox"
-                    class="rounded border-border-dark bg-black w-3 h-3"
+                    class="rounded border-border-dark bg-black w-3 h-3 text-red-500 focus:ring-red-500"
                     bind:checked={filters.isLimited}
                 />
                 <span class="font-mono">Limited</span>
@@ -101,10 +101,31 @@
             >
                 <input
                     type="checkbox"
-                    class="rounded border-border-dark bg-black w-3 h-3"
+                    class="rounded border-border-dark bg-black w-3 h-3 text-red-500 focus:ring-red-500"
                     bind:checked={filters.isGeneric}
                 />
                 <span class="font-mono">Generic</span>
+            </label>
+        </div>
+    </div>
+
+    <!-- Game Content -->
+    <div class="space-y-1">
+        <span
+            class="text-[10px] font-bold text-primary font-mono tracking-wider opacity-70 uppercase"
+            >Game Content</span
+        >
+        <div class="flex items-center gap-4 flex-wrap">
+            <label
+                class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-red-500 transition-colors"
+                title="Include Epic-only ships, pilots, and upgrades"
+            >
+                <input
+                    type="checkbox"
+                    class="rounded border-border-dark bg-black w-3 h-3 text-red-500 focus:ring-red-500"
+                    bind:checked={filters.includeEpic}
+                />
+                <span class="font-mono">Include Epic Content</span>
             </label>
         </div>
     </div>
