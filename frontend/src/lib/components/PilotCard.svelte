@@ -40,7 +40,7 @@
 
 {#if viewMode === "grid"}
     <div
-        class="bg-terminal-panel border border-border-dark rounded-xl overflow-hidden hover:border-primary/40 transition-all duration-300 hover:scale-[1.02] hover:z-10 flex flex-col relative aspect-square group"
+        class="bg-terminal-panel border border-border-dark rounded-xl overflow-hidden hover:border-primary/40 transition-all duration-300 hover:scale-[1.04] hover:z-20 flex flex-col relative aspect-square group"
     >
         <!-- Card Image -->
         {#if showImage}
@@ -51,7 +51,7 @@
                     <img
                         src={pilot.image}
                         alt={pilot.name}
-                        class="max-w-full max-h-full object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.1)] transition-transform duration-500 group-hover:scale-110"
+                        class="max-w-full max-h-full object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]"
                         loading="lazy"
                     />
                 {:else}
