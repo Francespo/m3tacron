@@ -30,7 +30,7 @@ class Location(BaseModel):
         return value
 
     @classmethod
-    def create(cls, city: str | None = None, country: str | None = None, continent: str | None = None) -> Self:
+    def create(cls, city: str | None = None, country: str | None = None, continent: str | None = None) -> "Location":
         """
         Factory method to create a Location with normalized values.
         """
