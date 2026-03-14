@@ -59,12 +59,8 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
                         calculated_points += upg_cost
 
                     rich_upgrades.append(UpgradeData(
-                        name=upg_info.get("name", item_id),
                         xws=item_id,
-                        slot=norm_slot,
-                        slot_icon="",
-                        image=upg_info.get("image", ""),
-                        points=upg_cost
+                        slot_xws=norm_slot
                     ))
         elif isinstance(upgrades_data, list):
             for item_id in upgrades_data:
@@ -85,22 +81,14 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
                     calculated_points += upg_cost
 
                 rich_upgrades.append(UpgradeData(
-                    name=upg_info.get("name", item_id),
                     xws=item_id,
-                    slot=norm_slot,
-                    slot_icon="",
-                    image=upg_info.get("image", ""),
-                    points=upg_cost
+                    slot_xws=norm_slot
                 ))
         
         rich_pilots.append(PilotData(
-            name=pilot_name,
             xws=pid,
-            ship_name=ship_name,
-            ship_icon=ship_icon_name,
-            image=pilot_image,
-            points=pilot_points,
-            loadout=pilot_loadout,
+            ship_xws=ship_xws,
+            faction_xws=pilot_info.get("faction", ""),
             upgrades=rich_upgrades
         ))
     
