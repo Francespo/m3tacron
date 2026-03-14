@@ -1,8 +1,7 @@
 <script lang="ts">
     /**
      * PilotCard.svelte
-     * Purpose: High-fidelity Pilot card component.
-     * Replicates the current grid-card aesthetic while allowing for expanded views.
+     * Purpose: High-fidelity Pilot card component with a strict square layout.
      */
     import {
         getWinRateColor,
@@ -10,21 +9,16 @@
         getFactionChar,
     } from "$lib/data/factions";
     import StatIcon from "./StatIcon.svelte";
+    import FactionIcon from "$lib/components/FactionIcon.svelte";
 
     let {
         pilot,
-        viewMode = "grid", // 'grid' for browser, 'detailed' for side-panels
+        viewMode = "grid",
         showImage = true,
-        showName = true,
-        showShip = true,
-        showStats = true,
     }: {
         pilot: any;
         viewMode?: "grid" | "detailed";
         showImage?: boolean;
-        showName?: boolean;
-        showShip?: boolean;
-        showStats?: boolean;
     } = $props();
 
     // Stats calculation
@@ -39,150 +33,94 @@
 </script>
 
 {#if viewMode === "grid"}
-    <div
-        class="bg-terminal-panel border border-border-dark rounded-xl overflow-hidden hover:border-primary/40 transition-all duration-300 hover:scale-[1.02] hover:z-10 flex flex-col relative h-full group"
-    >
-        <!-- Card Image -->
-        {#if showImage}
-            <div
-                class="relative w-full h-[200px] overflow-hidden bg-[#050505] flex-shrink-0 flex items-center justify-center p-2"
-            >
-                {#if pilot.image}
+    <div class="w-full aspect-square relative group">
+        <div
+            class="absolute inset-0 bg-terminal-panel border border-border-dark rounded-xl overflow-hidden hover:border-primary/40 transition-all duration-300 hover:scale-[1.02] hover:z-10 flex flex-col pt-2"
+        >
+            <!-- Card Image Container -->
+            <div class="relative flex-1 bg-black/40 overflow-hidden mx-2 rounded-lg">
+                {#if showImage && pilot.image}
                     <img
                         src={pilot.image}
                         alt={pilot.name}
-                        class="max-w-full max-h-full object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.1)] transition-transform duration-500 group-hover:scale-110"
-                        loading="lazy"
+                        class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
                     />
                 {:else}
-                    <!-- Placeholder fallback using X-Wing Font Ship Icon -->
-                    <StatIcon
-                        type={pilot.ship_xws || ""}
-                        size="5rem"
-                        color="rgba(255,255,255,0.05)"
-                        isShip={true}
-                    />
+                    <div class="w-full h-full flex items-center justify-center opacity-10">
+                        <StatIcon type={pilot.ship_xws || ""} size="4rem" isShip={true} />
+                    </div>
                 {/if}
-            </div>
-        {/if}
+                <div
+                    class="absolute inset-0 bg-gradient-to-t from-terminal-panel/80 via-transparent to-transparent"
+                ></div>
 
-        <!-- Info Section -->
-        <div class="p-4 flex-1 flex flex-col justify-between">
-            <!-- Name + Ship Badge -->
-            <div class="mb-4">
-                {#if showName}
+                <!-- Faction Icon Overlay -->
+                <div class="absolute top-2 right-2">
+                    <FactionIcon faction={pilot.faction} size="1.1rem" />
+                </div>
+
+                <!-- Pilot Initiative -->
+                <div
+                    class="absolute bottom-2 left-2 flex items-center justify-center w-7 h-7 rounded-full bg-black/90 border border-white/20 text-orange-500 font-bold text-base shadow-lg"
+                >
+                    {pilot.initiative || 0}
+                </div>
+            </div>
+
+            <!-- Card Info -->
+            <div class="p-3 flex flex-col gap-1">
+                <div class="flex items-center justify-between gap-2 overflow-hidden">
                     <h3
-                        class="text-base font-sans font-bold text-primary leading-tight flex items-center justify-between gap-2 w-full"
-                        title={pilot.name}
+                        class="text-sm font-sans font-bold text-primary leading-tight truncate uppercase tracking-tight"
                     >
-                        <div class="flex items-center gap-2 overflow-hidden">
-                            <div
-                                class="flex-shrink-0 w-6 h-6 rounded-full bg-white/5 flex items-center justify-center border border-white/10"
-                            >
-                                <StatIcon
-                                    type={pilot.ship_xws || ""}
-                                    size="1rem"
-                                    color="white"
-                                    isShip={true}
-                                />
-                            </div>
-                            <span class="truncate">{pilot.name}</span>
-                        </div>
-                        {#if fChar}
-                            <span
-                                class="font-xwing text-lg drop-shadow-md opacity-90 flex-shrink-0"
-                                style="color: {fColor}; filter: brightness(1.2);"
-                            >
-                                {fChar}
-                            </span>
-                        {/if}
+                        {pilot.name}
                     </h3>
-                {/if}
-                {#if showShip && pilot.ship_name}
-                    <p
-                        class="text-[11px] mt-1 font-mono text-secondary/80 uppercase tracking-wider line-clamp-1"
-                        title={pilot.ship_name}
-                    >
-                        {pilot.ship_name}
-                    </p>
-                {/if}
-            </div>
-
-            <!-- Stats Badges -->
-            {#if showStats}
-                <div class="flex flex-wrap gap-1.5 mt-auto">
-                    <!-- WR -->
-                    <div
-                        class="px-1.5 py-0.5 rounded bg-[#ffffff0a] border border-[#ffffff10] flex items-center gap-1"
-                    >
-                        <span
-                            class="text-[10px] font-bold"
-                            style="color: {wrColor};"
+                    {#if pilot.cost}
+                        <span class="text-[11px] font-bold text-primary bg-white/5 px-1.5 py-0.5 rounded border border-white/10"
+                            >{pilot.cost}</span
                         >
-                            {isNaN(wr) ? "NA" : wr.toFixed(1) + "%"}
-                        </span>
-                        <span class="text-[9px] font-mono text-secondary"
-                            >WR</span
-                        >
-                    </div>
-                    <!-- Games -->
-                    <div
-                        class="px-1.5 py-0.5 rounded bg-[#ffffff0a] border border-[#ffffff10] flex items-center gap-1"
-                    >
-                        <span class="text-[10px] font-bold text-primary"
-                            >{pilot.games ?? 0}</span
-                        >
-                        <span class="text-[9px] font-mono text-secondary"
-                            >G</span
-                        >
-                    </div>
-                    <!-- Lists -->
-                    <div
-                        class="px-1.5 py-0.5 rounded bg-[#ffffff0a] border border-[#ffffff10] flex items-center gap-1"
-                    >
-                        <span class="text-[10px] font-bold text-primary"
-                            >{pilot.lists ?? 0}</span
-                        >
-                        <span class="text-[9px] font-mono text-secondary"
-                            >L</span
-                        >
-                    </div>
-                    <!-- Points -->
-                    <div
-                        class="px-1.5 py-0.5 rounded bg-emerald-900/30 border border-emerald-500/30 flex items-center gap-1"
-                    >
-                        <span class="text-[10px] font-bold text-emerald-400"
-                            >{pilot.points ?? 0}</span
-                        >
-                        <span class="text-[9px] font-mono text-emerald-500/80"
-                            >PTS</span
-                        >
-                    </div>
-                    <!-- Loadout (XWA Only logic) -->
-                    {#if pilot.loadout !== undefined && pilot.loadout !== null}
-                        <div
-                            class="px-1.5 py-0.5 rounded bg-violet-900/20 border border-violet-500/20 flex items-center gap-1"
-                        >
-                            <span class="text-[10px] font-bold text-violet-300"
-                                >{pilot.loadout}</span
-                            >
-                            <span
-                                class="text-[9px] font-mono text-violet-400/80"
-                                >LV</span
-                            >
-                        </div>
                     {/if}
                 </div>
-            {/if}
+
+                <div class="flex items-center justify-between mb-1">
+                    <span
+                        class="text-[10px] font-sans text-secondary/70 uppercase font-medium tracking-wider truncate"
+                    >
+                        {pilot.ship_name || "Unknown Ship"}
+                    </span>
+                </div>
+
+                <!-- Stats Bar -->
+                <div class="flex items-center justify-between mt-auto">
+                    <div class="flex items-center gap-2">
+                        {#if pilot.stats}
+                            {#each pilot.stats.filter((s) => ["attack", "agility", "hull", "shield"].includes(s.type)) as stat}
+                                <div class="flex items-center gap-0.5" title={stat.type}>
+                                    <StatIcon type={stat.type} size="0.75rem" />
+                                    <span class="text-[10px] font-bold text-primary"
+                                        >{stat.value}</span
+                                    >
+                                </div>
+                            {/each}
+                        {/if}
+                    </div>
+
+                    <!-- Performance mini-badge -->
+                    <div class="flex items-center gap-1.5 opacity-60">
+                         <span class="text-[9px] font-bold" style="color: {wrColor}">{isNaN(wr) ? "NA" : wr.toFixed(0) + "%"}</span>
+                         <span class="text-[9px] font-sans text-secondary">{pilot.games || 0}G</span>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 {:else}
-    <!-- Detailed mode for side-panels (To be implemented) -->
-    <div class="detailed-card">
-        <p>Detailed view for {pilot.name} coming soon...</p>
+    <div class="p-4 bg-terminal-panel border border-border-dark rounded-xl">
+        <h3 class="text-xl font-bold text-primary mb-2">{pilot.name}</h3>
+        <p class="text-secondary">{pilot.ship_name}</p>
     </div>
 {/if}
 
 <style>
-    /* Custom component styles if needed */
+    /* Custom component styles */
 </style>

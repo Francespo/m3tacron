@@ -52,6 +52,7 @@
         className?: string;
         isShip?: boolean;
     } = $props();
+
     // Map of internal types to font characters based on xwing-miniatures.css
     const charMap: Record<string, string> = {
         attack: "%",
@@ -176,24 +177,31 @@
         gauntletfighter: "6",
         z95af4headhunter: "z",
     };
-    const iconChar = $derived(charMap[type] || type);
+
+    // Ensure the final glyph is lowercase for "un-circled" appearance in X-Wing fonts
+    const rawGlyph = $derived(
+        charMap[type.toLowerCase()] || (type.length === 1 ? type : "")
+    );
+    const glyph = $derived(rawGlyph.toLowerCase());
     const fontFamily = $derived(isShip ? "'XWingShip'" : "'XWing'");
 </script>
 
-<span
+<i
     class="xwing-icon {className}"
     style="font-size: {size}; color: {color}; font-family: {fontFamily};"
     aria-hidden="true"
 >
-    {iconChar}
-</span>
+    {glyph}
+</i>
 
 <style>
     .xwing-icon {
+        font-family: inherit;
+        font-style: normal;
+        font-weight: 400 !important;
         line-height: 1;
         display: inline-block;
         vertical-align: middle;
-        font-weight: normal !important; /* Ensure no bolding */
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
     }
