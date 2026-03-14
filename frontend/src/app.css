@@ -54,3 +54,11 @@ body {
 .font-xwingship {
     font-weight: normal !important;
 }
+
+.xwing-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    line-height: 1;
+}
