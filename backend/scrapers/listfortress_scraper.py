@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 import logging
 import httpx
-from typing import List, Tuple, Optional, Any
 
 from m3tacron.backend.scrapers.base import BaseScraper
 from m3tacron.backend.models import Tournament, Match, PlayerResult
@@ -26,7 +25,7 @@ class ListFortressScraper(BaseScraper):
         date_from: datetime.date,
         date_to: datetime.date,
         max_pages: int | None = None
-    ) -> List[dict]:
+    ) -> list[dict]:
         """Discover tournament URLs from ListFortress API.
 
         Args:
@@ -93,7 +92,7 @@ class ListFortressScraper(BaseScraper):
     def get_tournament_data(
         self, 
         tournament_id: str,
-        inferred_format: Optional[Format] = None
+        inferred_format: Format | None = None
     ) -> Tournament:
         """Fetch detailed metadata for a single tournament."""
         url = f"{self.BASE_URL}/tournaments/{tournament_id}"
@@ -123,7 +122,7 @@ class ListFortressScraper(BaseScraper):
             logger.error(f"Failed to get tournament {tournament_id}: {e}")
             return Tournament(id=tournament_id, name="Unknown", date=datetime.now(), format=Format.UNKNOWN, platform=Platform.LISTFORTRESS)
 
-    def get_participants(self, tournament_id: str) -> List[PlayerResult]:
+    def get_participants(self, tournament_id: str) -> list[PlayerResult]:
         """Fetch players and lists."""
         url = f"{self.BASE_URL}/tournaments/{tournament_id}"
         results = []
@@ -159,7 +158,7 @@ class ListFortressScraper(BaseScraper):
             
         return results
 
-    def get_matches(self, tournament_id: str) -> List[Match]:
+    def get_matches(self, tournament_id: str) -> list[Match]:
         """Fetch matches if available."""
         url = f"{self.BASE_URL}/tournaments/{tournament_id}"
         matches = []
