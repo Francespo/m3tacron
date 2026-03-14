@@ -1,11 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from .filters import BaseFilterParams
 from sqlmodel import Session, select, func
 from ..database import engine
 from ..models import PlayerResult, Tournament
 from ..analytics.filters import filter_query, get_active_formats
 from ..data_structures.data_source import DataSource
-from .schemas import ListData
 from .formatters import enrich_list_data
 
 router = APIRouter(prefix="/api/list", tags=["List Detail"])
@@ -30,10 +28,10 @@ def get_list_key(xws):
     pilot_list.sort()
     return "|".join(pilot_list)
 
-@router.get("/{list_id:path}/stats", response_model=ListData)
+@router.get("/{list_id:path}/stats")
 def get_list_stats(
     list_id: str,
-    filters: BaseFilterParams = Depends(),
+    data_source: str = Query("xwa", description="Data source: xwa or legacy"),
     allowed_formats: str = Query(None, description="Comma-separated list of allowed formats")
 ):
     """
@@ -45,7 +43,7 @@ def get_list_stats(
         query = select(PlayerResult, Tournament).where(
             PlayerResult.tournament_id == Tournament.id
         )
-        query = filter_query(query, filters.model_dump())
+        query = filter_query(query, filters)
         rows = session.exec(query).all()
         
         wins = 0
@@ -96,7 +94,6 @@ def get_list_stats(
             "signature": list_id,
             "name": name,
             "faction": faction,
-            "faction_xws": faction.lower().replace(" ", ""), # fallback
             "games": games,
             "wins": wins,
             "win_rate": round(wins / games * 100, 1) if games > 0 else 0.0,
@@ -105,7 +102,7 @@ def get_list_stats(
             "pilots": pilots
         }
         
-        try: ds_enum = DataSource(filters.data_source)
+        try: ds_enum = DataSource(data_source)
         except: ds_enum = DataSource.XWA
         
         return enrich_list_data(raw_stats, source=ds_enum)
