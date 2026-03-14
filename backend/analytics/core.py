@@ -451,6 +451,7 @@ def aggregate_card_stats(
                     "name": u_info.get("name", u_xws),
                     "xws": u_xws,
                     "type": display_type,
+                    "slot_xws": u_info.get("slot_category"),
                     "count": 0, "popularity": 0, "wins": 0, "games": 0,
                     "lists": 0,
                     "image": u_info.get("image", ""),
