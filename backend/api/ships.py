@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Query, Depends
-from typing import Optional, List, Dict, Any
 from ..analytics.ships import aggregate_ship_stats
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
 from ..data_structures.data_source import DataSource
@@ -37,19 +36,19 @@ def get_ships(
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Popularity"),
     sort_direction: str = Query("desc"),
-    search: Optional[str] = Query(None),
+    search: str | None = Query(None),
     
-    formats: Optional[List[str]] = Query(None),
-    factions: Optional[List[str]] = Query(None),
-    ships: Optional[List[str]] = Query(None),
-    continent: Optional[List[str]] = Query(None),
-    country: Optional[List[str]] = Query(None),
-    city: Optional[List[str]] = Query(None),
-    platforms: Optional[List[str]] = Query(None),
-    date_start: Optional[str] = Query(None),
-    date_end: Optional[str] = Query(None),
-    player_count_min: Optional[int] = Query(None),
-    player_count_max: Optional[int] = Query(None),
+    formats: list[str] | None = Query(None),
+    factions: list[str] | None = Query(None),
+    ships: list[str] | None = Query(None),
+    continent: list[str] | None = Query(None),
+    country: list[str] | None = Query(None),
+    city: list[str] | None = Query(None),
+    platforms: list[str] | None = Query(None),
+    date_start: str | None = Query(None),
+    date_end: str | None = Query(None),
+    player_count_min: int | None = Query(None),
+    player_count_max: int | None = Query(None),
 ):
     try:
         ds_enum = DataSource(data_source)
