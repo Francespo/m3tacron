@@ -279,12 +279,12 @@
 
         <!-- Card Grid -->
         <div
-            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6 items-start"
+            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6"
         >
             {#each items as card}
                 <a
                     href={`/${data.tab === "pilots" ? "pilot" : "upgrade"}/${card.xws}`}
-                    class="block"
+                    class="block h-full group"
                 >
                     {#if data.tab === "pilots"}
                         <PilotCard pilot={card} />
