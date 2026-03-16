@@ -76,7 +76,6 @@
         cloak: "k",
         rotatearc: "R",
         astromech: "A",
-        talent: "E",
         missile: "M",
         torpedo: "P",
         cannon: "C",
@@ -90,8 +89,10 @@
         title: "t",
         tech: "X",
         sensor: "S",
-        "tactical-relay": "Z",
         recurring: "`",
+        forcepower: "F",
+        tacticalrelay: "Z",
+        talent: "E",
         // Ship mappings (common ones, can be passing char as type too)
         t65xwing: "x",
         t70xwing: "w",
@@ -178,16 +179,24 @@
         gauntletfighter: "6",
         z95af4headhunter: "z",
     };
-    const iconChar = $derived(charMap[type] || type);
     const fontFamily = $derived(isShip ? "'XWingShip'" : "'XWing'");
+    const iconChar = $derived((() => {
+        const t = String(type);
+        const normalized = t.toLowerCase().replace(/[^a-z0-9]/g, "");
+        if (charMap[normalized]) return charMap[normalized];
+        return t;
+    })());
+
+    const isError = $derived(iconChar.length > 1);
 </script>
 
 <span
     class="xwing-icon {className}"
-    style="font-size: {size}; color: {color}; font-family: {fontFamily}; {style}"
+    class:error-icon={isError}
+    style="font-size: {size}; color: {isError ? '#ef4444' : color}; font-family: {isError ? 'inherit' : fontFamily}; {style}"
     aria-hidden="true"
 >
-    {iconChar}
+    {isError ? '?' : iconChar}
 </span>
 
 <style>
