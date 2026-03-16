@@ -2,6 +2,8 @@
     import { browser } from "$app/environment";
 
     let { data } = $props();
+    import UpgradeCard from "$lib/components/UpgradeCard.svelte";
+    
     let info = $derived(data.info);
     let upgrades = $derived(data.upgrades);
     let chart = $derived(data.chart);
@@ -210,34 +212,14 @@
         </h2>
 
         {#if upgrades && upgrades.length > 0}
-            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
-                {#each upgrades as u}
-                    <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:scale-[1.02] hover:border-primary/30 transition-all group">
-                        {#if u.image}
-                            <img src={u.image} alt={u.name} class="w-full h-auto object-contain max-h-[220px] p-2" />
-                        {:else}
-                            <div class="w-full h-[150px] bg-white/5 flex items-center justify-center">
-                                <span class="text-secondary font-mono text-xs">NO IMAGE</span>
-                            </div>
-                        {/if}
-                        <div class="p-3 text-center">
-                            <p class="text-sm font-sans font-bold text-primary">{u.name}</p>
-                            <p class="text-xs font-mono text-cyan-400 mb-2">{u.type || ''}</p>
-                            <div class="flex items-center justify-center gap-1.5 flex-wrap">
-                                <span class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-white/5 text-secondary">{u.count || 0} USED</span>
-                                {#if u.win_rate != null && u.win_rate !== 'NA'}
-                                    <span
-                                        class="px-1.5 py-0.5 text-[10px] font-mono rounded"
-                                        style="background: {wrColor(parseFloat(u.win_rate))}15; color: {wrColor(parseFloat(u.win_rate))};"
-                                    >{parseFloat(u.win_rate).toFixed(0)}% WR</span>
-                                {/if}
-                                {#if u.cost != null}
-                                    <span class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-emerald-500/10 text-emerald-400">{u.cost} PTS</span>
-                                {/if}
-                            </div>
-                        </div>
-                    </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">                {#each upgrades as u}
+                    <UpgradeCard upgrade={{
+                        ...u,
+                        slot_xws: u.type_xws || u.type,
+                        games: u.count,
+                    }} />
                 {/each}
+
             </div>
         {:else}
             <div class="bg-terminal-panel border border-border-dark rounded-lg p-8 text-center">

@@ -1,0 +1,718 @@
+{
+  "quick-builds": [
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "midnight",
+          "upgrades": {
+            "modification": ["afterburners"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "commandermalarus",
+          "upgrades": {
+            "tech": ["advancedoptics"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "scorch",
+          "upgrades": {
+            "talent": ["fanatical"],
+            "modification": ["hullupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "static",
+          "upgrades": {
+            "talent": ["outmaneuver"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "longshot",
+          "upgrades": {
+            "talent": ["elusive", "predator"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "omegasquadronace",
+          "upgrades": {
+            "talent": ["elusive", "fanatical"],
+            "modification": ["hullupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "muse",
+          "upgrades": {
+            "talent": ["squadleader"],
+            "tech": ["advancedoptics"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "tn3465",
+          "upgrades": {
+            "tech": ["targetingsynchronizer"],
+            "modification": ["shieldupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "zetasquadronpilot",
+          "upgrades": {
+            "tech": ["advancedoptics"],
+            "modification": ["shieldupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "epsilonsquadroncadet",
+          "upgrades": {
+            "tech": ["targetingsynchronizer"],
+            "modification": ["afterburners"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 1,
+      "pilots": [
+        {
+          "id": "lieutenantrivas"
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "null",
+          "upgrades": {
+            "talent": ["swarmtactics"],
+            "modification": ["afterburners", "shieldupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "quickdraw",
+          "upgrades": {
+            "talent": ["juke"],
+            "sensor": ["collisiondetector"],
+            "gunner": ["hotshotgunner"],
+            "modification": ["afterburners", "shieldupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "zetasquadronsurvivor",
+          "upgrades": {
+            "tech": ["patternanalyzer"],
+            "missile": ["ionmissiles"],
+            "gunner": ["specialforcesgunner"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "zetasquadronsurvivor",
+          "upgrades": {
+            "tech": ["advancedoptics"],
+            "talent": ["proudtradition"],
+            "sensor": ["passivesensors"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "backdraft",
+          "upgrades": {
+            "tech": ["patternanalyzer"],
+            "missile": ["ionmissiles"],
+            "sensor": ["collisiondetector"],
+            "gunner": ["specialforcesgunner"],
+            "modification": ["shieldupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "omegasquadronexpert",
+          "upgrades": {
+            "talent": ["juke"],
+            "gunner": ["specialforcesgunner"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 4,
+      "pilots": [
+        {
+          "id": "kyloren",
+          "upgrades": {
+            "force-power": ["hate", "predictiveshot"],
+            "tech": ["primedthrusters"],
+            "torpedo": ["advprotontorpedoes"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "recoil",
+          "upgrades": {
+            "talent": ["predator"],
+            "torpedo": ["protontorpedoes"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "firstordertestpilot",
+          "upgrades": {
+            "talent": ["outmaneuver"],
+            "modification": ["hullupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "firstordertestpilot",
+          "upgrades": {
+            "talent": ["proudtradition"],
+            "torpedo": ["plasmatorpedoes"],
+            "sensor": ["passivesensors"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "blackout",
+          "upgrades": {
+            "talent": ["elusive"],
+            "modification": ["afterburners"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "blackout",
+          "upgrades": {
+            "talent": ["trickshot"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "avenger",
+          "upgrades": {
+            "tech": ["primedthrusters"],
+            "torpedo": ["advprotontorpedoes"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "sienarjaemusengineer",
+          "upgrades": {
+            "talent": ["snapshot"],
+            "sensor": ["passivesensors"],
+            "missile": ["magpulsewarheads"],
+            "modification": ["afterburners"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "sienarjaemusengineer"
+        }
+      ]
+    },
+    {
+      "threat": 4,
+      "pilots": [
+        {
+          "id": "lieutenanttavson",
+          "upgrades": {
+            "sensor": ["advancedsensors"],
+            "cannon": ["ioncannon"],
+            "crew": ["kyloren", "supremeleadersnoke"],
+            "modification": ["shieldupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "lieutenantdormitz",
+          "upgrades": {
+            "tech": ["biohexacryptcodes", "hyperspacetrackingdata"],
+            "cannon": ["tractorbeam"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "starkillerbasepilot"
+        }
+      ]
+    },
+    {
+      "threat": 4,
+      "pilots": [
+        {
+          "id": "majorstridan",
+          "upgrades": {
+            "tech": ["biohexacryptcodes", "patternanalyzer"],
+            "crew": ["captainphasma", "generalhux"],
+            "cannon": ["tractorbeam"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "captaincardinal",
+          "upgrades": {
+            "crew": ["pettyofficerthanisson"],
+            "cannon": ["ioncannon"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "pettyofficerthanisson",
+          "upgrades": {
+            "crew": ["captainphasma"],
+            "modification": ["tacticalscrambler"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "captainphasma",
+          "upgrades": {
+            "tech": ["advancedoptics"],
+            "missile": ["ionmissiles"],
+            "talent": ["outmaneuver"],
+            "gunner": ["specialforcesgunner"],
+            "modification": ["shieldupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "lieutenantlehuse",
+          "upgrades": {
+            "talent": ["elusive"],
+            "missile": ["magpulsewarheads"],
+            "modification": ["angleddeflectors"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "rush",
+          "upgrades": {
+            "tech": ["primedthrusters"],
+            "torpedo": ["protontorpedoes"],
+            "modification": ["angleddeflectors"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "firstorderprovocateur",
+          "upgrades": {
+            "talent": ["snapshot"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "ember",
+          "upgrades": {
+            "talent": ["predator", "elusive"],
+            "missile": ["concussionmissiles"],
+            "modification": ["afterburners"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "holo",
+          "upgrades": {
+            "talent": ["proudtradition"],
+            "missile": ["magpulsewarheads"],
+            "modification": ["hullupgrade", "munitionsfailsafe"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "majorvonreg",
+          "upgrades": {
+            "talent": ["outmaneuver"],
+            "missile": ["magpulsewarheads"],
+            "tech": ["deuteriumpowercells"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "firstordercadet",
+          "upgrades": {
+            "talent": ["feedbackping"],
+            "device": ["concussionbombs"],
+            "gunner": ["firstorderordnancetech"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "sienarjaemustestpilot",
+          "upgrades": {
+            "missile": ["clustermissiles"],
+            "gunner": ["suppressivegunner"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "breach",
+          "upgrades": {
+            "talent": ["elusive"],
+            "torpedo": ["protontorpedoes"],
+            "tech": ["advancedoptics"],
+			"modification": ["engineupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "dread",
+          "upgrades": {
+            "talent": ["feedbackping"],
+            "device": ["concussionbombs"],
+            "tech": ["primedthrusters"],
+			"modification": ["delayedfuses"],
+			"gunner": ["dt798"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "grudge",
+          "upgrades": {
+            "talent": ["outmaneuver"],
+            "missile": ["protonrockets"],
+            "torpedo": ["iontorpedoes"],
+			"modification": ["engineupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "scorch-tiesebomber",
+          "upgrades": {
+            "talent": ["predator"],
+            "missile": ["electrochaffmissiles"],
+            "gunner": ["suppressivegunner"],
+			"modification": ["shieldupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "nightfall",
+          "upgrades": {
+            "talent": ["ionlimiteroverride"],
+            "tech": ["sensorscramblers"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "redfuryzealot",
+          "upgrades": {
+            "talent": ["predator"],
+            "configuration": ["enhancedjammingsuite"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "709thlegionace",
+          "upgrades": {
+            "talent": ["predator"],
+            "configuration": ["enhancedjammingsuite"],
+            "missile": ["homingmissiles"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "kyloren-tiewiwhispermodifiedinterceptor",
+          "upgrades": {
+            "talent": ["predator"],
+            "force-power": ["malice"],
+            "configuration": ["enhancedjammingsuite"],
+			"missile": ["clustermissiles"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "whirlwind",
+          "upgrades": {
+            "talent": ["elusive", "ionlimiteroverride"],
+            "tech": ["sensorscramblers"],
+            "missile": ["protonrockets"],
+			"modification": ["hullupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 3,
+      "pilots": [
+        {
+          "id": "wrath",
+          "upgrades": {
+            "talent": ["elusive"],
+            "configuration": ["enhancedjammingsuite"],
+            "missile": ["protonrockets"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "agentterex",
+          "upgrades": {
+            "crew": ["commandermalarus"],
+            "illicit": ["deadmansswitch", "contrabandcybernetics", "inertialdampeners"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "commandermalarus-xiclasslightshuttle",
+          "upgrades": {
+            "talent": ["snapshot"],
+            "crew": ["agentterex"],
+			"tech": ["sensorbuoysuite"],
+			"modification": ["hullupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "gideonhask-xiclasslightshuttle",
+          "upgrades": {
+            "talent": ["deadeyeshot"],
+            "tech": ["sensorbuoysuite"],
+			"crew": ["commanderpyre"],
+			"illicit": ["riggedcargochute"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 2,
+      "pilots": [
+        {
+          "id": "firstordercourier",
+          "upgrades": {
+            "crew": ["tacticalofficer"],
+            "tech": ["automatedtargetpriority"],
+			"modification": ["shieldupgrade"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 4,
+      "pilots": [
+        {
+          "id": "firstordersympathizers",
+          "upgrades": {
+            "command": ["strategiccommander"],
+            "hardpoint": ["pointdefensebattery"],
+			"team": ["damagecontrolteam", "gunneryspecialists"],
+			"cargo": ["adaptiveshields"]
+          }
+        }
+      ]
+    },
+    {
+      "threat": 8,
+      "pilots": [
+        {
+          "id": "firstordercollaborators",
+          "upgrades": {
+            "command": ["stalwartcaptain"],
+            "hardpoint": ["ioncannonbattery", "pointdefensebattery"],
+			"crew": ["novicetechnician"],
+			"team": ["bombardmentspecialists", "commsteam"],
+			"cargo": ["boostedscanners"]
+          }
+        }
+      ]
+    }
+  ]
+}
