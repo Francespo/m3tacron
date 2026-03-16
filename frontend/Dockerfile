@@ -7,6 +7,7 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
+RUN npx svelte-kit sync
 RUN npm run build
 
 # Production stage
