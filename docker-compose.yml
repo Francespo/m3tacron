@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     ports:
-      - "8000:8000"
+      - "8888:8888"
     volumes:
       - data:/app/backend/data
       - ./test.db:/app/test.db
@@ -16,7 +16,7 @@ services:
     build:
       context: ./frontend
     ports:
-      - "3000:3000"
+      - "3333:3333"
     environment:
       - ORIGIN=http://localhost:3000
     depends_on:
