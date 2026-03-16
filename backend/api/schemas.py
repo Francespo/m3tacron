@@ -2,21 +2,13 @@ from pydantic import BaseModel, Field
 from typing import Any
 
 class UpgradeData(BaseModel):
-    name: str = ""
-    xws: str = ""
-    slot: str = ""
-    slot_icon: str = ""
-    image: str = ""
-    points: int = 0
+    xws: str
+    slot_xws: str  # slot type xws
 
 class PilotData(BaseModel):
-    name: str = ""
-    xws: str = ""
-    ship_name: str = ""
-    ship_icon: str = ""
-    image: str = ""
-    points: int = 0
-    loadout: int = 0
+    xws: str
+    ship_xws: str
+    faction_xws: str
     upgrades: list[UpgradeData] = []
 
 class ListData(BaseModel):

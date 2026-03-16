@@ -1,0 +1,54 @@
+[
+  {
+    "name": "Boost",
+    "xws": "boost"
+  },
+  {
+    "name": "Focus",
+    "xws": "focus"
+  },
+  {
+    "name": "Evade",
+    "xws": "evade"
+  },
+  {
+    "name": "Lock",
+    "xws": "lock"
+  },
+  {
+    "name": "Barrel Roll",
+    "xws": "barrelroll"
+  },
+  {
+    "name": "Reinforce",
+    "xws": "reinforce"
+  },
+  {
+    "name": "Cloak",
+    "xws": "cloak"
+  },
+  {
+    "name": "Coordinate",
+    "xws": "coordinate"
+  },
+  {
+    "name": "Calculate",
+    "xws": "calculate"
+  },
+  {
+    "name": "Jam",
+    "xws": "jam"
+  },
+  {
+    "name": "Reload",
+    "xws": "reload"
+  },
+  {
+    "name": "Slam",
+    "xws": "slam"
+  },
+  {
+    "name": "Rotate Arc",
+    "xws": "rotatearc"
+  }
+]
