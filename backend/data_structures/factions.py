@@ -16,77 +16,58 @@ class Faction(StrEnum):
     SEPARATIST = "separatistalliance"
     UNKNOWN = "unknown"
 
-    @property
-    def label(self) -> str:
-        """
-        Human-readable faction name.
-        """
-        match self:
-            case Faction.REBEL:
-                return "Rebel Alliance"
-            case Faction.EMPIRE:
-                return "Galactic Empire"
-            case Faction.SCUM:
-                return "Scum and Villainy"
-            case Faction.RESISTANCE:
-                return "Resistance"
-            case Faction.FIRST_ORDER:
-                return "First Order"
-            case Faction.REPUBLIC:
-                return "Galactic Republic"
-            case Faction.SEPARATIST:
-                return "Separatist Alliance"
-            case _:
-                return "Unknown"
 
 
     @classmethod
-    def from_xws(cls, value: str):
+    def from_xws(cls, value: str) -> "Faction":
         """
-        Convert raw XWS faction string to Faction enum.
-        Handles labels, XWS IDs, and common aliases.
+        Convert any faction string (alias, label, or XWS ID) to official Faction enum.
         """
         if not value:
             return cls.UNKNOWN
             
-        # Normalize: lowercase and remove spaces/dashes
-        normalized = value.lower().replace(" ", "").replace("-", "")
+        # Standard normalization: lowercase and remove spaces, dashes, underscores
+        clean = value.lower().replace(" ", "").replace("-", "").replace("_", "")
         
-        # Check direct value match
-        for faction in cls:
-            if faction.value == normalized:
+        # 1. Check direct value matches (e.g. "rebelalliance")
+        for faction in cls.__members__.values():
+            if faction.value == clean:
                 return faction
-        
-        # Check common aliases/partial matches
+                
+        # 2. Check common aliases and partial terms
+        # Keys are normalized versions of potential inputs
         alias_map = {
             "rebel": cls.REBEL,
+            "rebels": cls.REBEL,
+            "rebelalliance": cls.REBEL,
+            
             "empire": cls.EMPIRE,
+            "galacticempire": cls.EMPIRE,
+            "imperial": cls.EMPIRE,
+            
             "scum": cls.SCUM,
-            "separatist": cls.SEPARATIST,
-            "republic": cls.REPUBLIC,
-            "firstorder": cls.FIRST_ORDER,
+            "scumandvillainy": cls.SCUM,
+            "bountyhunter": cls.SCUM,
+            
             "resistance": cls.RESISTANCE,
+            
+            "firstorder": cls.FIRST_ORDER,
+            
+            "republic": cls.REPUBLIC,
+            "galacticrepublic": cls.REPUBLIC,
+            
+            "separatist": cls.SEPARATIST,
+            "separatistalliance": cls.SEPARATIST,
+            "cis": cls.SEPARATIST,
         }
         
+        # Check for exact alias match
+        if clean in alias_map:
+            return alias_map[clean]
+            
+        # Check if any alias is contained within the string
         for alias, faction in alias_map.items():
-            if alias in normalized:
+            if alias in clean:
                 return faction
                 
         return cls.UNKNOWN
-
-FACTION_CHARS = {
-    "rebelalliance": "!",
-    "galacticempire": "@",
-    "scumandvillainy": "#",
-    "resistance": "!",
-    "firstorder": "+",
-    "galacticrepublic": "/",
-    "separatistalliance": ".",
-    "unknown": "?"
-}
-
-def get_faction_char(faction_xws: str) -> str:
-    """
-    Returns the corresponding icon character for the faction.
-    """
-    return FACTION_CHARS.get(faction_xws, "?")

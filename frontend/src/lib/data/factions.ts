@@ -34,21 +34,47 @@ export const FACTION_LABELS: Record<string, string> = {
     firstorder: 'First Order',
     galacticrepublic: 'Galactic Republic',
     separatistalliance: 'Separatist Alliance',
-    unknown: 'Unknown'
+    unknown: 'Unknown Faction'
+};
+
+export const FACTION_ICON_CLASSES: Record<string, string> = {
+    rebelalliance: 'xwing-miniatures-font-rebel',
+    galacticempire: 'xwing-miniatures-font-empire',
+    scumandvillainy: 'xwing-miniatures-font-scum',
+    resistance: 'xwing-miniatures-font-resistance',
+    firstorder: 'xwing-miniatures-font-firstorder',
+    galacticrepublic: 'xwing-miniatures-font-republic',
+    separatistalliance: 'xwing-miniatures-font-separatists',
+    unknown: ''
 };
 
 export const ALL_FACTIONS = Object.keys(FACTION_COLORS).filter(f => f !== 'unknown');
 
-export function getFactionColor(factionXws: string): string {
-    return FACTION_COLORS[factionXws] ?? FACTION_COLORS.unknown;
+export function getFactionColor(xws: string): string {
+    return FACTION_COLORS[xws] || FACTION_COLORS.unknown;
 }
 
-export function getFactionChar(factionXws: string): string {
-    return FACTION_CHARS[factionXws] ?? '?';
+export function getFactionChar(xws: string): string {
+    return FACTION_CHARS[xws] || FACTION_CHARS.unknown;
 }
 
-export function getFactionLabel(factionXws: string): string {
-    return FACTION_LABELS[factionXws] ?? factionXws;
+export function getFactionLabel(xws: string): string {
+    return FACTION_LABELS[xws] || FACTION_LABELS.unknown;
+}
+
+export function getFactionIconClass(xws: string): string {
+    const sanitized = (xws || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    return FACTION_ICON_CLASSES[sanitized] || '';
+}
+
+export function getShipIconClass(xws: string): string {
+    if (!xws) return '';
+    return 'xwing-miniatures-ship-' + xws.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+export function getUpgradeIconClass(type: string): string {
+    if (!type) return '';
+    return 'xwing-miniatures-font-' + type.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 /**

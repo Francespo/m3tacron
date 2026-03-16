@@ -5,7 +5,7 @@ Faction Analytics - Aggregation Logic for Factions.
 from sqlmodel import Session, select, func
 from ..database import engine
 from ..models import PlayerResult, Tournament
-from ..data_structures.factions import Faction, get_faction_char
+from ..data_structures.factions import Faction
 from ..data_structures.formats import Format
 from ..data_structures.data_source import DataSource
 from .filters import filter_query, get_active_formats, apply_tournament_filters
@@ -34,7 +34,6 @@ def aggregate_faction_stats(
         for f in Faction:
             if f == Faction.UNKNOWN: continue
             faction_stats[f.value] = {
-                "name": f.label,
                 "xws": f.value,
                 "wins": 0,
                 "games": 0,
@@ -68,7 +67,6 @@ def aggregate_faction_stats(
             
             if faction_xws not in faction_stats:
                  faction_stats[faction_xws] = {
-                    "name": faction_enum.label,
                     "xws": faction_xws,
                     "wins": 0,
                     "games": 0,
@@ -97,9 +95,7 @@ def aggregate_faction_stats(
             win_rate = round((data["wins"] / data["games"]) * 100, 1) if data["games"] > 0 else 0.0
             
             results.append({
-                "name": data["name"],
                 "xws": data["xws"],
-                "icon_char": get_faction_char(data["xws"]),
                 "win_rate": win_rate,
                 "popularity": data["popularity"],
                 "games": data["games"],
@@ -151,10 +147,7 @@ def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats:
     for f in faction_stats:
         percentage = round((f["games"] / total_games) * 100, 1) if total_games > 0 else 0
         faction_distribution.append({
-            "name": get_faction_char(f["xws"]), # Set name to char for Recharts label=True
-            "real_name": f["name"], # Keep original for reference if needed
             "xws": f["xws"],
-            "icon_char": get_faction_char(f["xws"]),
             "win_rate": f["win_rate"],
             "popularity": f["popularity"],
             "games": f["games"],

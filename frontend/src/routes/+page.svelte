@@ -48,46 +48,20 @@
         };
     });
 
-    function getFactionColor(xws: string) {
-        const colors: Record<string, string> = {
-            rebelalliance: "#FF3333",
-            galacticempire: "#2979FF",
-            scumandvillainy: "#006400",
-            resistance: "#FF8C00",
-            firstorder: "#800020",
-            galacticrepublic: "#E6D690",
-            separatistalliance: "#607D8B",
-            unknown: "#666666",
-        };
-        return colors[xws] || colors.unknown;
-    }
+    import {
+        getFactionColor,
+        getFactionLabel,
+        getFactionChar,
+        getFactionIconClass,
+        getShipIconClass,
+        getUpgradeIconClass,
+    } from "$lib/data/factions";
 
-    function getFactionIconClass(xws: string) {
-        const icons: Record<string, string> = {
-            rebelalliance: "xwing-miniatures-font-rebel",
-            galacticempire: "xwing-miniatures-font-empire",
-            scumandvillainy: "xwing-miniatures-font-scum",
-            resistance: "xwing-miniatures-font-resistance",
-            firstorder: "xwing-miniatures-font-firstorder",
-            galacticrepublic: "xwing-miniatures-font-republic",
-            separatistalliance: "xwing-miniatures-font-separatists",
-            unknown: "",
-        };
-        return icons[xws] || "";
-    }
+    const chartTitleTemplate = `<div class="flex flex-col items-center">
+    <div class="text-secondary text-[10px] uppercase tracking-widest font-bold mb-1 opacity-50">%label%</div>
+    <div class="text-2xl font-black text-primary">%value%%</div>
+  </div>`;
 
-    function getShipIconClass(xws: string) {
-        if (!xws) return "";
-        return "xwing-miniatures-ship-" + xws.replace(/[^a-z0-9]/g, "");
-    }
-
-    function getUpgradeIconClass(type: string) {
-        if (!type) return "";
-        return (
-            "xwing-miniatures-font-" +
-            type.toLowerCase().replace(/[^a-z0-9]/g, "")
-        );
-    }
 
     function chartAction(node: HTMLCanvasElement, config: any) {
         let chart: any;
@@ -119,7 +93,7 @@
     let barData = $derived(
         meta?.factions
             ? {
-                  labels: meta.factions.map((d: any) => d.icon_char || ""),
+                  labels: meta.factions.map((d: any) => getFactionChar(d.xws)),
                   datasets: [
                       {
                           label: "Win Rate (%)",
@@ -175,7 +149,7 @@
         meta?.faction_distribution
             ? {
                   labels: meta.faction_distribution.map(
-                      (d: any) => d.real_name,
+                      (d: any) => getFactionLabel(d.xws),
                   ),
                   datasets: [
                       {
@@ -473,14 +447,10 @@
                                     >
                                         <i
                                             class="xwing-miniatures-font {getFactionIconClass(
-                                                (pilot.faction || '')
-                                                    .toLowerCase()
-                                                    .replace(/[^a-z0-9]/g, ''),
+                                                pilot.faction,
                                             )} text-[11px]"
                                             style="color: {getFactionColor(
-                                                (pilot.faction || '')
-                                                    .toLowerCase()
-                                                    .replace(/[^a-z0-9]/g, ''),
+                                                pilot.faction,
                                             )}"
                                         ></i>
                                         <span
