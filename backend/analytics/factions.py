@@ -37,7 +37,8 @@ def aggregate_faction_stats(
                 "xws": f.value,
                 "wins": 0,
                 "games": 0,
-                "popularity": 0, # total lists
+                "lists": 0, # total lists
+                "signatures": set() # distinct list signatures
             }
 
         allowed_formats = get_active_formats(filters.get("allowed_formats", None))
@@ -70,7 +71,8 @@ def aggregate_faction_stats(
                     "xws": faction_xws,
                     "wins": 0,
                     "games": 0,
-                    "popularity": 0,
+                    "lists": 0,
+                    "signatures": set()
                 }
             
             s_wins = result.swiss_wins or 0
@@ -86,20 +88,23 @@ def aggregate_faction_stats(
             
             faction_stats[faction_xws]["wins"] += wins
             faction_stats[faction_xws]["games"] += games
-            faction_stats[faction_xws]["popularity"] += 1
+            faction_stats[faction_xws]["lists"] += 1
+            
+            from ..utils.squadron import calculate_list_signature
+            sig = calculate_list_signature(xws)
+            if sig:
+                faction_stats[faction_xws]["signatures"].add(sig)
             
         results = []
         for xws, data in faction_stats.items():
-            if data["popularity"] == 0: continue
-            
-            win_rate = round((data["wins"] / data["games"]) * 100, 1) if data["games"] > 0 else 0.0
+            if data["lists"] == 0: continue
             
             results.append({
                 "xws": data["xws"],
-                "win_rate": win_rate,
-                "popularity": data["popularity"],
                 "games": data["games"],
-                "wins": data["wins"]
+                "wins": data["wins"],
+                "lists": data["lists"],
+                "different_lists": len(data["signatures"])
             })
             
         # Default sort by popularity

@@ -30,10 +30,10 @@ class FactionStat(BaseModel):
     name: str
     xws: str
     icon_char: str
-    win_rate: float
-    popularity: int
     games: int
     wins: int
+    lists: int  # Total unique list occurrences for this faction
+    different_lists: int  # Count of distinct list signatures
     percentage: float | None = None
     real_name: str | None = None
 
@@ -47,6 +47,7 @@ class MetaSnapshotResponse(BaseModel):
     last_sync: str
     date_range: str
     total_tournaments: int
+    total_unique_lists: int
     total_players: int
 
 class TournamentRow(BaseModel):

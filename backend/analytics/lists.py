@@ -47,9 +47,14 @@ def aggregate_list_stats(
             xws = result.list_json
             if not xws or not isinstance(xws, dict):
                 continue
+            
+            from ..utils.squadron import calculate_list_signature
+            sig = calculate_list_signature(xws)
+            if not sig:
+                continue
                 
             pilots = xws.get("pilots", [])
-            if not pilots: continue
+            # (Ship filtering logic continues below)
             
             req_ships = filters.get("ships")
             if req_ships:
