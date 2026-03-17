@@ -24,8 +24,9 @@ def test_meta_snapshot():
     if len(data["lists"]) > 0:
         lst = data["lists"][0]
         assert "signature" in lst
-        assert "faction" in lst
-        assert "win_rate" in lst
+        assert "faction_xws" in lst
+        assert "wins" in lst
+        assert "games" in lst
 
 def test_tournaments():
     response = client.get("/api/tournaments?size=10")
@@ -57,8 +58,9 @@ def test_lists():
     
     if len(data["items"]) > 0:
         l = data["items"][0]
-        assert "faction" in l
-        assert "win_rate" in l
+        assert "faction_xws" in l
+        assert "wins" in l
+        assert "games" in l
 
 def test_pilots():
     response = client.get("/api/cards/pilots?size=10")

@@ -309,16 +309,16 @@
                                 class="px-2 py-0.5 text-xs font-mono rounded bg-white/5 text-secondary"
                                 >{list.games || 0} GAMES</span
                             >
-                            {#if list.win_rate}
+                            {#if list.games}
                                 <span
                                     class="px-2 py-0.5 text-xs font-mono rounded font-bold"
                                     style="color: {wrColor(
-                                        parseFloat(list.win_rate),
+                                        (list.wins / list.games) * 100,
                                     )}; background: {wrColor(
-                                        parseFloat(list.win_rate),
+                                        (list.wins / list.games) * 100,
                                     )}15"
                                 >
-                                    {(parseFloat(list.win_rate) * 100).toFixed(
+                                    {((list.wins / list.games) * 100).toFixed(
                                         1,
                                     )}% WR
                                 </span>

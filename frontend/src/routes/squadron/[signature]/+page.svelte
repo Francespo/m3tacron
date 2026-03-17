@@ -245,9 +245,9 @@
                             </h3>
                             <span
                                 class="font-xwing text-lg opacity-60"
-                                style="color: {getFactionColor(list.faction)}"
+                                style="color: {getFactionColor(list.faction_xws)}"
                             >
-                                {getFactionChar(list.faction)}
+                                {getFactionChar(list.faction_xws)}
                             </span>
                         </div>
 
@@ -263,8 +263,8 @@
                                 <span
                                     class="text-sm font-mono font-bold"
                                     style="color: {getWinRateColor(
-                                        list.win_rate,
-                                    )}">{list.win_rate === "NA" ? "NA" : Number(list.win_rate ?? 0).toFixed(1)}%</span
+                                        list.games ? (list.wins / list.games) * 100 : 0
+                                    )}">{list.games ? ((list.wins / list.games) * 100).toFixed(1) : "0.0"}%</span
                                 >
                             </div>
                             <div class="flex flex-col">
