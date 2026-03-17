@@ -3,7 +3,8 @@
 
     let { list } = $props<{ list: any }>();
 
-    let fColor = $derived(getFactionColor(list.faction_key));
+    let fColor = $derived(getFactionColor(list.faction_xws));
+    let winRate = $derived(list.games ? (list.wins / list.games) * 100 : 0);
 
     // Aggregate ships from pilots to display counts
     let ships = $derived(() => {
@@ -35,13 +36,13 @@
         <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
                 <span class="font-xwing text-2xl" style="color: {fColor};">
-                    {#if list.faction_key === "rebelalliance"}!{:else if list.faction_key === "galacticempire"}@{:else if list.faction_key === "scumandvillainy"}#{:else if list.faction_key === "resistance"}!{:else if list.faction_key === "firstorder"}+{:else if list.faction_key === "galacticrepublic"}/{:else if list.faction_key === "separatistalliance"}.{/if}
+                    {#if list.faction_xws === "rebelalliance"}!{:else if list.faction_xws === "galacticempire"}@{:else if list.faction_xws === "scumandvillainy"}#{:else if list.faction_xws === "resistance"}!{:else if list.faction_xws === "firstorder"}+{:else if list.faction_xws === "galacticrepublic"}/{:else if list.faction_xws === "separatistalliance"}.{/if}
                 </span>
                 <span
                     class="text-sm font-bold font-mono tracking-wide"
                     style="color: {fColor};"
                 >
-                    {getFactionLabel(list.faction_key)}
+                    {getFactionLabel(list.faction_xws)}
                 </span>
             </div>
 
@@ -49,15 +50,13 @@
             <div class="flex items-center gap-2 font-mono text-xs font-bold">
                 <span class="text-primary">[{list.count} LISTS]</span>
                 <span
-                    class={list.win_rate >= 50
+                    class={winRate >= 50
                         ? "text-green-400"
-                        : list.win_rate > 0
+                        : winRate > 0
                           ? "text-orange-400"
                           : "text-gray-400"}
                 >
-                    [{list.win_rate === "NA"
-                        ? "NA"
-                        : Number(list.win_rate ?? 0).toFixed(1)}% WR]
+                    [{winRate.toFixed(1)}% WR]
                 </span>
                 <span class="text-secondary tracking-tight">
                     ({list.games} G)

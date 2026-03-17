@@ -9,6 +9,7 @@
     export let data: PageData;
 
     $: stats = data.stats;
+    $: winRate = stats ? (stats.games > 0 ? (stats.wins / stats.games) * 100 : 0) : 0;
 </script>
 
 <div class="max-w-4xl mx-auto space-y-8">
@@ -50,7 +51,7 @@
             <!-- Background Glow -->
             <div
                 class="absolute -top-32 -right-32 w-96 h-96 rounded-full blur-[100px] pointer-events-none"
-                style="background-color: {getFactionColor(stats.faction)}20;"
+                style="background-color: {getFactionColor(stats.faction_xws)}20;"
             ></div>
 
             <!-- Info / Stats -->
@@ -58,9 +59,9 @@
                 <div class="flex items-center gap-4">
                     <span
                         class="font-xwing text-4xl opacity-80"
-                        style="color: {getFactionColor(stats.faction)}"
+                        style="color: {getFactionColor(stats.faction_xws)}"
                     >
-                        {getFactionChar(stats.faction)}
+                        {getFactionChar(stats.faction_xws)}
                     </span>
                     <h1
                         class="text-3xl lg:text-4xl font-sans font-bold text-primary"
@@ -92,9 +93,9 @@
                         >
                         <span
                             class="text-lg font-mono font-bold"
-                            style="color: {getWinRateColor(stats.win_rate)}"
+                            style="color: {getWinRateColor(winRate)}"
                         >
-                            {stats.win_rate === "NA" ? "NA" : Number(stats.win_rate ?? 0).toFixed(1)}%
+                            {winRate.toFixed(1)}%
                         </span>
                     </div>
 
@@ -129,7 +130,7 @@
                         <i
                             class="xwing-miniatures-ship xwing-miniatures-ship-{pilot.ship ||
                                 'unknown'} text-4xl opacity-80"
-                            style="color: {getFactionColor(stats.faction)}"
+                            style="color: {getFactionColor(stats.faction_xws)}"
                         ></i>
                         <div>
                             <h3
