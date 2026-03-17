@@ -93,35 +93,24 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
         ))
     
     f_key = stats.get("faction", "unknown")
-    try:
-        f_label = Faction.from_xws(f_key).label
-    except:
-        f_label = f_key.title()
-
+    
     try: points = int(stats.get("points", 0))
     except (ValueError, TypeError): points = 0
-    
-    try: count = int(stats.get("popularity", 0))
-    except (ValueError, TypeError): count = 0
     
     try: games = int(stats.get("games", 0))
     except (ValueError, TypeError): games = 0
     
-    try: win_rate = float(stats.get("win_rate", 0.0))
-    except (ValueError, TypeError): win_rate = 0.0
+    try: wins = int(stats.get("wins", 0))
+    except (ValueError, TypeError): wins = 0
 
     return ListData(
         signature=stats.get("signature", "Unknown Signature") or "Unknown Signature",
         name=stats.get("name", "Unknown List") or "Unknown List",
-        faction=f_label,
-        faction_key=f_key,
         faction_xws=stats.get("faction_xws", f_key),
-        icon_char=stats.get("icon_char", ""),
         points=calculated_points,
         original_points=points,
-        count=count,
+        wins=wins,
         games=games,
-        win_rate=win_rate,
         total_loadout=total_loadout,
         pilots=rich_pilots
     )

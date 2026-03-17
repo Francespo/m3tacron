@@ -14,15 +14,11 @@ class PilotData(BaseModel):
 class ListData(BaseModel):
     signature: str = ""
     name: str = ""
-    faction: str = ""
-    faction_key: str = ""
     faction_xws: str = ""
-    icon_char: str = ""
     points: int = 0
     original_points: int = 0
-    count: int = 0
+    wins: int = 0
     games: int = 0
-    win_rate: float = 0.0
     total_loadout: int = 0
     pilots: list[PilotData] = []
 

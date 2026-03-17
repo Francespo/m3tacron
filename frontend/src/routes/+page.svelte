@@ -687,7 +687,7 @@
                                 >
                                     <span
                                         class="text-base font-mono font-bold text-primary"
-                                        >{list.win_rate}% WR</span
+                                        >{((list.wins / list.games) * 100).toFixed(1)}% WR</span
                                     >
                                     <span class="text-[11px] text-secondary"
                                         >{list.games} games</span

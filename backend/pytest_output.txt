@@ -1,0 +1,33 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.13.11, pytest-9.0.2, pluggy-1.6.0
+rootdir: C:\Users\franc\Documents\m3tacron-issue-90\backend
+plugins: anyio-4.12.1, asyncio-1.3.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 0 items / 2 errors
+
+=================================== ERRORS ====================================
+_____________________ ERROR collecting tests/test_api.py ______________________
+ImportError while importing test module 'C:\Users\franc\Documents\m3tacron-issue-90\backend\tests\test_api.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Programs\Python\Python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_api.py:4: in <module>
+    from backend.main import app
+E   ModuleNotFoundError: No module named 'backend'
+____________________ ERROR collecting tests/test_runner.py ____________________
+ImportError while importing test module 'C:\Users\franc\Documents\m3tacron-issue-90\backend\tests\test_runner.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Programs\Python\Python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_runner.py:1: in <module>
+    from backend.tests.test_api import (
+E   ModuleNotFoundError: No module named 'backend'
+=========================== short test summary info ===========================
+ERROR tests/test_api.py
+ERROR tests/test_runner.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!
+============================== 2 errors in 0.36s ==============================

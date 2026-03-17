@@ -8,8 +8,9 @@
 
     let { list }: { list: any } = $props();
 
-    let factionColor = $derived(getFactionColor(list.faction_key || "unknown"));
-    let wrColor = $derived(getWinRateColor(list.win_rate || 0));
+    let factionColor = $derived(getFactionColor(list.faction_xws || "unknown"));
+    let winRate = $derived(list.games ? (list.wins / list.games) * 100 : 0);
+    let wrColor = $derived(getWinRateColor(winRate));
     let isXwa = $derived(filters.dataSource === "xwa");
 </script>
 
@@ -29,7 +30,7 @@
             <!-- Faction Icon and List Name -->
             <div class="flex items-center gap-3">
                 <span class="font-xwing text-xl" style="color: {factionColor};">
-                    {getFactionChar(list.faction_key || "unknown")}
+                    {getFactionChar(list.faction_xws || "unknown")}
                 </span>
                 <a
                     href="/list/{encodeURIComponent(
@@ -57,9 +58,7 @@
                     class="px-1.5 py-0.5 rounded text-[11px] font-mono font-bold"
                     style="background-color: {wrColor}22; color: {wrColor};"
                 >
-                    {list.win_rate === "NA"
-                        ? "NA"
-                        : Number(list.win_rate ?? 0).toFixed(1) + "%"} WR
+                    {winRate.toFixed(1)}% WR
                 </span>
                 {#if isXwa}
                     <span
