@@ -107,8 +107,8 @@ def aggregate_faction_stats(
                 "different_lists": len(data["signatures"])
             })
             
-        # Default sort by popularity
-        results.sort(key=lambda x: x["popularity"], reverse=True)
+        # Default sort by popularity (lists)
+        results.sort(key=lambda x: x["lists"], reverse=True)
         return results
 
 def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats: list[str] | None = None) -> dict:
@@ -150,14 +150,12 @@ def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats:
     faction_distribution = []
     
     for f in faction_stats:
-        percentage = round((f["games"] / total_games) * 100, 1) if total_games > 0 else 0
         faction_distribution.append({
             "xws": f["xws"],
-            "win_rate": f["win_rate"],
-            "popularity": f["popularity"],
             "games": f["games"],
             "wins": f["wins"],
-            "percentage": percentage
+            "lists": f["lists"],
+            "different_lists": f["different_lists"]
         })
     
     # Helper to filter and sort

@@ -98,7 +98,7 @@
                       {
                           label: "Win Rate (%)",
                           data: meta.factions.map((d: any) =>
-                              parseFloat(d.win_rate).toFixed(1),
+                              (d.games > 0 ? (d.wins / d.games) * 100 : 0).toFixed(1),
                           ),
                           backgroundColor: meta.factions.map((d: any) =>
                               getFactionColor(d.xws),
@@ -412,18 +412,15 @@
                     {/if}
                 </div>
                 <div class="flex flex-wrap justify-center w-full mt-2">
-                    {#each meta.faction_distribution || [] as dist}
-                        <div
-                            class="flex items-center gap-[6px] text-xs font-mono text-secondary mr-3 mb-[6px]"
-                        >
-                            <i
-                                class="xwing-miniatures-font {getFactionIconClass(
-                                    dist.xws,
-                                )} text-sm"
-                            ></i>
-                            <span>{dist.percentage}%</span>
-                        </div>
-                    {/each}
+                    {#if meta.faction_distribution}
+                        {@const totalGames = meta.faction_distribution.reduce((acc: number, d: any) => acc + (d.games || 0), 0)}
+                        {#each meta.faction_distribution as dist}
+                            <div class="flex items-center gap-[6px] text-xs font-mono text-secondary mr-3 mb-[6px]">
+                                <i class="xwing-miniatures-font {getFactionIconClass(dist.xws)} text-sm"></i>
+                                <span>{(totalGames > 0 ? (dist.games / totalGames) * 100 : 0).toFixed(1)}%</span>
+                            </div>
+                        {/each}
+                    {/if}
                 </div>
             </div>
         </div>

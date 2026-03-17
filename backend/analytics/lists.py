@@ -66,25 +66,7 @@ def aggregate_list_stats(
                 if not ship_matched:
                     continue
             
-            # Simple canonical representation for grouping
-            pilot_list = []
-            for p in pilots:
-                p_id = p.get("id") or p.get("name") or "unknown"
-                # Sort upgrades to make it stable
-                upgrades = []
-                upgrade_data = p.get("upgrades", {})
-                if isinstance(upgrade_data, dict):
-                    for slot, items in upgrade_data.items():
-                        if isinstance(items, list):
-                            upgrades.extend([str(i) for i in items])
-                elif isinstance(upgrade_data, list):
-                    upgrades.extend([str(i) for i in upgrade_data])
-                
-                upgrades.sort()
-                pilot_list.append(f"{p_id}({','.join(upgrades)})")
-            
-            pilot_list.sort()
-            list_key = "|".join(pilot_list)
+            list_key = sig
             
             if list_key not in list_stats:
                 list_stats[list_key] = {

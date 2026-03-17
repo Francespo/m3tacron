@@ -27,15 +27,11 @@ class ListData(BaseModel):
     pilots: list[PilotData] = []
 
 class FactionStat(BaseModel):
-    name: str
     xws: str
-    icon_char: str
     games: int
     wins: int
     lists: int  # Total unique list occurrences for this faction
     different_lists: int  # Count of distinct list signatures
-    percentage: float | None = None
-    real_name: str | None = None
 
 class MetaSnapshotResponse(BaseModel):
     factions: list[FactionStat]
