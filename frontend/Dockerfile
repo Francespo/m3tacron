@@ -3,10 +3,11 @@ FROM node:20-slim AS builder
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY frontend/package*.json ./
 RUN npm install
 
-COPY . .
+COPY frontend .
+COPY external_data /app/external_data
 
 # Pass build arguments for SvelteKit environment variables
 ARG VITE_API_BASE
