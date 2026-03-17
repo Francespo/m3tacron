@@ -30,8 +30,8 @@ class FactionStat(BaseModel):
     xws: str
     games: int
     wins: int
-    lists: int  # Total unique list occurrences for this faction
-    different_lists: int  # Count of distinct list signatures
+    lists: int
+    different_lists: int
 
 class MetaSnapshotResponse(BaseModel):
     factions: list[FactionStat]

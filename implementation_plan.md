@@ -1,38 +1,46 @@
-# Refactor FactionStat Schema and Analytics
+# Refactor Backend to Remove Presentation Metadata
 
-This plan refactors the `FactionStat` schema to be more minimal, moving metadata logic to the frontend and adding `different_lists` to track unique squadron signatures.
+This plan refactors the backend to remove all presentation-related metadata (`icon_char`, labels, names) from API schemas, analytics, and utility Enums, moving these concerns entirely to the frontend.
 
 ## Proposed Changes
 
-### Backend Analytics & Utils
+### [Component Name] backend/data_structures
 
-#### [MODIFY] [squadron.py](file:///c:/Users/franc/Documents/m3tacron/backend/utils/squadron.py)
-- Implement `calculate_list_signature` function for reuse in analytics.
+#### [MODIFY] [factions.py](file:///c:/Users/franc/Documents/m3tacron-issue-86/backend/data_structures/factions.py)
+- **Delete** `get_faction_char` (if present) and remove it from exports/imports.
+- **Ensure** `.label` property is removed from any related structures.
 
-#### [MODIFY] [factions.py](file:///c:/Users/franc/Documents/m3tacron/backend/analytics/factions.py)
-- Update `aggregate_faction_stats` to calculate `different_lists` (count of unique list signatures).
-- Rename `popularity` to `lists`.
-- Remove redundant metadata calculation (`name`, `icon_char`, `win_rate`).
+#### [MODIFY] [Enums in data_structures/](file:///c:/Users/franc/Documents/m3tacron-issue-86/backend/data_structures/)
+- **Remove** `@property def label(self)` from the following files:
+    - [formats.py](file:///c:/Users/franc/Documents/m3tacron-issue-86/backend/data_structures/formats.py)
+    - [platforms.py](file:///c:/Users/franc/Documents/m3tacron-issue-86/backend/data_structures/platforms.py)
+    - [upgrade_types.py](file:///c:/Users/franc/Documents/m3tacron-issue-86/backend/data_structures/upgrade_types.py)
+    - [scenarios.py](file:///c:/Users/franc/Documents/m3tacron-issue-86/backend/data_structures/scenarios.py)
+    - [round_types.py](file:///c:/Users/franc/Documents/m3tacron-issue-86/backend/data_structures/round_types.py)
+    - [sorting_order.py](file:///c:/Users/franc/Documents/m3tacron-issue-86/backend/data_structures/sorting_order.py)
+    - [data_source.py](file:///c:/Users/franc/Documents/m3tacron-issue-86/backend/data_structures/data_source.py)
 
-#### [MODIFY] [lists.py](file:///c:/Users/franc/Documents/m3tacron/backend/analytics/lists.py)
-- Use `calculate_list_signature` from `backend.utils.squadron`.
+### [Component Name] backend/api
 
-### Backend API
+#### [MODIFY] [schemas.py](file:///c:/Users/franc/Documents/m3tacron-issue-86/backend/api/schemas.py)
+- **Remove** `icon_char: str`, `name: str`, `faction: str`, `faction_key: str` from `ListData`.
+- **Remove** `format_label`, `platform_label` from `TournamentRow`.
+- **Ensure** all schemas only pass XWS/Value identifiers.
 
-#### [MODIFY] [schemas.py](file:///c:/Users/franc/Documents/m3tacron/backend/api/schemas.py)
-- Update `FactionStat` schema fields: `xws`, `wins`, `games`, `lists`, `different_lists`.
+#### [MODIFY] [formatters.py](file:///c:/Users/franc/Documents/m3tacron-issue-86/backend/api/formatters.py)
+- **Remove** logic mapping to presentation fields in `enrich_list_data`.
 
-### Frontend UI
+### [Component Name] backend/analytics
 
-#### [MODIFY] [+page.svelte](file:///c:/Users/franc/Documents/m3tacron/frontend/src/routes/+page.svelte)
-- Implement client-side `win_rate` calculation.
-- Use `$lib/data/factions.ts` for faction labels and icons.
+#### [MODIFY] [core.py](file:///c:/Users/franc/Documents/m3tacron-issue-86/backend/analytics/core.py), [ships.py](file:///c:/Users/franc/Documents/m3tacron-issue-86/backend/analytics/ships.py), [lists.py](file:///c:/Users/franc/Documents/m3tacron-issue-86/backend/analytics/lists.py)
+- **Strip** all calls to `get_faction_char`.
+- **Remove** presentation fields (`name`, `icon_char`, `ship_name`, etc.) from aggregated result dictionaries.
 
 ## Verification Plan
 
 ### Automated Tests
-- Run `pytest` to ensure backend analytics correctness.
-- Validate `different_lists` logic with test cases.
+- Run `pytest` to catch any regressions in logic that relied on `.label`.
+- Verify API responses (`/api/meta/snapshot`) via `curl` or browser to ensure no presentation fields are leaked.
 
 ### Manual Verification
-- Verify homepage charts (Bar and Pie) display correctly.
+- Verify the frontend (once updated) correctly maps XWS IDs to labels and icons using its own internal data.

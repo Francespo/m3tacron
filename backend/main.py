@@ -89,5 +89,6 @@ def get_snapshot(data_source: str = Query("xwa", description="Data source: xwa o
         last_sync=snapshot.get("last_sync", "Never"),
         date_range=snapshot.get("date_range", "Unknown"),
         total_tournaments=total_tournaments,
+        total_unique_lists=snapshot.get("total_unique_lists", 0),
         total_players=total_players
     )

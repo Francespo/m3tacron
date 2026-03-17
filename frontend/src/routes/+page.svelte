@@ -425,6 +425,60 @@
             </div>
         </div>
 
+        <!-- Meta Diversity Section -->
+        <div class="grid grid-cols-1 gap-6 mb-8">
+            <div
+                class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
+            >
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-sm font-mono font-bold uppercase text-primary">
+                        Faction Meta Diversity
+                    </h2>
+                    <span class="text-[10px] text-secondary font-mono uppercase tracking-widest opacity-50">Unique Lists / Total Games</span>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left font-mono text-xs">
+                        <thead>
+                            <tr class="text-secondary border-b border-border-dark">
+                                <th class="py-2 px-1">Faction</th>
+                                <th class="py-2 px-1 text-right">Games</th>
+                                <th class="py-2 px-1 text-right">Unique Lists</th>
+                                <th class="py-2 px-1 text-right">Diversity Index</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {#each meta.factions || [] as faction}
+                                <tr class="border-b border-border-dark last:border-0 hover:bg-white/[0.02] transition-colors">
+                                    <td class="py-3 px-1 flex items-center gap-2">
+                                        {#if typeof getFactionIconClass === 'function'}
+                                            <i class="xwing-miniatures-font {getFactionIconClass(faction.xws)} text-sm" style="color: {getFactionColor(faction.xws)}"></i>
+                                        {/if}
+                                        <span class="text-primary font-bold">{getFactionLabel(faction.xws)}</span>
+                                    </td>
+                                    <td class="py-3 px-1 text-right text-primary">{faction.games}</td>
+                                    <td class="py-3 px-1 text-right text-primary font-bold">{faction.different_lists || 0}</td>
+                                    <td class="py-3 px-1">
+                                        <div class="flex items-center justify-end gap-3">
+                                            <div class="hidden sm:block w-32 h-1.5 bg-black border border-border-dark rounded-full overflow-hidden">
+                                                <div 
+                                                    class="h-full bg-primary" 
+                                                    style="width: {faction.games > 0 ? Math.min((faction.different_lists / faction.games) * 100, 100) : 0}%"
+                                                ></div>
+                                            </div>
+                                            <span class="text-primary font-bold w-12 text-right">
+                                                {faction.games > 0 ? ((faction.different_lists / faction.games) * 100).toFixed(1) : 0}%
+                                            </span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {/each}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <!-- Section 2: Leaderboards -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             <!-- Top Pilots -->

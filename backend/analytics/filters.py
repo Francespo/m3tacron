@@ -96,10 +96,12 @@ def check_format_filter(tournament: Tournament, format_selection: dict[str, bool
         
     return format_selection.get(t_format_val, False)
 
-def get_active_formats(format_selection: dict[str, bool] | list[str] | None) -> list[str]:
+def get_active_formats(format_selection: dict[str, bool] | list[str] | None) -> list[str] | None:
     """
     Normalize format selection to a simple list of active format keys.
     """
+    if format_selection is None:
+        return None
     if not format_selection:
         return []
     
