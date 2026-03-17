@@ -1,0 +1,29 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8888:8888"
+    volumes:
+      - data:/app/backend/data
+      - ./test.db:/app/test.db
+    environment:
+      - DATABASE_URL=sqlite:///test.db
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        - VITE_API_BASE=${VITE_API_BASE:-http://localhost:8888}
+    ports:
+      - "3333:3333"
+    environment:
+      - ORIGIN=${ORIGIN:-http://localhost:3333}
+    depends_on:
+      - backend
+    restart: always
+
+volumes:
+  data:
