@@ -86,7 +86,7 @@ def parse_squadron_signature(signature: str) -> tuple[str, list[str]]:
     ships = ships_str.split(",")
     return faction, ships
 
-def get_list_signature(xws: dict) -> str | None:
+def calculate_list_signature(xws: dict) -> str | None:
     from .xwing_data.pilots import get_pilot_info
     """
     Generates a unique signature for a full list (Faction + Ships + Pilots + Upgrades).

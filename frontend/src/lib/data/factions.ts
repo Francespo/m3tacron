@@ -62,3 +62,26 @@ export function getWinRateColor(wr: number): string {
     if (wr >= 30) return '#f97316'; // orange-500
     return '#ef4444'; // red-500
 }
+/**
+ * Returns the CSS class for a faction icon in xwing-miniatures-font.
+ */
+export function getFactionIconClass(factionXws: string): string {
+    return factionXws.replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Returns the CSS class for a ship icon in xwing-miniatures-ship font.
+ */
+export function getShipIconClass(shipXws: string): string {
+    if (!shipXws) return '';
+    return 'xwing-miniatures-ship-' + shipXws.replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Returns the CSS class for an upgrade icon in xwing-miniatures-font.
+ */
+export function getUpgradeIconClass(upgradeType: string): string {
+    if (!upgradeType) return '';
+    const type = upgradeType.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return 'xwing-miniatures-font-' + type;
+}

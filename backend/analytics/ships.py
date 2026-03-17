@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 from ..database import engine
 from ..models import PlayerResult, Tournament
 from ..utils.xwing_data.pilots import load_all_pilots
-from ..data_structures.factions import Faction, get_faction_char
+from ..data_structures.factions import Faction
 from ..data_structures.formats import Format
 from ..data_structures.data_source import DataSource
 from .filters import filter_query, apply_tournament_filters
@@ -203,8 +203,6 @@ def aggregate_ship_stats(
                 "ship_name": data["ship_name"],
                 "ship_xws": data["ship_xws"],
                 "faction": data["faction_xws"],
-                "faction_xws": data["faction_xws"],
-                "icon_char": get_faction_char(data["faction_xws"]),
                 "win_rate": win_rate,
                 "popularity": popularity,
                 "games": games,

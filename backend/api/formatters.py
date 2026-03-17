@@ -93,10 +93,6 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
         ))
     
     f_key = stats.get("faction", "unknown")
-    try:
-        f_label = Faction.from_xws(f_key).label
-    except:
-        f_label = f_key.title()
 
     try: points = int(stats.get("points", 0))
     except (ValueError, TypeError): points = 0
@@ -113,10 +109,9 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
     return ListData(
         signature=stats.get("signature", "Unknown Signature") or "Unknown Signature",
         name=stats.get("name", "Unknown List") or "Unknown List",
-        faction=f_label,
+        faction=f_key,
         faction_key=f_key,
         faction_xws=stats.get("faction_xws", f_key),
-        icon_char=stats.get("icon_char", ""),
         points=calculated_points,
         original_points=points,
         count=count,

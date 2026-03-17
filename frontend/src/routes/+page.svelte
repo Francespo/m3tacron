@@ -48,46 +48,20 @@
         };
     });
 
-    function getFactionColor(xws: string) {
-        const colors: Record<string, string> = {
-            rebelalliance: "#FF3333",
-            galacticempire: "#2979FF",
-            scumandvillainy: "#006400",
-            resistance: "#FF8C00",
-            firstorder: "#800020",
-            galacticrepublic: "#E6D690",
-            separatistalliance: "#607D8B",
-            unknown: "#666666",
-        };
-        return colors[xws] || colors.unknown;
-    }
+    import {
+        getFactionColor,
+        getFactionLabel,
+        getFactionChar,
+        getFactionIconClass,
+        getShipIconClass,
+        getUpgradeIconClass,
+    } from "$lib/data/factions";
 
-    function getFactionIconClass(xws: string) {
-        const icons: Record<string, string> = {
-            rebelalliance: "xwing-miniatures-font-rebel",
-            galacticempire: "xwing-miniatures-font-empire",
-            scumandvillainy: "xwing-miniatures-font-scum",
-            resistance: "xwing-miniatures-font-resistance",
-            firstorder: "xwing-miniatures-font-firstorder",
-            galacticrepublic: "xwing-miniatures-font-republic",
-            separatistalliance: "xwing-miniatures-font-separatists",
-            unknown: "",
-        };
-        return icons[xws] || "";
-    }
+    const chartTitleTemplate = `<div class="flex flex-col items-center">
+    <div class="text-secondary text-[10px] uppercase tracking-widest font-bold mb-1 opacity-50">%label%</div>
+    <div class="text-2xl font-black text-primary">%value%%</div>
+  </div>`;
 
-    function getShipIconClass(xws: string) {
-        if (!xws) return "";
-        return "xwing-miniatures-ship-" + xws.replace(/[^a-z0-9]/g, "");
-    }
-
-    function getUpgradeIconClass(type: string) {
-        if (!type) return "";
-        return (
-            "xwing-miniatures-font-" +
-            type.toLowerCase().replace(/[^a-z0-9]/g, "")
-        );
-    }
 
     function chartAction(node: HTMLCanvasElement, config: any) {
         let chart: any;
@@ -119,12 +93,12 @@
     let barData = $derived(
         meta?.factions
             ? {
-                  labels: meta.factions.map((d: any) => d.icon_char || ""),
+                  labels: meta.factions.map((d: any) => getFactionChar(d.xws)),
                   datasets: [
                       {
                           label: "Win Rate (%)",
                           data: meta.factions.map((d: any) =>
-                              parseFloat(d.win_rate),
+                              (d.games > 0 ? (d.wins / d.games) * 100 : 0).toFixed(1),
                           ),
                           backgroundColor: meta.factions.map((d: any) =>
                               getFactionColor(d.xws),
@@ -175,7 +149,7 @@
         meta?.faction_distribution
             ? {
                   labels: meta.faction_distribution.map(
-                      (d: any) => d.real_name,
+                      (d: any) => getFactionLabel(d.xws),
                   ),
                   datasets: [
                       {
@@ -287,17 +261,38 @@
                         stroke-linecap="round"
                         stroke-linejoin="round"
                         class="text-secondary"
-                        ><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path
-                            d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"
-                        /><path d="M4 22h16" /><path
-                            d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"
-                        /><path
-                            d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"
-                        /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg
+                        ><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 3v18"/></svg
                     >
                     <span
                         class="text-secondary font-mono text-[10px] font-bold uppercase tracking-widest"
-                        >Players</span
+                        >Unique Lists</span
+                    >
+                </div>
+                <div class="text-4xl font-bold font-sans text-primary">
+                    {meta.total_unique_lists || 0}
+                </div>
+            </div>
+
+            <div
+                class="bg-terminal-panel border border-border-dark rounded-[6px] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] flex flex-col items-start gap-1"
+            >
+                <div class="flex items-center gap-2">
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="text-secondary"
+                        ><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg
+                    >
+                    <span
+                        class="text-secondary font-mono text-[10px] font-bold uppercase tracking-widest"
+                        >Total Players</span
                     >
                 </div>
                 <div class="text-4xl font-bold font-sans text-primary">
@@ -417,18 +412,69 @@
                     {/if}
                 </div>
                 <div class="flex flex-wrap justify-center w-full mt-2">
-                    {#each meta.faction_distribution || [] as dist}
-                        <div
-                            class="flex items-center gap-[6px] text-xs font-mono text-secondary mr-3 mb-[6px]"
-                        >
-                            <i
-                                class="xwing-miniatures-font {getFactionIconClass(
-                                    dist.xws,
-                                )} text-sm"
-                            ></i>
-                            <span>{dist.percentage}%</span>
-                        </div>
-                    {/each}
+                    {#if meta.faction_distribution}
+                        {@const totalGames = meta.faction_distribution.reduce((acc: number, d: any) => acc + (d.games || 0), 0)}
+                        {#each meta.faction_distribution as dist}
+                            <div class="flex items-center gap-[6px] text-xs font-mono text-secondary mr-3 mb-[6px]">
+                                <i class="xwing-miniatures-font {getFactionIconClass(dist.xws)} text-sm"></i>
+                                <span>{(totalGames > 0 ? (dist.games / totalGames) * 100 : 0).toFixed(1)}%</span>
+                            </div>
+                        {/each}
+                    {/if}
+                </div>
+            </div>
+        </div>
+
+        <!-- Meta Diversity Section -->
+        <div class="grid grid-cols-1 gap-6 mb-8">
+            <div
+                class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
+            >
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-sm font-mono font-bold uppercase text-primary">
+                        Faction Meta Diversity
+                    </h2>
+                    <span class="text-[10px] text-secondary font-mono uppercase tracking-widest opacity-50">Unique Lists / Total Games</span>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left font-mono text-xs">
+                        <thead>
+                            <tr class="text-secondary border-b border-border-dark">
+                                <th class="py-2 px-1">Faction</th>
+                                <th class="py-2 px-1 text-right">Games</th>
+                                <th class="py-2 px-1 text-right">Unique Lists</th>
+                                <th class="py-2 px-1 text-right">Diversity Index</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {#each meta.factions || [] as faction}
+                                <tr class="border-b border-border-dark last:border-0 hover:bg-white/[0.02] transition-colors">
+                                    <td class="py-3 px-1 flex items-center gap-2">
+                                        {#if typeof getFactionIconClass === 'function'}
+                                            <i class="xwing-miniatures-font {getFactionIconClass(faction.xws)} text-sm" style="color: {getFactionColor(faction.xws)}"></i>
+                                        {/if}
+                                        <span class="text-primary font-bold">{getFactionLabel(faction.xws)}</span>
+                                    </td>
+                                    <td class="py-3 px-1 text-right text-primary">{faction.games}</td>
+                                    <td class="py-3 px-1 text-right text-primary font-bold">{faction.different_lists || 0}</td>
+                                    <td class="py-3 px-1">
+                                        <div class="flex items-center justify-end gap-3">
+                                            <div class="hidden sm:block w-32 h-1.5 bg-black border border-border-dark rounded-full overflow-hidden">
+                                                <div 
+                                                    class="h-full bg-primary" 
+                                                    style="width: {faction.games > 0 ? Math.min((faction.different_lists / faction.games) * 100, 100) : 0}%"
+                                                ></div>
+                                            </div>
+                                            <span class="text-primary font-bold w-12 text-right">
+                                                {faction.games > 0 ? ((faction.different_lists / faction.games) * 100).toFixed(1) : 0}%
+                                            </span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {/each}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -473,14 +519,10 @@
                                     >
                                         <i
                                             class="xwing-miniatures-font {getFactionIconClass(
-                                                (pilot.faction || '')
-                                                    .toLowerCase()
-                                                    .replace(/[^a-z0-9]/g, ''),
+                                                pilot.faction,
                                             )} text-[11px]"
                                             style="color: {getFactionColor(
-                                                (pilot.faction || '')
-                                                    .toLowerCase()
-                                                    .replace(/[^a-z0-9]/g, ''),
+                                                pilot.faction,
                                             )}"
                                         ></i>
                                         <span

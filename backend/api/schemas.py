@@ -27,15 +27,11 @@ class ListData(BaseModel):
     pilots: list[PilotData] = []
 
 class FactionStat(BaseModel):
-    name: str
     xws: str
-    icon_char: str
-    win_rate: float
-    popularity: int
     games: int
     wins: int
-    percentage: float | None = None
-    real_name: str | None = None
+    lists: int
+    different_lists: int
 
 class MetaSnapshotResponse(BaseModel):
     factions: list[FactionStat]
@@ -47,6 +43,7 @@ class MetaSnapshotResponse(BaseModel):
     last_sync: str
     date_range: str
     total_tournaments: int
+    total_unique_lists: int
     total_players: int
 
 class TournamentRow(BaseModel):

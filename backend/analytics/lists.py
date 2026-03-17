@@ -5,7 +5,7 @@ List Analytics - Aggregation Logic for Squad Lists.
 from sqlmodel import Session, select, func
 from ..database import engine
 from ..models import PlayerResult, Tournament
-from ..data_structures.factions import Faction, get_faction_char
+from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
 from .filters import filter_query, get_active_formats, apply_tournament_filters
 import json
@@ -47,9 +47,14 @@ def aggregate_list_stats(
             xws = result.list_json
             if not xws or not isinstance(xws, dict):
                 continue
+            
+            from ..utils.squadron import calculate_list_signature
+            sig = calculate_list_signature(xws)
+            if not sig:
+                continue
                 
             pilots = xws.get("pilots", [])
-            if not pilots: continue
+            # (Ship filtering logic continues below)
             
             req_ships = filters.get("ships")
             if req_ships:
@@ -61,25 +66,7 @@ def aggregate_list_stats(
                 if not ship_matched:
                     continue
             
-            # Simple canonical representation for grouping
-            pilot_list = []
-            for p in pilots:
-                p_id = p.get("id") or p.get("name") or "unknown"
-                # Sort upgrades to make it stable
-                upgrades = []
-                upgrade_data = p.get("upgrades", {})
-                if isinstance(upgrade_data, dict):
-                    for slot, items in upgrade_data.items():
-                        if isinstance(items, list):
-                            upgrades.extend([str(i) for i in items])
-                elif isinstance(upgrade_data, list):
-                    upgrades.extend([str(i) for i in upgrade_data])
-                
-                upgrades.sort()
-                pilot_list.append(f"{p_id}({','.join(upgrades)})")
-            
-            pilot_list.sort()
-            list_key = "|".join(pilot_list)
+            list_key = sig
             
             if list_key not in list_stats:
                 list_stats[list_key] = {
@@ -118,7 +105,6 @@ def aggregate_list_stats(
                 "name": data["name"],
                 "faction": f_xws,
                 "faction_xws": f_xws,
-                "icon_char": get_faction_char(f_xws),
                 "win_rate": win_rate,
                 "popularity": data["count"],
                 "games": data["games"],

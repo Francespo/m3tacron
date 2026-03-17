@@ -5,10 +5,11 @@ Faction Analytics - Aggregation Logic for Factions.
 from sqlmodel import Session, select, func
 from ..database import engine
 from ..models import PlayerResult, Tournament
-from ..data_structures.factions import Faction, get_faction_char
+from ..data_structures.factions import Faction
 from ..data_structures.formats import Format
 from ..data_structures.data_source import DataSource
 from .filters import filter_query, get_active_formats, apply_tournament_filters
+from ..utils.squadron import calculate_list_signature
 
 
 
@@ -29,17 +30,18 @@ def aggregate_faction_stats(
         rows = session.exec(query).all()
         
         faction_stats = {}
+        faction_signatures = {} # Separate tracker for diversity
         
         # Init all known factions
         for f in Faction:
             if f == Faction.UNKNOWN: continue
             faction_stats[f.value] = {
-                "name": f.label,
                 "xws": f.value,
                 "wins": 0,
                 "games": 0,
-                "popularity": 0, # total lists
+                "lists": 0,
             }
+            faction_signatures[f.value] = set()
 
         allowed_formats = get_active_formats(filters.get("allowed_formats", None))
 
@@ -68,12 +70,12 @@ def aggregate_faction_stats(
             
             if faction_xws not in faction_stats:
                  faction_stats[faction_xws] = {
-                    "name": faction_enum.label,
                     "xws": faction_xws,
                     "wins": 0,
                     "games": 0,
-                    "popularity": 0,
+                    "lists": 0,
                 }
+                 faction_signatures[faction_xws] = set()
             
             s_wins = result.swiss_wins or 0
             s_losses = result.swiss_losses or 0
@@ -88,26 +90,26 @@ def aggregate_faction_stats(
             
             faction_stats[faction_xws]["wins"] += wins
             faction_stats[faction_xws]["games"] += games
-            faction_stats[faction_xws]["popularity"] += 1
+            faction_stats[faction_xws]["lists"] += 1
+            
+            sig = calculate_list_signature(xws)
+            if sig:
+                faction_signatures[faction_xws].add(sig)
             
         results = []
-        for xws, data in faction_stats.items():
-            if data["popularity"] == 0: continue
-            
-            win_rate = round((data["wins"] / data["games"]) * 100, 1) if data["games"] > 0 else 0.0
+        for xws_key, data in faction_stats.items():
+            if data["lists"] == 0: continue
             
             results.append({
-                "name": data["name"],
                 "xws": data["xws"],
-                "icon_char": get_faction_char(data["xws"]),
-                "win_rate": win_rate,
-                "popularity": data["popularity"],
                 "games": data["games"],
-                "wins": data["wins"]
+                "wins": data["wins"],
+                "lists": data["lists"],
+                "different_lists": len(faction_signatures[data["xws"]])
             })
             
-        # Default sort by popularity
-        results.sort(key=lambda x: x["popularity"], reverse=True)
+        # Default sort by lists
+        results.sort(key=lambda x: x["lists"], reverse=True)
         return results
 
 def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats: list[str] | None = None) -> dict:
@@ -149,17 +151,12 @@ def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats:
     faction_distribution = []
     
     for f in faction_stats:
-        percentage = round((f["games"] / total_games) * 100, 1) if total_games > 0 else 0
         faction_distribution.append({
-            "name": get_faction_char(f["xws"]), # Set name to char for Recharts label=True
-            "real_name": f["name"], # Keep original for reference if needed
             "xws": f["xws"],
-            "icon_char": get_faction_char(f["xws"]),
-            "win_rate": f["win_rate"],
-            "popularity": f["popularity"],
-            "games": f["games"],
             "wins": f["wins"],
-            "percentage": percentage
+            "games": f["games"],
+            "lists": f["lists"],
+            "different_lists": f["different_lists"]
         })
     
     # Helper to filter and sort
@@ -178,6 +175,8 @@ def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats:
     top_pilots = filter_and_sort(pilot_stats, 30)
     top_upgrades = filter_and_sort(upgrade_stats, 150)
     
+    total_unique_lists = sum(f["different_lists"] for f in faction_stats)
+
     return {
         "factions": faction_stats[:10],
         "faction_distribution": faction_distribution,
@@ -185,6 +184,15 @@ def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats:
         "lists": top_lists[:10],
         "pilots": top_pilots[:10],
         "upgrades": top_upgrades[:10],
+        "total_unique_lists": total_unique_lists,
         "last_sync": last_sync,
         "date_range": f"{date_str} to {end_date.strftime('%Y-%m-%d')}"
     }
+
+def get_faction_analytics(db: Session, filters: dict = None) -> list[dict]:
+    """
+    API endpoint wrapper for faction statistics.
+    """
+    if filters is None:
+        filters = {}
+    return aggregate_faction_stats(filters)

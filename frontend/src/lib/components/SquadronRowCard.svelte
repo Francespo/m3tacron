@@ -47,7 +47,7 @@
 
             <!-- Stats Badges -->
             <div class="flex items-center gap-2 font-mono text-xs font-bold">
-                <span class="text-primary">[{list.count} LISTS]</span>
+                <span class="text-primary">[{list.count} PLAYERS]</span>
                 <span
                     class={list.win_rate >= 50
                         ? "text-green-400"
@@ -57,7 +57,7 @@
                 >
                     [{list.win_rate === "NA"
                         ? "NA"
-                        : Number(list.win_rate ?? 0).toFixed(1)}% WR]
+                        : (list.win_rate ?? 0).toFixed(1)}% WR]
                 </span>
                 <span class="text-secondary tracking-tight">
                     ({list.games} G)
