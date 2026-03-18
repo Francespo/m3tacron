@@ -4,7 +4,6 @@ FROM node:20-slim AS builder
 WORKDIR /app
 COPY frontend/package*.json ./
 RUN npm install
-
 COPY frontend .
 RUN rm -rf static/data-legacy static/data-xwa || true
 COPY external_data/xwing-data2-legacy/data static/data-legacy
