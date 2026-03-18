@@ -14,8 +14,7 @@ services:
 
   frontend:
     build:
-    context: .
-    dockerfile: frontend/Dockerfile
+      context: ./frontend
       args:
         - VITE_API_BASE=${VITE_API_BASE:-http://localhost:8888}
     ports:
