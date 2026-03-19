@@ -2,6 +2,7 @@
 FROM node:20-slim AS builder
 
 WORKDIR /app
+ENV NODE_OPTIONS=--max-old-space-size=2048
 COPY frontend/package*.json ./
 RUN npm install
 COPY frontend .
