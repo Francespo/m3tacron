@@ -12,6 +12,15 @@ export const FORMAT_LABELS: Record<string, string> = {
     other: 'UNK'
 };
 
+export const FORMAT_FULL_LABELS: Record<string, string> = {
+    amg: 'AMG',
+    xwa: 'XWA',
+    ffg: 'FFG',
+    legacy_x2po: 'Legacy X2PO',
+    legacy_xlc: 'Legacy XLC',
+    other: 'Unknown'
+};
+
 export const FORMAT_COLORS: Record<string, string> = {
     // Macro 2.5 (Cyan shades)
     amg: '#22d3ee',         // Cyan 400
@@ -28,6 +37,10 @@ export const FORMAT_COLORS: Record<string, string> = {
 
 export function getFormatLabel(formatXws: string): string {
     return FORMAT_LABELS[formatXws] ?? formatXws.toUpperCase();
+}
+
+export function getFormatFullLabel(formatXws: string): string {
+    return FORMAT_FULL_LABELS[formatXws] ?? getFormatLabel(formatXws);
 }
 
 export function getFormatColor(formatXws: string): string {

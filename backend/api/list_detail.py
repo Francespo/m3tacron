@@ -5,28 +5,12 @@ from ..models import PlayerResult, Tournament
 from ..analytics.filters import filter_query, get_active_formats
 from ..data_structures.data_source import DataSource
 from .formatters import enrich_list_data
+from ..utils.list_keys import get_list_key
 
 router = APIRouter(prefix="/api/list", tags=["List Detail"])
 
-def get_list_key(xws):
-    pilots = xws.get("pilots", [])
-    pilot_list = []
-    for p in pilots:
-        p_id = p.get("id") or p.get("name") or "unknown"
-        upgrades = []
-        upgrade_data = p.get("upgrades", {})
-        if isinstance(upgrade_data, dict):
-            for slot, items in upgrade_data.items():
-                if isinstance(items, list):
-                    upgrades.extend([str(i) for i in items])
-        elif isinstance(upgrade_data, list):
-            upgrades.extend([str(i) for i in upgrade_data])
-        
-        upgrades.sort()
-        pilot_list.append(f"{p_id}({','.join(upgrades)})")
-    
-    pilot_list.sort()
-    return "|".join(pilot_list)
+# Removed local get_list_key function - imported from utils.list_keys
+
 
 @router.get("/{list_id:path}/stats")
 def get_list_stats(

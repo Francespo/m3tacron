@@ -1,14 +1,13 @@
-
 """
 List Analytics - Aggregation Logic for Squad Lists.
 """
-from sqlmodel import Session, select, func
+from sqlmodel import Session, select
+import json
 from ..database import engine
 from ..models import PlayerResult, Tournament
-from ..data_structures.factions import Faction, get_faction_char
+from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
 from .filters import filter_query, get_active_formats, apply_tournament_filters
-import json
 
 def aggregate_list_stats(
     filters: dict,
@@ -16,82 +15,90 @@ def aggregate_list_stats(
     data_source: DataSource = DataSource.XWA
 ) -> list[dict]:
     """
-    Aggregate statistics for squad lists (hash-based patterns).
+    Aggregate statistics for squad lists.
+    Returns list of dicts matching ListData schema.
     """
     with Session(engine) as session:
+        # Load filtered results
         query = select(PlayerResult, Tournament).where(
             PlayerResult.tournament_id == Tournament.id
         )
         query = filter_query(query, filters)
         rows = session.exec(query).all()
         
-        # stats: tuple(pilot_xws, upgrade_hashes) -> {wins, games, count, first_instance_json}
-        # For MVP simplicity, we'll hash the sorted pilot XWS and their main upgrades/loadout.
-        # A more robust solution would use a canonical list hash.
+        list_stats = {} # signature -> valid ListData dict
         
-        list_stats = {}
-        
+        allowed_formats = get_active_formats(filters.get("allowed_formats", None))
+
         for result, tournament in rows:
-            # Format filter optimization
             t_fmt_raw = tournament.format
             t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
             
-            allowed_formats = get_active_formats(filters.get("allowed_formats", None))
-            if allowed_formats and t_fmt not in allowed_formats:
-                continue
-
-            # Location Filtering
-            if not apply_tournament_filters(tournament, filters):
-                continue
+            if allowed_formats and t_fmt not in allowed_formats: continue
+            if not apply_tournament_filters(tournament, filters): continue
 
             xws = result.list_json
-            if not xws or not isinstance(xws, dict):
-                continue
-                
+            if not xws or not isinstance(xws, dict): continue
+            
             pilots = xws.get("pilots", [])
             if not pilots: continue
             
+            # Ship Filter
             req_ships = filters.get("ships")
             if req_ships:
-                ship_matched = False
+                match = False
                 for p in pilots:
+                    # Check 'ship' key (XWS standard)
                     if p.get("ship") in req_ships:
-                        ship_matched = True
+                        match = True
                         break
-                if not ship_matched:
-                    continue
+                if not match: continue
             
-            # Simple canonical representation for grouping
-            pilot_list = []
+            temp_pilots = []
             for p in pilots:
-                p_id = p.get("id") or p.get("name") or "unknown"
-                # Sort upgrades to make it stable
-                upgrades = []
-                upgrade_data = p.get("upgrades", {})
-                if isinstance(upgrade_data, dict):
-                    for slot, items in upgrade_data.items():
+                pid = p.get("id") or p.get("name")
+                if not pid: continue
+                # Upgrades
+                u_xws_list = []
+                raw_upgrades = p.get("upgrades", {})
+                if isinstance(raw_upgrades, dict):
+                    for slot, items in raw_upgrades.items():
                         if isinstance(items, list):
-                            upgrades.extend([str(i) for i in items])
-                elif isinstance(upgrade_data, list):
-                    upgrades.extend([str(i) for i in upgrade_data])
+                            for item in items: u_xws_list.append(str(item))
+                        else: u_xws_list.append(str(items))
+                elif isinstance(raw_upgrades, list):
+                    for item in raw_upgrades: u_xws_list.append(str(item))
                 
-                upgrades.sort()
-                pilot_list.append(f"{p_id}({','.join(upgrades)})")
+                u_xws_list.sort() # Canonicalize upgrades
+                
+                temp_pilots.append({
+                    "xws": pid,
+                    "upgrades": [{"xws": u} for u in u_xws_list]
+                })
             
-            pilot_list.sort()
-            list_key = "|".join(pilot_list)
+            # Canonicalize Pilots Order
+            # Sort by (pilot_xws, upgrades_string)
+            temp_pilots.sort(key=lambda x: (x["xws"], str(x["upgrades"])))
             
-            if list_key not in list_stats:
-                list_stats[list_key] = {
-                    "pilots": pilots,
-                    "faction": xws.get("faction", "unknown"),
+            # Signature
+            try: sig = json.dumps(temp_pilots, sort_keys=True)
+            except: sig = str(temp_pilots)
+            
+            if sig not in list_stats:
+                f_enum = Faction.from_xws(xws.get("faction", "unknown"))
+
+                list_stats[sig] = {
+                    "signature": sig,
+                    "name": xws.get("name") or "",
+                    "points": xws.get("points", 0),
+                    "original_points": 0,
+                    "faction_xws": f_enum,
+                    "pilots": temp_pilots,
                     "wins": 0,
-                    "games": 0,
-                    "count": 0,
-                "results": [],
-                "name": xws.get("name") or f"Untitled {xws.get('faction', '')} List",
-                "points": xws.get("points", 0)
+                    "games": 0
                 }
+            
+            s = list_stats[sig]
             
             s_wins = result.swiss_wins or 0
             s_losses = result.swiss_losses or 0
@@ -103,30 +110,10 @@ def aggregate_list_stats(
             wins = s_wins + c_wins
             games = wins + s_losses + s_draws + c_losses + c_draws
             
-            list_stats[list_key]["wins"] += wins
-            list_stats[list_key]["games"] += games
-            list_stats[list_key]["count"] += 1
+            s["wins"] += wins
+            s["games"] += games
             
-        results = []
-        for key, data in list_stats.items():
-            win_rate = round((data["wins"] / data["games"]) * 100, 1) if data["games"] > 0 else 0.0
-            f_xws = data["faction"]
-            faction_enum = Faction.from_xws(f_xws)
-            
-            results.append({
-                "signature": key,
-                "name": data["name"],
-                "faction": f_xws,
-                "faction_xws": f_xws,
-                "icon_char": get_faction_char(f_xws),
-                "win_rate": win_rate,
-                "popularity": data["count"],
-                "games": data["games"],
-                "wins": data["wins"],
-                "points": data["points"],
-                "pilots": data["pilots"]
-            })
-            
-        # Defaults to sorting by popularity
-        results.sort(key=lambda x: x["popularity"], reverse=True)
-        return results[:limit]
+        final_list = list(list_stats.values())
+        final_list.sort(key=lambda x: x["games"], reverse=True)
+        
+        return final_list[:limit]

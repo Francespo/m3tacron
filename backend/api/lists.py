@@ -1,10 +1,19 @@
 from fastapi import APIRouter, Query
 from ..analytics.lists import aggregate_list_stats
 from ..data_structures.data_source import DataSource
+from ..data_structures.factions import Faction
 from .schemas import PaginatedListsResponse
-from .formatters import enrich_list_data
 
 router = APIRouter(prefix="/api/lists", tags=["Lists"])
+
+# Helper to match faction filter
+def _match_faction(f_enum: Faction, allowed_list: list[str]) -> bool:
+    if not allowed_list: return True
+    # allowed_list has strings like "rebelalliance", "rebel", etc.
+    # f_enum is normalized.
+    # Normalize allowed list
+    norm_allowed = {f.lower().replace(" ", "").replace("-", "") for f in allowed_list}
+    return f_enum.value.replace("-", "") in norm_allowed
 
 @router.get("", response_model=PaginatedListsResponse)
 def get_lists(
@@ -48,12 +57,15 @@ def get_lists(
     if formats:
         filters["allowed_formats"] = formats
         
+    # Get raw data (already ListData compatible dicts)
     raw_data = aggregate_list_stats(filters, limit=2000, data_source=ds_enum)
     
     filtered_data = []
     for row in raw_data:
-        if factions and row["faction"] not in factions:
+        # Faction check
+        if factions and not _match_faction(row["faction_xws"], factions):
             continue
+            
         if row["games"] < min_games:
             continue
         if row["points"] < points_min or row["points"] > points_max:
@@ -61,15 +73,20 @@ def get_lists(
         filtered_data.append(row)
         
     reverse = sort_direction == "desc"
+    
+    def get_win_rate(r):
+        return r["wins"] / r["games"] if r["games"] > 0 else 0.0
+
     if sort_metric == "Win Rate":
-        filtered_data.sort(key=lambda x: x["win_rate"], reverse=reverse)
+        filtered_data.sort(key=get_win_rate, reverse=reverse)
     elif sort_metric == "Points Cost":
         filtered_data.sort(key=lambda x: x["points"], reverse=reverse)
     else: 
         filtered_data.sort(key=lambda x: x["games"], reverse=reverse)
         
     total = len(filtered_data)
-    items_raw = filtered_data[page * size : (page + 1) * size]
-    items = [enrich_list_data(i, source=ds_enum) for i in items_raw]
+    items = filtered_data[page * size : (page + 1) * size]
+    
+    # Enrichment removed as ListData is structural-data only, and stats are populated.
     
     return PaginatedListsResponse(items=items, total=total, page=page, size=size)
