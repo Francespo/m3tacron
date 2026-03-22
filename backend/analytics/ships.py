@@ -4,14 +4,15 @@ Ship Analytics - Aggregation Logic for Ships.
 Aggregates statistics (win rate, popularity, games) per ship per faction.
 """
 from sqlmodel import Session, select
+import json
 from ..database import engine
 from ..models import PlayerResult, Tournament
 from ..utils.xwing_data.pilots import load_all_pilots
-from ..data_structures.factions import Faction, get_faction_char
-from ..data_structures.formats import Format
+from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
-from .filters import filter_query, apply_tournament_filters
+from .filters import filter_query, get_active_formats, apply_tournament_filters
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
+from ..utils.list_keys import get_list_key
 
 
 def aggregate_ship_stats(
@@ -22,238 +23,119 @@ def aggregate_ship_stats(
 ) -> list[dict]:
     """
     Aggregate statistics for ships grouped by faction.
-    
-    Args:
-        filters: Dict with optional keys:
-            - allowed_formats: list of format strings
-            - date_start, date_end: date range strings
-            - faction: list of faction labels to filter by
-            - ship: list of ship XWS to filter by
-            - continent: list of continents
-            - country: list of countries
-            - city: list of cities
-        sort_criteria: How to sort results (POPULARITY, WINRATE, GAMES)
-        sort_direction: ASC or DESC
-        data_source: XWA or Legacy
-        
-    Returns:
-        List of dicts with ship stats per faction:
-        {ship_name, ship_xws, faction, faction_xws, win_rate, popularity, games, wins}
+    Returns list of dicts matching ShipStats schema.
     """
     with Session(engine) as session:
-        # Load tournament results
         query = select(PlayerResult, Tournament).where(
             PlayerResult.tournament_id == Tournament.id
         )
         query = filter_query(query, filters)
         rows = session.exec(query).all()
         
-        # Load all pilots to build ship-faction mapping
         all_pilots = load_all_pilots(data_source)
         
+        allowed_formats = get_active_formats(filters.get("allowed_formats", None))
         
-        allowed_formats = filters.get("allowed_formats") or None
-        allowed_date_start = filters.get("date_start") or None
-        allowed_date_end = filters.get("date_end") or None
-
-        
-        # Location Filters
-        allowed_continents = set(filters.get("continent") or [])
-        allowed_countries = set(filters.get("country") or [])
-        allowed_cities = set(filters.get("city") or [])
-        # Build ship stats: key = (ship_xws, faction_xws)
-        # Value = {ship_name, ship_xws, faction, faction_xws, wins, games, lists}
+        # Structure: (ship_xws, faction_xws) -> stats
         ship_stats: dict[tuple[str, str], dict] = {}
         
-        # Initialize from pilot data to get all ships
+        # Init from pilot data
         for pid, p_info in all_pilots.items():
             ship_xws = p_info.get("ship_xws", "")
-            ship_name = p_info.get("ship", "Unknown Ship")
             faction = p_info.get("faction", "")
             
-            if not ship_xws or not faction:
-                continue
-                
-            # Normalize faction to xws format
+            if not ship_xws or not faction: continue
+            
             try:
                 faction_enum = Faction.from_xws(faction)
                 faction_xws = faction_enum.value
-                faction_display = faction_enum.label
             except (ValueError, AttributeError):
-                faction_xws = faction.lower().replace(" ", "")
-                faction_display = faction
+                continue # Skip unknown factions or handle generic
             
             key = (ship_xws, faction_xws)
             if key not in ship_stats:
                 ship_stats[key] = {
-                    "ship_name": ship_name,
-                    "ship_xws": ship_xws,
-                    "faction": faction_xws,
-                    "faction_xws": faction_xws,
+                    "xws": ship_xws,
+                    "faction_xws": faction_enum, # Enum
+                    "games_count": 0,
+                    "list_count": 0,
+                    "different_lists_count": 0,
                     "wins": 0,
-                    "games": 0,
-                    "lists": set(),  # Track unique lists
-                    "pilots_count": 0,
+                    "_signatures": set()
                 }
-            
-            # Increment pilot count
-            ship_stats[key]["pilots_count"] += 1
-        
-        # Aggregate stats from tournament data
+
         for result, tournament in rows:
-            # Format filter
             t_fmt_raw = tournament.format
             t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
             
-            if allowed_formats is not None and t_fmt not in allowed_formats:
-                continue
-            
-            # Location Filtering (centralized helper)
-            if not apply_tournament_filters(tournament, filters):
-                continue
+            if allowed_formats and t_fmt not in allowed_formats: continue
+            if not apply_tournament_filters(tournament, filters): continue
             
             xws = result.list_json
-            if not xws or not isinstance(xws, dict):
-                continue
-            
-            # Get list faction
-            list_faction = xws.get("faction", "unknown")
-            try:
-                faction_enum = Faction.from_xws(list_faction)
-                faction_xws = faction_enum.xws
-            except (ValueError, AttributeError):
-                faction_xws = list_faction.lower().replace(" ", "")
+            if not xws or not isinstance(xws, dict): continue
             
             s_wins = result.swiss_wins or 0
             s_losses = result.swiss_losses or 0
             s_draws = result.swiss_draws or 0
-            
             c_wins = result.cut_wins or 0
             c_losses = result.cut_losses or 0
             c_draws = result.cut_draws or 0
             
             wins = s_wins + c_wins
-            games = wins + s_losses + c_losses + s_draws + c_draws
-
+            games = wins + s_losses + s_draws + c_losses + c_draws
             
-            # Track which ships appeared in this list
-            list_id = (result.tournament_id, result.player_name)
-            ships_in_list = set()
+            sig = get_list_key(xws)
             
-            for pilot in xws.get("pilots", []):
-                pid = pilot.get("id") or pilot.get("name")
-                if not pid:
-                    continue
-                    
-                p_info = all_pilots.get(pid, {})
-                ship_xws = p_info.get("ship_xws", "")
+            # Identify ships in this list
+            # Ship counts: if list has 2 TIEs, list_count for TIE +1? games_count +games?
+            # Or +2?
+            # Usually "Ship Stats" means "Performance of this chassis in this faction".
+            # If I bring 2 TIEs, TIE Fighter presence is 1 list.
+            # So unique ships per list.
+            
+            unique_ships = set()
+            for p in xws.get("pilots", []):
+                pid = p.get("id") or p.get("name")
+                if not pid: continue
                 
-                if not ship_xws:
-                    continue
-
-                # Legality check to match Cards Browser visibility
-                is_legal = p_info.get("valid_in_standard", False)
-                is_wild = p_info.get("wildspace", False)
-                is_epic = p_info.get("epic", False)
-                
-                show_pilot = False
-                if allowed_formats:
-                    if "xwa" in allowed_formats or "amg" in allowed_formats:
-                        if is_legal:
-                            show_pilot = True
-                    if "wildspace" in allowed_formats and is_wild:
-                        show_pilot = True
-                    if ("xwa_epic" in allowed_formats or "legacy_epic" in allowed_formats) and is_epic:
-                        show_pilot = True
-                    
-                    if data_source == DataSource.LEGACY:
-                        legacy_keys = {"legacy_x2po", "legacy_xlc", "ffg"}
-                        if not legacy_keys.isdisjoint(allowed_formats):
-                            show_pilot = True
-                else:
-                    # Fallback visibility if no formats selected
-                    show_pilot = is_legal or is_wild
-                
-                if not show_pilot:
-                    continue
-                
-                key = (ship_xws, faction_xws)
+                # We need ship_xws for this pilot
+                # Lookup in all_pilots
+                if pid in all_pilots:
+                    p_info = all_pilots[pid]
+                    s_xws = p_info.get("ship_xws")
+                    f_raw = p_info.get("faction")
+                    if s_xws and f_raw:
+                        try:
+                            f_enum = Faction.from_xws(f_raw)
+                            unique_ships.add((s_xws, f_enum.value))
+                        except: pass
+            
+            for s_xws, f_xws in unique_ships:
+                key = (s_xws, f_xws)
                 if key in ship_stats:
-                    # Add wins/games for each pilot instance
-                    ship_stats[key]["wins"] += wins
-                    ship_stats[key]["games"] += games
-                    ships_in_list.add(key)
-            
-            # Count unique lists per ship
-            for key in ships_in_list:
-                ship_stats[key]["lists"].add(list_id)
-        
-        # Build results
+                    s = ship_stats[key]
+                    s["games_count"] += games
+                    s["list_count"] += 1
+                    s["wins"] += wins
+                    s["_signatures"].add(sig)
+
         results = []
         for key, data in ship_stats.items():
-            popularity = len(data["lists"])
-            games = data["games"]
-            wins = data["wins"]
-            
-            if games > 0:
-                win_rate = round((wins / games) * 100, 1)
-            else:
-                win_rate = "NA"
-            results.append({
-                "ship_name": data["ship_name"],
-                "ship_xws": data["ship_xws"],
-                "faction": data["faction_xws"],
-                "faction_xws": data["faction_xws"],
-                "icon_char": get_faction_char(data["faction_xws"]),
-                "win_rate": win_rate,
-                "popularity": popularity,
-                "games": games,
-                "pilots_count": data["pilots_count"],
-            })
-        
-        # Apply faction filter (filter by faction label)
-        faction_filter = filters.get("faction", [])
-        if faction_filter:
-            # Normalize faction labels for comparison
-            def norm_faction(f): 
-                return f.lower().replace(" ", "").replace("-", "")
-            norm_filter = {norm_faction(f) for f in faction_filter}
-            
-            filtered_results = []
-            for r in results:
-                # Match against faction label or xws
-                r_faction_norm = norm_faction(r["faction"])
-                r_faction_xws_norm = norm_faction(r["faction_xws"])
-                if r_faction_norm in norm_filter or r_faction_xws_norm in norm_filter:
-                    filtered_results.append(r)
-            results = filtered_results
-        
-        # Apply ship filter (filter by ship XWS)
-        ship_filter = filters.get("ship", [])
-        if ship_filter:
-            results = [r for r in results if r["ship_xws"] in ship_filter]
-            
-        # Apply search filter (filter by ship name)
-        search_filter = filters.get("search_name")
-        if search_filter:
-            search_str = search_filter.lower()
-            results = [r for r in results if search_str in r["ship_name"].lower()]
-        
-        # Sorting
-        reverse = (sort_direction == SortDirection.DESCENDING)
-        
-        def winrate_sort_key(x):
-            wr = x["win_rate"]
-            if wr == "NA":
-                return -1.0
-            return float(wr)
-        
-        if sort_criteria == SortingCriteria.WINRATE:
-            results.sort(key=lambda x: (winrate_sort_key(x), x["games"]), reverse=reverse)
-        elif sort_criteria == SortingCriteria.GAMES:
-            results.sort(key=lambda x: x["games"], reverse=reverse)
-        else:  # POPULARITY (default)
-            results.sort(key=lambda x: x["popularity"], reverse=reverse)
-        
-        return results
+            if data["list_count"] > 0:
+                data["different_lists_count"] = len(data.pop("_signatures"))
+                results.append(data)
+                
+        # Sort
+        def sort_key(item):
+            if sort_criteria == SortingCriteria.POPULARITY:
+                return (item["list_count"], item["games_count"])
+            elif sort_criteria == SortingCriteria.GAMES:
+                return item["games_count"]
+            elif sort_criteria == SortingCriteria.WINRATE:
+                return item["wins"] / item["games_count"] if item["games_count"] > 0 else 0
+            elif sort_criteria == SortingCriteria.NAME:
+                return item["xws"]
+            return 0
 
+        results.sort(key=sort_key, reverse=(sort_direction == SortDirection.DESCENDING))
+        return results

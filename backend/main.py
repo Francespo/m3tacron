@@ -9,7 +9,6 @@ from .models import Tournament, PlayerResult
 from .analytics.factions import get_meta_snapshot
 from .data_structures.data_source import DataSource
 from .api.schemas import MetaSnapshotResponse
-from .api.formatters import enrich_list_data
 from .api.tournaments import router as tournaments_router
 from .api.lists import router as lists_router
 from .api.squadrons import router as squadrons_router
@@ -58,8 +57,8 @@ def get_snapshot(data_source: str = Query("xwa", description="Data source: xwa o
     # We parse what HomeState loaded
     snapshot = get_meta_snapshot(ds_enum, allowed_formats=None)
     
-    raw_lists = snapshot.get("lists", [])
-    enriched_lists = [enrich_list_data(l) for l in raw_lists]
+    # Lists are already aggregated in correct format by lists.aggregate_list_stats
+    enriched_lists = snapshot.get("lists", [])
     
     total_tournaments = 0
     total_players = 0
@@ -81,7 +80,6 @@ def get_snapshot(data_source: str = Query("xwa", description="Data source: xwa o
         
     return MetaSnapshotResponse(
         factions=snapshot.get("factions", []),
-        faction_distribution=snapshot.get("faction_distribution", []),
         ships=snapshot.get("ships", []),
         lists=enriched_lists,
         pilots=snapshot.get("pilots", []),

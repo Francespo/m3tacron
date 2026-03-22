@@ -2,11 +2,12 @@
     import { onMount } from "svelte";
     import { filters } from "$lib/stores/filters.svelte";
     import { API_BASE } from "$lib/api";
+    import { getFormatFullLabel } from "$lib/data/formats";
 
     let dateOpen = $state(false);
     let locationOpen = $state(false);
     let formatOpen = $state(false);
-    let platformOpen = $state(false);
+    let sourceOpen = $state(false);
 
     let locationSearch = $state("");
     let locationHierarchy = $state<Record<string, Record<string, string[]>>>(
@@ -80,7 +81,7 @@
         ),
     );
 
-    const platforms = [
+    const sources = [
         { id: "longshanks", label: "Longshanks" },
         { id: "listfortress", label: "ListFortress" },
         { id: "rollbetter", label: "Rollbetter" },
@@ -91,21 +92,21 @@
         {
             label: "2.5",
             formats: [
-                { id: "amg", label: "AMG" },
-                { id: "xwa", label: "XWA" },
+                { id: "amg", label: getFormatFullLabel("amg") },
+                { id: "xwa", label: getFormatFullLabel("xwa") },
             ],
         },
         {
             label: "2.0",
             formats: [
-                { id: "legacy_x2po", label: "Legacy (X2PO)" },
-                { id: "legacy_xlc", label: "Legacy (XLC)" },
-                { id: "ffg", label: "FFG" },
+                { id: "legacy_x2po", label: getFormatFullLabel("legacy_x2po") },
+                { id: "legacy_xlc", label: getFormatFullLabel("legacy_xlc") },
+                { id: "ffg", label: getFormatFullLabel("ffg") },
             ],
         },
         {
             label: "Unknown",
-            formats: [{ id: "other", label: "Unknown" }],
+            formats: [{ id: "other", label: getFormatFullLabel("other") }],
         },
     ];
 
@@ -139,13 +140,13 @@
         }
     }
 
-    function togglePlatform(pId: string) {
-        if (filters.selectedPlatforms.includes(pId)) {
-            filters.selectedPlatforms = filters.selectedPlatforms.filter(
+    function toggleSource(pId: string) {
+        if (filters.selectedSources.includes(pId)) {
+            filters.selectedSources = filters.selectedSources.filter(
                 (x) => x !== pId,
             );
         } else {
-            filters.selectedPlatforms = [...filters.selectedPlatforms, pId];
+            filters.selectedSources = [...filters.selectedSources, pId];
         }
     }
 
@@ -383,14 +384,14 @@
         {/if}
     </div>
 
-    <!-- Platform Filter Section -->
+    <!-- Source Filter Section -->
     <div class="border-b border-border-dark">
         <button
             class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary transition-colors"
-            onclick={() => (platformOpen = !platformOpen)}
+            onclick={() => (sourceOpen = !sourceOpen)}
         >
             <span class="text-xs font-mono font-bold tracking-wider"
-                >Platform</span
+                >Source</span
             >
             <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -402,25 +403,25 @@
                 stroke-width="2"
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                class="transition-transform {platformOpen ? 'rotate-180' : ''}"
+                class="transition-transform {sourceOpen ? 'rotate-180' : ''}"
                 ><path d="m6 9 6 6 6-6" /></svg
             >
         </button>
-        {#if platformOpen}
+        {#if sourceOpen}
             <div class="pb-3 space-y-1 pl-2">
-                {#each platforms as platform}
+                {#each sources as source}
                     <label
                         class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
                     >
                         <input
                             type="checkbox"
                             class="rounded border-border-dark bg-black w-3 h-3"
-                            checked={filters.selectedPlatforms.includes(
-                                platform.id,
+                            checked={filters.selectedSources.includes(
+                                source.id,
                             )}
-                            onchange={() => togglePlatform(platform.id)}
+                            onchange={() => toggleSource(source.id)}
                         />
-                        <span class="font-mono">{platform.label}</span>
+                        <span class="font-mono">{source.label}</span>
                     </label>
                 {/each}
             </div>
