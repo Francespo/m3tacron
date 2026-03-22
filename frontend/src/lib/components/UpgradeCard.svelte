@@ -6,6 +6,7 @@
      */
     import { getWinRateColor } from "$lib/data/factions";
     import StatIcon from "./StatIcon.svelte";
+    import { xwingData } from "$lib/stores/xwingData.svelte";
 
     let {
         upgrade,
@@ -22,9 +23,23 @@
         showSlot?: boolean;
         showStats?: boolean;
     } = $props();
+
+    const uData = $derived(xwingData.getUpgrade(upgrade.xws));
+    const name = $derived(uData?.name || upgrade.xws);
+    const image = $derived(uData?.sides[0]?.image);
+    const slot = $derived(uData?.sides[0]?.slots?.[0] || upgrade.slot_xws);
+
     // Stats calculation
-    const wr = $derived(Number(upgrade.win_rate ?? 0));
+    const games = $derived(upgrade.games_count ?? 0);
+    const wins = $derived(upgrade.wins ?? 0);
+    const wr = $derived(games > 0 ? (wins / games) * 100 : 0);
     const wrColor = $derived(getWinRateColor(wr));
+    const listsCount = $derived(upgrade.list_count ?? upgrade.lists ?? 0);
+    const differentListsCount = $derived(
+        upgrade.different_lists_count ?? upgrade.different_list_count ?? 0,
+    );
+    const points = $derived(uData?.cost?.value ?? upgrade.points ?? upgrade.cost ?? 0);
+    const slotName = $derived(upgrade.slot_name || slot);
 </script>
 
 {#if viewMode === "grid"}
@@ -36,17 +51,17 @@
             <div
                 class="relative w-full flex-[2.2] overflow-hidden bg-[#050505] flex items-center justify-center p-2"
             >
-                {#if upgrade.image}
+                {#if image}
                     <img
-                        src={upgrade.image}
-                        alt={upgrade.name}
+                        src={image}
+                        alt={name}
                         class="max-w-full max-h-full object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]"
                         loading="lazy"
                     />
                 {:else}
                     <!-- Placeholder fallback using X-Wing Font Upgrade Icon -->
                     <StatIcon
-                        type={upgrade.slot_xws || "upgrade"}
+                        type={slot || "upgrade"}
                         size="5rem"
                         color="rgba(255,255,255,0.05)"
                     />
@@ -60,15 +75,15 @@
                 {#if showName}
                     <h3
                         class="text-base font-sans font-bold text-primary leading-tight flex items-center gap-2"
-                        title={upgrade.name}
+                        title={name}
                     >
                         <div class="flex items-center gap-1 flex-shrink-0">
-                            {#if upgrade.slot_xws}
+                            {#if slot}
                                 <div
                                     class="w-6 h-6 rounded bg-white/5 flex items-center justify-center border border-white/10"
                                 >
                                     <StatIcon
-                                        type={upgrade.slot_xws}
+                                        type={slot}
                                         size="1rem"
                                         color="white"
                                         className="drop-shadow-md opacity-90"
@@ -76,31 +91,16 @@
                                     />
                                 </div>
                             {/if}
-                            {#if upgrade.slots && upgrade.slots.length > 1}
-                                {#each upgrade.slots.slice(1) as extraSlot}
-                                    <div
-                                        class="w-6 h-6 rounded bg-white/5 flex items-center justify-center border border-white/10"
-                                    >
-                                        <StatIcon
-                                            type={extraSlot}
-                                            size="1rem"
-                                            color="white"
-                                            className="drop-shadow-md opacity-90"
-                                            style="filter: brightness(1.1);"
-                                        />
-                                    </div>
-                                {/each}
-                            {/if}
                         </div>
-                        <span class="line-clamp-2">{upgrade.name}</span>
+                        <span class="line-clamp-2">{name}</span>
                     </h3>
                 {/if}
-                {#if showSlot && upgrade.slot_name}
+                {#if showSlot && slotName}
                     <p
                         class="text-[11px] mt-1 font-mono text-secondary/80 uppercase tracking-wider line-clamp-1"
-                        title={upgrade.slot_name}
+                        title={slotName}
                     >
-                        {upgrade.slot_name}
+                        {slotName}
                     </p>
                 {/if}
             </div>
@@ -126,21 +126,24 @@
                         class="px-1.5 py-0.5 rounded bg-[#ffffff0a] border border-[#ffffff10] flex items-center gap-1"
                     >
                         <span class="text-[10px] font-bold text-primary"
-                            >{upgrade.games ?? 0}</span
+                            >{games}</span
                         >
                         <span class="text-[9px] font-mono text-secondary"
                             >G</span
                         >
                     </div>
-                    <!-- Lists -->
+                    <!-- Lists + Different Lists -->
                     <div
                         class="px-1.5 py-0.5 rounded bg-[#ffffff0a] border border-[#ffffff10] flex items-center gap-1"
                     >
                         <span class="text-[10px] font-bold text-primary"
-                            >{upgrade.lists ?? 0}</span
+                            >{listsCount}</span
                         >
                         <span class="text-[9px] font-mono text-secondary"
                             >L</span
+                        >
+                        <span class="text-[8px] font-mono text-secondary/80"
+                            >(DL {differentListsCount})</span
                         >
                     </div>
                     <!-- Points -->
@@ -148,7 +151,7 @@
                         class="px-1.5 py-0.5 rounded bg-emerald-900/30 border border-emerald-500/30 flex items-center gap-1"
                     >
                         <span class="text-[10px] font-bold text-emerald-400"
-                            >{upgrade.points ?? 0}</span
+                            >{points}</span
                         >
                         <span class="text-[9px] font-mono text-emerald-500/80"
                             >PTS</span
@@ -160,7 +163,7 @@
     </div>
 {:else}
     <div class="detailed-card">
-        <p>Detailed view for {upgrade.name} coming soon...</p>
+        <p>Detailed view for {name} coming soon...</p>
     </div>
 {/if}
 
