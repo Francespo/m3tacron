@@ -62,14 +62,18 @@ def get_lists(
     
     filtered_data = []
     for row in raw_data:
+        points = row.get("points") or 0
+
         # Faction check
         if factions and not _match_faction(row["faction_xws"], factions):
             continue
             
         if row["games"] < min_games:
             continue
-        if row["points"] < points_min or row["points"] > points_max:
+        if points < points_min or points > points_max:
             continue
+
+        row["points"] = points
         filtered_data.append(row)
         
     reverse = sort_direction == "desc"
