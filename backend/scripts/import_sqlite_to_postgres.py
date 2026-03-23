@@ -7,7 +7,7 @@ from typing import Any
 
 import psycopg2
 from psycopg2 import sql
-from psycopg2.extras import execute_batch
+from psycopg2.extras import Json, execute_batch
 
 TABLES = ["tournament", "playerresult", "match"]
 JSON_LIKE_COLUMNS = {
@@ -49,15 +49,27 @@ def normalize_value(table_name: str, column_name: str, value: Any) -> Any:
     if value is None:
         return None
 
+    if table_name == "match" and column_name == "is_bye":
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "t", "yes", "y"}
+        return bool(value)
+
     if (
         table_name in JSON_LIKE_COLUMNS
         and column_name in JSON_LIKE_COLUMNS[table_name]
         and isinstance(value, str)
     ):
         try:
-            return json.loads(value)
+            return Json(json.loads(value))
         except Exception:
             return value
+
+    if isinstance(value, dict):
+        return Json(value)
 
     return value
 
