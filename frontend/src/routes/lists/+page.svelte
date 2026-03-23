@@ -11,6 +11,7 @@
     import { goto } from "$app/navigation";
     import { filters } from "$lib/stores/filters.svelte";
     import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
+    import { xwingData } from "$lib/stores/xwingData.svelte";
 
     let { data } = $props();
 
@@ -27,6 +28,9 @@
 
     // Re-fetch when local filters change
     $effect(() => {
+        // Ensure data is active
+        xwingData.setSource(filters.dataSource as any);
+
         const params = new URLSearchParams();
         params.set("page", String(page - 1));
         params.set("size", String(size));
@@ -39,8 +43,8 @@
         for (const s of filters.selectedShips) params.append("ships", s);
         for (const format of filters.selectedFormats)
             params.append("formats", format);
-        for (const p of filters.selectedPlatforms)
-            params.append("platforms", p);
+        for (const p of filters.selectedSources)
+            params.append("sources", p);
         for (const c of filters.selectedContinents)
             params.append("continent", c);
         for (const c of filters.selectedCountries) params.append("country", c);

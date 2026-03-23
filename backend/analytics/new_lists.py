@@ -8,6 +8,13 @@ from ..models import PlayerResult, Tournament
 from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
 from .filters import filter_query, get_active_formats, apply_tournament_filters
+from ..api.schemas import ListData, PilotData, UpgradeData # Import schemas to ensure structure matches? Or just dicts.
+
+# Or just assume dicts matching schemas.
+# Pydantic models are imported only for type hinting or validation, but here we return list[dict].
+# But ListData requires PilotData objects if validation is strict? 
+# Usually Pydantic coerces dict -> Model.
+# So returning dicts { "pilots": [ { "xws": "...", "upgrades": [...] } ] } works.
 
 def aggregate_list_stats(
     filters: dict,
@@ -19,14 +26,14 @@ def aggregate_list_stats(
     Returns list of dicts matching ListData schema.
     """
     with Session(engine) as session:
-        # Load filtered results
         query = select(PlayerResult, Tournament).where(
             PlayerResult.tournament_id == Tournament.id
         )
         query = filter_query(query, filters)
         rows = session.exec(query).all()
         
-        list_stats = {} # signature -> valid ListData dict
+        # Key: signature -> { pilots_data, faction, wins, games, name, points }
+        list_stats = {}
         
         allowed_formats = get_active_formats(filters.get("allowed_formats", None))
 
@@ -40,60 +47,61 @@ def aggregate_list_stats(
             xws = result.list_json
             if not xws or not isinstance(xws, dict): continue
             
+            # Signature Calculation (Canonical List)
             pilots = xws.get("pilots", [])
             if not pilots: continue
             
-            # Ship Filter
-            req_ships = filters.get("ships")
-            if req_ships:
-                match = False
-                for p in pilots:
-                    # Check 'ship' key (XWS standard)
-                    if p.get("ship") in req_ships:
-                        match = True
-                        break
-                if not match: continue
+            # Convert to PilotData structure for easier handling and signature
+            # We need standard sorting for signature
             
             temp_pilots = []
             for p in pilots:
                 pid = p.get("id") or p.get("name")
                 if not pid: continue
+                
                 # Upgrades
-                u_xws_list = []
+                # p["upgrades"] is dict { "slot": ["u1", "u2"] }
+                # Flatten to list of UpgradeData dicts
+                u_list = []
                 raw_upgrades = p.get("upgrades", {})
                 if isinstance(raw_upgrades, dict):
                     for slot, items in raw_upgrades.items():
                         if isinstance(items, list):
-                            for item in items: u_xws_list.append(str(item))
-                        else: u_xws_list.append(str(items))
-                elif isinstance(raw_upgrades, list):
-                    for item in raw_upgrades: u_xws_list.append(str(item))
-                
-                u_xws_list.sort() # Canonicalize upgrades
+                            for u_xws in items: u_list.append(u_xws)
+                        else: u_list.append(str(items)) # Should be list usually
+                elif isinstance(raw_upgrades, list): 
+                     # Legacy format might differ? assuming dict for XWS standard
+                     pass
+
+                u_list.sort()
                 
                 temp_pilots.append({
                     "xws": pid,
-                    "upgrades": [{"xws": u} for u in u_xws_list]
+                    "upgrades": [{"xws": u} for u in u_list]
                 })
+
+            # Sort pilots by XWS to canonicalize list order
+            temp_pilots.sort(key=lambda x: x["xws"])
             
-            # Canonicalize Pilots Order
-            # Sort by (pilot_xws, upgrades_string)
-            temp_pilots.sort(key=lambda x: (x["xws"], str(x["upgrades"])))
-            
-            # Signature
-            try: sig = json.dumps(temp_pilots, sort_keys=True)
-            except: sig = str(temp_pilots)
+            # Simple recursive signature
+            try:
+                sig = json.dumps(temp_pilots, sort_keys=True)
+            except:
+                sig = str(temp_pilots)
             
             if sig not in list_stats:
-                f_enum = Faction.from_xws(xws.get("faction", "unknown"))
-
+                # Faction
+                f_raw = xws.get("faction", "unknown")
+                try: f_enum = Faction(f_raw) # or from_xws
+                except ValueError: f_enum = Faction.UNKNOWN # or skip?
+                
                 list_stats[sig] = {
-                    "signature": sig,
                     "name": xws.get("name") or "",
+                    "signature": sig,
                     "points": xws.get("points", 0),
-                    "original_points": 0,
+                    "original_points": 0, # Not always available
                     "faction_xws": f_enum,
-                    "pilots": temp_pilots,
+                    "pilots": temp_pilots, # Already structured correctly
                     "wins": 0,
                     "games": 0
                 }
@@ -113,7 +121,10 @@ def aggregate_list_stats(
             s["wins"] += wins
             s["games"] += games
             
-        final_list = list(list_stats.values())
-        final_list.sort(key=lambda x: x["games"], reverse=True)
+        # Convert to list and apply limit/sort
+        results = list(list_stats.values())
         
-        return final_list[:limit]
+        # Sort by popularity (games played) default
+        results.sort(key=lambda x: x["games"], reverse=True)
+        
+        return results[:limit]

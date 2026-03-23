@@ -16,7 +16,7 @@ from .base import BaseScraper
 from ..models import Tournament, PlayerResult, Match
 from ..data_structures.formats import Format, infer_format_from_xws
 from ..data_structures.factions import Faction
-from ..data_structures.platforms import Platform
+from ..data_structures.source import Source
 from ..data_structures.round_types import RoundType
 from ..data_structures.scenarios import Scenario
 from ..utils import parse_builder_url

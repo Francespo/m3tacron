@@ -13,7 +13,7 @@ from datetime import date
 from sqlalchemy import JSON, Column, String
 
 from .data_structures.formats import Format
-from .data_structures.platforms import Platform
+from .data_structures.source import Source
 from .data_structures.scenarios import Scenario
 from .data_structures.round_types import RoundType
 from .data_structures.location import Location, LocationType
@@ -33,7 +33,7 @@ class Tournament(SQLModel, table=True):
     team_count: int = Field(default=0)
     url: str
     
-    platform: Platform = Field(sa_column=Column(String))
+    source: Source = Field(sa_column=Column(String))
     format: Format | None = Field(default=None, sa_column=Column(String))
     
     results: list["PlayerResult"] = Relationship(back_populates="tournament")

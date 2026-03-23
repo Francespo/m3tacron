@@ -9,6 +9,20 @@
     export let data: PageData;
 
     $: stats = data.stats;
+    $: win_rate = stats ? (stats.games > 0 ? ((stats.wins / stats.games) * 100).toFixed(1) : "0.0") : "NA";
+    $: faction = stats?.faction_xws || "unknown";
+
+    // Helper to group upgrades by slot
+    const groupUpgrades = (upgrades: any[]) => {
+        if (!Array.isArray(upgrades)) return {}; // Safety check
+        const groups: Record<string, string[]> = {};
+        for (const u of upgrades) {
+            const slot = u.slot || "Other";
+            if (!groups[slot]) groups[slot] = [];
+            groups[slot].push(u.name || u.xws);
+        }
+        return groups;
+    };
 </script>
 
 <div class="max-w-4xl mx-auto space-y-8">
@@ -50,7 +64,7 @@
             <!-- Background Glow -->
             <div
                 class="absolute -top-32 -right-32 w-96 h-96 rounded-full blur-[100px] pointer-events-none"
-                style="background-color: {getFactionColor(stats.faction)}20;"
+                style="background-color: {getFactionColor(faction)}20;"
             ></div>
 
             <!-- Info / Stats -->
@@ -58,9 +72,9 @@
                 <div class="flex items-center gap-4">
                     <span
                         class="font-xwing text-4xl opacity-80"
-                        style="color: {getFactionColor(stats.faction)}"
+                        style="color: {getFactionColor(faction)}"
                     >
-                        {getFactionChar(stats.faction)}
+                        {getFactionChar(faction)}
                     </span>
                     <h1
                         class="text-3xl lg:text-4xl font-sans font-bold text-primary"
@@ -92,9 +106,9 @@
                         >
                         <span
                             class="text-lg font-mono font-bold"
-                            style="color: {getWinRateColor(stats.win_rate)}"
+                            style="color: {getWinRateColor(win_rate)}"
                         >
-                            {stats.win_rate === "NA" ? "NA" : Number(stats.win_rate ?? 0).toFixed(1)}%
+                            {win_rate}%
                         </span>
                     </div>
 
@@ -129,19 +143,19 @@
                         <i
                             class="xwing-miniatures-ship xwing-miniatures-ship-{pilot.ship ||
                                 'unknown'} text-4xl opacity-80"
-                            style="color: {getFactionColor(stats.faction)}"
+                            style="color: {getFactionColor(faction)}"
                         ></i>
                         <div>
                             <h3
                                 class="text-xl font-sans font-bold text-primary flex items-center gap-2"
                             >
                                 <a
-                                    href="/pilot/{pilot.id || pilot.name}"
+                                    href="/pilot/{pilot.xws || pilot.id}"
                                     class="hover:text-accent transition-colors"
                                 >
-                                    {pilot.name || pilot.id}
+                                    {pilot.name || pilot.xws || pilot.id}
                                 </a>
-                                {#if pilot.initiative !== undefined}
+                                {#if pilot.initiative !== undefined && pilot.initiative !== null}
                                     <span
                                         class="text-xs font-mono bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded border border-orange-500/30"
                                     >
@@ -163,7 +177,7 @@
                     </div>
 
                     <!-- Upgrades -->
-                    {#if pilot.upgrades && Object.keys(pilot.upgrades).length > 0}
+                    {#if pilot.upgrades && pilot.upgrades.length > 0}
                         <div class="bg-[#ffffff03] rounded-md p-4 mt-2">
                             <h4
                                 class="text-[10px] font-mono text-secondary uppercase tracking-wider mb-3"
@@ -171,8 +185,8 @@
                                 Upgrades
                             </h4>
                             <div class="flex flex-wrap gap-2">
-                                {#each Object.entries(pilot.upgrades || {}) as [slot, upgradesList]}
-                                    {#each upgradesList as any[] as upgrade}
+                                {#each Object.entries(groupUpgrades(pilot.upgrades)) as [slot, upgradesList]}
+                                    {#each upgradesList as upgrade}
                                         <div
                                             class="flex items-center gap-1.5 bg-[#ffffff05] border border-border-dark rounded px-2 py-1"
                                         >

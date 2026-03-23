@@ -5,7 +5,7 @@ import httpx
 from m3tacron.backend.scrapers.base import BaseScraper
 from m3tacron.backend.models import Tournament, Match, PlayerResult
 from m3tacron.backend.data_structures.formats import Format
-from m3tacron.backend.data_structures.platforms import Platform
+from m3tacron.backend.data_structures.source import Source
 from m3tacron.backend.data_structures.round_types import RoundType
 
 logger = logging.getLogger(__name__)
@@ -113,14 +113,14 @@ class ListFortressScraper(BaseScraper):
                 name=str(data["name"]).strip(),
                 date=self._parse_date(data.get("date")),
                 format=fmt,
-                platform=Platform.LISTFORTRESS,
+                source=Source.LISTFORTRESS,
                 location=self._format_location(data),
                 player_count=len(data.get("participants", [])),
                 matches_count=0 # Updated later
             )
         except Exception as e:
             logger.error(f"Failed to get tournament {tournament_id}: {e}")
-            return Tournament(id=tournament_id, name="Unknown", date=datetime.now(), format=Format.UNKNOWN, platform=Platform.LISTFORTRESS)
+            return Tournament(id=tournament_id, name="Unknown", date=datetime.now(), format=Format.UNKNOWN, source=Source.LISTFORTRESS)
 
     def get_participants(self, tournament_id: str) -> list[PlayerResult]:
         """Fetch players and lists."""

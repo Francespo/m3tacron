@@ -10,6 +10,7 @@
         getFactionChar,
     } from "$lib/data/factions";
     import StatIcon from "./StatIcon.svelte";
+    import { xwingData } from "$lib/stores/xwingData.svelte";
 
     let {
         pilot,
@@ -27,15 +28,30 @@
         showStats?: boolean;
     } = $props();
 
+    const pData = $derived(xwingData.getPilot(pilot.xws));
+
     // Stats calculation
-    const wr = $derived(Number(pilot.win_rate ?? 0));
+    const games = $derived(pilot.games_count ?? 0);
+    const wins = $derived(pilot.wins ?? 0);
+    const wr = $derived(games > 0 ? (wins / games) * 100 : 0);
     const wrColor = $derived(getWinRateColor(wr));
-    const fColor = $derived(
-        pilot.faction ? getFactionColor(pilot.faction) : undefined,
+    const listsCount = $derived(pilot.list_count ?? pilot.lists ?? 0);
+    const differentListsCount = $derived(
+        pilot.different_lists_count ?? pilot.different_list_count ?? 0,
     );
-    const fChar = $derived(
-        pilot.faction ? getFactionChar(pilot.faction) : undefined,
+
+    const faction = $derived(pData?.faction || pilot.faction_xws || "unknown");
+    const fColor = $derived(getFactionColor(faction));
+    const fChar = $derived(getFactionChar(faction));
+    const name = $derived(pData?.name || pilot.xws);
+    const image = $derived(pData?.image);
+    const shipXws = $derived(pData?.ship);
+    const shipName = $derived(
+        shipXws ? xwingData.getShip(shipXws)?.name || pilot.ship_name : pilot.ship_name,
     );
+    const subtitle = $derived(pData?.caption || pData?.shipAbility?.name || "");
+    const points = $derived(pData?.cost ?? pilot.points ?? pilot.cost ?? 0);
+    const loadout = $derived(pData?.loadout ?? pilot.loadout);
 </script>
 
 {#if viewMode === "grid"}
@@ -47,17 +63,17 @@
             <div
                 class="relative w-full flex-[2.2] overflow-hidden bg-[#050505] flex items-center justify-center p-2"
             >
-                {#if pilot.image}
+                {#if image}
                     <img
-                        src={pilot.image}
-                        alt={pilot.name}
+                        src={image}
+                        alt={name}
                         class="max-w-full max-h-full object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]"
                         loading="lazy"
                     />
                 {:else}
                     <!-- Placeholder fallback using X-Wing Font Ship Icon -->
                     <StatIcon
-                        type={pilot.ship_xws || ""}
+                        type={shipXws || pilot.ship_xws || ""}
                         size="5rem"
                         color="rgba(255,255,255,0.05)"
                         isShip={true}
@@ -73,14 +89,14 @@
                 {#if showName}
                     <h3
                         class="text-base font-sans font-bold text-primary leading-tight flex items-center justify-between gap-2 w-full"
-                        title={pilot.name}
+                        title={name}
                     >
                         <div class="flex items-center gap-2 overflow-hidden">
                             <div
                                 class="flex-shrink-0 w-6 h-6 rounded-full bg-white/5 flex items-center justify-center border border-white/10"
                             >
                                 <StatIcon
-                                    type={pilot.ship_xws || ""}
+                                    type={shipXws || pilot.ship_xws || ""}
                                     size="1rem"
                                     color="white"
                                     isShip={true}
@@ -88,7 +104,7 @@
                                     style="filter: brightness(1.1);"
                                 />
                             </div>
-                            <span class="truncate">{pilot.name}</span>
+                            <span class="truncate">{name}</span>
                         </div>
                         {#if fChar}
                             <StatIcon
@@ -101,12 +117,12 @@
                         {/if}
                     </h3>
                 {/if}
-                {#if showShip && pilot.ship_name}
+                {#if showShip && subtitle}
                     <p
                         class="text-[11px] mt-1 font-mono text-secondary/80 uppercase tracking-wider line-clamp-1"
-                        title={pilot.ship_name}
+                        title={subtitle}
                     >
-                        {pilot.ship_name}
+                        {subtitle}
                     </p>
                 {/if}
             </div>
@@ -133,21 +149,24 @@
                         class="px-1.5 py-0.5 rounded bg-[#ffffff0a] border border-[#ffffff10] flex items-center gap-1"
                     >
                         <span class="text-[10px] font-bold text-primary"
-                            >{pilot.games ?? 0}</span
+                            >{games}</span
                         >
                         <span class="text-[9px] font-mono text-secondary"
                             >G</span
                         >
                     </div>
-                    <!-- Lists -->
+                    <!-- Lists + Different Lists -->
                     <div
                         class="px-1.5 py-0.5 rounded bg-[#ffffff0a] border border-[#ffffff10] flex items-center gap-1"
                     >
                         <span class="text-[10px] font-bold text-primary"
-                            >{pilot.lists ?? 0}</span
+                            >{listsCount}</span
                         >
                         <span class="text-[9px] font-mono text-secondary"
                             >L</span
+                        >
+                        <span class="text-[8px] font-mono text-secondary/80"
+                            >(DL {differentListsCount})</span
                         >
                     </div>
                     <!-- Points -->
@@ -155,19 +174,19 @@
                         class="px-1.5 py-0.5 rounded bg-emerald-900/30 border border-emerald-500/30 flex items-center gap-1"
                     >
                         <span class="text-[10px] font-bold text-emerald-400"
-                            >{pilot.points ?? 0}</span
+                            >{points}</span
                         >
                         <span class="text-[9px] font-mono text-emerald-500/80"
                             >PTS</span
                         >
                     </div>
                     <!-- Loadout (XWA Only logic) -->
-                    {#if pilot.loadout !== undefined && pilot.loadout !== null}
+                    {#if loadout !== undefined && loadout !== null}
                         <div
                             class="px-1.5 py-0.5 rounded bg-violet-900/20 border border-violet-500/20 flex items-center gap-1"
                         >
                             <span class="text-[10px] font-bold text-violet-300"
-                                >{pilot.loadout}</span
+                                >{loadout}</span
                             >
                             <span
                                 class="text-[9px] font-mono text-violet-400/80"
@@ -182,7 +201,7 @@
 {:else}
     <!-- Detailed mode for side-panels (To be implemented) -->
     <div class="detailed-card">
-        <p>Detailed view for {pilot.name} coming soon...</p>
+        <p>Detailed view for {name} coming soon...</p>
     </div>
 {/if}
 

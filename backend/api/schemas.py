@@ -1,68 +1,107 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Any
+from backend.data_structures.factions import Faction
+from backend.data_structures.formats import Format
+from backend.data_structures.source import Source
+
+# 1. Composition Data (Structural)
 
 class UpgradeData(BaseModel):
     xws: str
-    slot_xws: str  # slot type xws
 
 class PilotData(BaseModel):
     xws: str
-    ship_xws: str
-    faction_xws: str
     upgrades: list[UpgradeData] = []
 
 class ListData(BaseModel):
-    signature: str = ""
     name: str = ""
-    faction: str = ""
-    faction_key: str = ""
-    faction_xws: str = ""
-    icon_char: str = ""
-    points: int = 0
-    original_points: int = 0
-    count: int = 0
-    games: int = 0
-    win_rate: float = 0.0
-    total_loadout: int = 0
-    pilots: list[PilotData] = []
-
-class FactionStat(BaseModel):
-    name: str
-    xws: str
-    icon_char: str
-    win_rate: float
-    popularity: int
-    games: int
+    signature: str
+    points: int
+    original_points: int
+    faction_xws: Faction
+    pilots: list[PilotData]
     wins: int
-    percentage: float | None = None
-    real_name: str | None = None
+    games: int
+
+# 2. Analytics Stats (Aggregated)
+
+class FactionStats(BaseModel):
+    xws: Faction
+    games_count: int
+    list_count: int
+    different_lists_count: int
+    wins: int
+
+class PilotStats(BaseModel):
+    xws: str
+    games_count: int
+    list_count: int
+    different_lists_count: int
+    wins: int
+
+class UpgradeStats(BaseModel):
+    xws: str
+    games_count: int
+    list_count: int
+    different_lists_count: int
+    wins: int
+
+class ShipStats(BaseModel):
+    xws: str
+    faction_xws: Faction
+    games_count: int
+    list_count: int
+    different_lists_count: int
+    wins: int
+
+# 3. Event Data (Tournaments and Results)
+
+class TournamentData(BaseModel):
+    id: int
+    name: str
+    date: str
+    players: int
+    format: Format | None
+    source: Source
+    location: str
+    url: str
+
+class PlayerResultData(BaseModel):
+    id: int
+    name: str
+    rank: int
+    swiss_rank: int
+    cut_rank: int | None = None
+    wins: int
+    losses: int
+    list_json: dict[str, Any] | None = None
+    faction: Faction
+
+class MatchData(BaseModel):
+    round: int
+    type: str
+    player1: str
+    player2: str
+    score1: int
+    score2: int
+    winner_id: int | None = None
+    scenario: str
+
+# Response Models
 
 class MetaSnapshotResponse(BaseModel):
-    factions: list[FactionStat]
-    faction_distribution: list[FactionStat]
-    ships: list[dict[str, Any]]
+    factions: list[FactionStats]
+    ships: list[ShipStats]
     lists: list[ListData]
-    pilots: list[dict[str, Any]]
-    upgrades: list[dict[str, Any]]
+    pilots: list[PilotStats]
+    upgrades: list[UpgradeStats]
     last_sync: str
     date_range: str
     total_tournaments: int
     total_players: int
 
-class TournamentRow(BaseModel):
-    id: int
-    name: str
-    date: str
-    players: int
-    format_label: str
-    badge_l1: str
-    badge_l2: str
-    platform_label: str
-    location: str
-    url: str
-
 class PaginatedTournamentsResponse(BaseModel):
-    items: list[TournamentRow]
+    items: list[TournamentData]
     total: int
     page: int
     size: int
@@ -74,50 +113,25 @@ class PaginatedListsResponse(BaseModel):
     size: int
 
 class PaginatedPilotsResponse(BaseModel):
-    items: list[dict[str, Any]]
+    items: list[PilotStats]
     total: int
     page: int
     size: int
 
 class PaginatedUpgradesResponse(BaseModel):
-    items: list[dict[str, Any]]
+    items: list[UpgradeStats]
     total: int
     page: int
     size: int
 
 class PaginatedShipsResponse(BaseModel):
-    items: list[dict[str, Any]]
+    items: list[ShipStats]
     total: int
     page: int
     size: int
 
-class PlayerStandingsRow(BaseModel):
-    id: int
-    name: str
-    rank: int
-    swiss_rank: int
-    cut_rank: int | None = None
-    wins: int
-    losses: int
-    faction: str
-    faction_xws: str
-    has_list: bool
-    list_json: dict[str, Any] | None = None
-
-class MatchRow(BaseModel):
-    round: int
-    type: str
-    player1: str
-    player2: str
-    player1_id: int
-    player2_id: int
-    score1: int
-    score2: int
-    winner_id: int
-    scenario: str
-
 class TournamentDetailResponse(BaseModel):
-    tournament: TournamentRow
-    players_swiss: list[PlayerStandingsRow]
-    players_cut: list[PlayerStandingsRow]
-    matches: list[MatchRow]
+    tournament: TournamentData
+    players_swiss: list[PlayerResultData]
+    players_cut: list[PlayerResultData]
+    matches: list[MatchData]

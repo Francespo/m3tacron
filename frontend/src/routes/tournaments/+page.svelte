@@ -3,6 +3,7 @@
     import SortSelector from "$lib/components/SortSelector.svelte";
     import { filters } from "$lib/stores/filters.svelte";
     import { goto } from "$app/navigation";
+    import { getFormatLabel, getFormatColor } from "$lib/data/formats";
 
     let { data } = $props();
 
@@ -30,8 +31,8 @@
             params.append("continent", c);
         for (const c of filters.selectedCountries) params.append("country", c);
         for (const c of filters.selectedCities) params.append("city", c);
-        for (const p of filters.selectedPlatforms)
-            params.append("platforms", p);
+        for (const p of filters.selectedSources)
+            params.append("sources", p);
 
         params.set("sort_metric", sortBy);
         params.set("sort_direction", sortDirection);
@@ -89,38 +90,39 @@
                 >
                     <!-- Format Badge -->
                     <div
-                        class="flex flex-col items-center justify-center min-w-[50px] text-center"
+                        class="flex items-center justify-center min-w-[60px] self-stretch text-center"
                     >
                         <span
-                            class="text-[10px] font-mono font-bold text-primary tracking-wider"
+                            class="text-[10px] font-mono font-bold tracking-wider uppercase"
+                            style="color: {getFormatColor(t.format)};"
                         >
-                            {t.badge_l1 || "STD"}
-                        </span>
-                        <span class="text-[10px] font-mono text-secondary">
-                            {t.badge_l2 || ""}
+                            {getFormatLabel(t.format)}
                         </span>
                     </div>
 
                     <!-- Info -->
                     <div class="flex-1 min-w-0">
-                        <h3
-                            class="text-sm font-sans font-bold text-primary truncate group-hover:text-white"
-                        >
-                            {t.name}
-                        </h3>
-                        <p class="text-xs font-mono text-secondary truncate">
-                            <span class="text-[#00e5ff]"
-                                >{t.platform_label || "LONGSHANKS"}</span
+                        <div class="mb-1.5">
+                            <h3
+                                class="text-sm font-sans font-bold text-primary truncate group-hover:text-white"
+                                title={t.name}
                             >
-                            <span class="mx-1">•</span>
-                            {t.date}
-                            <span class="mx-1">•</span>
-                            {t.location || "Unknown"}
-                        </p>
+                                {t.name}
+                            </h3>
+                        </div>
+                        <div class="flex items-center text-xs font-mono text-secondary">
+                            <span class="w-[88px] shrink-0" title={t.date}>
+                                {t.date}
+                            </span>
+                            <span class="mx-2 text-secondary/60">•</span>
+                            <span class="truncate" title={t.location || "Unknown Location"}>
+                                {t.location || "Unknown Location"}
+                            </span>
+                        </div>
                     </div>
 
                     <!-- Player Count -->
-                    <div class="text-right shrink-0">
+                    <div class="w-12 shrink-0 flex flex-col items-center justify-center text-center">
                         <span class="text-2xl font-sans font-bold text-primary"
                             >{t.players ?? "?"}</span
                         >
