@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select, func
 from datetime import datetime, timedelta
 import os
+import time
 
 from .database import engine, create_db_and_tables
 from .models import Tournament, PlayerResult
@@ -44,7 +45,21 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup():
-    create_db_and_tables()
+    retries = int(os.getenv("DB_STARTUP_RETRIES", "20"))
+    delay_seconds = float(os.getenv("DB_STARTUP_DELAY_SECONDS", "3"))
+
+    last_error = None
+    for attempt in range(1, retries + 1):
+        try:
+            create_db_and_tables()
+            print(f"Database ready on attempt {attempt}/{retries}")
+            return
+        except Exception as exc:
+            last_error = exc
+            print(f"Database not ready (attempt {attempt}/{retries}): {exc}")
+            time.sleep(delay_seconds)
+
+    raise RuntimeError(f"Database startup failed after {retries} attempts: {last_error}")
 
 @app.get("/")
 def read_root():
