@@ -10,6 +10,69 @@
     let error = $state(false);
     let errorMsg = $state("");
 
+    type RankingMode = "popularity" | "winrate";
+    const DASHBOARD_RANKING_PREFS_KEY = "m3tacron.dashboard.rankingModes.v1";
+    const WR_MIN_GAMES = {
+        pilots: 3,
+        upgrades: 3,
+        ships: 3,
+        lists: 3,
+    };
+
+    let pilotRankingMode = $state<RankingMode>("popularity");
+    let upgradeRankingMode = $state<RankingMode>("popularity");
+    let shipRankingMode = $state<RankingMode>("popularity");
+    let listRankingMode = $state<RankingMode>("popularity");
+
+    $effect(() => {
+        if (!browser) return;
+
+        try {
+            const raw = localStorage.getItem(DASHBOARD_RANKING_PREFS_KEY);
+            if (!raw) return;
+
+            const saved = JSON.parse(raw) as {
+                pilots?: RankingMode;
+                upgrades?: RankingMode;
+                ships?: RankingMode;
+                lists?: RankingMode;
+            };
+
+            if (saved.pilots === "popularity" || saved.pilots === "winrate") {
+                pilotRankingMode = saved.pilots;
+            }
+            if (saved.upgrades === "popularity" || saved.upgrades === "winrate") {
+                upgradeRankingMode = saved.upgrades;
+            }
+            if (saved.ships === "popularity" || saved.ships === "winrate") {
+                shipRankingMode = saved.ships;
+            }
+            if (saved.lists === "popularity" || saved.lists === "winrate") {
+                listRankingMode = saved.lists;
+            }
+        } catch (err) {
+            console.warn("Failed to read dashboard ranking preferences", err);
+        }
+    });
+
+    $effect(() => {
+        if (!browser) return;
+
+        try {
+            localStorage.setItem(
+                DASHBOARD_RANKING_PREFS_KEY,
+                JSON.stringify({
+                    pilots: pilotRankingMode,
+                    upgrades: upgradeRankingMode,
+                    ships: shipRankingMode,
+                    lists: listRankingMode,
+                }),
+            );
+        } catch (err) {
+            console.warn("Failed to save dashboard ranking preferences", err);
+        }
+    });
+
     $effect(() => {
         if (!browser) return;
         const source = filters.dataSource;
@@ -84,6 +147,39 @@
     function getWinRate(wins: number, games: number): number {
         if (!games) return 0;
         return (wins / games) * 100;
+    }
+
+    function sortByRankingMode(
+        items: any[],
+        rankingMode: RankingMode,
+    ): any[] {
+        return [...items].sort((a, b) => {
+            const gamesA = Number(a.games_count ?? a.games ?? 0);
+            const gamesB = Number(b.games_count ?? b.games ?? 0);
+
+            if (rankingMode === "winrate") {
+                const wrA = getWinRate(Number(a.wins ?? 0), gamesA);
+                const wrB = getWinRate(Number(b.wins ?? 0), gamesB);
+                if (wrB !== wrA) return wrB - wrA;
+                return gamesB - gamesA;
+            }
+
+            if (gamesB !== gamesA) return gamesB - gamesA;
+            const wrA = getWinRate(Number(a.wins ?? 0), gamesA);
+            const wrB = getWinRate(Number(b.wins ?? 0), gamesB);
+            return wrB - wrA;
+        });
+    }
+
+    function applyWrMinGames(
+        items: any[],
+        rankingMode: RankingMode,
+        minGames: number,
+    ): any[] {
+        if (rankingMode !== "winrate") return items;
+        return items.filter((item) =>
+            Number(item?.games_count ?? item?.games ?? 0) >= minGames,
+        );
     }
 
     function getFactionKey(value: unknown): string {
@@ -225,6 +321,34 @@
         (meta?.factions || []).reduce(
             (acc: number, f: any) => acc + (f?.games_count || 0),
             0,
+        ),
+    );
+
+    let sortedPilots = $derived(
+        sortByRankingMode(
+            applyWrMinGames(meta?.pilots || [], pilotRankingMode, WR_MIN_GAMES.pilots),
+            pilotRankingMode,
+        ),
+    );
+
+    let sortedUpgrades = $derived(
+        sortByRankingMode(
+            applyWrMinGames(meta?.upgrades || [], upgradeRankingMode, WR_MIN_GAMES.upgrades),
+            upgradeRankingMode,
+        ),
+    );
+
+    let sortedShips = $derived(
+        sortByRankingMode(
+            applyWrMinGames(meta?.ships || [], shipRankingMode, WR_MIN_GAMES.ships),
+            shipRankingMode,
+        ),
+    );
+
+    let sortedLists = $derived(
+        sortByRankingMode(
+            applyWrMinGames(meta?.lists || [], listRankingMode, WR_MIN_GAMES.lists),
+            listRankingMode,
         ),
     );
 </script>
@@ -465,13 +589,31 @@
             <div
                 class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
             >
-                <h2
-                    class="text-sm font-mono font-bold uppercase mb-4 text-primary"
-                >
-                    Top Pilots
-                </h2>
+                <div class="mb-4 flex items-center justify-between gap-2">
+                    <h2
+                        class="text-sm font-mono font-bold uppercase text-primary"
+                    >
+                        Top Pilots
+                    </h2>
+                    <div class="inline-flex rounded border border-border-dark overflow-hidden">
+                        <button
+                            type="button"
+                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition-colors {pilotRankingMode === 'popularity' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
+                            onclick={() => (pilotRankingMode = "popularity")}
+                        >
+                            Games
+                        </button>
+                        <button
+                            type="button"
+                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider border-l border-border-dark transition-colors {pilotRankingMode === 'winrate' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
+                            onclick={() => (pilotRankingMode = "winrate")}
+                        >
+                            WR
+                        </button>
+                    </div>
+                </div>
                 <div class="w-full flex flex-col">
-                    {#each (meta.pilots || []).slice(0, 5) as pilot}
+                    {#each sortedPilots.slice(0, 5) as pilot}
                         {@const p = getPilotDisplay(pilot.xws)}
                         {@const wr = getWinRate(pilot.wins || 0, pilot.games_count || 0)}
                         <div
@@ -536,13 +678,31 @@
             <div
                 class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
             >
-                <h2
-                    class="text-sm font-mono font-bold uppercase mb-4 text-primary"
-                >
-                    Top Upgrades
-                </h2>
+                <div class="mb-4 flex items-center justify-between gap-2">
+                    <h2
+                        class="text-sm font-mono font-bold uppercase text-primary"
+                    >
+                        Top Upgrades
+                    </h2>
+                    <div class="inline-flex rounded border border-border-dark overflow-hidden">
+                        <button
+                            type="button"
+                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition-colors {upgradeRankingMode === 'popularity' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
+                            onclick={() => (upgradeRankingMode = "popularity")}
+                        >
+                            Games
+                        </button>
+                        <button
+                            type="button"
+                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider border-l border-border-dark transition-colors {upgradeRankingMode === 'winrate' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
+                            onclick={() => (upgradeRankingMode = "winrate")}
+                        >
+                            WR
+                        </button>
+                    </div>
+                </div>
                 <div class="w-full flex flex-col">
-                    {#each (meta.upgrades || []).slice(0, 6) as upgrade}
+                    {#each sortedUpgrades.slice(0, 6) as upgrade}
                         {@const uData = xwingData.getUpgrade(upgrade.xws)}
                         {@const upType = uData?.sides?.[0]?.type || "upgrade"}
                         {@const upName = uData?.name || upgrade.xws}
@@ -601,13 +761,31 @@
             <div
                 class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
             >
-                <h2
-                    class="text-sm font-mono font-bold uppercase mb-4 text-primary"
-                >
-                    Top Ships
-                </h2>
+                <div class="mb-4 flex items-center justify-between gap-2">
+                    <h2
+                        class="text-sm font-mono font-bold uppercase text-primary"
+                    >
+                        Top Ships
+                    </h2>
+                    <div class="inline-flex rounded border border-border-dark overflow-hidden">
+                        <button
+                            type="button"
+                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition-colors {shipRankingMode === 'popularity' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
+                            onclick={() => (shipRankingMode = "popularity")}
+                        >
+                            Games
+                        </button>
+                        <button
+                            type="button"
+                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider border-l border-border-dark transition-colors {shipRankingMode === 'winrate' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
+                            onclick={() => (shipRankingMode = "winrate")}
+                        >
+                            WR
+                        </button>
+                    </div>
+                </div>
                 <div class="w-full flex flex-col">
-                    {#each (meta.ships || []).slice(0, 5) as ship}
+                    {#each sortedShips.slice(0, 5) as ship}
                         {@const shipData = xwingData.getShip(ship.xws)}
                         {@const shipName = shipData?.name || ship.xws}
                         {@const factionXws = getFactionKey(ship.faction_xws)}
@@ -676,13 +854,31 @@
             <div
                 class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
             >
-                <h2
-                    class="text-sm font-mono font-bold uppercase mb-4 text-primary"
-                >
-                    Top Meta Lists
-                </h2>
+                <div class="mb-4 flex items-center justify-between gap-2">
+                    <h2
+                        class="text-sm font-mono font-bold uppercase text-primary"
+                    >
+                        Top Meta Lists
+                    </h2>
+                    <div class="inline-flex rounded border border-border-dark overflow-hidden">
+                        <button
+                            type="button"
+                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition-colors {listRankingMode === 'popularity' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
+                            onclick={() => (listRankingMode = "popularity")}
+                        >
+                            Games
+                        </button>
+                        <button
+                            type="button"
+                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider border-l border-border-dark transition-colors {listRankingMode === 'winrate' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
+                            onclick={() => (listRankingMode = "winrate")}
+                        >
+                            WR
+                        </button>
+                    </div>
+                </div>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 w-full">
-                    {#each (meta.lists || []).slice(0, 4) as list}
+                    {#each sortedLists.slice(0, 4) as list}
                         {@const factionXws = getFactionKey(list.faction_xws)}
                         {@const wr = getWinRate(list.wins || 0, list.games || 0)}
                         <div
