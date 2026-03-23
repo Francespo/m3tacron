@@ -2,8 +2,11 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install system dependencies for Playwright
-RUN apt-get update && apt-get install -y \
+ARG INSTALL_PLAYWRIGHT_BROWSER=false
+
+# Install system dependencies for Playwright only when explicitly requested.
+RUN if [ "$INSTALL_PLAYWRIGHT_BROWSER" = "true" ]; then \
+    apt-get update && apt-get install -y \
     wget \
     gnupg \
     libnss3 \
@@ -22,15 +25,13 @@ RUN apt-get update && apt-get install -y \
     libpango-1.0-0 \
     libcairo2 \
     libasound2 \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*; \
+    fi
 
 # Install python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browser binaries only when explicitly requested.
-# This avoids large downloads and memory spikes during deploy builds.
-ARG INSTALL_PLAYWRIGHT_BROWSER=false
 RUN if [ "$INSTALL_PLAYWRIGHT_BROWSER" = "true" ]; then playwright install chromium; fi
 
 # Copy application code
