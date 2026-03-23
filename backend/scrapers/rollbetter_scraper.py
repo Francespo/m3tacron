@@ -8,7 +8,7 @@ from playwright.sync_api import sync_playwright
 from .base import BaseScraper
 from ..models import Tournament, PlayerResult, Match
 from ..data_structures.formats import Format, infer_format_from_xws
-from ..data_structures.platforms import Platform
+from ..data_structures.source import Source
 from ..data_structures.round_types import RoundType
 from ..data_structures.round_types import RoundType
 from ..data_structures.scenarios import Scenario

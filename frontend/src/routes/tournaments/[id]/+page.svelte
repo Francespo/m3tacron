@@ -1,4 +1,7 @@
 <script lang="ts">
+    import { getFormatFullLabel } from "$lib/data/formats";
+    import { getSourceLabel } from "$lib/data/source";
+
     let { data } = $props();
     const t = $derived(data.detail?.tournament);
 </script>
@@ -30,7 +33,7 @@
                     >Format</span
                 >
                 <span class="text-lg font-bold text-primary font-mono"
-                    >{t.format_label === 'Other' || t.format_label === 'Unknown' ? 'Unknown/Other' : t.format_label}</span
+                    >{getFormatFullLabel(t.format)}</span
                 >
             </div>
             <div
@@ -57,11 +60,44 @@
                 class="bg-terminal-panel border border-[#ffffff14] rounded-lg p-4 flex flex-col"
             >
                 <span class="text-xs text-secondary font-mono uppercase mb-1"
-                    >Platform</span
+                    >Source</span
                 >
-                <span class="text-lg font-bold text-cyan-400 font-mono"
-                    >{t.platform_label}</span
-                >
+                <div class="flex items-center gap-2 min-w-0">
+                    <span class="text-lg font-bold text-primary font-mono truncate"
+                        >{getSourceLabel(t.source)}</span
+                    >
+                    {#if t.url}
+                        <a
+                            href={t.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            class="inline-flex items-center gap-1 text-[11px] font-mono text-primary hover:text-white transition-colors"
+                            title="Open tournament on source"
+                            aria-label="Open tournament on source"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="13"
+                                height="13"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                ><path
+                                    d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
+                                /><polyline points="15 3 21 3 21 9" /><line
+                                    x1="10"
+                                    y1="14"
+                                    x2="21"
+                                    y2="3"
+                                /></svg
+                            >
+                            <span>View on Source</span>
+                        </a>
+                    {/if}
+                </div>
             </div>
         </div>
 
@@ -74,37 +110,6 @@
             >
             <span class="text-base text-primary font-sans">{t.location}</span>
         </div>
-
-        <!-- External Link -->
-        {#if t.url}
-            <a
-                href={t.url}
-                target="_blank"
-                rel="noreferrer"
-                class="inline-flex items-center gap-2 px-4 py-2 border border-[#ffffff14] rounded-md text-sm mb-8 font-sans text-primary hover:bg-[rgba(255,255,255,0.05)] transition-colors"
-            >
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    ><path
-                        d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
-                    /><polyline points="15 3 21 3 21 9" /><line
-                        x1="10"
-                        y1="14"
-                        x2="21"
-                        y2="3"
-                    /></svg
-                >
-                View on Source
-            </a>
-        {/if}
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             <div class="flex flex-col gap-6">

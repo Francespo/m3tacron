@@ -7,10 +7,10 @@ COPY frontend/package*.json ./
 RUN npm install
 COPY frontend .
 RUN rm -rf static/data-legacy static/data-xwa || true
-COPY external_data/xwing-data2-legacy/data static/data-legacy
-COPY external_data/xwing-data2/data static/data-xwa
+COPY external_data/xwing-data2-legacy/data static/data-legacy || true
+COPY external_data/xwing-data2/data static/data-xwa || true
 RUN mkdir -p static/fonts
-COPY external_data/xwing-miniatures-font/dist static/fonts/xwing-miniatures-font
+COPY external_data/xwing-miniatures-font/dist static/fonts/xwing-miniatures-font || true
 
 # Pass build arguments for SvelteKit environment variables
 ARG VITE_API_BASE

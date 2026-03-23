@@ -14,6 +14,7 @@
     } from "$lib/data/factions";
     import { filters } from "$lib/stores/filters.svelte";
     import { goto } from "$app/navigation";
+    import { xwingData } from "$lib/stores/xwingData.svelte";
 
     let { data } = $props();
 
@@ -33,6 +34,9 @@
 
     // Let URL load logic handle the tab, we will drive updates
     $effect(() => {
+        // Ensure data is loaded
+        xwingData.setSource(filters.dataSource as any);
+
         const params = new URLSearchParams();
         params.set("tab", data.tab);
         params.set("page", String(page - 1));
@@ -45,8 +49,8 @@
             params.append("formats", format);
         for (const f of selectedFactions) params.append("factions", f);
         for (const s of filters.selectedShips) params.append("ships", s);
-        for (const p of filters.selectedPlatforms)
-            params.append("platforms", p);
+        for (const p of filters.selectedSources)
+            params.append("sources", p);
         for (const c of filters.selectedContinents)
             params.append("continent", c);
         for (const c of filters.selectedCountries) params.append("country", c);

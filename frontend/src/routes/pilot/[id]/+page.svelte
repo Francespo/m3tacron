@@ -1,5 +1,9 @@
 <script lang="ts">
     import { browser } from "$app/environment";
+    import { goto } from "$app/navigation";
+    import ContentSourceToggle from "$lib/components/ContentSourceToggle.svelte";
+    import { filters } from "$lib/stores/filters.svelte";
+    import { getFactionColor, getFactionChar } from "$lib/data/factions";
 
     let { data } = $props();
     import UpgradeCard from "$lib/components/UpgradeCard.svelte";
@@ -8,17 +12,42 @@
     let upgrades = $derived(data.upgrades);
     let chart = $derived(data.chart);
     let configurations = $derived(data.configurations);
+    let initialized = $state(false);
 
-    function getFactionColor(xws: string): string {
-        const colors: Record<string, string> = {
-            rebelalliance: "#FF3333", galacticempire: "#2979FF",
-            scumandvillainy: "#006400", resistance: "#FF8C00",
-            firstorder: "#800020", galacticrepublic: "#E6D690",
-            separatistalliance: "#607D8B", unknown: "#666666",
-        };
-        const normalized = (xws || "").toLowerCase().replace(/[\s-]/g, "");
-        return colors[normalized] || colors.unknown;
+    function getDefaultFormats(ds: "xwa" | "legacy", includeEpic: boolean): string[] {
+        if (ds === "xwa") {
+            return includeEpic ? ["xwa", "xwa_epic"] : ["xwa"];
+        }
+        return includeEpic
+            ? ["legacy_x2po", "legacy_xlc", "ffg", "legacy_epic"]
+            : ["legacy_x2po", "legacy_xlc", "ffg"];
     }
+
+    $effect(() => {
+        if (initialized) return;
+        if (data.ds === "legacy" || data.ds === "xwa") {
+            filters.dataSource = data.ds;
+        }
+        filters.includeEpic = !!data.includeEpic;
+        initialized = true;
+    });
+
+    $effect(() => {
+        if (!initialized) return;
+
+        const params = new URLSearchParams();
+        params.set("data_source", filters.dataSource);
+        if (filters.includeEpic) params.set("include_epic", "true");
+        for (const f of getDefaultFormats(filters.dataSource, filters.includeEpic)) {
+            params.append("formats", f);
+        }
+
+        goto(`?${params.toString()}`, {
+            keepFocus: true,
+            noScroll: true,
+            replaceState: true,
+        });
+    });
 
     function wrColor(wr: number): string {
         if (wr >= 55) return "#22c55e";
@@ -123,24 +152,37 @@
         <div class="flex-grow flex flex-col gap-6">
             <!-- Name & Badges -->
             <div>
-                <div class="flex items-center gap-3 flex-wrap">
-                    <h1 class="text-3xl font-sans font-bold text-primary">{info?.name || data.pilotXws}</h1>
-                    <span class="px-2 py-0.5 text-xs font-mono font-bold rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">PILOT</span>
-                    {#if info?.faction}
-                        <i
-                            class="xwing-miniatures-font xwing-miniatures-font-{info.faction === 'Rebel Alliance' ? 'rebel' : info.faction === 'Galactic Empire' ? 'empire' : info.faction === 'Scum and Villainy' ? 'scum' : info.faction === 'Resistance' ? 'rebel' : info.faction === 'First Order' ? 'firstorder' : info.faction === 'Galactic Republic' ? 'republic' : 'separatists'}"
-                            style="color: {getFactionColor(info.faction_xws || '')}; font-size: 1.4rem;"
-                        ></i>
-                    {/if}
-                </div>
-                {#if info?.ship}
-                    <p class="text-secondary font-mono text-sm mt-1">
-                        {#if info.ship_xws}
-                            <i class="xwing-miniatures-ship xwing-miniatures-ship-{info.ship_xws}" style="color: {getFactionColor(info.faction_xws || '')}; font-size: 1.2rem;"></i>
+                <div class="flex items-start justify-between gap-4 flex-wrap">
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-3 flex-wrap min-w-0">
+                            <h1 class="text-3xl font-sans font-bold text-primary">{info?.name || data.pilotXws}</h1>
+                            <span class="px-2 py-0.5 text-xs font-mono font-bold rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">PILOT</span>
+                            {#if info?.faction_xws}
+                                <span
+                                    class="font-xwing text-xl"
+                                    style="color: {getFactionColor(info.faction_xws)};"
+                                    title={info?.faction || info.faction_xws}
+                                >
+                                    {getFactionChar(info.faction_xws)}
+                                </span>
+                            {/if}
+                        </div>
+                        {#if info?.ship}
+                            <p class="text-secondary font-mono text-sm mt-1">
+                                {#if info.ship_xws}
+                                    <i class="xwing-miniatures-ship xwing-miniatures-ship-{info.ship_xws}" style="color: {getFactionColor(info.faction_xws || '')}; font-size: 1.2rem;"></i>
+                                {/if}
+                                {info.ship}
+                            </p>
                         {/if}
-                        {info.ship}
-                    </p>
-                {/if}
+                    </div>
+
+                    <div class="w-full lg:w-[320px] lg:flex-shrink-0">
+                        <div class="bg-terminal-panel border border-border-dark rounded-lg p-3">
+                            <ContentSourceToggle />
+                        </div>
+                    </div>
+                </div>
                 <div class="flex items-center gap-2 mt-3 flex-wrap">
                     {#if info?.cost != null}
                         <span class="px-2 py-0.5 text-xs font-mono rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">{info.cost} PTS</span>

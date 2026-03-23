@@ -3,6 +3,8 @@
  * Mirrors Reflex GlobalFilterState across all pages.
  */
 
+import { getFormatFullLabel } from "$lib/data/formats";
+
 // Reactive state using Svelte 5 runes (module-level $state)
 let dataSource = $state<'xwa' | 'legacy'>('xwa');
 let includeEpic = $state(false);
@@ -13,7 +15,7 @@ let selectedCountries = $state<string[]>([]);
 let selectedCities = $state<string[]>([]);
 let selectedFormats = $state<string[]>([]);
 let searchName = $state('');
-let selectedPlatforms = $state<string[]>([]);
+let selectedSources = $state<string[]>([]);
 let selectedShips = $state<string[]>([]);
 
 // Advanced Filters (Cards Page)
@@ -43,17 +45,11 @@ function getActiveChips(): { key: string; label: string }[] {
     for (const c of selectedContinents) chips.push({ key: `continent:${c}`, label: c });
     for (const c of selectedCountries) chips.push({ key: `country:${c}`, label: c });
     for (const c of selectedCities) chips.push({ key: `city:${c}`, label: c });
-    for (const p of selectedPlatforms) chips.push({ key: `platform:${p}`, label: p });
+    for (const p of selectedSources) chips.push({ key: `source:${p}`, label: p });
     for (const s of selectedShips) chips.push({ key: `ship:${s}`, label: `Ship: ${s}` });
 
-    // Map format IDs to labels
-    const formatLabels: Record<string, string> = {
-        'amg': 'AMG', 'xwa': 'XWA', 'legacy_x2po': 'Legacy (X2PO)',
-        'legacy_xlc': 'Legacy (XLC)', 'ffg': 'FFG', 'other': 'Unknown'
-    };
     for (const f of selectedFormats) {
-        // Skip default active format chips if we want, but usually it's good to show them
-        chips.push({ key: `format:${f}`, label: formatLabels[f] || f });
+        chips.push({ key: `format:${f}`, label: getFormatFullLabel(f) });
     }
 
     if (searchName) chips.push({ key: 'search', label: `"${searchName}"` });
@@ -97,6 +93,8 @@ function removeChip(key: string) {
         selectedCountries = selectedCountries.filter(c => c !== key.slice(8));
     else if (key.startsWith('city:'))
         selectedCities = selectedCities.filter(c => c !== key.slice(5));
+    else if (key.startsWith('source:'))
+        selectedSources = selectedSources.filter(p => p !== key.slice(7));
     else if (key.startsWith('format:'))
         selectedFormats = selectedFormats.filter(f => f !== key.slice(7));
     else if (key.startsWith('ship:'))
@@ -109,7 +107,7 @@ function resetAll() {
     selectedContinents = [];
     selectedCountries = [];
     selectedCities = [];
-    selectedPlatforms = [];
+    selectedSources = [];
     selectedShips = [];
 
     // CRITICAL: Reset All must respect the active Game Content Source
@@ -159,8 +157,8 @@ export const filters = {
     set selectedFormats(v: string[]) { selectedFormats = v; },
     get searchName() { return searchName; },
     set searchName(v: string) { searchName = v; },
-    get selectedPlatforms() { return selectedPlatforms; },
-    set selectedPlatforms(v: string[]) { selectedPlatforms = v; },
+    get selectedSources() { return selectedSources; },
+    set selectedSources(v: string[]) { selectedSources = v; },
     get selectedShips() { return selectedShips; },
     set selectedShips(v: string[]) { selectedShips = v; },
     // Adv

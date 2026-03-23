@@ -11,6 +11,7 @@
     } from "$lib/data/factions";
     import { goto } from "$app/navigation";
     import { filters } from "$lib/stores/filters.svelte";
+    import { xwingData } from "$lib/stores/xwingData.svelte";
 
     let { data } = $props();
 
@@ -25,6 +26,9 @@
 
     // Trigger URL updates on filter changes
     $effect(() => {
+        // Ensure data is active
+        xwingData.setSource(filters.dataSource as any);
+
         const params = new URLSearchParams();
         params.set("page", String(page - 1));
         params.set("size", String(size));
@@ -35,8 +39,8 @@
             params.append("formats", format);
         for (const f of selectedFactions) params.append("factions", f);
         for (const s of filters.selectedShips) params.append("ships", s);
-        for (const p of filters.selectedPlatforms)
-            params.append("platforms", p);
+        for (const p of filters.selectedSources)
+            params.append("sources", p);
         for (const c of filters.selectedContinents)
             params.append("continent", c);
         for (const c of filters.selectedCountries) params.append("country", c);
@@ -160,16 +164,19 @@
         <!-- Ships Heatmap Grid -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {#each items as ship}
-                {@const wr = Number(ship.win_rate ?? 0)}
+                {@const shipData = xwingData.getShip(ship.xws)}
+                {@const games = ship.games_count ?? 0}
+                {@const wins = ship.wins ?? 0}
+                {@const wr = games > 0 ? (wins / games) * 100 : 0}
                 {@const wrColor = getWinRateColor(wr)}
-                {@const games = ship.games ?? 0}
-                {@const lists = ship.lists ?? ship.count ?? 0}
-                {@const factionKey = ship.faction ?? "unknown"}
+                {@const lists = ship.list_count ?? 0}
+                {@const factionKey = ship.faction_xws ?? "unknown"}
                 {@const factionColor = getFactionColor(factionKey)}
+                {@const pilotsCount = ship.pilots_count ?? xwingData.getPilotCountByShip(ship.xws)}
                 <!-- Glow intensity proportional to games (popularity) -->
                 {@const glowOpacity = Math.min(0.3, (games / 2000) * 0.3)}
 
-                <a href="/ship/{ship.ship_xws || ''}" class="block group">
+                <a href="/ship/{ship.xws}" class="block group">
                     <div
                         class="relative bg-terminal-panel border border-border-dark rounded-md p-4 flex flex-col items-center gap-2 hover:border-secondary/50 group-hover:scale-[1.03] group-hover:-translate-y-1 transition-all duration-200"
                         style="box-shadow: 0 0 20px {factionColor}{Math.round(
@@ -188,8 +195,7 @@
 
                         <!-- Ship Icon (from X-Wing ship font via CSS pseudo-element) -->
                         <i
-                            class="xwing-miniatures-ship xwing-miniatures-ship-{ship.ship_xws ||
-                                ''} transition-transform"
+                            class="xwing-miniatures-ship xwing-miniatures-ship-{ship.xws ? ship.xws.replace(/[^a-z0-9]/g, '') : ''} transition-transform"
                             style="color: {factionColor}; opacity: 0.9; font-size: 10rem; line-height: 1;"
                         ></i>
 
@@ -197,7 +203,7 @@
                         <span
                             class="text-xs font-sans font-bold text-primary text-center leading-tight"
                         >
-                            {ship.ship_name || "Unknown Ship"}
+                            {shipData?.name || ship.xws || "Unknown Ship"}
                         </span>
 
                         <!-- Stats Grid (2x2) -->
@@ -208,7 +214,7 @@
                                 <span
                                     class="text-xs font-mono font-bold"
                                     style="color: {wrColor};"
-                                    >{wr === "NA"
+                                    >{games === 0
                                         ? "NA"
                                         : Number(wr).toFixed(1) + "%"}</span
                                 >
@@ -243,7 +249,7 @@
                                 class="text-center bg-[#ffffff05] rounded px-1 py-0.5"
                             >
                                 <span class="text-xs font-mono text-primary"
-                                    >{ship.pilots_count ?? "?"}</span
+                                    >{pilotsCount}</span
                                 >
                                 <span
                                     class="text-[9px] font-mono text-secondary block"
