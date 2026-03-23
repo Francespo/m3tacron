@@ -19,7 +19,7 @@ ARG VITE_API_BASE
 ENV VITE_API_BASE=$VITE_API_BASE
 
 RUN npx svelte-kit sync
-RUN npm run build
+RUN npm run generate-manifest && npx svelte-kit build
 
 # Production stage
 FROM node:20-slim
