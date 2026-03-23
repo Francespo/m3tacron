@@ -12,7 +12,7 @@ services:
     depends_on:
       - postgres-prod
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8888/"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8888/', timeout=3)"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -31,7 +31,7 @@ services:
     depends_on:
       - backend
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3333/"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3333/', (r) => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1));"]
       interval: 10s
       timeout: 5s
       retries: 5
