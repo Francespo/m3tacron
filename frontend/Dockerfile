@@ -2,9 +2,9 @@
 FROM node:20-slim AS builder
 
 WORKDIR /app
-ENV NODE_OPTIONS=--max-old-space-size=2048
+ENV NODE_OPTIONS=--max-old-space-size=768
 COPY frontend/package*.json ./
-RUN npm install
+RUN npm install --no-audit --no-fund
 COPY frontend .
 COPY external_data /tmp/external_data
 RUN rm -rf static/data-legacy static/data-xwa || true
@@ -27,7 +27,7 @@ FROM node:20-slim
 WORKDIR /app
 
 COPY --from=builder /app/package*.json ./
-RUN npm install --omit=dev
+RUN npm install --omit=dev --no-audit --no-fund
 
 COPY --from=builder /app/build ./build
 
