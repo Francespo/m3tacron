@@ -1,10 +1,10 @@
 <script lang="ts">
     let { data } = $props();
     let info = $derived(data.info);
-    let stats = $derived(data.stats);
-    let pilots = $derived(data.pilots);
-    let lists = $derived(data.lists);
-    let squadrons = $derived(data.squadrons);
+    let stats = $derived(data.stats || {});
+    let pilots = $derived(data.pilots || []);
+    let lists = $derived(data.lists || []);
+    let squadrons = $derived(data.squadrons || []);
 
     function getFactionColor(factions: string[]): string {
         if (!factions || factions.length === 0) return "#666666";
@@ -27,6 +27,10 @@
         if (wr >= 45) return "#eab308";
         return "#ef4444";
     }
+
+    // Derived stats
+    let totalGames = $derived(stats.games_count || 0);
+    let winRate = $derived(totalGames > 0 ? (stats.wins / totalGames * 100).toFixed(1) : "NA");
 </script>
 
 <svelte:head>
@@ -104,20 +108,11 @@
                             >TOTAL GAMES</span
                         >
                         <span class="text-sm font-bold text-primary"
-                            >{stats.games ?? 0}</span
+                            >{totalGames}</span
                         >
                     </div>
-                    <div
-                        class="bg-black/50 px-3 py-1.5 rounded border border-border-dark"
-                    >
-                        <span class="text-xs font-mono text-secondary mr-2"
-                            >POPULARITY</span
-                        >
-                        <span class="text-sm font-bold text-secondary"
-                            >{(stats.popularity ?? 0).toFixed(2)}%</span
-                        >
-                    </div>
-                    {#if stats.win_rate != null}
+                   
+                    {#if winRate !== "NA"}
                         <div
                             class="bg-black/50 px-3 py-1.5 rounded border border-border-dark"
                         >
@@ -127,8 +122,8 @@
                             <span
                                 class="text-sm font-bold"
                                 style="color: {wrColor(
-                                    parseFloat(stats.win_rate),
-                                )}">{stats.win_rate}%</span
+                                    parseFloat(winRate),
+                                )}">{winRate}%</span
                             >
                         </div>
                     {/if}
@@ -182,12 +177,14 @@
                     </thead>
                     <tbody class="divide-y divide-border-dark/50">
                         {#each pilots as pilot}
-                            {@const pctOfChassis = stats.games
+                            {@const gamesVal = pilot.games_count || 0}
+                            {@const pctOfChassis = totalGames > 0
                                 ? (
-                                      ((pilot.games || 0) / stats.games) *
+                                      (gamesVal / totalGames) *
                                       100
                                   ).toFixed(1)
                                 : 0}
+                            {@const pWinRate = gamesVal > 0 ? ((pilot.wins / gamesVal) * 100).toFixed(1) : "NA"}
                             <tr
                                 class="hover:bg-[#ffffff05] transition-colors group cursor-pointer"
                                 onclick={() =>
@@ -217,13 +214,13 @@
                                 <td class="px-4 py-2 text-right">
                                     <span
                                         class="px-2 py-0.5 text-xs font-mono rounded bg-emerald-500/10 text-emerald-400"
-                                        >{pilot.cost || "?"} PT</span
+                                        >{pilot.points || "?"} PT</span
                                     >
                                 </td>
                                 <td
                                     class="px-4 py-2 text-right font-mono text-sm text-secondary"
                                 >
-                                    {pilot.games || 0}
+                                    {gamesVal}
                                 </td>
                                 <td class="px-4 py-2 text-right">
                                     <div
@@ -244,18 +241,16 @@
                                     </div>
                                 </td>
                                 <td class="px-4 py-2 text-right">
-                                    {#if pilot.win_rate && pilot.win_rate !== "NA"}
+                                    {#if pWinRate !== "NA"}
                                         <span
                                             class="px-2 py-0.5 text-xs font-mono rounded font-bold"
                                             style="background: {wrColor(
-                                                parseFloat(pilot.win_rate),
+                                                parseFloat(pWinRate),
                                             )}15; color: {wrColor(
-                                                parseFloat(pilot.win_rate),
+                                                parseFloat(pWinRate),
                                             )};"
                                         >
-                                            {parseFloat(pilot.win_rate).toFixed(
-                                                1,
-                                            )}%
+                                            {pWinRate}%
                                         </span>
                                     {:else}
                                         <span
@@ -291,6 +286,8 @@
         </h2>
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {#each lists as list}
+                {@const lGames = list.games || 0}
+                {@const lWinRate = lGames > 0 ? ((list.wins / lGames) * 100).toFixed(1) : "NA"}
                 <a href="/list/{list.signature}" class="block group h-full">
                     <div
                         class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-sm hover:border-primary/30 hover:scale-[1.01] transition-all h-full flex flex-col justify-between"
@@ -309,18 +306,16 @@
                                 class="px-2 py-0.5 text-xs font-mono rounded bg-white/5 text-secondary"
                                 >{list.games || 0} GAMES</span
                             >
-                            {#if list.win_rate}
+                            {#if lWinRate !== "NA"}
                                 <span
                                     class="px-2 py-0.5 text-xs font-mono rounded font-bold"
                                     style="color: {wrColor(
-                                        parseFloat(list.win_rate),
+                                        parseFloat(lWinRate),
                                     )}; background: {wrColor(
-                                        parseFloat(list.win_rate),
+                                        parseFloat(lWinRate),
                                     )}15"
                                 >
-                                    {(parseFloat(list.win_rate) * 100).toFixed(
-                                        1,
-                                    )}% WR
+                                    {lWinRate}% WR
                                 </span>
                             {/if}
                             <span
@@ -351,6 +346,8 @@
         </h2>
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {#each squadrons as squad}
+                {@const sGames = squad.games_count || squad.games || 0}
+                {@const sWinRate = sGames > 0 ? ((squad.wins / sGames) * 100).toFixed(1) : "NA"}
                 <a
                     href="/squadron/{squad.signature}"
                     class="block group h-full"
@@ -368,18 +365,18 @@
                         >
                             <span
                                 class="px-2 py-0.5 text-xs font-mono rounded bg-white/5 text-secondary"
-                                >{squad.count || squad.games || 0} GAMES</span
+                                >{sGames} GAMES</span
                             >
-                            {#if squad.win_rate}
+                            {#if sWinRate !== "NA"}
                                 <span
                                     class="px-2 py-0.5 text-xs font-mono rounded font-bold"
                                     style="color: {wrColor(
-                                        parseFloat(squad.win_rate),
+                                        parseFloat(sWinRate),
                                     )}; background: {wrColor(
-                                        parseFloat(squad.win_rate),
+                                        parseFloat(sWinRate),
                                     )}15"
                                 >
-                                    {squad.win_rate}% WR
+                                    {sWinRate}% WR
                                 </span>
                             {/if}
                             <span

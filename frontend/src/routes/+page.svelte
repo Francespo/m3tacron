@@ -2,6 +2,8 @@
     import { browser } from "$app/environment";
     import { filters } from "$lib/stores/filters.svelte";
     import ContentSourceToggle from "$lib/components/ContentSourceToggle.svelte";
+    import { getFactionColor, getFactionChar, getFactionLabel } from "$lib/data/factions";
+    import { xwingData } from "$lib/stores/xwingData.svelte";
 
     let meta = $state<any>(null);
     let loading = $state(true);
@@ -11,6 +13,9 @@
     $effect(() => {
         if (!browser) return;
         const source = filters.dataSource;
+        // Ensure data is loaded
+        xwingData.setSource(source as any);
+
         let isCancelled = false;
 
         loading = true;
@@ -48,21 +53,14 @@
         };
     });
 
-    function getFactionColor(xws: string) {
-        const colors: Record<string, string> = {
-            rebelalliance: "#FF3333",
-            galacticempire: "#2979FF",
-            scumandvillainy: "#006400",
-            resistance: "#FF8C00",
-            firstorder: "#800020",
-            galacticrepublic: "#E6D690",
-            separatistalliance: "#607D8B",
-            unknown: "#666666",
-        };
-        return colors[xws] || colors.unknown;
+    function getShipIconClass(xws: string) {
+        if (!xws) return "";
+        // If we want accurate icons from manifest, we might need a mapping or just rely on font classes
+        return "xwing-miniatures-ship-" + xws.replace(/[^a-z0-9]/g, "");
     }
 
     function getFactionIconClass(xws: string) {
+        const normalized = (xws || "").toLowerCase().replace(/[^a-z0-9]/g, "");
         const icons: Record<string, string> = {
             rebelalliance: "xwing-miniatures-font-rebel",
             galacticempire: "xwing-miniatures-font-empire",
@@ -71,14 +69,8 @@
             firstorder: "xwing-miniatures-font-firstorder",
             galacticrepublic: "xwing-miniatures-font-republic",
             separatistalliance: "xwing-miniatures-font-separatists",
-            unknown: "",
         };
-        return icons[xws] || "";
-    }
-
-    function getShipIconClass(xws: string) {
-        if (!xws) return "";
-        return "xwing-miniatures-ship-" + xws.replace(/[^a-z0-9]/g, "");
+        return icons[normalized] || "";
     }
 
     function getUpgradeIconClass(type: string) {
@@ -87,6 +79,28 @@
             "xwing-miniatures-font-" +
             type.toLowerCase().replace(/[^a-z0-9]/g, "")
         );
+    }
+
+    function getWinRate(wins: number, games: number): number {
+        if (!games) return 0;
+        return (wins / games) * 100;
+    }
+
+    function getFactionKey(value: unknown): string {
+        return String(value ?? "unknown").toLowerCase();
+    }
+
+    function getPilotDisplay(pilotXws: string) {
+        const pilot = xwingData.getPilot(pilotXws);
+        const ship = pilot?.ship ? xwingData.getShip(pilot.ship) : null;
+        return {
+            pilot,
+            ship,
+            name: pilot?.name || pilotXws,
+            shipName: ship?.name || pilot?.ship || "Unknown Ship",
+            faction: pilot?.faction || "unknown",
+            shipXws: pilot?.ship || "",
+        };
     }
 
     function chartAction(node: HTMLCanvasElement, config: any) {
@@ -119,12 +133,12 @@
     let barData = $derived(
         meta?.factions
             ? {
-                  labels: meta.factions.map((d: any) => d.icon_char || ""),
+                  labels: meta.factions.map((d: any) => getFactionChar(d.xws) || "?"),
                   datasets: [
                       {
                           label: "Win Rate (%)",
                           data: meta.factions.map((d: any) =>
-                              parseFloat(d.win_rate),
+                              d.games_count > 0 ? Number(((d.wins / d.games_count) * 100).toFixed(1)) : 0,
                           ),
                           backgroundColor: meta.factions.map((d: any) =>
                               getFactionColor(d.xws),
@@ -172,17 +186,17 @@
     };
 
     let pieData = $derived(
-        meta?.faction_distribution
+        meta?.factions
             ? {
-                  labels: meta.faction_distribution.map(
-                      (d: any) => d.real_name,
+                  labels: meta.factions.map(
+                      (d: any) => getFactionLabel(d.xws),
                   ),
                   datasets: [
                       {
-                          data: meta.faction_distribution.map(
-                              (d: any) => d.games,
+                          data: meta.factions.map(
+                              (d: any) => d.games_count,
                           ),
-                          backgroundColor: meta.faction_distribution.map(
+                          backgroundColor: meta.factions.map(
                               (d: any) => getFactionColor(d.xws),
                           ),
                           borderWidth: 0,
@@ -206,6 +220,13 @@
             },
         },
     };
+
+    let totalFactionGames = $derived(
+        (meta?.factions || []).reduce(
+            (acc: number, f: any) => acc + (f?.games_count || 0),
+            0,
+        ),
+    );
 </script>
 
 <div class="min-h-screen p-6 font-sans">
@@ -417,16 +438,21 @@
                     {/if}
                 </div>
                 <div class="flex flex-wrap justify-center w-full mt-2">
-                    {#each meta.faction_distribution || [] as dist}
+                    {#each meta.factions || [] as dist}
+                        {@const factionXws = getFactionKey(dist.xws)}
+                        {@const pct = totalFactionGames > 0
+                            ? (((dist.games_count || 0) / totalFactionGames) * 100).toFixed(1)
+                            : "0.0"}
                         <div
                             class="flex items-center gap-[6px] text-xs font-mono text-secondary mr-3 mb-[6px]"
                         >
                             <i
                                 class="xwing-miniatures-font {getFactionIconClass(
-                                    dist.xws,
+                                    factionXws,
                                 )} text-sm"
+                                style="color: {getFactionColor(factionXws)}"
                             ></i>
-                            <span>{dist.percentage}%</span>
+                            <span>{getFactionLabel(factionXws)} {pct}%</span>
                         </div>
                     {/each}
                 </div>
@@ -446,6 +472,8 @@
                 </h2>
                 <div class="w-full flex flex-col">
                     {#each (meta.pilots || []).slice(0, 5) as pilot}
+                        {@const p = getPilotDisplay(pilot.xws)}
+                        {@const wr = getWinRate(pilot.wins || 0, pilot.games_count || 0)}
                         <div
                             class="py-[12px] border-b border-border-dark flex items-center justify-between w-full last:border-0 relative"
                         >
@@ -457,7 +485,7 @@
                                 >
                                     <i
                                         class="xwing-miniatures-ship {getShipIconClass(
-                                            pilot.ship_xws || pilot.ship_icon,
+                                            p.shipXws,
                                         )} text-2xl text-white"
                                     ></i>
                                 </div>
@@ -466,28 +494,23 @@
                                 >
                                     <span
                                         class="text-base font-bold text-primary truncate min-w-0"
-                                        title={pilot.name}>{pilot.name}</span
+                                        title={p.name}>{p.name}</span
                                     >
                                     <div
                                         class="flex items-center gap-1 min-w-0 mt-0.5"
                                     >
                                         <i
                                             class="xwing-miniatures-font {getFactionIconClass(
-                                                (pilot.faction || '')
-                                                    .toLowerCase()
-                                                    .replace(/[^a-z0-9]/g, ''),
+                                                p.faction,
                                             )} text-[11px]"
                                             style="color: {getFactionColor(
-                                                (pilot.faction || '')
-                                                    .toLowerCase()
-                                                    .replace(/[^a-z0-9]/g, ''),
+                                                p.faction,
                                             )}"
                                         ></i>
                                         <span
                                             class="text-[12px] text-secondary truncate min-w-0 pointer-events-none"
                                         >
-                                            {pilot.faction} - {pilot.ship ||
-                                                "Unknown Ship"}
+                                            {getFactionLabel(p.faction)} - {p.shipName}
                                         </span>
                                     </div>
                                 </div>
@@ -497,11 +520,11 @@
                             >
                                 <span
                                     class="text-base font-mono font-bold text-primary shrink-0"
-                                    >{pilot.win_rate}% WR</span
+                                    >{wr.toFixed(1)}% WR</span
                                 >
                                 <span
                                     class="text-[11px] text-secondary shrink-0"
-                                    >{pilot.games} games</span
+                                    >{pilot.games_count || 0} games</span
                                 >
                             </div>
                         </div>
@@ -520,6 +543,10 @@
                 </h2>
                 <div class="w-full flex flex-col">
                     {#each (meta.upgrades || []).slice(0, 6) as upgrade}
+                        {@const uData = xwingData.getUpgrade(upgrade.xws)}
+                        {@const upType = uData?.sides?.[0]?.type || "upgrade"}
+                        {@const upName = uData?.name || upgrade.xws}
+                        {@const wr = getWinRate(upgrade.wins || 0, upgrade.games_count || 0)}
                         <div
                             class="py-[12px] border-b border-border-dark flex items-center justify-between w-full last:border-0 relative"
                         >
@@ -531,7 +558,7 @@
                                 >
                                     <i
                                         class="xwing-miniatures-font {getUpgradeIconClass(
-                                            upgrade.type,
+                                            upType,
                                         )} text-secondary text-2xl"
                                     ></i>
                                 </div>
@@ -540,15 +567,15 @@
                                 >
                                     <span
                                         class="text-base font-bold text-primary truncate min-w-0"
-                                        title={upgrade.name}
-                                        >{upgrade.name}</span
+                                        title={upName}
+                                        >{upName}</span
                                     >
                                     <div
                                         class="flex items-center gap-1 min-w-0 mt-0.5"
                                     >
                                         <span
                                             class="text-[12px] text-secondary truncate min-w-0 pointer-events-none"
-                                            >{upgrade.type}</span
+                                            >{upType}</span
                                         >
                                     </div>
                                 </div>
@@ -558,11 +585,11 @@
                             >
                                 <span
                                     class="text-base font-mono font-bold text-primary shrink-0"
-                                    >{upgrade.win_rate}% WR</span
+                                    >{wr.toFixed(1)}% WR</span
                                 >
                                 <span
                                     class="text-[11px] text-secondary shrink-0"
-                                    >{upgrade.games} games</span
+                                    >{upgrade.games_count || 0} games</span
                                 >
                             </div>
                         </div>
@@ -581,6 +608,10 @@
                 </h2>
                 <div class="w-full flex flex-col">
                     {#each (meta.ships || []).slice(0, 5) as ship}
+                        {@const shipData = xwingData.getShip(ship.xws)}
+                        {@const shipName = shipData?.name || ship.xws}
+                        {@const factionXws = getFactionKey(ship.faction_xws)}
+                        {@const wr = getWinRate(ship.wins || 0, ship.games_count || 0)}
                         <div
                             class="py-[12px] border-b border-border-dark flex items-center justify-between w-full last:border-0 relative"
                         >
@@ -592,7 +623,7 @@
                                 >
                                     <i
                                         class="xwing-miniatures-ship {getShipIconClass(
-                                            ship.ship_xws,
+                                            ship.xws,
                                         )} text-2xl text-white"
                                     ></i>
                                 </div>
@@ -601,23 +632,23 @@
                                 >
                                     <span
                                         class="text-base font-bold text-primary truncate min-w-0"
-                                        title={ship.ship_name}
-                                        >{ship.ship_name}</span
+                                        title={shipName}
+                                        >{shipName}</span
                                     >
                                     <div
                                         class="flex items-center gap-1 min-w-0 mt-0.5"
                                     >
                                         <i
                                             class="xwing-miniatures-font {getFactionIconClass(
-                                                ship.faction_xws,
+                                                factionXws,
                                             )} text-[11px]"
                                             style="color: {getFactionColor(
-                                                ship.faction_xws,
+                                                factionXws,
                                             )}"
                                         ></i>
                                         <span
                                             class="text-[12px] text-secondary truncate min-w-0 pointer-events-none"
-                                            >{ship.faction}</span
+                                            >{getFactionLabel(factionXws)}</span
                                         >
                                     </div>
                                 </div>
@@ -627,11 +658,11 @@
                             >
                                 <span
                                     class="text-base font-mono font-bold text-primary shrink-0"
-                                    >{ship.win_rate}% WR</span
+                                    >{wr.toFixed(1)}% WR</span
                                 >
                                 <span
                                     class="text-[11px] text-secondary shrink-0"
-                                    >{ship.games} games</span
+                                    >{ship.games_count || 0} games</span
                                 >
                             </div>
                         </div>
@@ -652,6 +683,8 @@
                 </h2>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 w-full">
                     {#each (meta.lists || []).slice(0, 4) as list}
+                        {@const factionXws = getFactionKey(list.faction_xws)}
+                        {@const wr = getWinRate(list.wins || 0, list.games || 0)}
                         <div
                             class="p-4 bg-[rgba(255,255,255,0.01)] border border-border-dark hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer w-full flex flex-col gap-3 rounded-md"
                         >
@@ -663,10 +696,10 @@
                                 >
                                     <i
                                         class="xwing-miniatures-font {getFactionIconClass(
-                                            list.faction_xws,
+                                            factionXws,
                                         )} text-2xl flex-shrink-0"
                                         style="color: {getFactionColor(
-                                            list.faction_xws,
+                                            factionXws,
                                         )}"
                                     ></i>
                                     <div class="flex flex-col min-w-0">
@@ -678,7 +711,7 @@
                                         <span
                                             class="text-[10px] text-secondary uppercase tracking-tighter opacity-70"
                                         >
-                                            {list.faction}
+                                            {getFactionLabel(factionXws)}
                                         </span>
                                     </div>
                                 </div>
@@ -687,7 +720,7 @@
                                 >
                                     <span
                                         class="text-base font-mono font-bold text-primary"
-                                        >{list.win_rate}% WR</span
+                                        >{wr.toFixed(1)}% WR</span
                                     >
                                     <span class="text-[11px] text-secondary"
                                         >{list.games} games</span
@@ -697,16 +730,26 @@
 
                             <div class="flex flex-col gap-1 w-full flex-grow">
                                 {#each list.pilots || [] as pilot}
-                                    <div class="flex items-center gap-2">
+                                    {@const p = getPilotDisplay(pilot.xws)}
+                                    <div class="flex items-start gap-2">
                                         <i
                                             class="xwing-miniatures-ship {getShipIconClass(
-                                                pilot.ship_icon,
+                                                p.shipXws,
                                             )} text-secondary text-base w-6 text-center"
                                         ></i>
-                                        <span
-                                            class="text-sm text-secondary truncate"
-                                            >{pilot.name}</span
-                                        >
+                                        <div class="min-w-0 flex-1">
+                                            <div class="text-sm text-secondary truncate">
+                                                {p.name}
+                                            </div>
+                                            {#if pilot.upgrades?.length}
+                                                <div class="text-[11px] text-secondary/80 truncate">
+                                                    {pilot.upgrades
+                                                        .slice(0, 3)
+                                                        .map((u: any) => xwingData.getUpgrade(u.xws)?.name || u.xws)
+                                                        .join(", ")}
+                                                </div>
+                                            {/if}
+                                        </div>
                                     </div>
                                 {/each}
                             </div>

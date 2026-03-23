@@ -60,7 +60,7 @@ class DedupService:
             # High Confidence: Lots of player overlap
             if player_score > 0.5: 
                 is_match = True
-                logger.debug(f"Dedup Match (Player Overlap): {target.name} ({target.platform}) == {candidate.name} ({candidate.platform}) | Score: {player_score:.2f}")
+                logger.debug(f"Dedup Match (Player Overlap): {target.name} ({target.source}) == {candidate.name} ({candidate.source}) | Score: {player_score:.2f}")
 
             # Medium Confidence: High Name Match + Date Match (already filtered) + Same Player Count (approx)
             elif name_score > 0.85:
@@ -68,7 +68,7 @@ class DedupService:
                 # Allow 20% variance in player count (drops/no-shows)
                 if abs(target.player_count - candidate.player_count) / max(candidate.player_count, 1) < 0.2:
                     is_match = True
-                    logger.debug(f"Dedup Match (Name+Date): {target.name} ({target.platform}) == {candidate.name} ({candidate.platform}) | Score: {name_score:.2f}")
+                    logger.debug(f"Dedup Match (Name+Date): {target.name} ({target.source}) == {candidate.name} ({candidate.source}) | Score: {name_score:.2f}")
 
             if is_match:
                 return candidate
