@@ -6,11 +6,12 @@ ENV NODE_OPTIONS=--max-old-space-size=2048
 COPY frontend/package*.json ./
 RUN npm install
 COPY frontend .
+COPY external_data /tmp/external_data
 RUN rm -rf static/data-legacy static/data-xwa || true
-COPY external_data/xwing-data2-legacy/data static/data-legacy || true
-COPY external_data/xwing-data2/data static/data-xwa || true
-RUN mkdir -p static/fonts
-COPY external_data/xwing-miniatures-font/dist static/fonts/xwing-miniatures-font || true
+RUN mkdir -p static/data-legacy static/data-xwa static/fonts
+RUN if [ -d /tmp/external_data/xwing-data2-legacy/data ]; then cp -a /tmp/external_data/xwing-data2-legacy/data/. static/data-legacy/; fi
+RUN if [ -d /tmp/external_data/xwing-data2/data ]; then cp -a /tmp/external_data/xwing-data2/data/. static/data-xwa/; fi
+RUN if [ -d /tmp/external_data/xwing-miniatures-font/dist ]; then cp -a /tmp/external_data/xwing-miniatures-font/dist static/fonts/xwing-miniatures-font; fi
 
 # Pass build arguments for SvelteKit environment variables
 ARG VITE_API_BASE
