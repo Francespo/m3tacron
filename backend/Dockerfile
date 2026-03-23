@@ -28,8 +28,10 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers and their system deps (just in case)
-RUN playwright install --with-deps chromium
+# Install Playwright browser binaries only when explicitly requested.
+# This avoids large downloads and memory spikes during deploy builds.
+ARG INSTALL_PLAYWRIGHT_BROWSER=false
+RUN if [ "$INSTALL_PLAYWRIGHT_BROWSER" = "true" ]; then playwright install chromium; fi
 
 # Copy application code
 COPY . .
