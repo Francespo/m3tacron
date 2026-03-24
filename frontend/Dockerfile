@@ -3,10 +3,24 @@ FROM node:20-slim AS builder
 
 WORKDIR /app
 ENV NODE_OPTIONS=--max-old-space-size=768
+
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends git ca-certificates \
+	&& rm -rf /var/lib/apt/lists/*
+
 COPY frontend/package*.json ./
 RUN npm install --no-audit --no-fund
 COPY frontend .
 COPY external_data /tmp/external_data
+
+RUN if [ ! -d /tmp/external_data/xwing-data2/data ] || [ ! -d /tmp/external_data/xwing-data2-legacy/data ]; then \
+	  rm -rf /tmp/external_data; \
+	  git clone --depth 1 --recurse-submodules https://github.com/Francespo/xwing-unified-data.git /tmp/external_data; \
+	fi
+
+RUN mkdir -p /app/external_data \
+	&& cp -a /tmp/external_data/. /app/external_data/
+
 RUN rm -rf static/data-legacy static/data-xwa || true
 RUN rm -rf static/fonts/xwing-miniatures-font || true
 RUN mkdir -p static/data-legacy static/data-xwa static/fonts/xwing-miniatures-font
