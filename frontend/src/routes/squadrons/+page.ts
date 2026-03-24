@@ -4,7 +4,7 @@ import { API_BASE } from '$lib/api';
 export const load: PageLoad = async ({ fetch, url }) => {
     url.search; // Force reactivity when any query param changes
 
-    const apiUrl = new URL(`${API_BASE}/squadrons`);
+    const apiUrl = new URL(`${API_BASE}/squadrons`, url.origin);
     for (const [key, value] of url.searchParams.entries()) {
         apiUrl.searchParams.append(key, value);
     }
