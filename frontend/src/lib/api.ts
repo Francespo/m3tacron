@@ -23,6 +23,34 @@ function normalizeApiBase(rawBase: string): string {
 const envApiBase = import.meta.env.VITE_API_BASE as string | undefined;
 const fallbackBase = '/api';
 
+function isPrivateIp(hostname: string): boolean {
+	return (
+		/^10\./.test(hostname) ||
+		/^127\./.test(hostname) ||
+		/^192\.168\./.test(hostname) ||
+		/^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname)
+	);
+}
+
+function isLikelyInternalHost(hostname: string): boolean {
+	const host = hostname.toLowerCase();
+
+	if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') {
+		return true;
+	}
+
+	if (isPrivateIp(host)) {
+		return true;
+	}
+
+	// Docker/Kubernetes service names are often bare hosts without dots.
+	if (!host.includes('.')) {
+		return true;
+	}
+
+	return false;
+}
+
 function resolveApiBase(): string {
 	if (!envApiBase) {
 		return fallbackBase;
@@ -35,7 +63,8 @@ function resolveApiBase(): string {
 
 	try {
 		const parsed = new URL(envApiBase);
-		const isLocalEnvHost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+		const envHost = parsed.hostname.toLowerCase();
+		const isLocalEnvHost = envHost === 'localhost' || envHost === '127.0.0.1';
 
 		// In deployed environments, localhost targets are almost always invalid.
 		if (isLocalEnvHost) {
@@ -46,6 +75,16 @@ function resolveApiBase(): string {
 			const isBrowserLocalHost =
 				window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 			if (!isBrowserLocalHost) {
+				return fallbackBase;
+			}
+		}
+
+		if (typeof window !== 'undefined') {
+			const browserHost = window.location.hostname.toLowerCase();
+
+			// If env points to an internal-only host that differs from the public browser host,
+			// use same-origin /api so reverse-proxy routing keeps working.
+			if (envHost !== browserHost && isLikelyInternalHost(envHost)) {
 				return fallbackBase;
 			}
 		}
