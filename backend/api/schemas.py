@@ -1,17 +1,22 @@
 from pydantic import BaseModel
 from typing import Any
+from datetime import datetime
+
 from backend.data_structures.factions import Faction
 from backend.data_structures.formats import Format
 from backend.data_structures.source import Source
+
 
 # 1. Composition Data (Structural)
 
 class UpgradeData(BaseModel):
     xws: str
 
+
 class PilotData(BaseModel):
     xws: str
     upgrades: list[UpgradeData] = []
+
 
 class ListData(BaseModel):
     name: str = ""
@@ -23,6 +28,7 @@ class ListData(BaseModel):
     wins: int
     games: int
 
+
 # 2. Analytics Stats (Aggregated)
 
 class FactionStats(BaseModel):
@@ -32,12 +38,14 @@ class FactionStats(BaseModel):
     different_lists_count: int
     wins: int
 
+
 class PilotStats(BaseModel):
     xws: str
     games_count: int
     list_count: int
     different_lists_count: int
     wins: int
+
 
 class UpgradeStats(BaseModel):
     xws: str
@@ -46,6 +54,7 @@ class UpgradeStats(BaseModel):
     different_lists_count: int
     wins: int
 
+
 class ShipStats(BaseModel):
     xws: str
     faction_xws: Faction
@@ -53,6 +62,7 @@ class ShipStats(BaseModel):
     list_count: int
     different_lists_count: int
     wins: int
+
 
 # 3. Event Data (Tournaments and Results)
 
@@ -66,6 +76,7 @@ class TournamentData(BaseModel):
     location: str
     url: str
 
+
 class PlayerResultData(BaseModel):
     id: int
     name: str
@@ -77,6 +88,7 @@ class PlayerResultData(BaseModel):
     list_json: dict[str, Any] | None = None
     faction: Faction
 
+
 class MatchData(BaseModel):
     round: int
     type: str
@@ -86,6 +98,7 @@ class MatchData(BaseModel):
     score2: int
     winner_id: int | None = None
     scenario: str
+
 
 # Response Models
 
@@ -100,11 +113,13 @@ class MetaSnapshotResponse(BaseModel):
     total_tournaments: int
     total_players: int
 
+
 class PaginatedTournamentsResponse(BaseModel):
     items: list[TournamentData]
     total: int
     page: int
     size: int
+
 
 class PaginatedListsResponse(BaseModel):
     items: list[ListData]
@@ -112,11 +127,13 @@ class PaginatedListsResponse(BaseModel):
     page: int
     size: int
 
+
 class PaginatedPilotsResponse(BaseModel):
     items: list[PilotStats]
     total: int
     page: int
     size: int
+
 
 class PaginatedUpgradesResponse(BaseModel):
     items: list[UpgradeStats]
@@ -124,14 +141,35 @@ class PaginatedUpgradesResponse(BaseModel):
     page: int
     size: int
 
+
 class PaginatedShipsResponse(BaseModel):
     items: list[ShipStats]
     total: int
     page: int
     size: int
 
+
 class TournamentDetailResponse(BaseModel):
     tournament: TournamentData
     players_swiss: list[PlayerResultData]
     players_cut: list[PlayerResultData]
     matches: list[MatchData]
+
+
+class FundTier(BaseModel):
+    name: str
+    target: float | None
+    current: float
+    description: str
+
+
+class FundStatusResponse(BaseModel):
+    total_raised: float
+    tiers: list[FundTier]
+
+
+class SupporterResponse(BaseModel):
+    name: str
+    amount: float
+    date: datetime
+    message: str | None = None
