@@ -3,46 +3,57 @@
  * Change the base URL here to affect all API calls.
  */
 function normalizeApiBase(rawBase: string): string {
-	const trimmed = rawBase.replace(/\/+$/, '');
-	return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+	const trimmed = rawBase.trim().replace(/\/+$/, '');
+
+	if (!trimmed || trimmed === '/') {
+		return '/api';
+	}
+
+	if (trimmed === '/api' || trimmed.endsWith('/api')) {
+		return trimmed;
+	}
+
+	if (trimmed.startsWith('/')) {
+		return `${trimmed}/api`;
+	}
+
+	return `${trimmed}/api`;
 }
 
 const envApiBase = import.meta.env.VITE_API_BASE as string | undefined;
+const fallbackBase = '/api';
 
-// Browser requests should target the same host on backend port 8888.
-// Server-side requests (inside Docker) should target the backend service directly.
-const fallbackBase =
-	typeof window !== 'undefined'
-		? `${window.location.protocol}//${window.location.hostname}:8888`
-		: 'http://backend:8888';
+function resolveApiBase(): string {
+	if (!envApiBase) {
+		return fallbackBase;
+	}
 
-let resolvedBase = envApiBase || fallbackBase;
+	// Allow path-style overrides like "/backend".
+	if (envApiBase.startsWith('/')) {
+		return normalizeApiBase(envApiBase);
+	}
 
-if (typeof window === 'undefined' && envApiBase) {
 	try {
 		const parsed = new URL(envApiBase);
 		const isLocalEnvHost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
 
+		// In deployed environments, localhost targets are almost always invalid.
 		if (isLocalEnvHost) {
-			resolvedBase = 'http://backend:8888';
+			if (typeof window === 'undefined') {
+				return fallbackBase;
+			}
+
+			const isBrowserLocalHost =
+				window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+			if (!isBrowserLocalHost) {
+				return fallbackBase;
+			}
 		}
+
+		return normalizeApiBase(envApiBase);
 	} catch {
-		resolvedBase = 'http://backend:8888';
+		return fallbackBase;
 	}
 }
 
-if (typeof window !== 'undefined' && envApiBase) {
-	try {
-		const parsed = new URL(envApiBase);
-		const isLocalEnvHost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
-		const isBrowserLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-
-		if (isLocalEnvHost && !isBrowserLocalHost) {
-			resolvedBase = fallbackBase;
-		}
-	} catch {
-		resolvedBase = fallbackBase;
-	}
-}
-
-export const API_BASE = normalizeApiBase(resolvedBase);
+export const API_BASE = resolveApiBase();
