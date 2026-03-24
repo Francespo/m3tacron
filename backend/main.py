@@ -34,11 +34,13 @@ app.include_router(squadron_detail_router)
 app.include_router(list_detail_router)
 
 # Configure CORS for frontend access
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3333").split(",")
+allowed_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "*").split(",") if o.strip()]
+allow_all_origins = len(allowed_origins) == 1 and allowed_origins[0] == "*"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
+    allow_origins=["*"] if allow_all_origins else allowed_origins,
+    allow_credentials=not allow_all_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
