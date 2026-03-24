@@ -1,11 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Header
+from fastapi import APIRouter, HTTPException, Request
 from sqlmodel import Session, select, func
-from typing import List
 from datetime import datetime
 import os
 import json
 
-from ..database import engine
+from ..database import engine, create_db_and_tables
 from ..models import Supporter, Contribution
 from .schemas import FundStatusResponse, FundTier, SupporterResponse
 
@@ -16,6 +15,8 @@ def get_fund_status():
     """
     Returns the current status of the Project Evolution Fund.
     """
+    create_db_and_tables()
+
     with Session(engine) as session:
         # Sum of all contributions
         total_query = select(func.sum(Contribution.amount))
@@ -46,11 +47,13 @@ def get_fund_status():
 
         return FundStatusResponse(total_raised=total_raised, tiers=tiers)
 
-@router.get("/supporters", response_model=List[SupporterResponse])
+@router.get("/supporters", response_model=list[SupporterResponse])
 def get_supporters():
     """
     Returns the latest public supporters for the Hall of Heroes.
     """
+    create_db_and_tables()
+
     with Session(engine) as session:
         # Get public contributions with supporter names
         query = select(Contribution, Supporter).join(Supporter).where(Supporter.is_anonymous == False).order_by(Contribution.date.desc()).limit(20)
@@ -70,6 +73,8 @@ async def kofi_webhook(request: Request):
     """
     Handles incoming webhooks from Ko-fi to update supporter recognition.
     """
+    create_db_and_tables()
+
     try:
         # Ko-fi usually sends data as a form field 'data' containing JSON
         # We try manual parsing first to avoid python-multipart dependency issues in some environments
