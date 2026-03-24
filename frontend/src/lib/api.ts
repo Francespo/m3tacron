@@ -18,6 +18,19 @@ const fallbackBase =
 
 let resolvedBase = envApiBase || fallbackBase;
 
+if (typeof window === 'undefined' && envApiBase) {
+	try {
+		const parsed = new URL(envApiBase);
+		const isLocalEnvHost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+
+		if (isLocalEnvHost) {
+			resolvedBase = 'http://backend:8888';
+		}
+	} catch {
+		resolvedBase = 'http://backend:8888';
+	}
+}
+
 if (typeof window !== 'undefined' && envApiBase) {
 	try {
 		const parsed = new URL(envApiBase);

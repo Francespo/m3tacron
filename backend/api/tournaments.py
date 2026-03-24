@@ -36,10 +36,14 @@ def get_locations():
     Get all unique available locations structured as Continent -> Country -> list of Cities.
     """
     with Session(engine) as session:
+        continent_col = Tournament.location["continent"].as_string()
+        country_col = Tournament.location["country"].as_string()
+        city_col = Tournament.location["city"].as_string()
+
         stmt = select(
-            func.json_extract(Tournament.location, '$.continent').label('continent'),
-            func.json_extract(Tournament.location, '$.country').label('country'),
-            func.json_extract(Tournament.location, '$.city').label('city')
+            continent_col.label('continent'),
+            country_col.label('country'),
+            city_col.label('city')
         ).distinct()
         
         rows = session.exec(stmt).all()
@@ -96,11 +100,11 @@ def get_tournaments(
         if sources:
             query = query.where(Tournament.source.in_(sources))
         if continent:
-            query = query.where(func.json_extract(Tournament.location, '$.continent').in_(continent))
+            query = query.where(Tournament.location["continent"].as_string().in_(continent))
         if country:
-            query = query.where(func.json_extract(Tournament.location, '$.country').in_(country))
+            query = query.where(Tournament.location["country"].as_string().in_(country))
         if city:
-            query = query.where(func.json_extract(Tournament.location, '$.city').in_(city))
+            query = query.where(Tournament.location["city"].as_string().in_(city))
         if date_start:
             query = query.where(Tournament.date >= date_start)
         if date_end:
