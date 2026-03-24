@@ -7,9 +7,21 @@ function resolveApiProxyTarget() {
 	return raw.replace(/\/api\/?$/, '');
 }
 
+function resolveAllowedHosts() {
+	const raw =
+		process.env.VITE_ALLOWED_HOSTS ||
+		'localhost,127.0.0.1,dev.m3tacron.com,www.dev.m3tacron.com,m3tacron.com,www.m3tacron.com';
+
+	return raw
+		.split(',')
+		.map((host) => host.trim())
+		.filter(Boolean);
+}
+
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
 	server: {
+		allowedHosts: resolveAllowedHosts(),
 		proxy: {
 			'/api': resolveApiProxyTarget()
 		}
