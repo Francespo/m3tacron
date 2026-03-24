@@ -33,6 +33,11 @@
 			href: "/cards",
 			icon: "M19 17V5a2 2 0 0 0-2-2H4M8 21h12a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h2M8 21a2 2 0 0 1-2-2v-3h4v3a2 2 0 0 1-2 2Z",
 		},
+		{
+			text: "SUPPORT & DEVELOPMENT",
+			href: "/support",
+			icon: "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z",
+		},
 	];
 
 	let collapsed = false; // Hardcode for now, can be toggled later
@@ -108,32 +113,24 @@
 			<span class="text-secondary font-sans text-xs font-bold"
 				>M3taCron Analytics</span
 			>
-			<span class="text-secondary font-sans text-xs"
-				>Built by Francespo</span
-			>
-
-			<a
-				href="https://ko-fi.com/francespo"
-				target="_blank"
-				rel="noreferrer"
-				class="mt-2 w-full flex items-center justify-center gap-2 bg-[#ff5e5b15] text-[#ff5e5b] hover:bg-[#ff5e5b25] transition-colors py-1.5 rounded text-xs font-mono border border-[#ff5e5b30]"
-			>
-				<svg
+			<span
+				class="text-secondary font-sans text-xs flex items-center gap-1"
+				>Made with <svg
 					xmlns="http://www.w3.org/2000/svg"
-					width="14"
-					height="14"
+					width="12"
+					height="12"
 					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
+					fill="#b91c1c"
+					stroke="#b91c1c"
 					stroke-width="2"
 					stroke-linecap="round"
 					stroke-linejoin="round"
-					><path d="M17 8h1a4 4 0 1 1 0 8h-1" /><path
-						d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"
+					class="inline-block shrink-0"
+					><path
+						d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"
 					/></svg
-				>
-				Support on Ko-fi
-			</a>
+				> by Francespo</span
+			>
 
 			<div class="w-full h-px bg-white/5 my-2"></div>
 
