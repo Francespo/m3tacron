@@ -23,11 +23,13 @@ services:
       context: .
       dockerfile: frontend/Dockerfile.dev
       args:
-        - VITE_API_BASE=${VITE_API_BASE:-http://localhost:8888}
+        - VITE_API_BASE=${VITE_API_BASE:-http://backend:8888}
     ports:
       - "3333:3333"
     environment:
       - ORIGIN=${ORIGIN:-http://localhost:3333}
+      - VITE_API_BASE=${VITE_API_BASE:-http://backend:8888}
+      - VITE_PROXY_TARGET=${VITE_PROXY_TARGET:-http://backend:8888}
     depends_on:
       - backend
     healthcheck:
