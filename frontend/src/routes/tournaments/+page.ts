@@ -5,7 +5,7 @@ export const load: PageLoad = async ({ fetch, url }) => {
     url.search; // Force reactivity when any query param changes
     const search = url.searchParams.get('search') || '';
 
-    const apiUrl = new URL(`${API_BASE}/tournaments`);
+    const apiUrl = new URL(`${API_BASE}/tournaments`, url.origin);
     for (const [key, value] of url.searchParams.entries()) {
         apiUrl.searchParams.append(key, value);
     }

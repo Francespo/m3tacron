@@ -6,7 +6,7 @@ export const load: PageLoad = async ({ fetch, url }) => {
     const tab = url.searchParams.get('tab') || 'pilots';
 
     const endpoint = tab === 'upgrades' ? 'upgrades' : 'pilots';
-    const apiUrl = new URL(`${API_BASE}/cards/${endpoint}`);
+    const apiUrl = new URL(`${API_BASE}/cards/${endpoint}`, url.origin);
 
     for (const [key, value] of url.searchParams.entries()) {
         if (key !== 'tab') apiUrl.searchParams.append(key, value);
