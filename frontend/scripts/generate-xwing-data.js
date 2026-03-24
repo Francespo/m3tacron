@@ -6,9 +6,37 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PROJECT_ROOT = path.resolve(__dirname, '../../');
-const EXTERNAL_DATA_ROOT = path.join(PROJECT_ROOT, 'external_data');
-const FRONTEND_STATIC_ROOT = path.join(PROJECT_ROOT, 'frontend/static');
+const FRONTEND_ROOT = path.resolve(__dirname, '..');
+
+function isDir(p) {
+    try {
+        return fs.existsSync(p) && fs.statSync(p).isDirectory();
+    } catch {
+        return false;
+    }
+}
+
+function resolveExternalDataRoot() {
+    const candidates = [
+        path.join(FRONTEND_ROOT, 'external_data'),
+        path.join(path.resolve(FRONTEND_ROOT, '..'), 'external_data'),
+        '/external_data',
+    ];
+
+    for (const candidate of candidates) {
+        if (isDir(path.join(candidate, 'xwing-data2')) || isDir(path.join(candidate, 'xwing-data2-legacy'))) {
+            return candidate;
+        }
+    }
+
+    return candidates[0];
+}
+
+const EXTERNAL_DATA_ROOT = resolveExternalDataRoot();
+const FRONTEND_STATIC_ROOT = path.join(FRONTEND_ROOT, 'static');
+
+console.log(`Resolved external data root: ${EXTERNAL_DATA_ROOT}`);
+console.log(`Resolved frontend static root: ${FRONTEND_STATIC_ROOT}`);
 
 const SOURCES = [
     {
