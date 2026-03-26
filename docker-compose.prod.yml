@@ -9,8 +9,6 @@ services:
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
-    depends_on:
-      - postgres-prod
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8888/', timeout=3)"]
       interval: 10s
@@ -38,14 +36,3 @@ services:
       retries: 5
       start_period: 20s
 
-  postgres-prod:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: m3tacron_prod
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    volumes:
-      - pgdata_prod:/var/lib/postgresql/data
-
-volumes:
-  pgdata_prod:
