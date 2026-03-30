@@ -114,11 +114,11 @@
                 <div class="pb-3 space-y-1 max-h-[200px] overflow-y-auto pl-2">
                     {#each ALL_FACTIONS as f}
                         <label
-                            class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
+                            class="flex items-center gap-2 py-1.5 cursor-pointer text-xs text-secondary hover:text-primary"
                         >
                             <input
                                 type="checkbox"
-                                class="rounded border-border-dark bg-black w-3 h-3"
+                                class="rounded border-border-dark bg-black w-4 h-4"
                                 checked={selectedFactions.includes(f)}
                                 onchange={() => toggleFaction(f)}
                             />
@@ -169,7 +169,7 @@
                 class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
             >
                 <button
-                    class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                    class="min-h-11 px-4 py-2 text-sm font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
                     onclick={prevPage}
                     disabled={page <= 1}
                 >
@@ -178,7 +178,7 @@
                 <span class="text-xs font-mono text-secondary">Page {page}</span
                 >
                 <button
-                    class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                    class="min-h-11 px-4 py-2 text-sm font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
                     onclick={nextPage}
                     disabled={page * size >= total}
                 >

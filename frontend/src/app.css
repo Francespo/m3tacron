@@ -50,6 +50,21 @@ body {
     padding: 0;
 }
 
+body.mobile-menu-open,
+body.mobile-filters-open {
+    overflow: hidden;
+}
+
+:where(a, button, input, select, textarea, [role="button"]):focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+button,
+a {
+    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.12);
+}
+
 .font-xwing,
 .font-xwingship {
     font-weight: normal !important;

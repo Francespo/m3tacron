@@ -123,12 +123,12 @@
                 {:else}
                     {#each filteredShips as ship}
                         <label
-                            class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary group"
+                            class="flex items-center gap-2 py-1.5 cursor-pointer text-xs text-secondary hover:text-primary group"
                         >
                             <!-- Toggle checkbox -->
                             <input
                                 type="checkbox"
-                                class="rounded border-border-dark bg-black w-3 h-3 flex-shrink-0"
+                                class="rounded border-border-dark bg-black w-4 h-4 flex-shrink-0"
                                 checked={filters.selectedShips.includes(
                                     ship.xws,
                                 )}

@@ -598,14 +598,14 @@
                     <div class="inline-flex rounded border border-border-dark overflow-hidden">
                         <button
                             type="button"
-                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition-colors {pilotRankingMode === 'popularity' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
+                            class="px-3 py-2 min-h-10 text-[10px] font-mono uppercase tracking-wider transition-colors {pilotRankingMode === 'popularity' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
                             onclick={() => (pilotRankingMode = "popularity")}
                         >
                             Games
                         </button>
                         <button
                             type="button"
-                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider border-l border-border-dark transition-colors {pilotRankingMode === 'winrate' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
+                            class="px-3 py-2 min-h-10 text-[10px] font-mono uppercase tracking-wider border-l border-border-dark transition-colors {pilotRankingMode === 'winrate' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
                             onclick={() => (pilotRankingMode = "winrate")}
                         >
                             WR
@@ -687,14 +687,14 @@
                     <div class="inline-flex rounded border border-border-dark overflow-hidden">
                         <button
                             type="button"
-                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition-colors {upgradeRankingMode === 'popularity' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
+                            class="px-3 py-2 min-h-10 text-[10px] font-mono uppercase tracking-wider transition-colors {upgradeRankingMode === 'popularity' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
                             onclick={() => (upgradeRankingMode = "popularity")}
                         >
                             Games
                         </button>
                         <button
                             type="button"
-                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider border-l border-border-dark transition-colors {upgradeRankingMode === 'winrate' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
+                            class="px-3 py-2 min-h-10 text-[10px] font-mono uppercase tracking-wider border-l border-border-dark transition-colors {upgradeRankingMode === 'winrate' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
                             onclick={() => (upgradeRankingMode = "winrate")}
                         >
                             WR
@@ -770,14 +770,14 @@
                     <div class="inline-flex rounded border border-border-dark overflow-hidden">
                         <button
                             type="button"
-                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition-colors {shipRankingMode === 'popularity' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
+                            class="px-3 py-2 min-h-10 text-[10px] font-mono uppercase tracking-wider transition-colors {shipRankingMode === 'popularity' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
                             onclick={() => (shipRankingMode = "popularity")}
                         >
                             Games
                         </button>
                         <button
                             type="button"
-                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider border-l border-border-dark transition-colors {shipRankingMode === 'winrate' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
+                            class="px-3 py-2 min-h-10 text-[10px] font-mono uppercase tracking-wider border-l border-border-dark transition-colors {shipRankingMode === 'winrate' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
                             onclick={() => (shipRankingMode = "winrate")}
                         >
                             WR
@@ -863,14 +863,14 @@
                     <div class="inline-flex rounded border border-border-dark overflow-hidden">
                         <button
                             type="button"
-                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition-colors {listRankingMode === 'popularity' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
+                            class="px-3 py-2 min-h-10 text-[10px] font-mono uppercase tracking-wider transition-colors {listRankingMode === 'popularity' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
                             onclick={() => (listRankingMode = "popularity")}
                         >
                             Games
                         </button>
                         <button
                             type="button"
-                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider border-l border-border-dark transition-colors {listRankingMode === 'winrate' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
+                            class="px-3 py-2 min-h-10 text-[10px] font-mono uppercase tracking-wider border-l border-border-dark transition-colors {listRankingMode === 'winrate' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
                             onclick={() => (listRankingMode = "winrate")}
                         >
                             WR

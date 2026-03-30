@@ -35,7 +35,7 @@
             {/each}
         </select>
         <button
-            class="w-9 flex items-center justify-center bg-black border border-border-dark rounded hover:bg-[#ffffff08] transition-colors"
+            class="w-11 min-w-11 min-h-11 flex items-center justify-center bg-black border border-border-dark rounded hover:bg-[#ffffff08] transition-colors"
             onclick={toggleDirection}
             title={sortDirection === "desc" ? "Descending" : "Ascending"}
         >

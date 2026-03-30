@@ -33,7 +33,7 @@
 </svelte:head>
 
 <div
-    class="max-w-7xl mx-auto px-6 py-8 lg:py-12 h-screen flex flex-col overflow-hidden gap-8"
+    class="max-w-7xl mx-auto px-6 py-8 lg:py-12 min-h-[100dvh] flex flex-col overflow-hidden gap-8"
 >
     <!-- Header Section -->
     <header class="text-center shrink-0">

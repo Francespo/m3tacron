@@ -77,31 +77,31 @@
         >
         <div class="flex items-center gap-4 flex-wrap">
             <label
-                class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
+                class="flex items-center gap-2 py-1.5 cursor-pointer text-xs text-secondary hover:text-primary"
             >
                 <input
                     type="checkbox"
-                    class="rounded border-border-dark bg-black w-3 h-3"
+                    class="rounded border-border-dark bg-black w-4 h-4"
                     bind:checked={filters.isUnique}
                 />
                 <span class="font-mono">Unique</span>
             </label>
             <label
-                class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
+                class="flex items-center gap-2 py-1.5 cursor-pointer text-xs text-secondary hover:text-primary"
             >
                 <input
                     type="checkbox"
-                    class="rounded border-border-dark bg-black w-3 h-3"
+                    class="rounded border-border-dark bg-black w-4 h-4"
                     bind:checked={filters.isLimited}
                 />
                 <span class="font-mono">Limited</span>
             </label>
             <label
-                class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
+                class="flex items-center gap-2 py-1.5 cursor-pointer text-xs text-secondary hover:text-primary"
             >
                 <input
                     type="checkbox"
-                    class="rounded border-border-dark bg-black w-3 h-3"
+                    class="rounded border-border-dark bg-black w-4 h-4"
                     bind:checked={filters.isGeneric}
                 />
                 <span class="font-mono">Generic</span>
@@ -119,11 +119,11 @@
             <div class="flex items-center gap-4">
                 {#each ["S", "M", "L", "H"] as size}
                     <label
-                        class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
+                        class="flex items-center gap-2 py-1.5 cursor-pointer text-xs text-secondary hover:text-primary"
                     >
                         <input
                             type="checkbox"
-                            class="rounded border-border-dark bg-black w-3 h-3"
+                            class="rounded border-border-dark bg-black w-4 h-4"
                             checked={filters.selectedBaseSizes.includes(size)}
                             onchange={() => toggleBaseSize(size)}
                         />

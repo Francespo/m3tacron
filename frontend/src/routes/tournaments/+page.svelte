@@ -140,7 +140,7 @@
                 class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
             >
                 <button
-                    class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                    class="min-h-11 px-4 py-2 text-sm font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
                     onclick={prevPage}
                     disabled={page <= 1}
                 >
@@ -149,7 +149,7 @@
                 <span class="text-xs font-mono text-secondary">Page {page}</span
                 >
                 <button
-                    class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                    class="min-h-11 px-4 py-2 text-sm font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
                     onclick={nextPage}
                     disabled={page * size >= total}
                 >
