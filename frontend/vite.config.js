@@ -26,7 +26,7 @@ function logEnvSnapshot() {
 }
 
 function resolveApiProxyTarget() {
-	const raw = process.env.VITE_PROXY_TARGET || process.env.VITE_API_BASE || 'http://backend:8888';
+	const raw = process.env.VITE_PROXY_TARGET || process.env.VITE_API_BASE;
 	const resolved = raw ? raw.replace(/\/api\/?$/, '') : undefined;
 	logConfig('VITE_PROXY_TARGET_RAW', raw);
 	logConfig('VITE_PROXY_TARGET_RESOLVED', resolved);
@@ -34,9 +34,12 @@ function resolveApiProxyTarget() {
 }
 
 function resolveAllowedHosts() {
-	const raw =
-		process.env.VITE_ALLOWED_HOSTS ||
-		'localhost,127.0.0.1,.dev.m3tacron.com,dev.m3tacron.com,www.dev.m3tacron.com,.m3tacron.com,m3tacron.com,92.m3tacron.com';
+	const raw = process.env.VITE_ALLOWED_HOSTS;
+	if (!raw) {
+		logConfig('VITE_ALLOWED_HOSTS_RAW', raw);
+		logConfig('VITE_ALLOWED_HOSTS_RESOLVED', undefined);
+		return undefined;
+	}
 
 	const resolved = raw
 		.split(',')
