@@ -1,47 +1,48 @@
 {
-	"name": "m3tacron-dev",
-	"image": "mcr.microsoft.com/devcontainers/python:3-3.13-trixie",
-	"features": {
-		"ghcr.io/devcontainers/features/node:1": {
-			"version": "20"
-		}
-	},
-	"forwardPorts": [8000, 3000, 8100, 5173],
-	"portsAttributes": {
-		"8000": {
-			"label": "FastAPI"
-		},
-		"8100": {
-			"label": "FastAPI (README)"
-		},
-		"3000": {
-			"label": "Svelte"
-		},
-		"5173": {
-			"label": "Vite"
-		}
-	},
-	"postCreateCommand": "pip install -r requirements.txt ; cd frontend ; npm ci ; cd .. ; python -m playwright install --with-deps chromium",
-	"customizations": {
-		"vscode": {
-			"extensions": [
-				"ms-python.python",
-				"ms-python.vscode-pylance",
-				"ms-playwright.playwright",
-				"svelte.svelte-vscode",
-				"esbenp.prettier-vscode",
-				"ms-python.vscode-python-envs",
-				"ms-python.debugpy",
-				"ms-ossdata.vscode-pgsql",
-				"GitHub.vscode-pull-request-github",
-				"bretwardjames.gh-projects",
-				"GitHub.copilot-chat",
-				"github.vscode-github-actions"
-			],
-			"settings": {
-				"python.analysis.typeCheckingMode": "basic",
-				"editor.formatOnSave": true
-			}
-		}
-	}
+  "name": "m3tacron-dev",
+  "image": "mcr.microsoft.com/devcontainers/python:3-3.13-trixie",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "forwardPorts": [8000, 3000, 8100, 5173],
+  "portsAttributes": {
+    "8000": {
+      "label": "FastAPI"
+    },
+    "8100": {
+      "label": "FastAPI (README)"
+    },
+    "3000": {
+      "label": "Svelte"
+    },
+    "5173": {
+      "label": "Vite"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/scripts/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-playwright.playwright",
+        "svelte.svelte-vscode",
+        "esbenp.prettier-vscode",
+        "ms-python.vscode-python-envs",
+        "ms-python.debugpy",
+        "ms-ossdata.vscode-pgsql",
+        "GitHub.vscode-pull-request-github",
+        "bretwardjames.gh-projects",
+        "GitHub.copilot-chat",
+        "github.vscode-github-actions"
+      ],
+      "settings": {
+        "python.analysis.typeCheckingMode": "basic",
+        "editor.formatOnSave": true
+      }
+    }
+  }
 }
