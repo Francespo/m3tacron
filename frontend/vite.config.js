@@ -34,12 +34,9 @@ function resolveApiProxyTarget() {
 }
 
 function resolveAllowedHosts() {
-	const raw = process.env.VITE_ALLOWED_HOSTS;
-	if (!raw) {
-		logConfig('VITE_ALLOWED_HOSTS_RAW', raw);
-		logConfig('VITE_ALLOWED_HOSTS_RESOLVED', undefined);
-		return undefined;
-	}
+	const raw =
+		process.env.VITE_ALLOWED_HOSTS ||
+		'localhost,127.0.0.1,.dev.m3tacron.com,dev.m3tacron.com,www.dev.m3tacron.com,.m3tacron.com,m3tacron.com,www.m3tacron.com';
 
 	const resolved = raw
 		.split(',')
