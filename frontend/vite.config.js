@@ -13,7 +13,7 @@ function logEnvSnapshot() {
 	if (!shouldLogConfig) return;
 
 	const visibleKeys = Object.keys(process.env || {})
-		.filter((key) => /^(VITE_|COOLIFY_|SERVICE_|ORIGIN$|ALLOWED_ORIGINS$|NODE_ENV$)/.test(key))
+		.filter((key) => /^(VITE_|COOLIFY_|SERVICE_|ORIGIN$|ALLOWED_ORIGINS$|NODE_ENV$|ENV_VAR_SOURCE$)/.test(key))
 		.sort();
 
 	const envSummary = {};
@@ -21,22 +21,25 @@ function logEnvSnapshot() {
 		envSummary[key] = process.env[key];
 	}
 
-	logConfig('ENV_KEYS', visibleKeys);
+	logConfig('ENV_VAR_SOURCE', process.env.ENV_VAR_SOURCE);
 	logConfig('ENV_VALUES', envSummary);
 }
 
 function resolveApiProxyTarget() {
-	const raw = process.env.VITE_PROXY_TARGET || process.env.VITE_API_BASE || 'http://backend:8888';
-	const resolved = raw.replace(/\/api\/?$/, '');
+	const raw = process.env.VITE_PROXY_TARGET || process.env.VITE_API_BASE;
+	const resolved = raw ? raw.replace(/\/api\/?$/, '') : undefined;
 	logConfig('VITE_PROXY_TARGET_RAW', raw);
 	logConfig('VITE_PROXY_TARGET_RESOLVED', resolved);
 	return resolved;
 }
 
 function resolveAllowedHosts() {
-	const raw =
-		process.env.VITE_ALLOWED_HOSTS ||
-		'localhost,127.0.0.1,.dev.m3tacron.com,dev.m3tacron.com,www.dev.m3tacron.com,.m3tacron.com,m3tacron.com,www.m3tacron.com';
+	const raw = process.env.VITE_ALLOWED_HOSTS;
+	if (!raw) {
+		logConfig('VITE_ALLOWED_HOSTS_RAW', raw);
+		logConfig('VITE_ALLOWED_HOSTS_RESOLVED', undefined);
+		return undefined;
+	}
 
 	const resolved = raw
 		.split(',')
@@ -50,12 +53,19 @@ function resolveAllowedHosts() {
 
 logEnvSnapshot();
 
+const allowedHosts = resolveAllowedHosts();
+const proxyTarget = resolveApiProxyTarget();
+
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
 	server: {
-		allowedHosts: resolveAllowedHosts(),
-		proxy: {
-			'/api': resolveApiProxyTarget()
-		}
+		...(allowedHosts ? { allowedHosts } : {}),
+		...(proxyTarget
+			? {
+					proxy: {
+						'/api': proxyTarget
+					}
+				}
+			: {})
 	}
 });
