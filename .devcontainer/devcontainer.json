@@ -2,10 +2,9 @@
   "name": "m3tacron-dev",
   "image": "mcr.microsoft.com/devcontainers/python:3-3.13-trixie",
   "features": {
-    "ghcr.io/devcontainers/features/node:1": {
-      "version": "20"
-    },
-    "ghcr.io/devcontainers/features/github-cli:1": {}
+    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/copilot-cli:1": {}
   },
   "forwardPorts": [8000, 3000, 8100, 5173],
   "portsAttributes": {
@@ -22,7 +21,6 @@
       "label": "Vite"
     }
   },
-  "postCreateCommand": "bash .devcontainer/scripts/post-create.sh",
   "customizations": {
     "vscode": {
       "extensions": [
