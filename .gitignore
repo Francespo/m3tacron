@@ -37,3 +37,5 @@ assets/external/
 issues.json
 temp_*.txt
 *-issue-*
+
+.local/
