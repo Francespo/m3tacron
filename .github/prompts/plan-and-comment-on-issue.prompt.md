@@ -25,4 +25,5 @@ For the selected issue(s), create a concise technical implementation plan in pla
 - Keep plan clear and execution-oriented.
 - Align tasks explicitly to issue expected outcomes.
 - If multiple issues are included, separate plan sections per issue.
+- Any technical plan comment posted to GitHub must be written in English.
 - If an approved plan is later revised, update the existing comment rather than creating a new one.
