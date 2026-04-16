@@ -608,7 +608,7 @@
                     </div>
                 </div>
                 <div class="w-full flex flex-col">
-                    {#each sortedPilots.slice(0, 6) as pilot}
+                    {#each sortedPilots.slice(0, 5) as pilot}
                         {@const p = getPilotDisplay(pilot.xws)}
                         {@const wr = getWinRate(pilot.wins || 0, pilot.games_count || 0)}
                         <div
@@ -637,7 +637,7 @@
                                         class="flex items-center gap-1 min-w-0 mt-0.5"
                                     >
                                         <span
-                                            class="font-xwing xwing-icon text-[11px]"
+                                            class="font-xwing xwing-icon text-sm"
                                             style="color: {getFactionColor(p.faction)}"
                                             aria-hidden="true"
                                         >
@@ -779,7 +779,7 @@
                     </div>
                 </div>
                 <div class="w-full flex flex-col">
-                    {#each sortedShips.slice(0, 6) as ship}
+                    {#each sortedShips.slice(0, 5) as ship}
                         {@const shipData = xwingData.getShip(ship.xws)}
                         {@const shipName = shipData?.name || ship.xws}
                         {@const factionXws = ship.faction_xws}
@@ -811,7 +811,7 @@
                                         class="flex items-center gap-1 min-w-0 mt-0.5"
                                     >
                                         <span
-                                            class="font-xwing xwing-icon text-[11px]"
+                                            class="font-xwing xwing-icon text-sm"
                                             style="color: {getFactionColor(factionXws)}"
                                             aria-hidden="true"
                                         >
