@@ -39,47 +39,16 @@ export const FACTION_LABELS: Record<string, string> = {
 
 export const ALL_FACTIONS = Object.keys(FACTION_COLORS).filter(f => f !== 'unknown');
 
-const FACTION_ALIASES: Record<string, string> = {
-    rebel: 'rebelalliance',
-    empire: 'galacticempire',
-    scum: 'scumandvillainy',
-    resistance: 'resistance',
-    firstorder: 'firstorder',
-    republic: 'galacticrepublic',
-    separatist: 'separatistalliance'
-};
-
-function coerceFactionValue(value: unknown): string {
-    return String(value ?? '').trim();
+export function getFactionColor(factionXws: string): string {
+    return FACTION_COLORS[factionXws] ?? FACTION_COLORS.unknown;
 }
 
-export function normalizeFactionKey(value: unknown): string {
-    const normalized = coerceFactionValue(value).toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (!normalized) return 'unknown';
-    if (normalized in FACTION_COLORS) return normalized;
-
-    for (const [alias, faction] of Object.entries(FACTION_ALIASES)) {
-        if (normalized === alias || normalized.includes(alias)) {
-            return faction;
-        }
-    }
-
-    return 'unknown';
+export function getFactionChar(factionXws: string): string {
+    return FACTION_CHARS[factionXws] ?? FACTION_CHARS.unknown;
 }
 
-export function getFactionColor(factionXws: unknown): string {
-    const key = normalizeFactionKey(factionXws);
-    return FACTION_COLORS[key] ?? FACTION_COLORS.unknown;
-}
-
-export function getFactionChar(factionXws: unknown): string {
-    const key = normalizeFactionKey(factionXws);
-    return FACTION_CHARS[key] ?? FACTION_CHARS.unknown;
-}
-
-export function getFactionLabel(factionXws: unknown): string {
-    const key = normalizeFactionKey(factionXws);
-    return FACTION_LABELS[key] ?? (coerceFactionValue(factionXws) || FACTION_LABELS.unknown);
+export function getFactionLabel(factionXws: string): string {
+    return FACTION_LABELS[factionXws] ?? factionXws;
 }
 
 /**
