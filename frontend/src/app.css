@@ -44,25 +44,46 @@
 
 body {
     background-color: var(--color-terminal-bg);
-    color: var(--color-primary);
-    font-family: var(--font-sans);
-    margin: 0;
-    padding: 0;
-}
+    body.mobile-menu-open,
+    body.mobile-filters-open {
+        overflow: hidden;
+    }
 
-body.mobile-menu-open,
-body.mobile-filters-open {
-    overflow: hidden;
-}
+    :where(a, button, input, select, textarea, [role="button"]):focus-visible {
+        outline: 2px solid var(--color-primary);
+        outline-offset: 2px;
+    }
 
-:where(a, button, input, select, textarea, [role="button"]):focus-visible {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 2px;
-}
+    button,
+    a {
+        -webkit-tap-highlight-color: rgba(255, 255, 255, 0.12);
+    }
 
-button,
-a {
-    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.12);
+    .custom-scrollbar {
+        scrollbar-color: #333333 transparent;
+        scrollbar-width: thin;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 4px;
+        height: 4px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #333333;
+        border-radius: 9999px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #555555;
+    }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #555555;
+>>>>>>> b3a5aac (Remove unwanted scrollbar on support page (#98))
 }
 
 .font-xwing,
