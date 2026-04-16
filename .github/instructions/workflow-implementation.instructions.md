@@ -12,4 +12,5 @@ description: "Use when implementing selected issue(s): proceed directly with cod
 - If no matching issue is found, ask explicit confirmation before planning without an issue and state clearly that no issue is linked.
 - Use an approved plan from the current chat if provided; do not require fetching it from GitHub.
 - Post or update the plan comment on GitHub automatically after explicit user approval of the plan text.
+- Technical plan comments posted to GitHub must always be written in English.
 - If the plan changes later, update the existing plan comment rather than adding a new one.
