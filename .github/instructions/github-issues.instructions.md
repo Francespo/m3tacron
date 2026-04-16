@@ -111,6 +111,7 @@ gh issue create --title "..." --body-file /tmp/issue-body.md
 - Keep issue text objective, professional, and developer-to-developer.
 - Keep issue text concise and human-written; avoid generic AI-style phrasing.
 - Issue title and issue body must always be written in English.
+- Technical plan comments posted on GitHub must always be written in English.
 - After creating issues, do not automatically transition to technical planning unless the user explicitly asks to start planning/implementation.
 - Before coding begins for an issue, prepare a technical plan but post it as a comment only after explicit user approval.
 - If the approved plan changes later, update the existing plan comment instead of adding a new one.
