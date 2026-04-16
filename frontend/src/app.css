@@ -50,6 +50,29 @@ body {
     padding: 0;
 }
 
+.custom-scrollbar {
+    scrollbar-color: #333333 transparent;
+    scrollbar-width: thin;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #333333;
+    border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #555555;
+}
+
 .font-xwing,
 .font-xwingship {
     font-weight: normal !important;
