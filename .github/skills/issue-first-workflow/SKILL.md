@@ -1,7 +1,7 @@
 ---
 name: issue-first-workflow
-description: "Run a phase-based issue-first workflow across separate chats: discovery, grouped issue creation, and explicit-start planning with approval-gated GitHub plan sync."
-argument-hint: "Choose phase entry: discovery, group-and-create issues, or plan drafting"
+description: "Run a phase-based issue-first workflow across separate chats: discovery, grouped issue creation, clean planning, and separate implementation execution."
+argument-hint: "Choose phase entry: discovery, group-and-create issues, planning, or implementation"
 user-invocable: true
 ---
 
@@ -14,7 +14,8 @@ Use this skill as a phase entrypoint. You can run any phase independently, inclu
 - You are exploring potential improvements.
 - You have multiple bugs or enhancement ideas to triage.
 - You want grouped issue creation in one pass.
-- You are drafting an implementation plan in plan mode.
+- You are drafting/refining an implementation plan in plan mode.
+- You are ready to execute implementation from approved scope.
 
 ## Phase Entry Options
 
@@ -33,8 +34,17 @@ Use this skill as a phase entrypoint. You can run any phase independently, inclu
 
 3. Plan drafting (plan mode)
    - Use [Plan Issue Implementation](../../prompts/plan-and-comment-on-issue.prompt.md).
-   - Draft technical implementation plan per selected issue.
-   - Wait for explicit user approval, then sync to GitHub comment automatically when an issue is linked.
+   - Draft/refine technical implementation plan per selected issue.
+   - Keep this phase planning-only: no coding and no implementation actions.
+   - Wait for explicit user approval, then post/update the approved plan comment on linked issue(s) following GitHub issue rules.
+   - Keep final planning output ready for handoff to implementation phase.
+
+4. Implementation phase
+   - Use [Execute Implementation](../../prompts/implementation-phase.prompt.md).
+   - Follow [workflow-implementation instructions](../../instructions/workflow-implementation.instructions.md).
+   - Execute code changes from approved scope.
+   - Use plan source priority: current chat/context first, then linked issue comments.
+   - Handle no-issue edge cases as defined in implementation instructions.
 
 ## Notes
 
@@ -51,5 +61,6 @@ Use this skill as a phase entrypoint. You can run any phase independently, inclu
 ## Deliverables
 
 - Created issue set with cohesive scope and expected outcomes.
+- Planning output ready for implementation handoff.
 - Approved plan comments posted or updated without duplication when issue-linked and approved.
 - Clear handoff target for local, CLI, or cloud agents across branches/worktrees.
