@@ -15,6 +15,7 @@
     let search = $state("");
     let ships = $state<ShipChassis[]>([]);
     let isLoading = $state(false);
+    let hasLoaded = $state(false);
 
     // Filter by search text AND by active factions
     let filteredShips = $derived.by(() => {
@@ -36,11 +37,25 @@
         return result;
     });
 
-    // Initial load
-    onMount(async () => {
+    async function loadShips(force = false) {
+        if (hasLoaded && !force) {
+            return;
+        }
+
         isLoading = true;
-        ships = await fetchAllShips(filters.dataSource);
-        isLoading = false;
+        try {
+            ships = await fetchAllShips(filters.dataSource);
+            hasLoaded = true;
+        } finally {
+            isLoading = false;
+        }
+    }
+
+    // Initial load only when already needed (selected chips from URL/history)
+    onMount(() => {
+        if (filters.selectedShips.length > 0) {
+            void loadShips();
+        }
     });
 
     // Re-fetch when data source changes
@@ -48,7 +63,18 @@
     $effect(() => {
         if (currentDataSource !== filters.dataSource) {
             currentDataSource = filters.dataSource;
-            fetchAllShips(filters.dataSource).then((data) => (ships = data));
+            hasLoaded = false;
+            ships = [];
+            if (isOpen || filters.selectedShips.length > 0) {
+                void loadShips(true);
+            }
+        }
+    });
+
+    // Defer ship chassis fetch until the panel is actually opened.
+    $effect(() => {
+        if (isOpen && !hasLoaded && !isLoading) {
+            void loadShips();
         }
     });
 

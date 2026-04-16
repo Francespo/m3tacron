@@ -14,15 +14,18 @@
     } from "$lib/data/factions";
     import { filters } from "$lib/stores/filters.svelte";
     import { goto } from "$app/navigation";
+    import { page as currentPage } from "$app/stores";
+    import { onDestroy } from "svelte";
     import { xwingData } from "$lib/stores/xwingData.svelte";
+    import { createQuerySync } from "$lib/querySync";
 
     let { data } = $props();
 
-    let page = $state(1);
-    let sortBy = $state("Popularity");
-    let sortDirection = $state("desc");
-    let textSearch = $state("");
-    let selectedFactions = $state<string[]>([]);
+    let page = $state((data.page ?? 0) + 1);
+    let sortBy = $state(data.sort_metric ?? "Popularity");
+    let sortDirection = $state(data.sort_direction ?? "desc");
+    let textSearch = $state(data.search_text ?? "");
+    let selectedFactions = $state<string[]>([...(data.selectedFactions ?? [])]);
     let factionOpen = $state(false);
     const size = 20;
 
@@ -31,6 +34,11 @@
     let isXwa = $derived(filters.dataSource === "xwa");
 
     let isAdvanced = $state(false);
+    const querySync = createQuerySync(
+        () => $currentPage.url.searchParams.toString(),
+        250,
+    );
+    onDestroy(() => querySync.clear());
 
     // Let URL load logic handle the tab, we will drive updates
     $effect(() => {
@@ -44,7 +52,7 @@
         params.set("data_source", filters.dataSource);
         params.set("sort_metric", sortBy);
         params.set("sort_direction", sortDirection);
-        if (textSearch) params.set("search", textSearch);
+        if (textSearch) params.set("search_text", textSearch);
         for (const format of filters.selectedFormats)
             params.append("formats", format);
         for (const f of selectedFactions) params.append("factions", f);
@@ -87,10 +95,8 @@
             if (filters.attackMin) params.set("attack_min", filters.attackMin);
             if (filters.attackMax) params.set("attack_max", filters.attackMax);
         }
-        goto(`?${params.toString()}`, {
-            keepFocus: true,
-            noScroll: true,
-            replaceState: true,
+        querySync.schedule(params, {
+            delayMs: textSearch ? 350 : 200,
         });
     });
 

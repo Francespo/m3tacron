@@ -19,6 +19,7 @@ def get_squadron_stats(
     Get aggregated statistics for a specific squadron signature.
     """
     filters = {"allowed_formats": allowed_formats}
+    allowed_fmt = get_active_formats(allowed_formats)
     
     with Session(engine) as session:
         query = select(PlayerResult, Tournament).where(
@@ -37,7 +38,6 @@ def get_squadron_stats(
             t_fmt_raw = tournament.format
             t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
             
-            allowed_fmt = get_active_formats(filters.get("allowed_formats", None))
             if allowed_fmt and t_fmt not in allowed_fmt:
                 continue
 
@@ -95,6 +95,7 @@ def get_squadron_pilots(
     Get pilot breakdown for a specific squadron signature.
     """
     filters = {"allowed_formats": allowed_formats}
+    allowed_fmt = get_active_formats(allowed_formats)
     
     pilot_stats = {}
     total_games = 0
@@ -110,7 +111,6 @@ def get_squadron_pilots(
             t_fmt_raw = tournament.format
             t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
             
-            allowed_fmt = get_active_formats(filters.get("allowed_formats", None))
             if allowed_fmt and t_fmt not in allowed_fmt:
                 continue
 
@@ -183,7 +183,7 @@ def get_squadron_lists(
     except: ds_enum = DataSource.XWA
     
     filters = {"allowed_formats": allowed_formats}
-    all_lists = aggregate_list_stats(filters=filters, limit=1000)
+    all_lists = aggregate_list_stats(filters=filters, limit=1000, data_source=ds_enum)
     
     squadron_lists = []
     for l in all_lists:

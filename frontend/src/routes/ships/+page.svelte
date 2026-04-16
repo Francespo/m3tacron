@@ -9,20 +9,27 @@
         getWinRateColor,
         ALL_FACTIONS,
     } from "$lib/data/factions";
-    import { goto } from "$app/navigation";
+    import { page as currentPage } from "$app/stores";
+    import { onDestroy } from "svelte";
     import { filters } from "$lib/stores/filters.svelte";
     import { xwingData } from "$lib/stores/xwingData.svelte";
+    import { createQuerySync } from "$lib/querySync";
 
     let { data } = $props();
 
     let items = $derived(data.items ?? []);
     let total = $derived(data.total ?? 0);
-    let page = $state(1);
-    let sortBy = $state("Popularity");
-    let sortDirection = $state("desc");
-    let selectedFactions = $state<string[]>([]);
+    let page = $state((data.page ?? 0) + 1);
+    let sortBy = $state(data.sort_metric ?? "Popularity");
+    let sortDirection = $state(data.sort_direction ?? "desc");
+    let selectedFactions = $state<string[]>([...(data.selectedFactions ?? [])]);
     let factionOpen = $state(false);
     const size = 50;
+    const querySync = createQuerySync(
+        () => $currentPage.url.searchParams.toString(),
+        250,
+    );
+    onDestroy(() => querySync.clear());
 
     // Trigger URL updates on filter changes
     $effect(() => {
@@ -48,11 +55,7 @@
         if (filters.dateStart) params.set("date_start", filters.dateStart);
         if (filters.dateEnd) params.set("date_end", filters.dateEnd);
 
-        goto(`?${params.toString()}`, {
-            keepFocus: true,
-            noScroll: true,
-            replaceState: true,
-        });
+        querySync.schedule(params);
     });
 
     function prevPage() {

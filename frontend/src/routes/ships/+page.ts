@@ -4,20 +4,42 @@ import { API_BASE } from '$lib/api';
 export const load: PageLoad = async ({ fetch, url }) => {
     url.search; // Force reactivity when any query param changes
 
+    const page = Number(url.searchParams.get('page') ?? '0');
+    const size = Number(url.searchParams.get('size') ?? '50');
+    const sort_metric = url.searchParams.get('sort_metric') || 'Popularity';
+    const sort_direction = url.searchParams.get('sort_direction') || 'desc';
+    const selectedFactions = url.searchParams.getAll('factions');
+
     const apiUrl = new URL(`${API_BASE}/ships`, url.origin);
     for (const [key, value] of url.searchParams.entries()) {
         apiUrl.searchParams.append(key, value);
     }
-    if (!apiUrl.searchParams.has('page')) apiUrl.searchParams.set('page', '0');
-    if (!apiUrl.searchParams.has('size')) apiUrl.searchParams.set('size', '50');
+    if (!apiUrl.searchParams.has('page')) apiUrl.searchParams.set('page', String(page));
+    if (!apiUrl.searchParams.has('size')) apiUrl.searchParams.set('size', String(size));
 
     try {
         const response = await fetch(apiUrl.toString());
         if (!response.ok) throw new Error('Failed to fetch ships');
         const data = await response.json();
-        return { items: data.items, total: data.total, page: parseInt(data.page), size: parseInt(data.size) };
+        return {
+            items: data.items,
+            total: data.total,
+            page: Number(data.page ?? page),
+            size: Number(data.size ?? size),
+            sort_metric,
+            sort_direction,
+            selectedFactions,
+        };
     } catch (e) {
         console.error(e);
-        return { items: [], total: 0, page: 0, size: 50 };
+        return {
+            items: [],
+            total: 0,
+            page,
+            size,
+            sort_metric,
+            sort_direction,
+            selectedFactions,
+        };
     }
 };

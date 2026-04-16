@@ -72,7 +72,7 @@ def get_ship_lists(
 ):
     """Return top performing lists containing this ship."""
     ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
-    filters = {"ship": [ship_xws]}
+    filters = {"ships": [ship_xws]}
     data = aggregate_list_stats(filters, limit=50, data_source=ds)
     
     # Take top N that have a minimum number of games to avoid 100% WR outliers
@@ -92,7 +92,7 @@ def get_ship_squadrons(
 ):
     """Return top performing squadrons containing this ship."""
     ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
-    filters = {"ship": [ship_xws]}
+    filters = {"ships": [ship_xws]}
     data = aggregate_squadron_stats(filters, SortingCriteria.WINRATE, SortDirection.DESCENDING, ds)
     
     filtered_data = [d for d in data if d.get("games", 0) >= 5]

@@ -28,8 +28,6 @@ def filter_query(query, filters: dict):
     # Source Filter
     if filters.get("sources"):
         query = query.where(Tournament.source.in_(filters["sources"]))
-    elif filters.get("platforms"): # Compatibility
-        query = query.where(Tournament.source.in_(filters["platforms"]))
 
     # Player Count Range Filters
     if filters.get("player_count_min") is not None:

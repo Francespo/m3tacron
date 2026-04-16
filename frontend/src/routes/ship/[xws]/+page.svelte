@@ -1,10 +1,13 @@
 <script lang="ts">
+    import { browser } from "$app/environment";
+
     let { data } = $props();
     let info = $derived(data.info);
     let stats = $derived(data.stats || {});
     let pilots = $derived(data.pilots || []);
-    let lists = $derived(data.lists || []);
-    let squadrons = $derived(data.squadrons || []);
+    let lists = $state<any[]>(data.lists || []);
+    let squadrons = $state<any[]>(data.squadrons || []);
+    let secondaryLoading = $state(false);
 
     function getFactionColor(factions: string[]): string {
         if (!factions || factions.length === 0) return "#666666";
@@ -31,6 +34,41 @@
     // Derived stats
     let totalGames = $derived(stats.games_count || 0);
     let winRate = $derived(totalGames > 0 ? (stats.wins / totalGames * 100).toFixed(1) : "NA");
+
+    async function loadSecondarySections() {
+        if (!browser || !data.listsUrl || !data.squadronsUrl) {
+            return;
+        }
+
+        secondaryLoading = true;
+        const [listsRes, squadronsRes] = await Promise.allSettled([
+            fetch(data.listsUrl),
+            fetch(data.squadronsUrl),
+        ]);
+
+        if (listsRes.status === "fulfilled" && listsRes.value.ok) {
+            const payload = await listsRes.value.json();
+            lists = payload?.lists || [];
+        } else {
+            lists = [];
+        }
+
+        if (squadronsRes.status === "fulfilled" && squadronsRes.value.ok) {
+            const payload = await squadronsRes.value.json();
+            squadrons = payload?.squadrons || [];
+        } else {
+            squadrons = [];
+        }
+
+        secondaryLoading = false;
+    }
+
+    $effect(() => {
+        `${data.shipXws}:${data.listsUrl}:${data.squadronsUrl}`;
+        lists = data.lists || [];
+        squadrons = data.squadrons || [];
+        void loadSecondarySections();
+    });
 </script>
 
 <svelte:head>
@@ -284,55 +322,61 @@
             <span class="absolute -bottom-1 left-0 w-1/2 h-0.5 bg-primary/30"
             ></span>
         </h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {#each lists as list}
-                {@const lGames = list.games || 0}
-                {@const lWinRate = lGames > 0 ? ((list.wins / lGames) * 100).toFixed(1) : "NA"}
-                <a href="/list/{list.signature}" class="block group h-full">
-                    <div
-                        class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-sm hover:border-primary/30 hover:scale-[1.01] transition-all h-full flex flex-col justify-between"
-                    >
+        {#if secondaryLoading}
+            <div class="bg-terminal-panel border border-border-dark rounded-lg p-8 text-center">
+                <p class="text-secondary font-mono text-sm">Loading list data...</p>
+            </div>
+        {:else}
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {#each lists as list}
+                    {@const lGames = list.games || 0}
+                    {@const lWinRate = lGames > 0 ? ((list.wins / lGames) * 100).toFixed(1) : "NA"}
+                    <a href="/list/{list.signature}" class="block group h-full">
                         <div
-                            class="mb-3 flex items-start gap-2 flex-wrap text-sm font-sans font-bold text-primary"
+                            class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-sm hover:border-primary/30 hover:scale-[1.01] transition-all h-full flex flex-col justify-between"
                         >
-                            {#each list.ship_array || [] as sip}
-                                <span>{sip}</span>
-                            {/each}
-                        </div>
-                        <div
-                            class="flex flex-wrap items-center gap-2 border-t border-border-dark pt-3"
-                        >
-                            <span
-                                class="px-2 py-0.5 text-xs font-mono rounded bg-white/5 text-secondary"
-                                >{list.games || 0} GAMES</span
+                            <div
+                                class="mb-3 flex items-start gap-2 flex-wrap text-sm font-sans font-bold text-primary"
                             >
-                            {#if lWinRate !== "NA"}
+                                {#each list.ship_array || [] as sip}
+                                    <span>{sip}</span>
+                                {/each}
+                            </div>
+                            <div
+                                class="flex flex-wrap items-center gap-2 border-t border-border-dark pt-3"
+                            >
                                 <span
-                                    class="px-2 py-0.5 text-xs font-mono rounded font-bold"
-                                    style="color: {wrColor(
-                                        parseFloat(lWinRate),
-                                    )}; background: {wrColor(
-                                        parseFloat(lWinRate),
-                                    )}15"
+                                    class="px-2 py-0.5 text-xs font-mono rounded bg-white/5 text-secondary"
+                                    >{list.games || 0} GAMES</span
                                 >
-                                    {lWinRate}% WR
-                                </span>
-                            {/if}
-                            <span
-                                class="ml-auto text-xs font-mono text-secondary opacity-60 group-hover:opacity-100 group-hover:text-primary transition-opacity"
-                                >View List &rarr;</span
-                            >
+                                {#if lWinRate !== "NA"}
+                                    <span
+                                        class="px-2 py-0.5 text-xs font-mono rounded font-bold"
+                                        style="color: {wrColor(
+                                            parseFloat(lWinRate),
+                                        )}; background: {wrColor(
+                                            parseFloat(lWinRate),
+                                        )}15"
+                                    >
+                                        {lWinRate}% WR
+                                    </span>
+                                {/if}
+                                <span
+                                    class="ml-auto text-xs font-mono text-secondary opacity-60 group-hover:opacity-100 group-hover:text-primary transition-opacity"
+                                    >View List &rarr;</span
+                                >
+                            </div>
                         </div>
+                    </a>
+                {:else}
+                    <div
+                        class="col-span-full py-8 text-center text-sm font-mono text-secondary bg-terminal-panel border border-border-dark rounded-lg"
+                    >
+                        No list data available for this ship.
                     </div>
-                </a>
-            {:else}
-                <div
-                    class="col-span-full py-8 text-center text-sm font-mono text-secondary bg-terminal-panel border border-border-dark rounded-lg"
-                >
-                    No list data available for this ship.
-                </div>
-            {/each}
-        </div>
+                {/each}
+            </div>
+        {/if}
     </section>
 
     <!-- Top Squadrons -->
@@ -344,55 +388,61 @@
             <span class="absolute -bottom-1 left-0 w-1/2 h-0.5 bg-primary/30"
             ></span>
         </h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {#each squadrons as squad}
-                {@const sGames = squad.games_count || squad.games || 0}
-                {@const sWinRate = sGames > 0 ? ((squad.wins / sGames) * 100).toFixed(1) : "NA"}
-                <a
-                    href="/squadron/{squad.signature}"
-                    class="block group h-full"
-                >
-                    <div
-                        class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-sm hover:border-primary/30 hover:scale-[1.01] transition-all h-full flex flex-col justify-between"
+        {#if secondaryLoading}
+            <div class="bg-terminal-panel border border-border-dark rounded-lg p-8 text-center">
+                <p class="text-secondary font-mono text-sm">Loading squadron data...</p>
+            </div>
+        {:else}
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {#each squadrons as squad}
+                    {@const sGames = squad.games_count || squad.games || 0}
+                    {@const sWinRate = sGames > 0 ? ((squad.wins / sGames) * 100).toFixed(1) : "NA"}
+                    <a
+                        href="/squadron/{squad.signature}"
+                        class="block group h-full"
                     >
                         <div
-                            class="mb-3 text-sm font-sans font-bold text-primary break-all"
+                            class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-sm hover:border-primary/30 hover:scale-[1.01] transition-all h-full flex flex-col justify-between"
                         >
-                            {squad.signature}
-                        </div>
-                        <div
-                            class="flex flex-wrap items-center gap-2 border-t border-border-dark pt-3"
-                        >
-                            <span
-                                class="px-2 py-0.5 text-xs font-mono rounded bg-white/5 text-secondary"
-                                >{sGames} GAMES</span
+                            <div
+                                class="mb-3 text-sm font-sans font-bold text-primary break-all"
                             >
-                            {#if sWinRate !== "NA"}
+                                {squad.signature}
+                            </div>
+                            <div
+                                class="flex flex-wrap items-center gap-2 border-t border-border-dark pt-3"
+                            >
                                 <span
-                                    class="px-2 py-0.5 text-xs font-mono rounded font-bold"
-                                    style="color: {wrColor(
-                                        parseFloat(sWinRate),
-                                    )}; background: {wrColor(
-                                        parseFloat(sWinRate),
-                                    )}15"
+                                    class="px-2 py-0.5 text-xs font-mono rounded bg-white/5 text-secondary"
+                                    >{sGames} GAMES</span
                                 >
-                                    {sWinRate}% WR
-                                </span>
-                            {/if}
-                            <span
-                                class="ml-auto text-xs font-mono text-secondary opacity-60 group-hover:opacity-100 group-hover:text-primary transition-opacity"
-                                >View Squad &rarr;</span
-                            >
+                                {#if sWinRate !== "NA"}
+                                    <span
+                                        class="px-2 py-0.5 text-xs font-mono rounded font-bold"
+                                        style="color: {wrColor(
+                                            parseFloat(sWinRate),
+                                        )}; background: {wrColor(
+                                            parseFloat(sWinRate),
+                                        )}15"
+                                    >
+                                        {sWinRate}% WR
+                                    </span>
+                                {/if}
+                                <span
+                                    class="ml-auto text-xs font-mono text-secondary opacity-60 group-hover:opacity-100 group-hover:text-primary transition-opacity"
+                                    >View Squad &rarr;</span
+                                >
+                            </div>
                         </div>
+                    </a>
+                {:else}
+                    <div
+                        class="col-span-full py-8 text-center text-sm font-mono text-secondary bg-terminal-panel border border-border-dark rounded-lg"
+                    >
+                        No squadron data available for this ship.
                     </div>
-                </a>
-            {:else}
-                <div
-                    class="col-span-full py-8 text-center text-sm font-mono text-secondary bg-terminal-panel border border-border-dark rounded-lg"
-                >
-                    No squadron data available for this ship.
-                </div>
-            {/each}
-        </div>
+                {/each}
+            </div>
+        {/if}
     </section>
 </div>

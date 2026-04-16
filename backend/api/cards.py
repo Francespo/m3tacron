@@ -31,7 +31,7 @@ def _build_filters(
     is_limited: bool = False,
     is_not_limited: bool = False,
     base_sizes: list[str] | None = None,
-    platforms: list[str] | None = None,
+    sources: list[str] | None = None,
     continent: list[str] | None = None,
     country: list[str] | None = None,
     city: list[str] | None = None,
@@ -72,7 +72,7 @@ def _build_filters(
         "is_limited": is_limited,
         "is_not_limited": is_not_limited,
         "base_sizes": sizes_dict,
-        "platforms": platforms,
+        "sources": sources,
         "continent": continent,
         "country": country,
         "city": city,
@@ -115,7 +115,7 @@ def get_pilots(
     is_limited: bool = Query(False),
     is_not_limited: bool = Query(False),
     base_sizes: list[str] | None = Query(None),
-    platforms: list[str] | None = Query(None),
+    sources: list[str] | None = Query(None),
     continent: list[str] | None = Query(None),
     country: list[str] | None = Query(None),
     city: list[str] | None = Query(None),
@@ -148,7 +148,7 @@ def get_pilots(
         agility_min=agility_min, agility_max=agility_max, attack_min=attack_min,
         attack_max=attack_max, init_min=init_min, init_max=init_max,
         is_unique=is_unique, is_limited=is_limited, is_not_limited=is_not_limited,
-        base_sizes=base_sizes, platforms=platforms, continent=continent, country=country, city=city,
+        base_sizes=base_sizes, sources=sources, continent=continent, country=country, city=city,
         date_start=date_start, date_end=date_end,
         player_count_min=player_count_min, player_count_max=player_count_max
     )
@@ -174,7 +174,7 @@ def get_upgrades(
     search_text: str = Query(""),
     points_min: int | None = Query(None),
     points_max: int | None = Query(None),
-    platforms: list[str] | None = Query(None),
+    sources: list[str] | None = Query(None),
     continent: list[str] | None = Query(None),
     country: list[str] | None = Query(None),
     city: list[str] | None = Query(None),
@@ -201,7 +201,7 @@ def get_upgrades(
     filters = _build_filters(
         formats=formats, factions=factions, upgrade_types=upgrade_types,
         search_text=search_text, points_min=points_min, points_max=points_max,
-        platforms=platforms, continent=continent, country=country, city=city,
+        sources=sources, continent=continent, country=country, city=city,
         date_start=date_start, date_end=date_end,
         player_count_min=player_count_min, player_count_max=player_count_max
     )

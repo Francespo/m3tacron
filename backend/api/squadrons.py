@@ -2,8 +2,7 @@ from fastapi import APIRouter, Query
 from ..analytics.squadrons import aggregate_squadron_stats
 from ..data_structures.data_source import DataSource
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
-from .schemas import PaginatedListsResponse, ListData, PilotData
-from ..utils.xwing_data.ships import get_ship_icon_name
+from ..utils.xwing_data.ships import load_all_ships
 
 router = APIRouter(prefix="/api/squadrons", tags=["Squadrons"])
 
@@ -50,12 +49,10 @@ def get_squadrons(
     total = len(filtered_data)
     items_raw = filtered_data[page * size : (page + 1) * size]
     
+    all_ships = load_all_ships(ds_enum)
     items = []
     for s in items_raw:
         # Create minimal pilots representation just for showing ships properly in UI
-        from ..utils.xwing_data.ships import load_all_ships
-        all_ships = load_all_ships(ds_enum)
-        
         pilots = []
         for ship_xws in s['ships']:
             s_info = all_ships.get(ship_xws, {})

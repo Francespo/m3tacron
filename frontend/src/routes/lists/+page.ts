@@ -4,21 +4,27 @@ import { API_BASE } from '$lib/api';
 export const load: PageLoad = async ({ fetch, url }) => {
     url.search; // Force reactivity when any query param changes
 
+    const page = Number(url.searchParams.get('page') ?? '0');
+    const size = Number(url.searchParams.get('size') ?? '20');
+    const min_games = Number(url.searchParams.get('min_games') ?? '3');
+    const selectedFactions = url.searchParams.getAll('factions');
+    const sort_metric = url.searchParams.get('sort_metric') || 'Games';
+    const sort_direction = url.searchParams.get('sort_direction') || 'desc';
+
     const apiUrl = new URL(`${API_BASE}/lists`, url.origin);
     for (const [key, value] of url.searchParams.entries()) {
         apiUrl.searchParams.append(key, value);
     }
-    if (!apiUrl.searchParams.has('page')) apiUrl.searchParams.set('page', '0');
-    if (!apiUrl.searchParams.has('size')) apiUrl.searchParams.set('size', '20');
-
-    const sort_metric = url.searchParams.get('sort_metric') || 'Games';
-    const sort_direction = url.searchParams.get('sort_direction') || 'desc';
+    if (!apiUrl.searchParams.has('page')) apiUrl.searchParams.set('page', String(page));
+    if (!apiUrl.searchParams.has('size')) apiUrl.searchParams.set('size', String(size));
 
     const parsePayload = (data: any) => ({
         items: data?.items ?? [],
         total: Number(data?.total ?? 0),
-        page: Number(data?.page ?? 0),
-        size: Number(data?.size ?? 20),
+        page: Number(data?.page ?? page),
+        size: Number(data?.size ?? size),
+        min_games,
+        selectedFactions,
         sort_metric,
         sort_direction,
     });
@@ -45,7 +51,16 @@ export const load: PageLoad = async ({ fetch, url }) => {
             return parsePayload(fallbackData);
         } catch (fallbackError) {
             console.error('Fallback lists fetch failed:', fallbackError);
-            return { items: [], total: 0, page: 0, size: 20, sort_metric, sort_direction };
+            return {
+                items: [],
+                total: 0,
+                page,
+                size,
+                min_games,
+                selectedFactions,
+                sort_metric,
+                sort_direction,
+            };
         }
     }
 };

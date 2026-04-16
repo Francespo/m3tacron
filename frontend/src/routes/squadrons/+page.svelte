@@ -10,20 +10,27 @@
         getFactionColor,
         getFactionChar,
     } from "$lib/data/factions";
-    import { goto } from "$app/navigation";
+    import { page as currentPage } from "$app/stores";
+    import { onDestroy } from "svelte";
     import { filters } from "$lib/stores/filters.svelte";
+    import { createQuerySync } from "$lib/querySync";
 
     let { data } = $props();
 
-    let page = $state(1);
-    let sortBy = $state("Games");
-    let sortDirection = $state("desc");
-    let selectedFactions = $state<string[]>([]);
+    let page = $state((data.page ?? 0) + 1);
+    let sortBy = $state(data.sort_metric ?? "Games");
+    let sortDirection = $state(data.sort_direction ?? "desc");
+    let selectedFactions = $state<string[]>([...(data.selectedFactions ?? [])]);
     let factionOpen = $state(false);
 
     const size = 20;
     let items = $derived(data.items ?? []);
     let total = $derived(data.total ?? 0);
+    const querySync = createQuerySync(
+        () => $currentPage.url.searchParams.toString(),
+        200,
+    );
+    onDestroy(() => querySync.clear());
 
     // Re-fetch when filters change (URL synchronization)
     $effect(() => {
@@ -35,12 +42,7 @@
         params.set("data_source", filters.dataSource);
         for (const f of selectedFactions) params.append("factions", f);
         for (const s of filters.selectedShips) params.append("ships", s);
-
-        goto(`?${params.toString()}`, {
-            keepFocus: true,
-            noScroll: true,
-            replaceState: true,
-        });
+        querySync.schedule(params);
     });
 
     function prevPage() {
