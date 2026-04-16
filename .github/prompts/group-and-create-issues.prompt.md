@@ -18,6 +18,16 @@ Turn the current discussion into cohesive GitHub issues and create them in one w
 6. Check for duplicates with `gh issue list` before creating new issues.
 7. Create each issue with `gh issue create`.
 8. Set Priority and Size through GitHub Project fields using `gh project field-list`, `gh project item-list`, and `gh project item-edit`.
+9. Use only the allowed project options:
+   - Size: `S`, `M`, `L`
+   - Priority: `Urgent & Important`, `Not Urgent & Important`, `Urgent & Not Important`, `Not Urgent & Not Important`
+10. Assign Size using measurable criteria:
+
+- `S`: one flow/module, up to about 3 files touched, localized edits or small additions.
+- `M`: up to 2 related flows/modules, about 4-8 files touched, moderate additions/refactors.
+- `L`: up to 3 related flows/modules, about 9-15 files touched, substantial but cohesive changes.
+
+11. If scope exceeds `L` (for example more than 15 files touched, more than 3 flows/modules, or it would require more than one PR), split it into cohesive issues before creation.
 
 ## Required Issue Structure
 
@@ -26,6 +36,8 @@ Each issue body must include these sections:
 - `Objective`
 - `Context & Symptoms`
 - `Expected Outcome`
+
+Do not include Priority and Size in the issue body.
 
 ## Markdown Formatting and Template
 
@@ -76,6 +88,7 @@ gh issue create --title "..." --body-file /tmp/issue-body.md
 
 - Keep tone objective and developer-to-developer.
 - Write in clear, human, project-specific language. Avoid generic AI-style wording.
+- Write issue titles and issue bodies only in English.
 - Avoid technical implementation detail unless the user explicitly asked to include it.
 - Assign exactly one type label: `bug`, `enhancement`, `refactor`, or `documentation`.
 - Assign one or more domain labels: `frontend`, `backend`, `performance`.
