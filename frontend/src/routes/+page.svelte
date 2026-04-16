@@ -126,6 +126,20 @@
         return "xwing-miniatures-ship-" + xws.replace(/[^a-z0-9]/g, "");
     }
 
+    function getFactionIconClass(xws: string) {
+        const normalized = (xws || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+        const icons: Record<string, string> = {
+            rebelalliance: "xwing-miniatures-font-rebel",
+            galacticempire: "xwing-miniatures-font-empire",
+            scumandvillainy: "xwing-miniatures-font-scum",
+            resistance: "xwing-miniatures-font-resistance",
+            firstorder: "xwing-miniatures-font-firstorder",
+            galacticrepublic: "xwing-miniatures-font-republic",
+            separatistalliance: "xwing-miniatures-font-separatists",
+        };
+        return icons[normalized] || "";
+    }
+
     function getUpgradeIconClass(type: string) {
         if (!type) return "";
         return (
@@ -564,13 +578,12 @@
                         <div
                             class="flex items-center gap-[6px] text-xs font-mono text-secondary mr-3 mb-[6px]"
                         >
-                            <span
-                                class="font-xwing xwing-icon text-sm"
+                            <i
+                                class="xwing-miniatures-font {getFactionIconClass(
+                                    dist.xws,
+                                )} text-sm"
                                 style="color: {getFactionColor(dist.xws)}"
-                                aria-hidden="true"
-                            >
-                                {getFactionChar(dist.xws)}
-                            </span>
+                            ></i>
                             <span>{getFactionLabel(dist.xws)} {pct}%</span>
                         </div>
                     {/each}
@@ -636,13 +649,14 @@
                                     <div
                                         class="flex items-center gap-1 min-w-0 mt-0.5"
                                     >
-                                        <span
-                                            class="font-xwing xwing-icon text-sm"
-                                            style="color: {getFactionColor(p.faction)}"
-                                            aria-hidden="true"
-                                        >
-                                            {getFactionChar(p.faction)}
-                                        </span>
+                                        <i
+                                            class="xwing-miniatures-font {getFactionIconClass(
+                                                p.faction,
+                                            )} text-[11px]"
+                                            style="color: {getFactionColor(
+                                                p.faction,
+                                            )}"
+                                        ></i>
                                         <span
                                             class="text-[12px] text-secondary truncate min-w-0 pointer-events-none"
                                         >
@@ -810,13 +824,14 @@
                                     <div
                                         class="flex items-center gap-1 min-w-0 mt-0.5"
                                     >
-                                        <span
-                                            class="font-xwing xwing-icon text-sm"
-                                            style="color: {getFactionColor(factionXws)}"
-                                            aria-hidden="true"
-                                        >
-                                            {getFactionChar(factionXws)}
-                                        </span>
+                                        <i
+                                            class="xwing-miniatures-font {getFactionIconClass(
+                                                factionXws,
+                                            )} text-[11px]"
+                                            style="color: {getFactionColor(
+                                                factionXws,
+                                            )}"
+                                        ></i>
                                         <span
                                             class="text-[12px] text-secondary truncate min-w-0 pointer-events-none"
                                             >{getFactionLabel(factionXws)}</span
