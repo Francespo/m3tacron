@@ -14,13 +14,13 @@
     <!-- Segmented Control -->
     <div class="flex w-full bg-black border border-border-dark rounded-md overflow-hidden">
         <button
-            class="flex-1 py-1.5 text-xs font-mono text-center transition-colors {filters.dataSource === 'xwa' ? 'bg-[#ffffff14] text-primary font-bold' : 'text-secondary hover:text-primary'}"
+            class="flex-1 min-h-11 py-1.5 text-xs font-mono text-center transition-colors {filters.dataSource === 'xwa' ? 'bg-[#ffffff14] text-primary font-bold' : 'text-secondary hover:text-primary'}"
             onclick={() => setSource('xwa')}
         >
             XWA
         </button>
         <button
-            class="flex-1 py-1.5 text-xs font-mono text-center transition-colors {filters.dataSource === 'legacy' ? 'bg-[#ffffff14] text-primary font-bold' : 'text-secondary hover:text-primary'}"
+            class="flex-1 min-h-11 py-1.5 text-xs font-mono text-center transition-colors {filters.dataSource === 'legacy' ? 'bg-[#ffffff14] text-primary font-bold' : 'text-secondary hover:text-primary'}"
             onclick={() => setSource('legacy')}
         >
             Legacy
@@ -28,10 +28,10 @@
     </div>
 
     <!-- Epic Checkbox -->
-    <label class="flex items-center gap-2 cursor-pointer text-sm text-secondary hover:text-primary transition-colors">
+    <label class="flex items-center gap-2 py-1.5 min-h-11 cursor-pointer text-sm text-secondary hover:text-primary transition-colors">
         <input
             type="checkbox"
-            class="rounded border-border-dark bg-black accent-primary w-3.5 h-3.5"
+            class="rounded border-border-dark bg-black accent-primary w-4 h-4"
             bind:checked={filters.includeEpic}
         />
         <span class="font-mono text-xs">Include Epic Content</span>

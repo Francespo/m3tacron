@@ -252,11 +252,11 @@
                         <div class="max-h-[100px] overflow-y-auto space-y-1">
                             {#each filteredContinents as c}
                                 <label
-                                    class="flex items-center gap-2 cursor-pointer text-secondary hover:text-primary"
+                                    class="flex items-center gap-2 py-1.5 cursor-pointer text-secondary hover:text-primary"
                                 >
                                     <input
                                         type="checkbox"
-                                        class="rounded border-border-dark bg-black w-3 h-3"
+                                        class="rounded border-border-dark bg-black w-4 h-4"
                                         checked={filters.selectedContinents.includes(
                                             c,
                                         )}
@@ -281,11 +281,11 @@
                         <div class="max-h-[120px] overflow-y-auto space-y-1">
                             {#each filteredCountries as c}
                                 <label
-                                    class="flex items-center gap-2 cursor-pointer text-secondary hover:text-primary"
+                                    class="flex items-center gap-2 py-1.5 cursor-pointer text-secondary hover:text-primary"
                                 >
                                     <input
                                         type="checkbox"
-                                        class="rounded border-border-dark bg-black w-3 h-3"
+                                        class="rounded border-border-dark bg-black w-4 h-4"
                                         checked={filters.selectedCountries.includes(
                                             c,
                                         )}
@@ -310,11 +310,11 @@
                         <div class="max-h-[120px] overflow-y-auto space-y-1">
                             {#each filteredCities as c}
                                 <label
-                                    class="flex items-center gap-2 cursor-pointer text-secondary hover:text-primary"
+                                    class="flex items-center gap-2 py-1.5 cursor-pointer text-secondary hover:text-primary"
                                 >
                                     <input
                                         type="checkbox"
-                                        class="rounded border-border-dark bg-black w-3 h-3"
+                                        class="rounded border-border-dark bg-black w-4 h-4"
                                         checked={filters.selectedCities.includes(
                                             c,
                                         )}
@@ -365,11 +365,11 @@
                         >
                         {#each group.formats as f}
                             <label
-                                class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary pl-1"
+                                class="flex items-center gap-2 py-1.5 cursor-pointer text-xs text-secondary hover:text-primary pl-1"
                             >
                                 <input
                                     type="checkbox"
-                                    class="rounded border-border-dark bg-black w-3 h-3"
+                                    class="rounded border-border-dark bg-black w-4 h-4"
                                     checked={filters.selectedFormats.includes(
                                         f.id,
                                     )}
@@ -411,11 +411,11 @@
             <div class="pb-3 space-y-1 pl-2">
                 {#each sources as source}
                     <label
-                        class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
+                        class="flex items-center gap-2 py-1.5 cursor-pointer text-xs text-secondary hover:text-primary"
                     >
                         <input
                             type="checkbox"
-                            class="rounded border-border-dark bg-black w-3 h-3"
+                            class="rounded border-border-dark bg-black w-4 h-4"
                             checked={filters.selectedSources.includes(
                                 source.id,
                             )}
