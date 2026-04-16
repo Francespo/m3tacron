@@ -2,7 +2,11 @@
     import { browser } from "$app/environment";
     import { filters } from "$lib/stores/filters.svelte";
     import ContentSourceToggle from "$lib/components/ContentSourceToggle.svelte";
-    import { getFactionColor, getFactionChar, getFactionLabel } from "$lib/data/factions";
+    import {
+        getFactionColor,
+        getFactionChar,
+        getFactionLabel,
+    } from "$lib/data/factions";
     import { xwingData } from "$lib/stores/xwingData.svelte";
 
     let meta = $state<any>(null);
@@ -182,10 +186,6 @@
         );
     }
 
-    function getFactionKey(value: unknown): string {
-        return String(value ?? "unknown").toLowerCase();
-    }
-
     function getPilotDisplay(pilotXws: string) {
         const pilot = xwingData.getPilot(pilotXws);
         const ship = pilot?.ship ? xwingData.getShip(pilot.ship) : null;
@@ -262,6 +262,15 @@
                 borderWidth: 1,
                 titleFont: { family: '"Inter", sans-serif' },
                 bodyFont: { family: '"Inter", sans-serif' },
+                callbacks: {
+                    title(tooltipItems: { dataIndex: number; label?: string }[]) {
+                        const item = tooltipItems[0];
+                        const faction = item ? meta?.factions?.[item.dataIndex] : null;
+                        return faction
+                            ? getFactionLabel(faction.xws)
+                            : item?.label ?? "";
+                    },
+                },
             },
         },
         scales: {
@@ -563,20 +572,20 @@
                 </div>
                 <div class="flex flex-wrap justify-center w-full mt-2">
                     {#each meta.factions || [] as dist}
-                        {@const factionXws = getFactionKey(dist.xws)}
                         {@const pct = totalFactionGames > 0
                             ? (((dist.games_count || 0) / totalFactionGames) * 100).toFixed(1)
                             : "0.0"}
                         <div
                             class="flex items-center gap-[6px] text-xs font-mono text-secondary mr-3 mb-[6px]"
                         >
-                            <i
-                                class="xwing-miniatures-font {getFactionIconClass(
-                                    factionXws,
-                                )} text-sm"
-                                style="color: {getFactionColor(factionXws)}"
-                            ></i>
-                            <span>{getFactionLabel(factionXws)} {pct}%</span>
+                            <span
+                                class="font-xwing text-sm"
+                                style="color: {getFactionColor(dist.xws)}"
+                                aria-hidden="true"
+                            >
+                                {getFactionChar(dist.xws)}
+                            </span>
+                            <span>{getFactionLabel(dist.xws)} {pct}%</span>
                         </div>
                     {/each}
                 </div>
@@ -788,7 +797,7 @@
                     {#each sortedShips.slice(0, 5) as ship}
                         {@const shipData = xwingData.getShip(ship.xws)}
                         {@const shipName = shipData?.name || ship.xws}
-                        {@const factionXws = getFactionKey(ship.faction_xws)}
+                        {@const factionXws = ship.faction_xws}
                         {@const wr = getWinRate(ship.wins || 0, ship.games_count || 0)}
                         <div
                             class="py-[12px] border-b border-border-dark flex items-center justify-between w-full last:border-0 relative"
@@ -879,7 +888,7 @@
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 w-full">
                     {#each sortedLists.slice(0, 4) as list}
-                        {@const factionXws = getFactionKey(list.faction_xws)}
+                        {@const factionXws = list.faction_xws}
                         {@const wr = getWinRate(list.wins || 0, list.games || 0)}
                         <div
                             class="p-4 bg-[rgba(255,255,255,0.01)] border border-border-dark hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer w-full flex flex-col gap-3 rounded-md"
@@ -890,14 +899,13 @@
                                 <div
                                     class="flex items-center gap-2 overflow-hidden mr-2 h-12"
                                 >
-                                    <i
-                                        class="xwing-miniatures-font {getFactionIconClass(
-                                            factionXws,
-                                        )} text-2xl flex-shrink-0"
-                                        style="color: {getFactionColor(
-                                            factionXws,
-                                        )}"
-                                    ></i>
+                                    <span
+                                        class="font-xwing xwing-icon text-2xl flex-shrink-0"
+                                        style="color: {getFactionColor(factionXws)}"
+                                        aria-hidden="true"
+                                    >
+                                        {getFactionChar(factionXws)}
+                                    </span>
                                     <div class="flex flex-col min-w-0">
                                         <span
                                             class="text-base font-bold text-primary line-clamp-2 leading-tight"
