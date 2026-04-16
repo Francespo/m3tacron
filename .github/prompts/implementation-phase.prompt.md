@@ -19,4 +19,10 @@ Execute implementation changes from approved scope.
 2. Confirm implementation scope before editing.
 3. Implement changes according to approved plan source.
 4. Run relevant validation/tests for changed behavior.
-5. Summarize implemented changes, validations, and any follow-up risks.
+5. Open a pull request at the end of implementation.
+6. Ensure pull request targets `dev` as base branch.
+7. Ensure pull request body includes `Closes #<issue-id>` for each linked issue.
+8. If browser access is available, visually test changes at `https://<pr-id>.dev.m3tacron.com`.
+9. Preview is considered ready when a PR bot comment says preview deployment is ready; from then, preview URL should be accessible.
+10. Preview typically appears about 45-60 seconds after PR creation; if not ready, re-check PR comments and retry.
+11. Summarize implemented changes, validations, pull request link, preview verification result, and any follow-up risks.

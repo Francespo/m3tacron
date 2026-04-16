@@ -44,6 +44,10 @@ Use this skill as a phase entrypoint. You can run any phase independently, inclu
    - Follow [workflow-implementation instructions](../../instructions/workflow-implementation.instructions.md).
    - Execute code changes from approved scope.
    - Use plan source priority: current chat/context first, then linked issue comments.
+   - If browser access is available, visually verify changes at `https://<pr-id>.dev.m3tacron.com`.
+   - Preview usually appears about 45-60 seconds after PR creation.
+   - Treat preview as ready when PR bot comment reports preview deployment ready; then verify URL accessibility.
+   - Open a pull request at end of implementation targeting base branch `dev`, with `Closes #<issue-id>` in PR body for linked issue(s).
    - Handle no-issue edge cases as defined in implementation instructions.
 
 ## Notes
@@ -63,4 +67,5 @@ Use this skill as a phase entrypoint. You can run any phase independently, inclu
 - Created issue set with cohesive scope and expected outcomes.
 - Planning output ready for implementation handoff.
 - Approved plan comments posted or updated without duplication when issue-linked and approved.
+- Pull request opened for implementation output, including `Closes #<issue-id>` when issue-linked.
 - Clear handoff target for local, CLI, or cloud agents across branches/worktrees.
