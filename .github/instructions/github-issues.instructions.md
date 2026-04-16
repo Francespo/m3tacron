@@ -70,6 +70,18 @@ gh issue create --title "..." --body-file /tmp/issue-body.md
 ### Project field updates (Priority and Size)
 
 - After issue creation, set Priority and Size in the linked GitHub Project item.
+- Allowed `Size` values: `S`, `M`, `L`.
+- Assign `Size` using these measurable criteria:
+  - `S`: small scoped change, usually one flow/module, up to about 3 files touched, with localized edits or small additions.
+  - `M`: medium scoped change, usually up to 2 related flows/modules, about 4-8 files touched, with moderate additions/refactors.
+  - `L`: largest allowed single-issue scope, usually up to 3 related flows/modules, about 9-15 files touched, with substantial but cohesive changes.
+- If scope exceeds `L` (for example more than 15 files touched, more than 3 flows/modules, or would require more than one PR), split it into cohesive sub-issues before creation.
+- Allowed `Priority` values:
+  - `Urgent & Important`
+  - `Not Urgent & Important`
+  - `Urgent & Not Important`
+  - `Not Urgent & Not Important`
+- Use these exact option names when mapping to project single-select options.
 - Use CLI commands in this sequence:
   - `gh project field-list <project-number> --owner <owner> --format json`
   - `gh project item-list <project-number> --owner <owner> --format json`
@@ -98,6 +110,7 @@ gh issue create --title "..." --body-file /tmp/issue-body.md
 
 - Keep issue text objective, professional, and developer-to-developer.
 - Keep issue text concise and human-written; avoid generic AI-style phrasing.
+- Issue title and issue body must always be written in English.
 - After creating issues, do not automatically transition to technical planning unless the user explicitly asks to start planning/implementation.
 - Before coding begins for an issue, prepare a technical plan but post it as a comment only after explicit user approval.
 - If the approved plan changes later, update the existing plan comment instead of adding a new one.
