@@ -44,7 +44,7 @@ export function getFactionColor(factionXws: string): string {
 }
 
 export function getFactionChar(factionXws: string): string {
-    return FACTION_CHARS[factionXws] ?? '?';
+    return FACTION_CHARS[factionXws] ?? FACTION_CHARS.unknown;
 }
 
 export function getFactionLabel(factionXws: string): string {
