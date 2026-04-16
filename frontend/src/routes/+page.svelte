@@ -578,12 +578,13 @@
                         <div
                             class="flex items-center gap-[6px] text-xs font-mono text-secondary mr-3 mb-[6px]"
                         >
-                            <i
-                                class="xwing-miniatures-font {getFactionIconClass(
-                                    dist.xws,
-                                )} text-sm"
+                            <span
+                                class="font-xwing text-sm"
                                 style="color: {getFactionColor(dist.xws)}"
-                            ></i>
+                                aria-hidden="true"
+                            >
+                                {getFactionChar(dist.xws)}
+                            </span>
                             <span>{getFactionLabel(dist.xws)} {pct}%</span>
                         </div>
                     {/each}
