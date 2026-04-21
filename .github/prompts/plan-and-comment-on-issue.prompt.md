@@ -1,26 +1,40 @@
 ---
 name: Plan Issue Implementation
-description: "Use in planning phase for selected issue(s): draft/refine the technical plan in plan mode without implementation actions."
-argument-hint: "Issue number(s), constraints, branch/worktree context, and implementation preferences"
+description: "Use in planning phase to behave like the base Plan agent: analyze context, evaluate options, and produce an approved implementation plan without coding actions; can use GitHub CLI for issue/PR context and comment updates."
+argument-hint: "Issue/PR number(s), constraints, branch/worktree context, and implementation preferences"
 agent: "Plan"
-tools: [search, read]
+tools: [search, read, execute]
 ---
 
-For the selected issue(s), create a concise technical implementation plan in plan mode. Keep this phase planning-only.
+Work like the base Plan agent: clarify scope, analyze alternatives, and produce an implementation-ready plan. Keep this phase planning-only.
+
+Use GitHub CLI only for planning context and planning records on GitHub (no implementation actions).
 
 ## Requirements
 
-1. Confirm the target issue number(s) if available.
-2. Draft a technical plan with:
+1. Confirm target issue/PR number(s) if available.
+2. Gather planning context from:
+   - current chat/context (primary)
+   - workspace/repository files
+   - GitHub issue/PR metadata and comments via GitHub CLI when needed
+3. Evaluate options and trade-offs before finalizing the plan.
+4. Draft a technical plan with:
    - Scope and non-goals
    - Proposed approach
+   - Alternatives considered and rationale
    - Test and validation strategy
    - Risks and rollback notes
-3. Ask for explicit user approval of the plan text.
-4. At the end of planning phase, post or update the approved plan as a GitHub issue comment when issue(s) are linked.
-5. Follow all rules defined in [GitHub Issue Instructions](../instructions/github-issues.instructions.md) when posting/updating the comment.
-6. If no issue is linked, keep the approved plan in chat context and clearly state that no GitHub comment was posted.
-7. Return a final approved-plan block ready for implementation-phase handoff.
+5. Ask for explicit user approval of the final plan text.
+6. At the end of planning phase, post or update the approved plan as a GitHub issue comment when issue(s) are linked.
+7. Follow all rules defined in [GitHub Issue Instructions](../instructions/github-issues.instructions.md) when posting/updating comments.
+8. If no issue is linked, keep the approved plan in chat context and clearly state that no GitHub issue comment was posted.
+9. Return a final approved-plan block ready for implementation-phase handoff.
+
+## GitHub CLI Usage (Planning-Only)
+
+- Allowed: fetch issue/PR details and comments needed for planning context.
+- Allowed: post/update approved planning comments according to workflow rules.
+- Not allowed: run implementation commands, code changes, or runtime deployment actions.
 
 ## Writing Rules
 
