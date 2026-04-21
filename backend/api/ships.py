@@ -7,17 +7,23 @@ from ..utils.xwing_data.ships import load_all_ships
 
 router = APIRouter(prefix="/api/ships", tags=["Ships"])
 
+
+def _normalize_faction(value: str) -> str:
+    return (value or "").lower().replace(" ", "").replace("-", "")
+
+
 @router.get("/all")
 def get_all_ships(data_source: str = Query("xwa")):
     """Return every chassis once, with all playable factions merged."""
-    ds_enum = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
+    ds_enum = DataSource(data_source) if data_source in (
+        "xwa", "legacy") else DataSource.XWA
     ships_data = load_all_ships(ds_enum)
 
     # Extract ships directly with all their factions
     results: list[dict] = []
     for xws, info in ships_data.items():
         factions_xws = [
-            f.lower().replace(" ", "") if f else "unknown" 
+            f.lower().replace(" ", "") if f else "unknown"
             for f in info.get("factions", [])
         ]
         results.append({
@@ -29,6 +35,63 @@ def get_all_ships(data_source: str = Query("xwa")):
     results = sorted(results, key=lambda x: x["name"])
     return results
 
+
+@router.get("/options")
+def get_ship_options(
+    data_source: str = Query("xwa"),
+    page: int = Query(0, ge=0),
+    size: int = Query(80, ge=1, le=300),
+    search: str = Query(""),
+    factions: list[str] | None = Query(None),
+):
+    """Return paginated ship options for progressive frontend loading."""
+    ds_enum = DataSource(data_source) if data_source in (
+        "xwa", "legacy") else DataSource.XWA
+    ships_data = load_all_ships(ds_enum)
+
+    normalized_factions = {
+        _normalize_faction(f)
+        for f in (factions or [])
+        if f
+    }
+    search_term = (search or "").strip().lower()
+
+    results: list[dict] = []
+    for xws, info in ships_data.items():
+        factions_xws = [
+            _normalize_faction(f) if f else "unknown"
+            for f in info.get("factions", [])
+        ]
+
+        if normalized_factions and not any(f in normalized_factions for f in factions_xws):
+            continue
+
+        name = info.get("name", xws)
+        if search_term and search_term not in name.lower():
+            continue
+
+        results.append({
+            "xws": xws,
+            "name": name,
+            "factions": list(set(factions_xws)),
+        })
+
+    results.sort(key=lambda x: x["name"])
+
+    total = len(results)
+    start = page * size
+    end = start + size
+    items = results[start:end]
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "size": size,
+        "has_more": end < total,
+    }
+
+
 @router.get("", response_model=PaginatedShipsResponse)
 def get_ships(
     page: int = Query(0, ge=0),
@@ -37,7 +100,7 @@ def get_ships(
     sort_metric: str = Query("Popularity"),
     sort_direction: str = Query("desc"),
     search: str | None = Query(None),
-    
+
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
     ships: list[str] | None = Query(None),
@@ -80,6 +143,6 @@ def get_ships(
 
     data = aggregate_ship_stats(filters, criteria, s_dir, ds_enum)
     total = len(data)
-    items = data[page * size : (page + 1) * size]
-    
+    items = data[page * size: (page + 1) * size]
+
     return PaginatedShipsResponse(items=items, total=total, page=page, size=size)

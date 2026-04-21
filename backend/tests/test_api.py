@@ -5,10 +5,12 @@ from backend.main import app
 
 client = TestClient(app)
 
+
 def test_root():
     response = client.get("/")
     assert response.status_code == 200
     assert response.json() == {"status": "Backend is running"}
+
 
 def test_meta_snapshot():
     response = client.get("/api/meta-snapshot")
@@ -27,6 +29,7 @@ def test_meta_snapshot():
         assert "faction" in lst
         assert "win_rate" in lst
 
+
 def test_tournaments():
     response = client.get("/api/tournaments?size=10")
     assert response.status_code == 200
@@ -42,11 +45,13 @@ def test_tournaments():
         assert "date" in t
         assert "format_label" in t
 
+
 def test_tournaments_with_search():
     response = client.get("/api/tournaments?search=Test")
     assert response.status_code == 200
     data = response.json()
     assert "items" in data
+
 
 def test_lists():
     response = client.get("/api/lists?size=10")
@@ -54,11 +59,12 @@ def test_lists():
     data = response.json()
     assert "items" in data
     assert "total" in data
-    
+
     if len(data["items"]) > 0:
         l = data["items"][0]
         assert "faction" in l
         assert "win_rate" in l
+
 
 def test_pilots():
     response = client.get("/api/cards/pilots?size=10")
@@ -72,6 +78,7 @@ def test_pilots():
         assert "name" in p
         assert "popularity" in p
 
+
 def test_upgrades():
     response = client.get("/api/cards/upgrades?size=10")
     assert response.status_code == 200
@@ -84,6 +91,7 @@ def test_upgrades():
         assert "name" in u
         assert "type" in u
 
+
 def test_ships():
     response = client.get("/api/ships?size=10")
     assert response.status_code == 200
@@ -95,3 +103,30 @@ def test_ships():
         s = data["items"][0]
         assert "ship_name" in s
         assert "faction_xws" in s
+
+
+def test_ship_options_progressive_endpoint():
+    response = client.get("/api/ships/options?data_source=xwa&page=0&size=10")
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "items" in data
+    assert "total" in data
+    assert "page" in data
+    assert "size" in data
+    assert "has_more" in data
+    assert data["page"] == 0
+    assert data["size"] == 10
+
+    if len(data["items"]) > 0:
+        ship = data["items"][0]
+        assert "xws" in ship
+        assert "name" in ship
+        assert "factions" in ship
+
+
+def test_ship_detail_lists_endpoint_is_stable():
+    response = client.get("/api/ship/t65xwing/lists?data_source=xwa&limit=10")
+    assert response.status_code == 200
+    data = response.json()
+    assert "lists" in data
