@@ -112,6 +112,20 @@ class XwingDataStore {
     constructor() {
     }
 
+    private buildPilotCountByShip(source: XWingSource): Record<string, number> {
+        const d = this.getData(source);
+        if (!d || !d.pilots) return {};
+
+        const counts: Record<string, number> = {};
+        for (const pilot of Object.values(d.pilots)) {
+            const ship = pilot?.ship;
+            if (!ship) continue;
+            counts[ship] = (counts[ship] ?? 0) + 1;
+        }
+
+        return counts;
+    }
+
     /**
      * Set the active data source.
      */
@@ -142,7 +156,7 @@ class XwingDataStore {
             const json = await response.json();
 
             this.data[source] = json;
-            this.pilotCountByShip[source] = null;
+            this.pilotCountByShip[source] = this.buildPilotCountByShip(source);
         } catch (e) {
             this.error = e.message;
             console.error(`XwingDataStore init error (${source}):`, e);
@@ -187,19 +201,6 @@ class XwingDataStore {
      * Built once per source and then served from cache.
      */
     getPilotCountByShip(shipXws: string, source: XWingSource = this.currentSource): number {
-        const d = this.getData(source);
-        if (!d || !d.pilots) return 0;
-
-        if (!this.pilotCountByShip[source]) {
-            const counts: Record<string, number> = {};
-            for (const pilot of Object.values(d.pilots)) {
-                const ship = pilot?.ship;
-                if (!ship) continue;
-                counts[ship] = (counts[ship] ?? 0) + 1;
-            }
-            this.pilotCountByShip[source] = counts;
-        }
-
         return this.pilotCountByShip[source]?.[shipXws] ?? 0;
     }
 }

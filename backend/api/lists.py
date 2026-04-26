@@ -29,7 +29,7 @@ def get_lists(
     min_games: int = Query(0, ge=0),
     points_min: int = Query(0, ge=0),
     points_max: int = Query(200, ge=0),
-    platforms: list[str] | None = Query(None),
+    sources: list[str] | None = Query(None),
     continent: list[str] | None = Query(None),
     country: list[str] | None = Query(None),
     city: list[str] | None = Query(None),
@@ -44,7 +44,7 @@ def get_lists(
         ds_enum = DataSource.XWA
 
     filters = {
-        "platforms": platforms,
+        "sources": sources,
         "continent": continent,
         "country": country,
         "city": city,

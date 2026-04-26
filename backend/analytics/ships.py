@@ -4,7 +4,6 @@ Ship Analytics - Aggregation Logic for Ships.
 Aggregates statistics (win rate, popularity, games) per ship per faction.
 """
 from sqlmodel import Session, select
-import json
 from ..database import engine
 from ..models import PlayerResult, Tournament
 from ..utils.xwing_data.pilots import load_all_pilots
@@ -35,6 +34,18 @@ def aggregate_ship_stats(
         all_pilots = load_all_pilots(data_source)
         
         allowed_formats = get_active_formats(filters.get("allowed_formats", None))
+
+        requested_ships_raw = filters.get("ship") or []
+        requested_ships = set(requested_ships_raw) if isinstance(requested_ships_raw, list) else {requested_ships_raw}
+
+        requested_factions_raw = filters.get("faction") or []
+        if not isinstance(requested_factions_raw, list):
+            requested_factions_raw = [requested_factions_raw]
+        requested_factions = {
+            str(f).lower().replace(" ", "").replace("-", "")
+            for f in requested_factions_raw
+            if f
+        }
         
         # Structure: (ship_xws, faction_xws) -> stats
         ship_stats: dict[tuple[str, str], dict] = {}
@@ -44,7 +55,8 @@ def aggregate_ship_stats(
             ship_xws = p_info.get("ship_xws", "")
             faction = p_info.get("faction", "")
             
-            if not ship_xws or not faction: continue
+            if not ship_xws or not faction:
+                continue
             
             try:
                 faction_enum = Faction.from_xws(faction)
@@ -52,6 +64,12 @@ def aggregate_ship_stats(
             except (ValueError, AttributeError):
                 continue # Skip unknown factions or handle generic
             
+            faction_norm = faction_xws.lower().replace(" ", "").replace("-", "")
+            if requested_ships and ship_xws not in requested_ships:
+                continue
+            if requested_factions and faction_norm not in requested_factions:
+                continue
+
             key = (ship_xws, faction_xws)
             if key not in ship_stats:
                 ship_stats[key] = {
@@ -107,6 +125,11 @@ def aggregate_ship_stats(
                     if s_xws and f_raw:
                         try:
                             f_enum = Faction.from_xws(f_raw)
+                            f_norm = f_enum.value.lower().replace(" ", "").replace("-", "")
+                            if requested_ships and s_xws not in requested_ships:
+                                continue
+                            if requested_factions and f_norm not in requested_factions:
+                                continue
                             unique_ships.add((s_xws, f_enum.value))
                         except: pass
             

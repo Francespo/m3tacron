@@ -1,9 +1,10 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select, func
 from datetime import datetime, timedelta
 import os
 import time
+import logging
 
 from .database import engine, create_db_and_tables
 from .models import Tournament, PlayerResult
@@ -22,6 +23,17 @@ from .api.list_detail import router as list_detail_router
 from .api.support import router as support_router
 
 app = FastAPI(title="M3taCron Backend", version="1.0.0")
+logger = logging.getLogger(__name__)
+
+HEAVY_API_PREFIXES = (
+    "/api/lists",
+    "/api/squadrons",
+    "/api/ships",
+    "/api/cards/pilots",
+    "/api/cards/upgrades",
+    "/api/ship/",
+    "/api/squadron/",
+)
 
 # Include routers
 app.include_router(tournaments_router)
@@ -46,6 +58,25 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def add_request_timing(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = (time.perf_counter() - start) * 1000
+    response.headers["X-Process-Time-Ms"] = f"{duration_ms:.2f}"
+
+    path = request.url.path
+    if any(path.startswith(prefix) for prefix in HEAVY_API_PREFIXES):
+        logger.info(
+            "request_timing method=%s path=%s ms=%.2f",
+            request.method,
+            path,
+            duration_ms,
+        )
+
+    return response
 
 @app.on_event("startup")
 def on_startup():
