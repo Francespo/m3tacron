@@ -8,6 +8,7 @@ description: "Use when executing approved work: implement changes, handle issue-
 - Enter implementation phase only when the user explicitly asks to execute changes.
 - If issue(s) are selected, proceed directly with implementation-oriented work.
 - Do not force discovery or planning again unless the user explicitly requests it.
+- Treat the root workspace repository as the repository of reference for implementation and GitHub CLI operations; do not use nested submodules as the primary repo unless the user explicitly requests it.
 - If implementation is requested with no issue provided, search open issues for likely matches and ask the user to confirm the correct issue.
 - If no matching issue is found, ask explicit confirmation before proceeding without an issue and state clearly that no issue is linked.
 - Primary plan source is the approved plan in current chat/context.
