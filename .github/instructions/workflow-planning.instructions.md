@@ -8,6 +8,7 @@ description: "Use when drafting/refining technical plans: keep planning clean, a
 - Enter planning phase only when the user explicitly asks to start planning.
 - Keep this phase focused on plan definition and refinement.
 - Do not perform implementation actions in planning phase.
+- Treat the root workspace repository as the repository of reference for planning context and GitHub CLI operations; do not anchor planning to nested submodules unless the user explicitly requests it.
 - Draft plans with scope/non-goals, approach, validation strategy, and risks.
 - Ask explicit user approval on the final plan text before any implementation phase starts.
 - At the end of planning phase, post or update the approved plan as a GitHub issue comment when issue(s) are linked.
