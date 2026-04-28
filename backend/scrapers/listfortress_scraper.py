@@ -14,6 +14,7 @@ class ListFortressScraper(BaseScraper):
     """Scraper logic for ListFortress API."""
 
     BASE_URL = "https://listfortress.com/api/v1"
+    MAX_TOURNAMENTS_PER_FETCH = 20
 
     def __init__(self):
         # ListFortress API doesn't require complex session handling, but we init session anyway
@@ -63,7 +64,7 @@ class ListFortressScraper(BaseScraper):
             
             count = 0
             for item in data:
-                if count >= 20: # Limit for now to avoid hammering/processing 5000+ items
+                if count >= self.MAX_TOURNAMENTS_PER_FETCH:
                     break
 
                 t_date = self._parse_date(item.get("date"))
