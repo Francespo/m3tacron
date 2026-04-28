@@ -514,7 +514,7 @@ class RollbetterScraper(BaseScraper):
 
         t = Tournament(
             id=int(tid), name=name, date=formatted_date,
-            player_count=len(players_json), platform=Platform.ROLLBETTER, url=url, format=Format.OTHER
+            player_count=len(players_json), source=Source.ROLLBETTER, url=url, format=Format.OTHER
         )
 
         participants = []
