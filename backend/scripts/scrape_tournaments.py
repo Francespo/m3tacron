@@ -120,7 +120,8 @@ def save_tournament_data(
         player.tournament_id = tournament.id
         session.add(player)
         session.flush()
-        player_id_map[player.player_name.lower().strip()] = player.id
+        if player.id is not None:
+            player_id_map[player.player_name.lower().strip()] = player.id
 
     for match in matches:
         match.id = None
