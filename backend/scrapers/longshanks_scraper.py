@@ -211,7 +211,7 @@ class LongshanksScraper(BaseScraper):
                     format=game_format,
                     player_count=player_count,
                     team_count=event_info.get("teamCount", 0),
-                    platform=Platform.LONGSHANKS,
+                    source=Source.LONGSHANKS,
                     url=url
                 )
             except Exception as e:

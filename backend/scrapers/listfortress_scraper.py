@@ -65,10 +65,6 @@ class ListFortressScraper(BaseScraper):
             for item in data:
                 if count >= 20: # Limit for now to avoid hammering/processing 5000+ items
                     break
-                    
-                t_format = self._map_format(item.get("format_id"))
-                if t_format != fmt:
-                    continue
 
                 t_date = self._parse_date(item.get("date"))
                 if t_date.date() < date_from or t_date.date() > date_to:
