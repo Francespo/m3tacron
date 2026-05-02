@@ -264,7 +264,7 @@ def build_scrapers(
         scrapers.append(("rollbetter_amg", RollbetterScraper(game_id=5)))
         scrapers.append(("rollbetter_xwa", RollbetterScraper(game_id=17)))
 
-    if platform == "listfortress" or platform == "all" or (
+    if platform in ("listfortress", "all") or (
         platform == "longshanks+rollbetter" and include_listfortress
     ):
         scrapers.append(("listfortress", ListFortressScraper()))
