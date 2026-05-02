@@ -2,11 +2,11 @@ from datetime import datetime, timedelta
 import logging
 import httpx
 
-from m3tacron.backend.scrapers.base import BaseScraper
-from m3tacron.backend.models import Tournament, Match, PlayerResult
-from m3tacron.backend.data_structures.formats import Format
-from m3tacron.backend.data_structures.source import Source
-from m3tacron.backend.data_structures.round_types import RoundType
+from .base import BaseScraper
+from ..models import Tournament, Match, PlayerResult
+from ..data_structures.formats import Format
+from ..data_structures.source import Source
+from ..data_structures.round_types import RoundType
 
 logger = logging.getLogger(__name__)
 
