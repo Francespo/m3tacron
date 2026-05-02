@@ -12,13 +12,14 @@ on:
       platform:
         description: 'Platform to scrape'
         required: true
-        default: 'all'
+        default: 'longshanks+rollbetter'
         type: choice
         options:
-          - all
+          - longshanks+rollbetter
           - longshanks
           - rollbetter
           - listfortress
+          - all
       time_range:
         description: 'Time range: integer days (e.g. 7), keyword (yesterday/today/week/month), ISO date range (YYYY-MM-DD:YYYY-MM-DD), or single ISO date (YYYY-MM-DD)'
         required: true
@@ -27,11 +28,11 @@ on:
       environment:
         description: 'Target database environment'
         required: true
-        default: 'dev'
+        default: 'prod'
         type: choice
         options:
-          - dev
           - prod
+          - dev
 
 jobs:
   scrape:
@@ -60,17 +61,17 @@ jobs:
         DATABASE_URL: ${{ inputs.environment == 'prod' && secrets.PROD_DATABASE_URL || secrets.DEV_DATABASE_URL }}
         PYTHONPATH: .
       run: |
-        # Use inputs if available, otherwise default to all/yesterday
+        # Use inputs if available, otherwise default to longshanks+rollbetter/yesterday
         PLATFORM="${{ inputs.platform }}"
         TIME_RANGE="${{ inputs.time_range }}"
         
-        if [ -z "$PLATFORM" ]; then PLATFORM="all"; fi
+        if [ -z "$PLATFORM" ]; then PLATFORM="longshanks+rollbetter"; fi
         if [ -z "$TIME_RANGE" ]; then TIME_RANGE="yesterday"; fi
         
         python -m backend.scripts.scrape_tournaments --platform "$PLATFORM" --time-range "$TIME_RANGE"
     
     - name: Upload Database Artifact
-      if: success()
+      if: success() && hashFiles('main.db') != ''
       uses: actions/upload-artifact@v4
       with:
         name: main-db
@@ -78,6 +79,7 @@ jobs:
         retention-days: 5
 
     - name: Commit and Push Changes
+      if: hashFiles('main.db') != ''
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
