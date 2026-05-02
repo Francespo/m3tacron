@@ -20,7 +20,7 @@ on:
           - rollbetter
           - listfortress
       time_range:
-        description: 'Time range: integer days (e.g. 7), keyword (yesterday/today/week/month), or ISO date (YYYY-MM-DD)'
+        description: 'Time range: integer days (e.g. 7), keyword (yesterday/today/week/month), ISO date range (YYYY-MM-DD:YYYY-MM-DD), or single ISO date (YYYY-MM-DD)'
         required: true
         default: 'yesterday'
         type: string
