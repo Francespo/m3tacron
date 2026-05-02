@@ -50,6 +50,7 @@ def parse_time_range(value: str) -> tuple[date, date]:
         - "today": today only.
         - "week": last 7 days.
         - "month": last 30 days.
+        - "YYYY-MM-DD:YYYY-MM-DD": explicit start and end date (inclusive).
         - "YYYY-MM-DD": from that date to today (inclusive).
 
     Returns:
@@ -81,6 +82,22 @@ def parse_time_range(value: str) -> tuple[date, date]:
     except ValueError:
         pass
 
+    # Explicit range "YYYY-MM-DD:YYYY-MM-DD"
+    if ":" in value:
+        parts = value.split(":", 1)
+        try:
+            date_from = datetime.strptime(parts[0].strip(), "%Y-%m-%d").date()
+            date_to = datetime.strptime(parts[1].strip(), "%Y-%m-%d").date()
+            if date_from > date_to:
+                raise argparse.ArgumentTypeError(
+                    f"Start date {date_from} is after end date {date_to}."
+                )
+            return date_from, date_to
+        except ValueError:
+            raise argparse.ArgumentTypeError(
+                f"Invalid date range '{value}'. Expected format: YYYY-MM-DD:YYYY-MM-DD."
+            )
+
     try:
         return datetime.strptime(value, "%Y-%m-%d").date(), today
     except ValueError:
@@ -88,7 +105,8 @@ def parse_time_range(value: str) -> tuple[date, date]:
             f"Invalid --time-range value '{value}'. "
             "Accepted: positive integer (days), "
             "keyword (yesterday/today/week/month), "
-            "or ISO date (YYYY-MM-DD)."
+            "ISO date range (YYYY-MM-DD:YYYY-MM-DD), "
+            "or single ISO date (YYYY-MM-DD, end=today)."
         )
 
 
@@ -256,7 +274,8 @@ def main() -> int:
         metavar="RANGE",
         help=(
             "Time range: positive integer (days back from today), keyword "
-            "(yesterday/today/week/month), or ISO date YYYY-MM-DD (start date). "
+            "(yesterday/today/week/month), ISO date range YYYY-MM-DD:YYYY-MM-DD, "
+            "or single ISO date YYYY-MM-DD (end=today). "
             "Default: 1 (yesterday)."
         ),
     )
