@@ -24,6 +24,14 @@ on:
         required: true
         default: 'yesterday'
         type: string
+      environment:
+        description: 'Target database environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
 
 jobs:
   scrape:
@@ -49,7 +57,7 @@ jobs:
         
     - name: Run Scraper
       env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        DATABASE_URL: ${{ inputs.environment == 'prod' && secrets.PROD_DATABASE_URL || secrets.DEV_DATABASE_URL }}
         PYTHONPATH: .
       run: |
         # Use inputs if available, otherwise default to all/yesterday
