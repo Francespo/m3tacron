@@ -25,6 +25,7 @@ import logging
 import sys
 from datetime import date, datetime, timedelta
 
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from ..database import engine, create_db_and_tables
@@ -123,26 +124,36 @@ def save_tournament_data(
 ) -> None:
     """Persist a tournament along with its players and matches.
 
-    Clears explicitly set IDs so the database assigns auto-incremented values,
-    then links players and matches to the newly inserted tournament.
+    Assigns explicit next IDs (MAX+1) so saves work correctly on both fresh
+    databases (with SERIAL) and pre-existing databases that have integer
+    primary keys without a DEFAULT sequence.
     """
-    # Let the DB assign the primary key to avoid cross-platform ID collisions.
-    tournament.id = None
+    # Assign next tournament ID explicitly.
+    max_t = session.exec(select(func.max(Tournament.id))).first()
+    tournament.id = (max_t or 0) + 1
     session.add(tournament)
-    session.flush()  # Populate tournament.id
+    session.flush()  # Flush so player FKs can reference tournament.id
 
-    # Map player name -> DB id for match resolution after insert.
+    # Assign player IDs from current max + offset so they are unique.
+    max_p = session.exec(select(func.max(PlayerResult.id))).first()
+    next_p_id = (max_p or 0) + 1
+
     player_id_map: dict[str, int] = {}
-    for player in players:
-        player.id = None
+    for i, player in enumerate(players):
+        player.id = next_p_id + i
         player.tournament_id = tournament.id
         session.add(player)
-        session.flush()
-        if player.id is not None:
+        if player.player_name:
             player_id_map[player.player_name.lower().strip()] = player.id
 
-    for match in matches:
-        match.id = None
+    if players:
+        session.flush()  # Flush so match FKs can reference player IDs
+
+    # Assign match IDs from current max + offset.
+    max_m = session.exec(select(func.max(Match.id))).first()
+    next_m_id = (max_m or 0) + 1
+    for i, match in enumerate(matches):
+        match.id = next_m_id + i
         match.tournament_id = tournament.id
         # Resolve temporary name references to real DB player IDs.
         if match.p1_name_temp:
@@ -235,19 +246,27 @@ def build_scrapers(
 
     Longshanks is split into two instances (2.5 and Legacy 2.0 subdomains).
     RollBetter is split into AMG (game 5) and XWA (game 17) game systems.
-    ListFortress is opt-in when platform is 'all'.
+
+    Platform options:
+        - 'longshanks+rollbetter': Longshanks and RollBetter only (default).
+        - 'longshanks': Longshanks only.
+        - 'rollbetter': RollBetter only.
+        - 'listfortress': ListFortress only.
+        - 'all': All three platforms (Longshanks + RollBetter + ListFortress).
     """
     scrapers: list[tuple[str, object]] = []
 
-    if platform in ("all", "longshanks"):
+    if platform in ("all", "longshanks+rollbetter", "longshanks"):
         scrapers.append(("longshanks_25", LongshanksScraper(subdomain="xwing")))
         scrapers.append(("longshanks_legacy", LongshanksScraper(subdomain="xwing-legacy")))
 
-    if platform in ("all", "rollbetter"):
+    if platform in ("all", "longshanks+rollbetter", "rollbetter"):
         scrapers.append(("rollbetter_amg", RollbetterScraper(game_id=5)))
         scrapers.append(("rollbetter_xwa", RollbetterScraper(game_id=17)))
 
-    if platform == "listfortress" or (platform == "all" and include_listfortress):
+    if platform == "listfortress" or platform == "all" or (
+        platform == "longshanks+rollbetter" and include_listfortress
+    ):
         scrapers.append(("listfortress", ListFortressScraper()))
 
     return scrapers
@@ -260,11 +279,13 @@ def main() -> int:
     )
     parser.add_argument(
         "--platform",
-        default="all",
-        choices=["all", "longshanks", "rollbetter", "listfortress"],
+        default="longshanks+rollbetter",
+        choices=["longshanks+rollbetter", "longshanks", "rollbetter", "listfortress", "all"],
         help=(
-            "Platform to scrape. 'all' scrapes Longshanks and RollBetter. "
-            "Default: all."
+            "Platform(s) to scrape. "
+            "'longshanks+rollbetter' scrapes Longshanks and RollBetter (default). "
+            "'all' scrapes all three platforms including ListFortress. "
+            "Default: longshanks+rollbetter."
         ),
     )
     parser.add_argument(
@@ -291,7 +312,7 @@ def main() -> int:
         "--include-listfortress",
         action="store_true",
         dest="include_listfortress",
-        help="When platform is 'all', also scrape ListFortress (excluded by default).",
+        help="When platform is 'longshanks+rollbetter', also scrape ListFortress.",
     )
     parser.add_argument(
         "--dry-run",
