@@ -68,15 +68,15 @@ jobs:
         if [ -z "$PLATFORM" ]; then PLATFORM="longshanks+rollbetter"; fi
         if [ -z "$TIME_RANGE" ]; then TIME_RANGE="yesterday"; fi
         
-        python -m backend.scripts.scrape_tournaments --platform "$PLATFORM" --time-range "$TIME_RANGE"
+        python -m backend.scripts.scrape_tournaments --platform "$PLATFORM" --time-range "$TIME_RANGE" --sqlite-output scraped_tournaments.db
     
-    - name: Upload Database Artifact
-      if: success() && hashFiles('main.db') != ''
+    - name: Upload Scraped Tournaments Artifact
+      if: always() && hashFiles('scraped_tournaments.db') != ''
       uses: actions/upload-artifact@v4
       with:
-        name: main-db
-        path: main.db
-        retention-days: 5
+        name: scraped-tournaments-${{ github.run_id }}
+        path: scraped_tournaments.db
+        retention-days: 30
 
     - name: Commit and Push Changes
       if: hashFiles('main.db') != ''
