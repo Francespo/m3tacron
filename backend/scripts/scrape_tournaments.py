@@ -26,9 +26,10 @@ import sys
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlmodel import Session, create_engine, select
 
 from ..database import engine, create_db_and_tables
+from ..data_structures.round_types import RoundType
 from ..models import Match, PlayerResult, Tournament
 from ..scrapers.listfortress_scraper import ListFortressScraper
 from ..scrapers.longshanks_scraper import LongshanksScraper
@@ -120,13 +121,16 @@ def save_tournament_data(
     session: Session,
     tournament: Tournament,
     players: list[PlayerResult],
-    matches: list[Match],
+    matches: list,
 ) -> None:
     """Persist a tournament along with its players and matches.
 
     Assigns explicit next IDs (MAX+1) so saves work correctly on both fresh
     databases (with SERIAL) and pre-existing databases that have integer
     primary keys without a DEFAULT sequence.
+
+    ``matches`` may contain either ``Match`` objects or dicts as returned by
+    the scrapers' ``get_matches`` methods.
     """
     # Assign next tournament ID explicitly.
     max_t = session.exec(select(func.max(Tournament.id))).first()
@@ -150,9 +154,23 @@ def save_tournament_data(
         session.flush()  # Flush so match FKs can reference player IDs
 
     # Assign match IDs from current max + offset.
+    # Scrapers return match dicts; convert them to Match objects here.
     max_m = session.exec(select(func.max(Match.id))).first()
     next_m_id = (max_m or 0) + 1
-    for i, match in enumerate(matches):
+    for i, match_raw in enumerate(matches):
+        if isinstance(match_raw, dict):
+            match = Match(
+                round_number=match_raw["round_number"],
+                round_type=match_raw.get("round_type", RoundType.SWISS),
+                scenario=match_raw.get("scenario"),
+                player1_score=match_raw.get("player1_score", -1),
+                player2_score=match_raw.get("player2_score", -1),
+                is_bye=match_raw.get("is_bye", False),
+                p1_name_temp=match_raw.get("p1_name_temp"),
+                p2_name_temp=match_raw.get("p2_name_temp"),
+            )
+        else:
+            match = match_raw
         match.id = next_m_id + i
         match.tournament_id = tournament.id
         # Resolve temporary name references to real DB player IDs.
@@ -175,6 +193,7 @@ def scrape_platform(
     date_to: date,
     max_tournaments: int | None,
     existing_urls: set[str],
+    saved_items: list | None = None,
 ) -> tuple[int, int]:
     """Discover and persist tournaments for a single scraper instance.
 
@@ -185,6 +204,9 @@ def scrape_platform(
         date_to: End of the date range (inclusive).
         max_tournaments: Cap on tournaments to process. None = no limit.
         existing_urls: URLs already in the database (mutated on success).
+        saved_items: Optional list to append raw (tournament, players, matches)
+            tuples to for each successfully saved tournament (e.g. for SQLite
+            artifact output).
 
     Returns:
         Tuple of (saved_count, skipped_count).
@@ -221,15 +243,21 @@ def scrape_platform(
             # Ensure the URL is always stored; scrapers may not set it consistently.
             tournament.url = url
 
+            # Keep a copy of the raw matches (dicts) before save_tournament_data
+            # converts them to Match objects, so they can be reused for SQLite output.
+            raw_matches = list(matches)
+
             with Session(engine) as session:
                 save_tournament_data(session, tournament, players, matches)
                 session.commit()
 
             existing_urls.add(url)
             saved += 1
+            if saved_items is not None:
+                saved_items.append((tournament, players, raw_matches))
             logger.info(
                 f"[{scraper_name}] Saved '{tournament.name}' "
-                f"({len(players)} player(s), {len(matches)} match(es))."
+                f"({len(players)} player(s), {len(raw_matches)} match(es))."
             )
         except Exception as exc:
             logger.error(
@@ -237,6 +265,39 @@ def scrape_platform(
             )
 
     return saved, skipped
+
+
+def _write_sqlite(sqlite_path: str, saved_items: list) -> None:
+    """Write saved tournaments to a local SQLite file as artifact.
+
+    Creates fresh model instances (resetting all IDs to None) so that the
+    SQLite DB gets clean sequential IDs independent of the PostgreSQL IDs.
+
+    Args:
+        sqlite_path: Filesystem path for the SQLite database file.
+        saved_items: List of (tournament, players, raw_matches) tuples collected
+            during the main scrape run.
+    """
+    from sqlmodel import SQLModel as _SQLModel
+
+    sqlite_engine = create_engine(f"sqlite:///{sqlite_path}")
+    _SQLModel.metadata.create_all(sqlite_engine)
+
+    with Session(sqlite_engine) as session:
+        for tournament, players, raw_matches in saved_items:
+            # Create fresh copies so SQLite gets its own sequential IDs.
+            t_copy = tournament.model_copy(update={"id": None})
+            p_copies = [
+                p.model_copy(update={"id": None, "tournament_id": None})
+                for p in players
+            ]
+            save_tournament_data(session, t_copy, p_copies, raw_matches)
+        session.commit()
+
+    logger.info(
+        f"SQLite artifact written: {sqlite_path} "
+        f"({len(saved_items)} tournament(s))"
+    )
 
 
 def build_scrapers(
@@ -320,6 +381,16 @@ def main() -> int:
         dest="dry_run",
         help="List discovered tournaments without writing to the database.",
     )
+    parser.add_argument(
+        "--sqlite-output",
+        default=None,
+        dest="sqlite_output",
+        metavar="PATH",
+        help=(
+            "Path for a local SQLite file to write scraped tournaments to "
+            "(in addition to the main database). Useful for workflow artifacts."
+        ),
+    )
     args = parser.parse_args()
 
     try:
@@ -333,6 +404,7 @@ def main() -> int:
         f"Platform: {args.platform} | "
         f"Max per scraper: {args.max_tournaments or 'unlimited'} | "
         f"Dry run: {args.dry_run}"
+        + (f" | SQLite output: {args.sqlite_output}" if args.sqlite_output else "")
     )
 
     if not args.dry_run:
@@ -364,10 +436,12 @@ def main() -> int:
 
     total_saved = 0
     total_skipped = 0
+    all_saved_items: list = []
 
     for name, scraper in scrapers:
         saved, skipped = scrape_platform(
-            scraper, name, date_from, date_to, args.max_tournaments, existing_urls
+            scraper, name, date_from, date_to, args.max_tournaments, existing_urls,
+            saved_items=all_saved_items,
         )
         total_saved += saved
         total_skipped += skipped
@@ -376,6 +450,15 @@ def main() -> int:
         f"Finished. Saved: {total_saved} new tournament(s), "
         f"skipped: {total_skipped} duplicate(s)."
     )
+
+    if args.sqlite_output and all_saved_items:
+        try:
+            _write_sqlite(args.sqlite_output, all_saved_items)
+        except Exception as exc:
+            logger.error(f"Failed to write SQLite artifact: {exc}")
+    elif args.sqlite_output and not all_saved_items:
+        logger.info("No new tournaments saved; skipping SQLite artifact.")
+
     return 0
 
 
