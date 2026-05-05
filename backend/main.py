@@ -1,10 +1,13 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 from sqlmodel import Session, select, func
 from datetime import datetime, timedelta
 import os
 import time
 
+from .cache import persistent_cache, VERSION_FILE, CACHE_DATA_DIR
 from .database import engine, create_db_and_tables
 from .models import Tournament, PlayerResult
 from .analytics.factions import get_meta_snapshot
@@ -47,6 +50,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+class CacheControlMiddleware(BaseHTTPMiddleware):
+    """Add Cache-Control headers to API responses for CDN/proxy caching."""
+
+    async def dispatch(self, request, call_next):
+        response: Response = await call_next(request)
+        if request.method == "GET" and response.status_code < 400:
+            path = request.url.path
+
+            if path.startswith("/api/cache/"):
+                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            elif path in ("/api/ships/all", "/api/tournaments/locations"):
+                response.headers["Cache-Control"] = "public, max-age=3600"
+            else:
+                response.headers["Cache-Control"] = "public, max-age=600"
+        return response
+
+
+app.add_middleware(CacheControlMiddleware)
+
+
 @app.on_event("startup")
 def on_startup():
     retries = int(os.getenv("DB_STARTUP_RETRIES", "20"))
@@ -65,47 +89,89 @@ def on_startup():
 
     raise RuntimeError(f"Database startup failed after {retries} attempts: {last_error}")
 
+
 @app.get("/")
 def read_root():
     return {"status": "Backend is running"}
 
 
-@app.get("/api/meta-snapshot", response_model=MetaSnapshotResponse)
-def get_snapshot(data_source: str = Query("xwa", description="Data source: xwa or legacy")):
+@app.get("/api/cache/status")
+def get_cache_status():
+    """Return cache statistics for monitoring."""
+    return {
+        "hits": persistent_cache.hits,
+        "misses": persistent_cache.misses,
+        "hot_size": persistent_cache.size,
+        "hit_ratio": round(
+            persistent_cache.hits / max(persistent_cache.hits + persistent_cache.misses, 1), 4
+        ),
+        "cache_version": VERSION_FILE.read_text().strip() if VERSION_FILE.exists() else "0",
+    }
+
+
+@app.post("/api/cache/clear")
+def clear_cache(key: str = Query("", description="Secret key for authorization")):
+    """Clear all cached responses and bump the cache version.
+
+    Called by the GitHub Actions scrape workflow after a successful
+    database update. Bumping the version file invalidates all existing
+    cached entries atomically without needing to delete them from disk.
+    """
+    expected_key = os.getenv("CACHE_CLEAR_KEY", "")
+    if expected_key and key != expected_key:
+        raise HTTPException(status_code=403, detail="Invalid cache clear key")
+
+    version = str(int(time.time()))
+    CACHE_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        VERSION_FILE.write_text(version)
+    except OSError as e:
+        print(f"Warning: failed to write cache version file: {e}")
+    # Also clear in-memory hot cache
+    persistent_cache.clear()
+    return {"status": "cache_cleared", "version": version}
+
+
+@persistent_cache.cached(ttl=86400)
+def _compute_meta_snapshot(data_source: str) -> dict:
+    """Compute the full meta-snapshot. Cached until DB update."""
     ds_enum = DataSource.XWA if data_source == "xwa" else DataSource.LEGACY
-    
-    # We parse what HomeState loaded
+
     snapshot = get_meta_snapshot(ds_enum, allowed_formats=None)
-    
-    # Lists are already aggregated in correct format by lists.aggregate_list_stats
+
     enriched_lists = snapshot.get("lists", [])
-    
+
     total_tournaments = 0
     total_players = 0
-    
+
     try:
         with Session(engine) as session:
             start_date = datetime.now() - timedelta(days=90)
-            
+
             total_tournaments_query = select(func.count(Tournament.id)).where(Tournament.date >= start_date)
             res_tournaments = session.exec(total_tournaments_query).one_or_none()
             total_tournaments = res_tournaments if res_tournaments else 0
-            
+
             total_players_query = select(func.count(PlayerResult.id)).join(Tournament).where(Tournament.date >= start_date)
             res_players = session.exec(total_players_query).one_or_none()
             total_players = res_players if res_players else 0
     except Exception as e:
-        # Fallback to 0 if database fails or is empty initially
         print(f"Error reading DB: {e}")
-        
-    return MetaSnapshotResponse(
-        factions=snapshot.get("factions", []),
-        ships=snapshot.get("ships", []),
-        lists=enriched_lists,
-        pilots=snapshot.get("pilots", []),
-        upgrades=snapshot.get("upgrades", []),
-        last_sync=snapshot.get("last_sync", "Never"),
-        date_range=snapshot.get("date_range", "Unknown"),
-        total_tournaments=total_tournaments,
-        total_players=total_players
-    )
+
+    return {
+        "factions": snapshot.get("factions", []),
+        "ships": snapshot.get("ships", []),
+        "lists": enriched_lists,
+        "pilots": snapshot.get("pilots", []),
+        "upgrades": snapshot.get("upgrades", []),
+        "last_sync": snapshot.get("last_sync", "Never"),
+        "date_range": snapshot.get("date_range", "Unknown"),
+        "total_tournaments": total_tournaments,
+        "total_players": total_players,
+    }
+
+
+@app.get("/api/meta-snapshot", response_model=MetaSnapshotResponse)
+def get_snapshot(data_source: str = Query("xwa", description="Data source: xwa or legacy")):
+    result = _compute_meta_snapshot(data_source)
+    return MetaSnapshotResponse(**result)

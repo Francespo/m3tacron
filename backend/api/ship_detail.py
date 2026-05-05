@@ -14,11 +14,13 @@ from ..data_structures.sorting_order import SortingCriteria, SortDirection
 from ..data_structures.data_source import DataSource
 from ..utils.xwing_data.ships import load_all_ships
 from .formatters import enrich_list_data
+from ..cache import persistent_cache
 
 router = APIRouter(prefix="/api/ship", tags=["Ship Detail"])
 
 
 @router.get("/{ship_xws}")
+@persistent_cache.cached(ttl=86400)
 def get_ship_info(
     ship_xws: str,
     data_source: str = Query("xwa"),
@@ -27,11 +29,10 @@ def get_ship_info(
     ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
     all_ships = load_all_ships(ds)
     info = all_ships.get(ship_xws, {"name": ship_xws, "xws": ship_xws, "factions": []})
-    
-    # Get overall stats for this ship
+
     filters = {"ship": [ship_xws]}
     stats = aggregate_ship_stats(filters, SortingCriteria.GAMES, SortDirection.DESCENDING, ds)
-    
+
     stat_info = stats[0] if stats and len(stats) > 0 else {}
     return {
         "info": info,
@@ -40,6 +41,7 @@ def get_ship_info(
 
 
 @router.get("/{ship_xws}/pilots")
+@persistent_cache.cached(ttl=86400)
 def get_ship_pilots(
     ship_xws: str,
     data_source: str = Query("xwa"),
@@ -65,6 +67,7 @@ def get_ship_pilots(
 
 
 @router.get("/{ship_xws}/lists")
+@persistent_cache.cached(ttl=86400)
 def get_ship_lists(
     ship_xws: str,
     data_source: str = Query("xwa"),
@@ -74,17 +77,17 @@ def get_ship_lists(
     ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
     filters = {"ship": [ship_xws]}
     data = aggregate_list_stats(filters, limit=50, data_source=ds)
-    
-    # Take top N that have a minimum number of games to avoid 100% WR outliers
+
     filtered_data = [d for d in data if d.get("games", 0) >= 5]
     filtered_data.sort(key=lambda x: x.get("win_rate", 0), reverse=True)
     if not filtered_data:
-        filtered_data = data  # Fallback if no robust lists
-        
+        filtered_data = data
+
     return {"lists": [enrich_list_data(l, source=ds) for l in filtered_data[:limit]]}
 
 
 @router.get("/{ship_xws}/squadrons")
+@persistent_cache.cached(ttl=86400)
 def get_ship_squadrons(
     ship_xws: str,
     data_source: str = Query("xwa"),
@@ -94,9 +97,9 @@ def get_ship_squadrons(
     ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
     filters = {"ship": [ship_xws]}
     data = aggregate_squadron_stats(filters, SortingCriteria.WINRATE, SortDirection.DESCENDING, ds)
-    
+
     filtered_data = [d for d in data if d.get("games", 0) >= 5]
     if not filtered_data:
         filtered_data = data
-        
+
     return {"squadrons": filtered_data[:limit]}

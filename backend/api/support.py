@@ -7,10 +7,13 @@ import json
 from ..database import engine, create_db_and_tables
 from ..models import Supporter, Contribution
 from .schemas import FundStatusResponse, FundTier, SupporterResponse
+from ..cache import persistent_cache
 
 router = APIRouter(prefix="/api/support", tags=["support"])
 
+
 @router.get("/fund-status", response_model=FundStatusResponse)
+@persistent_cache.cached(ttl=3600)
 def get_fund_status():
     """
     Returns the current status of the Project Evolution Fund.
@@ -18,12 +21,10 @@ def get_fund_status():
     create_db_and_tables()
 
     with Session(engine) as session:
-        # Sum of all contributions
         total_query = select(func.sum(Contribution.amount))
         total_raised = session.exec(total_query).one()
         total_raised = float(total_raised) if total_raised else 0.0
-        
-        # Calculate monthly raised (current month)
+
         now = datetime.now()
         first_of_month = datetime(now.year, now.month, 1)
         monthly_query = select(func.sum(Contribution.amount)).where(Contribution.date >= first_of_month)
@@ -35,7 +36,7 @@ def get_fund_status():
                 name="Server Cost",
                 target=15.0,
                 current=min(monthly_raised, 15.0),
-                description="M3-TA droid works tirelessly to keep the power grid online and the database reactors stable. (15€ / month)"
+                description="M3-TA droid works tirelessly to keep the power grid online and the database reactors stable. (15\u20ac / month)"
             ),
             FundTier(
                 name="Maintenance & Development",
@@ -47,7 +48,9 @@ def get_fund_status():
 
         return FundStatusResponse(total_raised=total_raised, tiers=tiers)
 
+
 @router.get("/supporters", response_model=list[SupporterResponse])
+@persistent_cache.cached(ttl=3600)
 def get_supporters():
     """
     Returns the latest public supporters for the Hall of Heroes.
@@ -55,10 +58,9 @@ def get_supporters():
     create_db_and_tables()
 
     with Session(engine) as session:
-        # Get public contributions with supporter names
         query = select(Contribution, Supporter).join(Supporter).where(Supporter.is_anonymous == False).order_by(Contribution.date.desc()).limit(20)
         results = session.exec(query).all()
-        
+
         return [
             SupporterResponse(
                 name=sup.name,
@@ -68,6 +70,7 @@ def get_supporters():
             ) for con, sup in results
         ]
 
+
 @router.post("/webhook/ko-fi")
 async def kofi_webhook(request: Request):
     """
@@ -76,31 +79,26 @@ async def kofi_webhook(request: Request):
     create_db_and_tables()
 
     try:
-        # Ko-fi usually sends data as a form field 'data' containing JSON
-        # We try manual parsing first to avoid python-multipart dependency issues in some environments
         content_type = request.headers.get("content-type", "")
         body = await request.body()
-        
+
         payload = None
-        
+
         if "application/x-www-form-urlencoded" in content_type:
             from urllib.parse import parse_qs
             form_data = parse_qs(body.decode())
             if "data" in form_data:
                 payload = json.loads(form_data["data"][0])
             else:
-                # Flat form
                 payload = {k: v[0] for k, v in form_data.items()}
-        
+
         if not payload:
-            # Try parsing as direct JSON
             try:
                 payload = json.loads(body)
             except:
                 pass
-                
+
         if not payload:
-            # Last resort: Try standard FastAPI form parsing
             if "multipart/form-data" in content_type:
                 try:
                     form_data = await request.form()
@@ -110,17 +108,15 @@ async def kofi_webhook(request: Request):
                         payload = dict(form_data)
                 except:
                     pass
-            
+
         if not payload:
             raise ValueError("No data found")
-            
+
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to parse Ko-fi payload: {e}")
 
-    # Verify token
     expected_token = os.getenv("KO_FI_WEBHOOK_TOKEN")
     if expected_token and payload.get("verification_token") != expected_token:
-        # We don't raise 401 to keep it silent vs scanners, but log it internally
         return {"status": "unauthorized"}
 
     if payload.get("type") not in ["Donation", "Subscription"]:
@@ -135,11 +131,10 @@ async def kofi_webhook(request: Request):
     transaction_id = payload.get("kofi_transaction_id")
 
     with Session(engine) as session:
-        # Find or create supporter
         supporter = None
         if email:
             supporter = session.exec(select(Supporter).where(Supporter.email == email)).first()
-        
+
         if not supporter and name != "Anonymous Supporter":
             supporter = session.exec(select(Supporter).where(Supporter.name == name)).first()
 
@@ -149,12 +144,10 @@ async def kofi_webhook(request: Request):
             session.commit()
             session.refresh(supporter)
         else:
-            # Update anonymity if they chose to be public/private now
             supporter.is_anonymous = not is_public
             if supporter.name == "Anonymous Supporter" and name != "Anonymous Supporter":
                 supporter.name = name
 
-        # Avoid duplicate transactions
         existing_con = session.exec(select(Contribution).where(Contribution.ko_fi_transaction_id == transaction_id)).first()
         if not existing_con:
             contribution = Contribution(
@@ -165,12 +158,11 @@ async def kofi_webhook(request: Request):
                 ko_fi_transaction_id=transaction_id
             )
             session.add(contribution)
-            
-            # Update supporter total
+
             supporter.total_contributed += amount
             supporter.last_contribution = datetime.now()
             session.add(supporter)
-            
+
             session.commit()
 
     return {"status": "success"}

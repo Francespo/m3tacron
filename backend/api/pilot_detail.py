@@ -16,11 +16,13 @@ from ..utils.xwing_data.upgrades import load_all_upgrades
 from ..database import engine
 from ..models import PlayerResult, Tournament
 from sqlmodel import Session, select
+from ..cache import persistent_cache
 
 router = APIRouter(prefix="/api/pilot", tags=["Pilot Detail"])
 
 
 @router.get("/{pilot_xws}")
+@persistent_cache.cached(ttl=86400)
 def get_pilot_info(
     pilot_xws: str,
     data_source: str = Query("xwa"),
@@ -33,6 +35,7 @@ def get_pilot_info(
 
 
 @router.get("/{pilot_xws}/upgrades")
+@persistent_cache.cached(ttl=86400)
 def get_pilot_upgrades(
     pilot_xws: str,
     data_source: str = Query("xwa"),
@@ -64,6 +67,7 @@ def get_pilot_upgrades(
 
 
 @router.get("/{pilot_xws}/chart")
+@persistent_cache.cached(ttl=86400)
 def get_pilot_chart(
     pilot_xws: str,
     data_source: str = Query("xwa"),
@@ -85,6 +89,7 @@ def get_pilot_chart(
 
 
 @router.get("/{pilot_xws}/configurations")
+@persistent_cache.cached(ttl=86400)
 def get_pilot_configurations(
     pilot_xws: str,
     data_source: str = Query("xwa"),
@@ -100,11 +105,9 @@ def get_pilot_configurations(
     ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
     all_upgrades = load_all_upgrades(ds)
 
-    # Build format filter set
     allowed = set(formats) if formats else None
 
-    # Scan database for lists containing this pilot
-    config_stats: dict[str, dict] = {}  # frozen_key -> {count, wins, upgrades_list}
+    config_stats: dict[str, dict] = {}
 
     with Session(engine) as session:
         query = select(PlayerResult, Tournament).where(
@@ -113,7 +116,6 @@ def get_pilot_configurations(
         rows = session.exec(query).all()
 
         for result, tournament in rows:
-            # Format check
             t_fmt = tournament.format
             fmt_val = t_fmt.value if hasattr(t_fmt, "value") else (t_fmt or "other")
             if allowed and fmt_val not in allowed:
@@ -123,13 +125,11 @@ def get_pilot_configurations(
             if not xws or not isinstance(xws, dict):
                 continue
 
-            # Find this pilot in the list
             for p in xws.get("pilots", []):
                 pid = p.get("id") or p.get("name")
                 if pid != pilot_xws:
                     continue
 
-                # Extract upgrade combo
                 raw_upgrades = p.get("upgrades", {}) or {}
                 upgrade_ids = []
                 for slot_list in raw_upgrades.values():
@@ -145,7 +145,6 @@ def get_pilot_configurations(
                         "wins": 0,
                     }
                 config_stats[key]["count"] += 1
-                # Win detection
                 won = False
                 if hasattr(result, "winner") and result.winner:
                     won = True
@@ -154,10 +153,8 @@ def get_pilot_configurations(
                 if won:
                     config_stats[key]["wins"] += 1
 
-    # Sort by count desc, take top N
     sorted_configs = sorted(config_stats.values(), key=lambda x: x["count"], reverse=True)[:limit]
 
-    # Enrich with upgrade names/images
     results = []
     for cfg in sorted_configs:
         enriched_upgrades = []
