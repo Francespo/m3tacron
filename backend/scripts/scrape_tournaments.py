@@ -247,8 +247,16 @@ def scrape_platform(
             # converts them to Match objects, so they can be reused for SQLite output.
             raw_matches = list(matches)
 
-            with Session(engine) as session:
+            # expire_on_commit=False keeps object attribute values in memory after
+            # commit so they remain accessible once the session closes (detaches
+            # objects).  Without this, SQLAlchemy expires all attributes on commit
+            # and any access after the 'with' block raises DetachedInstanceError.
+            with Session(engine, expire_on_commit=False) as session:
                 save_tournament_data(session, tournament, players, matches)
+                # Capture values for logging while the session is still open.
+                t_name = tournament.name
+                n_players = len(players)
+                n_matches = len(raw_matches)
                 session.commit()
 
             existing_urls.add(url)
@@ -256,12 +264,13 @@ def scrape_platform(
             if saved_items is not None:
                 saved_items.append((tournament, players, raw_matches))
             logger.info(
-                f"[{scraper_name}] Saved '{tournament.name}' "
-                f"({len(players)} player(s), {len(raw_matches)} match(es))."
+                f"[{scraper_name}] Saved '{t_name}' "
+                f"({n_players} player(s), {n_matches} match(es))."
             )
         except Exception as exc:
             logger.error(
-                f"[{scraper_name}] Failed to scrape '{name}' ({url}): {exc}"
+                f"[{scraper_name}] Failed to scrape '{name}' ({url}): {exc}",
+                exc_info=True,
             )
 
     return saved, skipped
@@ -270,8 +279,7 @@ def scrape_platform(
 def _write_sqlite(sqlite_path: str, saved_items: list) -> None:
     """Write saved tournaments to a local SQLite file as artifact.
 
-    Creates fresh model instances (resetting all IDs to None) so that the
-    SQLite DB gets clean sequential IDs independent of the PostgreSQL IDs.
+    Creates fresh model instances with clean IDs independent of the main DB.
 
     Args:
         sqlite_path: Filesystem path for the SQLite database file.
@@ -283,12 +291,44 @@ def _write_sqlite(sqlite_path: str, saved_items: list) -> None:
     sqlite_engine = create_engine(f"sqlite:///{sqlite_path}")
     _SQLModel.metadata.create_all(sqlite_engine)
 
-    with Session(sqlite_engine) as session:
+    with Session(sqlite_engine, expire_on_commit=False) as session:
         for tournament, players, raw_matches in saved_items:
-            # Create fresh copies so SQLite gets its own sequential IDs.
-            t_copy = tournament.model_copy(update={"id": None})
+            # Build fresh Tournament instance — do NOT reuse the ORM object that
+            # was attached to the main-DB session to avoid identity-map conflicts.
+            t_copy = Tournament(
+                name=tournament.name,
+                date=tournament.date,
+                location=tournament.location,
+                player_count=tournament.player_count,
+                team_count=tournament.team_count,
+                url=tournament.url,
+                source=tournament.source,
+                format=tournament.format,
+            )
             p_copies = [
-                p.model_copy(update={"id": None, "tournament_id": None})
+                PlayerResult(
+                    player_name=p.player_name,
+                    team_name=p.team_name,
+                    swiss_rank=p.swiss_rank,
+                    swiss_wins=p.swiss_wins,
+                    swiss_losses=p.swiss_losses,
+                    swiss_draws=p.swiss_draws,
+                    swiss_event_points=p.swiss_event_points,
+                    # swiss_tie_breaker_points has type `int` but default `None` in
+                    # the model, creating a NOT NULL / None mismatch.  Use 0 as a
+                    # safe sentinel rather than silently passing None.
+                    swiss_tie_breaker_points=(
+                        0 if p.swiss_tie_breaker_points is None
+                        else p.swiss_tie_breaker_points
+                    ),
+                    cut_rank=p.cut_rank,
+                    cut_wins=p.cut_wins,
+                    cut_losses=p.cut_losses,
+                    cut_draws=p.cut_draws,
+                    cut_event_points=p.cut_event_points,
+                    cut_tie_breaker_points=p.cut_tie_breaker_points,
+                    list_json=p.list_json or {},
+                )
                 for p in players
             ]
             save_tournament_data(session, t_copy, p_copies, raw_matches)
