@@ -689,7 +689,7 @@ class LongshanksScraper(BaseScraper):
                         is_legacy = True
                         logger.info("Legacy format detected (from XWS). Forcing Scenario to NO_SCENARIO.")
 
-                page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                page.goto(url, wait_until="networkidle", timeout=60000)
                 page.add_style_tag(
                     content="#cookie_permission { display: none !important; }"
                 )
@@ -725,9 +725,24 @@ class LongshanksScraper(BaseScraper):
                         logger.warning(f"Error checking for legacy format in DOM: {e}")
                 page.wait_for_timeout(2000)
 
+                # Give the round-selector dropdown time to be populated via JS.
+                # Some Longshanks events load it asynchronously.
+                try:
+                    page.wait_for_selector(
+                        "#round_selector, select[name='round'], select.round_selector",
+                        timeout=8000,
+                    )
+                except Exception as _wait_err:
+                    logger.debug(
+                        f"round_selector wait timed out for {tournament_id}: {_wait_err}"
+                    )  # Will report "No round_selector found" below if absent.
+
                 # Get round options from the dropdown
                 round_options = page.evaluate("""() => {
-                    const sel = document.getElementById('round_selector');
+                    const sel = document.getElementById('round_selector') ||
+                                document.querySelector(
+                                    "select[name='round'], select.round_selector, select[id*='round']"
+                                );
                     if (!sel) return [];
                     return Array.from(sel.options).map(o => ({
                         value: o.value, text: o.innerText.trim()
@@ -781,7 +796,10 @@ class LongshanksScraper(BaseScraper):
 
                     # Select round using robust trigger (jQuery or Native)
                     page.evaluate(f"""() => {{
-                        const sel = document.getElementById('round_selector');
+                        const sel = document.getElementById('round_selector') ||
+                                    document.querySelector(
+                                        "select[name='round'], select.round_selector, select[id*='round']"
+                                    );
                         if (!sel) return;
                         sel.value = '{round_val}';
                         if (typeof jQuery !== 'undefined') {{
