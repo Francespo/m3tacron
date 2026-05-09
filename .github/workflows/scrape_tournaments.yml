@@ -26,13 +26,22 @@ on:
         default: 'yesterday'
         type: string
       environment:
-        description: 'Target database environment'
+        description: 'Target database environment (use none for SQLite artifact only)'
         required: true
         default: 'prod'
         type: choice
         options:
           - prod
           - dev
+          - none
+      upload_sqlite_artifact:
+        description: 'Upload scraped SQLite database as an artifact'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 jobs:
   scrape:
@@ -58,20 +67,37 @@ jobs:
         
     - name: Run Scraper
       env:
-        DATABASE_URL: ${{ inputs.environment == 'prod' && secrets.PROD_DATABASE_URL || secrets.DEV_DATABASE_URL }}
         PYTHONPATH: .
       run: |
         # Use inputs if available, otherwise default to longshanks+rollbetter/yesterday
         PLATFORM="${{ inputs.platform }}"
         TIME_RANGE="${{ inputs.time_range }}"
-        
+        DB_ENV="${{ inputs.environment }}"
+
         if [ -z "$PLATFORM" ]; then PLATFORM="longshanks+rollbetter"; fi
         if [ -z "$TIME_RANGE" ]; then TIME_RANGE="yesterday"; fi
-        
-        python -m backend.scripts.scrape_tournaments --platform "$PLATFORM" --time-range "$TIME_RANGE" --sqlite-output scraped_tournaments.db
+        if [ -z "$DB_ENV" ]; then DB_ENV="prod"; fi
+
+        if [ "$DB_ENV" = "prod" ]; then
+          export DATABASE_URL="${{ secrets.PROD_DATABASE_URL }}"
+        elif [ "$DB_ENV" = "dev" ]; then
+          export DATABASE_URL="${{ secrets.DEV_DATABASE_URL }}"
+        fi
+
+        if [ "$DB_ENV" = "none" ]; then
+          python -m backend.scripts.scrape_tournaments_sqlite \
+            --sqlite-path scraped_tournaments.db \
+            --platform "$PLATFORM" \
+            --time-range "$TIME_RANGE"
+        else
+          python -m backend.scripts.scrape_tournaments \
+            --platform "$PLATFORM" \
+            --time-range "$TIME_RANGE" \
+            --sqlite-output scraped_tournaments.db
+        fi
     
     - name: Upload Scraped Tournaments Artifact
-      if: always() && hashFiles('scraped_tournaments.db') != ''
+      if: always() && hashFiles('scraped_tournaments.db') != '' && github.event.inputs.upload_sqlite_artifact != 'false'
       uses: actions/upload-artifact@v4
       with:
         name: scraped-tournaments-${{ github.run_id }}
@@ -79,7 +105,7 @@ jobs:
         retention-days: 30
 
     - name: Commit and Push Changes
-      if: hashFiles('main.db') != ''
+      if: hashFiles('main.db') != '' && inputs.environment != 'none'
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

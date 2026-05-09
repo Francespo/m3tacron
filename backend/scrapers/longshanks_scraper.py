@@ -191,7 +191,14 @@ class LongshanksScraper(BaseScraper):
                      logger.info(f"Overriding location for {name} to Burlington, Canada")
                      location_obj = resolve_location("Burlington, Canada")
 
-                parsed_date = self._parse_date(event_info.get("dateStr", ""))
+                date_text = (event_info.get("dateStr", "") or "").strip()
+                # Longshanks sometimes provides a date range; use the start date
+                # to match legacy scraper behavior and prior benchmarks.
+                if "–" in date_text:
+                    date_text = date_text.split("–", 1)[0].strip()
+                elif " - " in date_text:
+                    date_text = date_text.split(" - ", 1)[0].strip()
+                parsed_date = self._parse_date(date_text)
                 player_count = event_info.get("playerCount", 0)
                 
                 # Determine format: Use inferred format if provided, otherwise fall back to internal state or URL
@@ -725,6 +732,20 @@ class LongshanksScraper(BaseScraper):
                         logger.warning(f"Error checking for legacy format in DOM: {e}")
                 page.wait_for_timeout(2000)
 
+                # Ensure games panel is populated (Longshanks loads matches via JS).
+                try:
+                    page.evaluate(
+                        """() => {
+                            if (typeof load_games === 'function') {
+                                load_games();
+                            }
+                        }"""
+                    )
+                except Exception as exc:
+                    logger.debug(f"load_games() call failed: {exc}")
+
+                page.wait_for_timeout(2000)
+
                 # Give the round-selector dropdown time to be populated via JS.
                 # Some Longshanks events load it asynchronously.
                 try:
@@ -794,21 +815,23 @@ class LongshanksScraper(BaseScraper):
                          # So we move this logic AFTER the click/wait.
                          pass
 
-                    # Select round using robust trigger (jQuery or Native)
-                    page.evaluate(f"""() => {{
-                        const sel = document.getElementById('round_selector') ||
-                                    document.querySelector(
-                                        "select[name='round'], select.round_selector, select[id*='round']"
-                                    );
-                        if (!sel) return;
-                        sel.value = '{round_val}';
-                        if (typeof jQuery !== 'undefined') {{
-                            jQuery(sel).trigger('change');
-                        }} else {{
-                            sel.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                        }}
-                    }}""")
-                    page.wait_for_timeout(2000)
+                    # Load matches for the round directly via the page helper.
+                    page.evaluate(
+                        """(roundValue) => {
+                            if (typeof load_games === 'function') {
+                                load_games(roundValue);
+                            }
+                        }""",
+                        round_val,
+                    )
+
+                    try:
+                        page.wait_for_selector("#games", timeout=10000)
+                    except Exception as _wait_err:
+                        logger.debug(
+                            f"games panel wait timed out for {tournament_id}: {_wait_err}"
+                        )
+                    page.wait_for_timeout(1500)
 
                     # --- Precise Scenario Extraction (Subagent Verified) ---
                     # Logic: Look for any "Scenario" header inside a match item and grab its sibling.
@@ -817,7 +840,8 @@ class LongshanksScraper(BaseScraper):
                         try:
                             # Execute JS to find the first valid scenario text in this round
                             found_scen_text = page.evaluate("""() => {
-                                const headers = Array.from(document.querySelectorAll('span.header'));
+                                const root = document.querySelector('#games') || document;
+                                const headers = Array.from(root.querySelectorAll('span.header'));
                                 const scenHeader = headers.find(h => h.innerText.trim() === 'Scenario');
                                 if (scenHeader && scenHeader.nextElementSibling) {
                                     return scenHeader.nextElementSibling.innerText.trim();
@@ -833,7 +857,7 @@ class LongshanksScraper(BaseScraper):
                     # -------------------------------------------------------
 
                     # Each .results div IS one match (2 child .player divs)
-                    result_divs = page.locator(".results").all()
+                    result_divs = page.locator("#games .results").all()
                     for rdiv in result_divs:
                         try:
                             player_divs = rdiv.locator(".player").all()
@@ -897,7 +921,7 @@ class LongshanksScraper(BaseScraper):
 
                     logger.info(
                         f"Round '{round_text}': "
-                        f"{sum(1 for m in matches if m['round_number'] == round_num)} matches"
+                        f"{sum(1 for m in matches if m['round_number'] == round_num and m['round_type'] == round_type)} matches"
                     )
 
             except Exception as e:
