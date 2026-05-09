@@ -163,6 +163,7 @@ def save_tournament_data(
     next_m_id = (max_m or 0) + 1
     for i, match_raw in enumerate(matches):
         if isinstance(match_raw, dict):
+            winner_name = match_raw.get("winner_name_temp")
             match = Match(
                 round_number=match_raw["round_number"],
                 round_type=match_raw.get("round_type", RoundType.SWISS),
@@ -175,6 +176,7 @@ def save_tournament_data(
             )
         else:
             match = match_raw
+            winner_name = getattr(match_raw, "winner_name_temp", None)
         match.id = next_m_id + i
         match.tournament_id = tournament.id
         # Resolve temporary name references to real DB player IDs.
@@ -182,6 +184,9 @@ def save_tournament_data(
             match.player1_id = player_id_map.get(match.p1_name_temp.lower().strip())
         if match.p2_name_temp:
             match.player2_id = player_id_map.get(match.p2_name_temp.lower().strip())
+        # Resolve winner ID from the winner name temp.
+        if winner_name:
+            match.winner_id = player_id_map.get(winner_name.lower().strip(), None)
         session.add(match)
 
 
