@@ -18,12 +18,16 @@ Options:
                            Default: no limit.
     --include-listfortress When platform is 'all', also include ListFortress.
     --dry-run              List discovered tournaments without saving to DB.
+    --tournament-url URL   Scrape a specific tournament URL (repeatable). When
+                           provided, the scraper bypasses listing and ignores
+                           --platform/--time-range for discovery.
 """
 
 import argparse
 import logging
 import sys
 from datetime import date, datetime, timedelta
+from urllib.parse import urlparse
 
 from sqlalchemy import func
 from sqlmodel import Session, create_engine, select
@@ -183,7 +187,89 @@ def save_tournament_data(
 
 def _extract_tournament_id(url: str) -> str:
     """Extract the platform-specific tournament ID from its URL."""
-    return url.rstrip("/").split("/")[-1]
+    parsed = urlparse(url)
+    path = parsed.path.rstrip("/")
+    if not path:
+        return ""
+    return path.split("/")[-1]
+
+
+def _scrape_by_url(
+    url: str,
+    existing_urls: set[str],
+    saved_items: list | None = None,
+) -> tuple[bool, str | None]:
+    """Scrape a single tournament URL and persist it.
+
+    Returns:
+        Tuple of (saved, error_message). If saved is True, error_message is None.
+    """
+    if url in existing_urls:
+        logger.debug(f"Already in DB, skipping: {url}")
+        return False, None
+
+    tournament_id = _extract_tournament_id(url)
+    if not tournament_id:
+        return False, f"Could not parse tournament ID from URL: {url}"
+
+    parsed = urlparse(url)
+    host = (parsed.netloc or "").lower()
+
+    try:
+        if "rollbetter.gg" in host:
+            candidates = [
+                ("rollbetter_amg", RollbetterScraper(game_id=5)),
+                ("rollbetter_xwa", RollbetterScraper(game_id=17)),
+            ]
+            last_exc: Exception | None = None
+            for name, scraper in candidates:
+                try:
+                    tournament, players, matches = scraper.run_full_scrape(tournament_id)
+                    scraper_name = name
+                    break
+                except Exception as exc:
+                    logger.warning(
+                        f"[{name}] Failed to scrape {url} (id={tournament_id}): {exc}"
+                    )
+                    last_exc = exc
+            else:
+                raise last_exc or ValueError("No Rollbetter scraper succeeded")
+        elif "xwing-legacy.longshanks.org" in host:
+            scraper = LongshanksScraper(subdomain="xwing-legacy")
+            scraper_name = "longshanks_legacy"
+            tournament, players, matches = scraper.run_full_scrape(tournament_id)
+        elif "xwing.longshanks.org" in host:
+            scraper = LongshanksScraper(subdomain="xwing")
+            scraper_name = "longshanks_25"
+            tournament, players, matches = scraper.run_full_scrape(tournament_id)
+        elif "listfortress.com" in host:
+            scraper = ListFortressScraper()
+            scraper_name = "listfortress"
+            tournament, players, matches = scraper.run_full_scrape(tournament_id)
+        else:
+            return False, f"Unsupported tournament URL host: {url}"
+    except Exception as exc:
+        return False, f"Scrape failed for {url} (id={tournament_id}): {exc}"
+
+    tournament.url = url
+    raw_matches = list(matches)
+
+    with Session(engine, expire_on_commit=False) as session:
+        save_tournament_data(session, tournament, players, matches)
+        t_name = tournament.name
+        n_players = len(players)
+        n_matches = len(raw_matches)
+        session.commit()
+
+    existing_urls.add(url)
+    if saved_items is not None:
+        saved_items.append((tournament, players, raw_matches))
+
+    logger.info(
+        f"[{scraper_name}] Saved '{t_name}' "
+        f"({n_players} player(s), {n_matches} match(es))."
+    )
+    return True, None
 
 
 def scrape_platform(
@@ -422,6 +508,16 @@ def main() -> int:
         help="List discovered tournaments without writing to the database.",
     )
     parser.add_argument(
+        "--tournament-url",
+        action="append",
+        dest="tournament_urls",
+        metavar="URL",
+        help=(
+            "Scrape a specific tournament URL (repeatable). "
+            "When provided, discovery uses these URLs instead of listings."
+        ),
+    )
+    parser.add_argument(
         "--sqlite-output",
         default=None,
         dest="sqlite_output",
@@ -433,11 +529,14 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    try:
-        date_from, date_to = parse_time_range(args.time_range)
-    except argparse.ArgumentTypeError as exc:
-        logger.error(str(exc))
-        return 1
+    if args.tournament_urls:
+        date_from = date_to = None
+    else:
+        try:
+            date_from, date_to = parse_time_range(args.time_range)
+        except argparse.ArgumentTypeError as exc:
+            logger.error(str(exc))
+            return 1
 
     logger.info(
         f"Date range: {date_from} -> {date_to} | "
@@ -445,30 +544,45 @@ def main() -> int:
         f"Max per scraper: {args.max_tournaments or 'unlimited'} | "
         f"Dry run: {args.dry_run}"
         + (f" | SQLite output: {args.sqlite_output}" if args.sqlite_output else "")
+        + (
+            f" | Tournament URLs: {len(args.tournament_urls)}"
+            if args.tournament_urls
+            else ""
+        )
     )
+
+    tournament_urls = [u.strip() for u in (args.tournament_urls or []) if u.strip()]
 
     if not args.dry_run:
         create_db_and_tables()
 
-    scrapers = build_scrapers(args.platform, args.include_listfortress)
-    if not scrapers:
-        logger.error("No scrapers configured for the given --platform value.")
-        return 1
+    if tournament_urls:
+        if args.dry_run:
+            logger.info("DRY RUN: tournament URLs provided:")
+            for url in tournament_urls:
+                logger.info(f"  - {url}")
+            return 0
+        scrapers = []
+    else:
+        scrapers = build_scrapers(args.platform, args.include_listfortress)
+        if not scrapers:
+            logger.error("No scrapers configured for the given --platform value.")
+            return 1
 
-    if args.dry_run:
-        for name, scraper in scrapers:
-            try:
-                candidates = scraper.list_tournaments(date_from, date_to)
-                logger.info(
-                    f"[{name}] DRY RUN: {len(candidates)} tournament(s) discovered."
-                )
-                for item in candidates:
+        if args.dry_run:
+            for name, scraper in scrapers:
+                try:
+                    candidates = scraper.list_tournaments(date_from, date_to)
                     logger.info(
-                        f"  - {item.get('name', 'Unknown')} ({item.get('url', '')})"
+                        f"[{name}] DRY RUN: {len(candidates)} tournament(s) discovered."
                     )
-            except Exception as exc:
-                logger.error(f"[{name}] DRY RUN listing failed: {exc}")
-        return 0
+                    for item in candidates:
+                        logger.info(
+                            f"  - {item.get('name', 'Unknown')} ({item.get('url', '')})"
+                        )
+                except Exception as exc:
+                    logger.error(f"[{name}] DRY RUN listing failed: {exc}")
+            return 0
 
     with Session(engine) as session:
         existing_urls = get_existing_urls(session)
@@ -476,20 +590,35 @@ def main() -> int:
 
     total_saved = 0
     total_skipped = 0
+    total_failed = 0
     all_saved_items: list = []
 
-    for name, scraper in scrapers:
-        saved, skipped = scrape_platform(
-            scraper, name, date_from, date_to, args.max_tournaments, existing_urls,
-            saved_items=all_saved_items,
-        )
-        total_saved += saved
-        total_skipped += skipped
+    if tournament_urls:
+        for url in tournament_urls:
+            clean_url = url.strip()
+            if not clean_url:
+                continue
+            saved, error = _scrape_by_url(clean_url, existing_urls, all_saved_items)
+            if saved:
+                total_saved += 1
+            elif error:
+                total_failed += 1
+                logger.error(error)
+            else:
+                total_skipped += 1
+    else:
+        for name, scraper in scrapers:
+            saved, skipped = scrape_platform(
+                scraper, name, date_from, date_to, args.max_tournaments, existing_urls,
+                saved_items=all_saved_items,
+            )
+            total_saved += saved
+            total_skipped += skipped
 
     logger.info(
         f"Finished. Saved: {total_saved} new tournament(s), "
-        f"skipped: {total_skipped} duplicate(s)."
-    )
+        f"skipped: {total_skipped} duplicate(s), "
+        f"failed: {total_failed}.")
 
     if args.sqlite_output and all_saved_items:
         try:

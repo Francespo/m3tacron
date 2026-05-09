@@ -731,7 +731,17 @@ class RollbetterScraper(BaseScraper):
                         round_type = RoundType.CUT
                         
                     btn.click()
-                    page.wait_for_timeout(2000) 
+
+                    # Wait for the active round panel to load a match table.
+                    try:
+                        page.wait_for_selector(
+                            ".tab-pane.active table:has(th:has-text('Result')), "
+                            ".tab-pane.active table:has(th:has-text('Players')), "
+                            ".tab-pane.active table:has(td:has-text('Win'))",
+                            timeout=10000,
+                        )
+                    except Exception:
+                        page.wait_for_timeout(2000)
                     
                     # Extract Scenario
                     scenario_text = ""
@@ -769,7 +779,12 @@ class RollbetterScraper(BaseScraper):
 
                     # Extract Matches
                     # Find the table that contains 'Player' or 'Result'
-                    table = page.locator("table:has(th:has-text('Result')), table:has(td:has-text('Win'))").last
+                    active_panel = page.locator(".tab-pane.active")
+                    table = active_panel.locator(
+                        "table:has(th:has-text('Result')), "
+                        "table:has(th:has-text('Players')), "
+                        "table:has(td:has-text('Win'))",
+                    ).first
                     if table.count() == 0:
                         logger.warning(f"No match table found for round {r_idx+1}")
                         continue
