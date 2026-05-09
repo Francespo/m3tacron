@@ -179,11 +179,14 @@ def save_tournament_data(
             winner_name = getattr(match_raw, "winner_name_temp", None)
         match.id = next_m_id + i
         match.tournament_id = tournament.id
-        # Resolve temporary name references to real DB player IDs.
+        # Resolve temporary name references to real DB player IDs,
+        # then clear the temp fields so only the real FK columns persist.
         if match.p1_name_temp:
             match.player1_id = player_id_map.get(match.p1_name_temp.lower().strip())
+            match.p1_name_temp = None
         if match.p2_name_temp:
             match.player2_id = player_id_map.get(match.p2_name_temp.lower().strip())
+            match.p2_name_temp = None
         # Resolve winner ID from the winner name temp.
         if winner_name:
             match.winner_id = player_id_map.get(winner_name.lower().strip(), None)
