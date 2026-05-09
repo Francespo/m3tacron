@@ -276,6 +276,16 @@ class RollbetterScraper(BaseScraper):
                             if pc_match:
                                 player_count = int(pc_match.group(1))
 
+                            # Skip tournaments with 0 or 1 registered players –
+                            # they are placeholder/empty events that will fail
+                            # validation anyway.
+                            if player_count <= 1:
+                                logger.debug(
+                                    f"Skipping '{name}' ({url}): "
+                                    f"only {player_count} player(s)."
+                                )
+                                continue
+
                             results.append({
                                 "url": url,
                                 "name": name,
