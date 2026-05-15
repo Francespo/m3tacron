@@ -11,9 +11,14 @@ Options:
     --platform PLATFORM    Platform(s) to scrape: all, longshanks, rollbetter,
                            listfortress. When 'all', listfortress is excluded
                            by default to avoid duplicates.
-    --time-range RANGE     Time range as integer days (e.g. 7), keyword
-                           (yesterday, today, week, month), or ISO date
-                           (YYYY-MM-DD) as start date. Default: 1 (yesterday).
+    --time-range RANGE     Time range (see parse_time_range for full list):
+                           Single day:  today | yesterday | YYYY-MM-DD
+                           Range:       last 3 days | last week | last month |
+                                        last 3 months | last 6 months | last year |
+                                        all time
+                           Explicit:    YYYY-MM-DD:YYYY-MM-DD | YYYY-MM-DD:today
+                           Legacy:      positive integer (days back)
+                           Default: yesterday.
     --max-tournaments N    Maximum tournaments to collect per scraper instance.
                            Default: no limit.
     --include-listfortress When platform is 'all', also include ListFortress.
@@ -50,14 +55,32 @@ logger = logging.getLogger(__name__)
 def parse_time_range(value: str) -> tuple[date, date]:
     """Parse --time-range argument into (date_from, date_to).
 
-    Accepts:
-        - Positive integer string: days back from today, e.g. "7" -> last 7 days.
-        - "yesterday": yesterday only.
-        - "today": today only.
-        - "week": last 7 days.
-        - "month": last 30 days.
-        - "YYYY-MM-DD:YYYY-MM-DD": explicit start and end date (inclusive).
-        - "YYYY-MM-DD": from that date to today (inclusive).
+    Accepts (case-insensitive):
+        Single day keywords:
+            - "today"          → today only
+            - "yesterday"      → yesterday only
+
+        Single ISO date:
+            - "YYYY-MM-DD"     → that day only (not a range to today)
+
+        Range keywords:
+            - "last 3 days"    → last 3 days (including today)
+            - "last week"      → last 7 days
+            - "last month"     → last 30 days
+            - "last 3 months"  → last ~90 days
+            - "last 6 months"  → last ~180 days
+            - "last year"      → last 365 days
+            - "all time"       → 2012-01-01 to today
+
+        Explicit ranges:
+            - "YYYY-MM-DD:YYYY-MM-DD"       → exact range
+            - "YYYY-MM-DD:today"            → from date to today
+            - "YYYY-MM-DD:yesterday"        → from date to yesterday
+            - "yesterday:today"             → yesterday through today
+            - "yesterday:YYYY-MM-DD"        → yesterday to that date
+
+        Legacy (still supported):
+            - Positive integer: days back from today
 
     Returns:
         Tuple of (date_from, date_to).
@@ -68,51 +91,84 @@ def parse_time_range(value: str) -> tuple[date, date]:
     today = date.today()
     normalized = value.lower().strip()
 
+    # --- Single-day keywords ---
     if normalized == "yesterday":
         d = today - timedelta(days=1)
         return d, d
     if normalized == "today":
         return today, today
-    if normalized == "week":
-        return today - timedelta(days=7), today
-    if normalized == "month":
-        return today - timedelta(days=30), today
 
+    # --- Range keywords ---
+    RANGE_KEYWORDS: dict[str, int] = {
+        "last 3 days": 3,
+        "last week": 7,
+        "last month": 30,
+        "last 3 months": 91,
+        "last 6 months": 182,
+        "last year": 365,
+    }
+    if normalized in RANGE_KEYWORDS:
+        days = RANGE_KEYWORDS[normalized]
+        return today - timedelta(days=days - 1), today
+
+    if normalized == "all time":
+        return date(2012, 1, 1), today
+
+    # --- Legacy integer days ---
     try:
         days = int(value)
         if days <= 0:
             raise argparse.ArgumentTypeError(
                 "--time-range days must be a positive integer"
             )
-        return today - timedelta(days=days), today
+        return today - timedelta(days=days - 1), today
     except ValueError:
         pass
 
-    # Explicit range "YYYY-MM-DD:YYYY-MM-DD"
+    # --- Helper to resolve a single part to a date ---
+    def _resolve_part(part: str) -> date:
+        part = part.strip().lower()
+        if part == "today":
+            return today
+        if part == "yesterday":
+            return today - timedelta(days=1)
+        try:
+            return datetime.strptime(part, "%Y-%m-%d").date()
+        except ValueError:
+            raise argparse.ArgumentTypeError(
+                f"Invalid date part '{part}'. Expected YYYY-MM-DD, today, or yesterday."
+            )
+
+    # --- Explicit ranges with ":" ---
     if ":" in value:
         parts = value.split(":", 1)
         try:
-            date_from = datetime.strptime(parts[0].strip(), "%Y-%m-%d").date()
-            date_to = datetime.strptime(parts[1].strip(), "%Y-%m-%d").date()
+            date_from = _resolve_part(parts[0])
+            date_to = _resolve_part(parts[1])
             if date_from > date_to:
                 raise argparse.ArgumentTypeError(
                     f"Start date {date_from} is after end date {date_to}."
                 )
             return date_from, date_to
-        except ValueError:
+        except argparse.ArgumentTypeError:
+            raise
+        except Exception:
             raise argparse.ArgumentTypeError(
-                f"Invalid date range '{value}'. Expected format: YYYY-MM-DD:YYYY-MM-DD."
+                f"Invalid date range '{value}'. Expected format: YYYY-MM-DD:YYYY-MM-DD, "
+                "or mix keywords like yesterday:today."
             )
 
+    # --- Single ISO date → that day only ---
     try:
-        return datetime.strptime(value, "%Y-%m-%d").date(), today
+        d = datetime.strptime(value, "%Y-%m-%d").date()
+        return d, d
     except ValueError:
         raise argparse.ArgumentTypeError(
             f"Invalid --time-range value '{value}'. "
-            "Accepted: positive integer (days), "
-            "keyword (yesterday/today/week/month), "
-            "ISO date range (YYYY-MM-DD:YYYY-MM-DD), "
-            "or single ISO date (YYYY-MM-DD, end=today)."
+            "Accepted: single day (today/yesterday/YYYY-MM-DD), "
+            "range keyword (last 3 days/last week/last month/last 3 months/last 6 months/last year/all time), "
+            "ISO date range (YYYY-MM-DD:YYYY-MM-DD or YYYY-MM-DD:today/yesterday), "
+            "or positive integer (days back)."
         )
 
 
@@ -527,10 +583,11 @@ def main() -> int:
         dest="time_range",
         metavar="RANGE",
         help=(
-            "Time range: positive integer (days back from today), keyword "
-            "(yesterday/today/week/month), ISO date range YYYY-MM-DD:YYYY-MM-DD, "
-            "or single ISO date YYYY-MM-DD (end=today). "
-            "Default: 1 (yesterday)."
+            "Time range. Single day: today, yesterday, YYYY-MM-DD. "
+            "Range keyword: last 3 days, last week, last month, "
+            "last 3 months, last 6 months, last year, all time. "
+            "Explicit range: YYYY-MM-DD:YYYY-MM-DD or YYYY-MM-DD:today/yesterday. "
+            "Legacy: positive integer (days back). Default: 1 (yesterday)."
         ),
     )
     parser.add_argument(

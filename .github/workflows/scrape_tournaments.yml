@@ -21,7 +21,13 @@ on:
           - listfortress
           - all
       time_range:
-        description: 'Time range: integer days (e.g. 7), keyword (yesterday/today/week/month), ISO date range (YYYY-MM-DD:YYYY-MM-DD), or single ISO date (YYYY-MM-DD)'
+        description: |
+          Time range to scrape.
+
+          Single day:    today | yesterday | YYYY-MM-DD
+          Range keyword: last 3 days | last week | last month | last 3 months | last 6 months | last year | all time
+          Explicit range: YYYY-MM-DD:YYYY-MM-DD | YYYY-MM-DD:today | YYYY-MM-DD:yesterday | yesterday:today
+          Legacy:        positive integer (days back from today, treated as last N days)
         required: true
         default: 'yesterday'
         type: string
@@ -112,10 +118,11 @@ jobs:
         retention-days: 30
 
     - name: Commit and Push Changes
-      if: hashFiles('main.db') != '' && inputs.environment != 'none'
+      if: inputs.environment != 'none'
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        git add main.db
-        git commit -m "Update main.db with latest tournament data" || exit 0
+        git add backend/data/geocoding_cache.json
+        if [ -f main.db ]; then git add main.db; fi
+        git diff --cached --quiet || git commit -m "Update tournament data and geocoding cache" || exit 0
         git push
