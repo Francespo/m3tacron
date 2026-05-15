@@ -278,6 +278,13 @@ def _scrape_by_url(
     raw_matches = list(matches)
 
     with Session(engine, expire_on_commit=False) as session:
+        if scraper_name == "listfortress":
+            from .dedup_utils import check_for_duplicates
+            dup = check_for_duplicates(session, tournament, players)
+            if dup:
+                logger.info(f"[{scraper_name}] Dedup detected '{tournament.name}' is a duplicate of '{dup.name}' ({dup.url}). Skipping.")
+                return False, f"Duplicate of {dup.url}"
+
         if overwrite:
             _delete_existing_tournament(session, url)
         save_tournament_data(session, tournament, players, matches)
@@ -367,6 +374,14 @@ def scrape_platform(
             # objects).  Without this, SQLAlchemy expires all attributes on commit
             # and any access after the 'with' block raises DetachedInstanceError.
             with Session(engine, expire_on_commit=False) as session:
+                if scraper_name == "listfortress":
+                    from .dedup_utils import check_for_duplicates
+                    dup = check_for_duplicates(session, tournament, players)
+                    if dup:
+                        logger.info(f"[{scraper_name}] Dedup detected '{tournament.name}' is a duplicate of '{dup.name}' ({dup.url}). Skipping.")
+                        skipped += 1
+                        continue
+
                 if overwrite:
                     _delete_existing_tournament(session, url)
                 save_tournament_data(session, tournament, players, matches)
