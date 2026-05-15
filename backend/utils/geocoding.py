@@ -135,19 +135,25 @@ def resolve_location(query: str) -> Location | None:
     if any(k in query.lower() for k in online_keywords):
         return Location.create(city="Virtual", country="Virtual", continent="Virtual")
 
-    # Check Cache
+    # Check Cache — skip if any field is "Unknown" so we re-attempt with the API
     if query in _GEO_CACHE:
         cached = _GEO_CACHE[query]
-        if cached is None: # Known failure
+        if cached is None:
             return None
-        return Location(**cached)
+        if any(v == "Unknown" for v in cached.values()):
+            logger.info(f"Geocoding cache has Unknown for '{query}', re-attempting API…")
+        else:
+            return Location(**cached)
 
     if normalized_query in _GEO_CACHE:
         cached = _GEO_CACHE[normalized_query]
         if cached is None:
             return None
-        _GEO_CACHE[query] = cached
-        return Location(**cached)
+        if any(v == "Unknown" for v in cached.values()):
+            logger.info(f"Geocoding cache (normalized) has Unknown for '{normalized_query}', re-attempting API…")
+        else:
+            _GEO_CACHE[query] = cached
+            return Location(**cached)
 
     # Build candidate queries (full -> normalized -> fallback segments)
     candidates = [query]
@@ -209,7 +215,8 @@ def resolve_location(query: str) -> Location | None:
                 "q": candidate,
                 "format": "json",
                 "addressdetails": 1,
-                "limit": 1
+                "limit": 1,
+                "accept-language": "en",
             }
             headers = {"User-Agent": USER_AGENT}
             
