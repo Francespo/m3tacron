@@ -509,7 +509,6 @@ class RollbetterScraper(BaseScraper):
             players.append(
                 PlayerStanding(
                     player_name=name,
-                    team_name=player.get("affiliation"),
                     swiss_rank=ranking.get("seed") or -1,
                     swiss_wins=ranking.get("wins", -1),
                     swiss_losses=ranking.get("losses", -1),
