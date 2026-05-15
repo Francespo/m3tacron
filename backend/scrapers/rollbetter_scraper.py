@@ -8,7 +8,7 @@ from datetime import datetime, date as date_type
 from playwright.sync_api import sync_playwright
 
 from .base import BaseScraper
-from ..models import Tournament, PlayerResult, Match
+from ..models import Tournament, PlayerStanding, Match
 from ..data_structures.formats import Format, infer_format_from_xws
 from ..data_structures.source import Source
 from ..data_structures.round_types import RoundType
@@ -266,7 +266,7 @@ class RollbetterScraper(BaseScraper):
             logger.warning(f"UI fallback failed for {tournament_id}: {exc}")
             return None
 
-    def _build_players_from_matches(self, matches: list[dict]) -> list[PlayerResult]:
+    def _build_players_from_matches(self, matches: list[dict]) -> list[PlayerStanding]:
         players = {}
         for m in matches:
             for name in [m.get("p1_name_temp"), m.get("p2_name_temp")]:
@@ -274,7 +274,7 @@ class RollbetterScraper(BaseScraper):
                     continue
                 key = name.strip().lower()
                 if key not in players:
-                    players[key] = PlayerResult(
+                    players[key] = PlayerStanding(
                         player_name=name.strip(),
                         swiss_rank=-1,
                         swiss_wins=-1,
@@ -285,8 +285,8 @@ class RollbetterScraper(BaseScraper):
                     )
         return list(players.values())
 
-    def _scrape_players_ui(self, page) -> list[PlayerResult]:
-        """Scrape standings table into PlayerResult list (no list data)."""
+    def _scrape_players_ui(self, page) -> list[PlayerStanding]:
+        """Scrape standings table into PlayerStanding list (no list data)."""
         players = []
         try:
             standings_tab = page.locator("button[id$='-tab-standings'], button:has-text('Standings')").first
@@ -334,7 +334,7 @@ class RollbetterScraper(BaseScraper):
                         points = int(txt)
 
                 players.append(
-                    PlayerResult(
+                    PlayerStanding(
                         player_name=name,
                         swiss_rank=rank,
                         swiss_wins=wins,
@@ -438,7 +438,7 @@ class RollbetterScraper(BaseScraper):
                 swiss_points = ranking.get("combinedPoints1")
 
             players.append(
-                PlayerResult(
+                PlayerStanding(
                     player_name=name,
                     team_name=player.get("affiliation"),
                     swiss_rank=ranking.get("seed") or -1,
@@ -578,7 +578,7 @@ class RollbetterScraper(BaseScraper):
         self._ensure_data(tournament_id)
         return self.cache[tournament_id]['tournament']
 
-    def get_participants(self, tournament_id: str) -> list[PlayerResult]:
+    def get_participants(self, tournament_id: str) -> list[PlayerStanding]:
         self._ensure_data(tournament_id)
         players = self.cache[tournament_id]['players']
         if not players:
@@ -834,7 +834,7 @@ class RollbetterScraper(BaseScraper):
                 # Tie Breaker: Use MOV or SOS or MP
                 swiss_tb = safe_int(player.get("mov"), safe_int(player.get("sos"), safe_int(player.get("mission_points"), -1)))
                 
-                pr = PlayerResult(
+                pr = PlayerStanding(
                     tournament_id=int(tid),
                     player_name=player.get("name", "Unknown"),
                     swiss_rank=swiss_rank,

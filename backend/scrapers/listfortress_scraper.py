@@ -3,7 +3,7 @@ import logging
 import httpx
 
 from .base import BaseScraper
-from ..models import Tournament, Match, PlayerResult
+from ..models import Tournament, Match, PlayerStanding
 from ..data_structures.formats import Format
 from ..data_structures.source import Source
 from ..data_structures.round_types import RoundType
@@ -131,7 +131,7 @@ class ListFortressScraper(BaseScraper):
                 ),
             )
 
-    def get_participants(self, tournament_id: str) -> list[PlayerResult]:
+    def get_participants(self, tournament_id: str) -> list[PlayerStanding]:
         """Fetch players and lists."""
         url = f"{self.BASE_URL}/tournaments/{tournament_id}"
         results = []
@@ -151,7 +151,7 @@ class ListFortressScraper(BaseScraper):
                     except json.JSONDecodeError:
                         logger.warning(f"Invalid JSON for player {p.get('id')}")
 
-                pr = PlayerResult(
+                pr = PlayerStanding(
                     player_name=p.get("name", "Unknown"),
                     list_json=xws,
                     swiss_rank=p.get("swiss_rank", 0),

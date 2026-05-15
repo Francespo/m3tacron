@@ -8,7 +8,7 @@ def filter_query(query, filters: dict):
     Apply SQL-level filters to the query.
 
     Args:
-        query: SQLModel select query joining PlayerResult and Tournament.
+        query: SQLModel select query joining PlayerStanding and Tournament.
         filters: Dictionary containing optional keys:
             - date_start: str (YYYY-MM-DD)
             - date_end: str (YYYY-MM-DD)

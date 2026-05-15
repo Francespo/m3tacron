@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query, HTTPException
 from sqlmodel import Session, select, func
 from ..database import engine
-from ..models import Tournament, PlayerResult, Match
+from ..models import Tournament, PlayerStanding, Match
 from ..data_structures.formats import Format
 from ..data_structures.source import Source
 from ..data_structures.factions import Faction
@@ -9,7 +9,7 @@ from .schemas import (
     PaginatedTournamentsResponse,
     TournamentData,
     TournamentDetailResponse,
-    PlayerResultData,
+    PlayerStandingData,
     MatchData
 )
 
@@ -139,8 +139,8 @@ def get_tournaments(
             player_count = t.player_count
             if player_count == 0:
                 player_count = session.exec(
-                    select(func.count(PlayerResult.id)).where(
-                        PlayerResult.tournament_id == t.id
+                    select(func.count(PlayerStanding.id)).where(
+                        PlayerStanding.tournament_id == t.id
                     )
                 ).one_or_none() or 0
 
@@ -184,7 +184,7 @@ def get_tournament_detail(tournament_id: int):
         if not t:
             raise HTTPException(status_code=404, detail="Tournament not found")
             
-        player_count = session.exec(select(func.count(PlayerResult.id)).where(PlayerResult.tournament_id == t.id)).one_or_none() or 0
+        player_count = session.exec(select(func.count(PlayerStanding.id)).where(PlayerStanding.tournament_id == t.id)).one_or_none() or 0
         loc_str = _get_location_string(t.location)
         
         fmt_str = t.format.lower() if t.format else "other"
@@ -210,7 +210,7 @@ def get_tournament_detail(tournament_id: int):
             url=t.url or ""
         )
 
-        query_p = select(PlayerResult).where(PlayerResult.tournament_id == tournament_id).order_by(PlayerResult.swiss_rank)
+        query_p = select(PlayerStanding).where(PlayerStanding.tournament_id == tournament_id).order_by(PlayerStanding.swiss_rank)
         all_results = session.exec(query_p).all()
         
         players_swiss = []
@@ -227,7 +227,7 @@ def get_tournament_detail(tournament_id: int):
             
             has_list = bool(p.list_json and isinstance(p.list_json, dict) and p.list_json.get("pilots"))
             
-            p_res = PlayerResultData(
+            p_res = PlayerStandingData(
                 id=p.id,
                 name=p.player_name,
                 rank=p.swiss_rank if p.swiss_rank is not None else 0,
