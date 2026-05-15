@@ -4,7 +4,7 @@ List Analytics - Aggregation Logic for Squad Lists.
 from sqlmodel import Session, select
 import json
 from ..database import engine
-from ..models import PlayerResult, Tournament
+from ..models import PlayerStanding, Tournament
 from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
 from .filters import filter_query, get_active_formats, apply_tournament_filters
@@ -26,8 +26,8 @@ def aggregate_list_stats(
     Returns list of dicts matching ListData schema.
     """
     with Session(engine) as session:
-        query = select(PlayerResult, Tournament).where(
-            PlayerResult.tournament_id == Tournament.id
+        query = select(PlayerStanding, Tournament).where(
+            PlayerStanding.tournament_id == Tournament.id
         )
         query = filter_query(query, filters)
         rows = session.exec(query).all()

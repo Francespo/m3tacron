@@ -39,6 +39,11 @@ on:
         required: true
         default: true
         type: boolean
+      overwrite:
+        description: 'Overwrite existing tournaments in the database'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   scrape:
@@ -81,16 +86,21 @@ jobs:
           export DATABASE_URL="${{ secrets.DEV_DATABASE_URL }}"
         fi
 
+        OVERWRITE_FLAG=""
+        if [ "${{ inputs.overwrite }}" = "true" ]; then
+          OVERWRITE_FLAG="--overwrite"
+        fi
+
         if [ "$DB_ENV" = "none" ]; then
           python -m backend.scripts.scrape_tournaments_sqlite \
             --sqlite-path scraped_tournaments.db \
             --platform "$PLATFORM" \
-            --time-range "$TIME_RANGE"
+            --time-range "$TIME_RANGE" $OVERWRITE_FLAG
         else
           python -m backend.scripts.scrape_tournaments \
             --platform "$PLATFORM" \
             --time-range "$TIME_RANGE" \
-            --sqlite-output scraped_tournaments.db
+            --sqlite-output scraped_tournaments.db $OVERWRITE_FLAG
         fi
     
     - name: Upload Scraped Tournaments Artifact
