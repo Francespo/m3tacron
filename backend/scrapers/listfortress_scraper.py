@@ -7,6 +7,7 @@ from ..models import Tournament, Match, PlayerResult
 from ..data_structures.formats import Format
 from ..data_structures.source import Source
 from ..data_structures.round_types import RoundType
+from ..data_structures.location import Location
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +118,18 @@ class ListFortressScraper(BaseScraper):
             )
         except Exception as e:
             logger.error(f"Failed to get tournament {tournament_id}: {e}")
-            return Tournament(id=tournament_id, name="Unknown", date=datetime.now(), format=Format.UNKNOWN, source=Source.LISTFORTRESS)
+            return Tournament(
+                id=tournament_id,
+                name="Unknown",
+                date=datetime.now(),
+                format=Format.UNKNOWN,
+                source=Source.LISTFORTRESS,
+                location=Location.create(
+                    city="Unknown",
+                    country="Unknown",
+                    continent="Unknown",
+                ),
+            )
 
     def get_participants(self, tournament_id: str) -> list[PlayerResult]:
         """Fetch players and lists."""
@@ -221,6 +233,18 @@ class ListFortressScraper(BaseScraper):
              return Format.AMG # Assume 2.0/2.5 are grouped or handle specifically
         return Format.AMG # Default fallback
 
-    def _format_location(self, data: dict) -> str:
+    def _format_location(self, data: dict) -> Location:
+        from ..utils.geocoding import resolve_location
+
         locs = [data.get("location"), data.get("state"), data.get("country")]
-        return ", ".join([x for x in locs if x])
+        raw_location = ", ".join([x for x in locs if x])
+        if raw_location:
+            resolved = resolve_location(raw_location)
+            if resolved:
+                return resolved
+
+        return Location.create(
+            city="Unknown",
+            country="Unknown",
+            continent="Unknown",
+        )
