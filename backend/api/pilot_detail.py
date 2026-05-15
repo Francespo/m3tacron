@@ -14,7 +14,7 @@ from ..data_structures.data_source import DataSource
 from ..utils.xwing_data.pilots import load_all_pilots
 from ..utils.xwing_data.upgrades import load_all_upgrades
 from ..database import engine
-from ..models import PlayerResult, Tournament
+from ..models import PlayerStanding, Tournament
 from sqlmodel import Session, select
 
 router = APIRouter(prefix="/api/pilot", tags=["Pilot Detail"])
@@ -107,8 +107,8 @@ def get_pilot_configurations(
     config_stats: dict[str, dict] = {}  # frozen_key -> {count, wins, upgrades_list}
 
     with Session(engine) as session:
-        query = select(PlayerResult, Tournament).where(
-            PlayerResult.tournament_id == Tournament.id
+        query = select(PlayerStanding, Tournament).where(
+            PlayerStanding.tournament_id == Tournament.id
         )
         rows = session.exec(query).all()
 

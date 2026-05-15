@@ -2,7 +2,7 @@ from datetime import timedelta
 from difflib import SequenceMatcher
 import logging
 
-from m3tacron.backend.models import Tournament, PlayerResult
+from m3tacron.backend.models import Tournament, PlayerStanding
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +13,8 @@ class DedupService:
         self, 
         target: Tournament, 
         candidates: list[Tournament],
-        target_players: list[PlayerResult] | None = None,
-        candidate_players_map: dict[str, list[PlayerResult]] | None = None
+        target_players: list[PlayerStanding] | None = None,
+        candidate_players_map: dict[str, list[PlayerStanding]] | None = None
     ) -> Tournament | None:
         """Find a duplicate of the target tournament in the list of candidates.
 
@@ -79,7 +79,7 @@ class DedupService:
         """Return a similarity score between 0.0 and 1.0."""
         return SequenceMatcher(None, str(a).lower(), str(b).lower()).ratio()
 
-    def _calculate_player_overlap(self, list_a: list[PlayerResult], list_b: list[PlayerResult]) -> float:
+    def _calculate_player_overlap(self, list_a: list[PlayerStanding], list_b: list[PlayerStanding]) -> float:
         """Calculate Jaccard index of player names."""
         if not list_a or not list_b:
             return 0.0

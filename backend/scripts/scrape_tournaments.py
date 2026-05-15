@@ -34,7 +34,7 @@ from sqlmodel import Session, create_engine, select
 
 from ..database import engine, create_db_and_tables
 from ..data_structures.round_types import RoundType
-from ..models import Match, PlayerResult, Tournament
+from ..models import Match, PlayerStanding, Tournament
 from ..scrapers.listfortress_scraper import ListFortressScraper
 from ..scrapers.longshanks_scraper import LongshanksScraper
 from ..scrapers.rollbetter_scraper import RollbetterScraper
@@ -121,10 +121,25 @@ def get_existing_urls(session: Session) -> set[str]:
     return set(session.exec(select(Tournament.url)).all())
 
 
+def _delete_existing_tournament(session: Session, url: str) -> None:
+    from sqlmodel import delete
+    from ..models import Match, TeamMatch, PlayerStanding, TeamStanding, Tournament
+    
+    existing = session.exec(select(Tournament).where(Tournament.url == url)).first()
+    if existing:
+        logger.info(f"Deleting existing tournament data for {url}")
+        session.exec(delete(TeamMatch).where(TeamMatch.tournament_id == existing.id))
+        session.exec(delete(Match).where(Match.tournament_id == existing.id))
+        session.exec(delete(PlayerStanding).where(PlayerStanding.tournament_id == existing.id))
+        session.exec(delete(TeamStanding).where(TeamStanding.tournament_id == existing.id))
+        session.exec(delete(Tournament).where(Tournament.id == existing.id))
+        session.commit()
+
+
 def save_tournament_data(
     session: Session,
     tournament: Tournament,
-    players: list[PlayerResult],
+    players: list[PlayerStanding],
     matches: list,
 ) -> None:
     """Persist a tournament along with its players and matches.
@@ -143,7 +158,7 @@ def save_tournament_data(
     session.flush()  # Flush so player FKs can reference tournament.id
 
     # Assign player IDs from current max + offset so they are unique.
-    max_p = session.exec(select(func.max(PlayerResult.id))).first()
+    max_p = session.exec(select(func.max(PlayerStanding.id))).first()
     next_p_id = (max_p or 0) + 1
 
     player_id_map: dict[str, int] = {}
@@ -163,7 +178,10 @@ def save_tournament_data(
     next_m_id = (max_m or 0) + 1
     for i, match_raw in enumerate(matches):
         if isinstance(match_raw, dict):
-            winner_name = match_raw.get("winner_name_temp")
+            # Resolve player names to DB IDs directly from the scraper dict.
+            p1_name = (match_raw.get("p1_name_temp") or "").lower().strip()
+            p2_name = (match_raw.get("p2_name_temp") or "").lower().strip()
+            winner_name = (match_raw.get("winner_name_temp") or "").lower().strip()
             match = Match(
                 round_number=match_raw["round_number"],
                 round_type=match_raw.get("round_type", RoundType.SWISS),
@@ -171,25 +189,18 @@ def save_tournament_data(
                 player1_score=match_raw.get("player1_score", -1),
                 player2_score=match_raw.get("player2_score", -1),
                 is_bye=match_raw.get("is_bye", False),
-                p1_name_temp=match_raw.get("p1_name_temp"),
-                p2_name_temp=match_raw.get("p2_name_temp"),
+                player1_id=player_id_map.get(p1_name),
+                player2_id=player_id_map.get(p2_name),
+                winner_id=player_id_map.get(winner_name),
             )
         else:
             match = match_raw
-            winner_name = getattr(match_raw, "winner_name_temp", None)
+            # Resolve winner from the object if it has a temp name attr.
+            winner_name_attr = getattr(match_raw, "winner_name_temp", None)
+            if winner_name_attr:
+                match.winner_id = player_id_map.get(winner_name_attr.lower().strip(), None)
         match.id = next_m_id + i
         match.tournament_id = tournament.id
-        # Resolve temporary name references to real DB player IDs,
-        # then clear the temp fields so only the real FK columns persist.
-        if match.p1_name_temp:
-            match.player1_id = player_id_map.get(match.p1_name_temp.lower().strip())
-            match.p1_name_temp = None
-        if match.p2_name_temp:
-            match.player2_id = player_id_map.get(match.p2_name_temp.lower().strip())
-            match.p2_name_temp = None
-        # Resolve winner ID from the winner name temp.
-        if winner_name:
-            match.winner_id = player_id_map.get(winner_name.lower().strip(), None)
         session.add(match)
 
 
@@ -206,6 +217,7 @@ def _scrape_by_url(
     url: str,
     existing_urls: set[str],
     saved_items: list | None = None,
+    overwrite: bool = False,
 ) -> tuple[bool, str | None]:
     """Scrape a single tournament URL and persist it.
 
@@ -213,8 +225,11 @@ def _scrape_by_url(
         Tuple of (saved, error_message). If saved is True, error_message is None.
     """
     if url in existing_urls:
-        logger.debug(f"Already in DB, skipping: {url}")
-        return False, None
+        if not overwrite:
+            logger.debug(f"Already in DB, skipping: {url}")
+            return False, None
+        else:
+            logger.info(f"Overwriting existing tournament: {url}")
 
     tournament_id = _extract_tournament_id(url)
     if not tournament_id:
@@ -263,6 +278,8 @@ def _scrape_by_url(
     raw_matches = list(matches)
 
     with Session(engine, expire_on_commit=False) as session:
+        if overwrite:
+            _delete_existing_tournament(session, url)
         save_tournament_data(session, tournament, players, matches)
         t_name = tournament.name
         n_players = len(players)
@@ -288,6 +305,7 @@ def scrape_platform(
     max_tournaments: int | None,
     existing_urls: set[str],
     saved_items: list | None = None,
+    overwrite: bool = False,
 ) -> tuple[int, int]:
     """Discover and persist tournaments for a single scraper instance.
 
@@ -325,9 +343,12 @@ def scrape_platform(
         name: str = item.get("name", "Unknown")
 
         if url in existing_urls:
-            logger.debug(f"[{scraper_name}] Already in DB, skipping: {name} ({url})")
-            skipped += 1
-            continue
+            if not overwrite:
+                logger.debug(f"[{scraper_name}] Already in DB, skipping: {name} ({url})")
+                skipped += 1
+                continue
+            else:
+                logger.info(f"[{scraper_name}] Overwriting existing tournament: {name} ({url})")
 
         tournament_id = _extract_tournament_id(url)
         logger.info(f"[{scraper_name}] Scraping: {name} (id={tournament_id})")
@@ -346,6 +367,8 @@ def scrape_platform(
             # objects).  Without this, SQLAlchemy expires all attributes on commit
             # and any access after the 'with' block raises DetachedInstanceError.
             with Session(engine, expire_on_commit=False) as session:
+                if overwrite:
+                    _delete_existing_tournament(session, url)
                 save_tournament_data(session, tournament, players, matches)
                 # Capture values for logging while the session is still open.
                 t_name = tournament.name
@@ -400,7 +423,7 @@ def _write_sqlite(sqlite_path: str, saved_items: list) -> None:
                 format=tournament.format,
             )
             p_copies = [
-                PlayerResult(
+                PlayerStanding(
                     player_name=p.player_name,
                     team_name=p.team_name,
                     swiss_rank=p.swiss_rank,
@@ -526,6 +549,12 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        dest="overwrite",
+        help="Overwrite existing tournaments if they are already in the database.",
+    )
+    parser.add_argument(
         "--sqlite-output",
         default=None,
         dest="sqlite_output",
@@ -606,7 +635,9 @@ def main() -> int:
             clean_url = url.strip()
             if not clean_url:
                 continue
-            saved, error = _scrape_by_url(clean_url, existing_urls, all_saved_items)
+            saved, error = _scrape_by_url(
+                clean_url, existing_urls, all_saved_items, overwrite=args.overwrite
+            )
             if saved:
                 total_saved += 1
             elif error:
@@ -619,6 +650,7 @@ def main() -> int:
             saved, skipped = scrape_platform(
                 scraper, name, date_from, date_to, args.max_tournaments, existing_urls,
                 saved_items=all_saved_items,
+                overwrite=args.overwrite
             )
             total_saved += saved
             total_skipped += skipped

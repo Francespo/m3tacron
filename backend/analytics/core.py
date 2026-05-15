@@ -4,7 +4,7 @@ Card Analytics - Aggregation Logic for Pilots and Upgrades.
 from sqlmodel import Session, select
 import json
 from ..database import engine
-from ..models import PlayerResult, Tournament
+from ..models import PlayerStanding, Tournament
 from ..utils.xwing_data.pilots import load_all_pilots
 from ..utils.xwing_data.upgrades import load_all_upgrades
 from ..data_structures.factions import Faction
@@ -24,8 +24,8 @@ def aggregate_card_stats(
     Returns list of dicts matching PilotStats or UpgradeStats schema.
     """
     with Session(engine) as session:
-        # Join PlayerResult and Tournament
-        query = select(PlayerResult, Tournament).where(PlayerResult.tournament_id == Tournament.id)
+        # Join PlayerStanding and Tournament
+        query = select(PlayerStanding, Tournament).where(PlayerStanding.tournament_id == Tournament.id)
         
         # Apply SQL-level filters (Dates)
         query = filter_query(query, filters)

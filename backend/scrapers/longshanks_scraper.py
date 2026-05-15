@@ -13,7 +13,7 @@ from playwright.sync_api import sync_playwright
 
 # Local Imports
 from .base import BaseScraper
-from ..models import Tournament, PlayerResult, Match
+from ..models import Tournament, PlayerStanding, Match
 from ..data_structures.formats import Format, infer_format_from_xws
 from ..data_structures.factions import Faction
 from ..data_structures.source import Source
@@ -46,6 +46,8 @@ class LongshanksScraper(BaseScraper):
         self.subdomain = subdomain
         self.base_url = f"https://{subdomain}.longshanks.org"
         self.inferred_format = None
+        self.is_team_event = False
+        self.player_team_map = {}
     
     def _dismiss_cookie_popup(self, page) -> None:
         """Dismiss cookie consent popup if present."""
@@ -89,6 +91,15 @@ class LongshanksScraper(BaseScraper):
             try:
                 page.goto(url, wait_until="networkidle", timeout=30000)
                 page.wait_for_timeout(2000)
+
+                if self.is_team_event:
+                    try:
+                        team_tab = page.locator("a#tab_team").first
+                        if team_tab.count() > 0:
+                            team_tab.click()
+                            page.wait_for_timeout(1500)
+                    except Exception as e:
+                        logger.debug(f"Team tab toggle failed: {e}")
                 
                 self._dismiss_cookie_popup(page)
                 
@@ -227,7 +238,7 @@ class LongshanksScraper(BaseScraper):
             finally:
                 browser.close()
     
-    def get_participants(self, tournament_id: str) -> list[PlayerResult]:
+    def get_participants(self, tournament_id: str) -> list[PlayerStanding]:
         """
         Scrape participants from the Ranking tab (Pure Python).
         """
@@ -253,13 +264,18 @@ class LongshanksScraper(BaseScraper):
                 
                 # Detection: Check if it's a team event (presence of sub-tabs)
                 is_team_event = page.locator("a#tab_team").count() > 0
+                self.is_team_event = is_team_event
+                self.player_team_map = {}
+                if is_team_event:
+                    logger.info("Team event detected; scraping team standings.")
                 
                 # We will perform two passes for team events, or one pass for individual events
+                team_results_only = is_team_event
                 passes = [False] # Individual view (default)
                 if is_team_event:
                     passes = [True, False] # Team view first, then Individual view
                 
-                participants_dict = {} # (Name, is_team) -> PlayerResult
+                participants_dict = {} # (Name, is_team) -> PlayerStanding
                 member_to_team = {} # PID -> TeamName mapping
 
                 for is_team_pass in passes:
@@ -359,7 +375,6 @@ class LongshanksScraper(BaseScraper):
                             'stats': stats_items,
                             'xws': xws_raw,
                             'pid': pid,
-                            'pid': pid,
                             'team_name': team_name if is_team_pass else member_to_team.get(pid)
                         })
                     
@@ -388,15 +403,20 @@ class LongshanksScraper(BaseScraper):
                             
                             # Filter column headers
                             wins_raw = str(item.get('wins', '0')).strip()
-                            if not re.match(r'^-?\d+$', wins_raw): continue
+                            if not re.search(r"\d", wins_raw):
+                                continue
                             
                             r_match = re.search(r"(\d+)", str(item.get('rankRaw', '0')))
                             rank = int(r_match.group(1)) if r_match else 0
                             if rank == 0: continue
                             
-                            wins = int(str(item.get('wins')).replace('-', '0').strip() or 0)
-                            losses = int(str(item.get('loss')).replace('-', '0').strip() or 0)
-                            draws = int(str(item.get('draw')).replace('-', '0').strip() or 0)
+                            def _safe_stat(value) -> int:
+                                match = re.search(r"-?\d+", str(value))
+                                return int(match.group(0)) if match else 0
+
+                            wins = _safe_stat(item.get('wins'))
+                            losses = _safe_stat(item.get('loss'))
+                            draws = _safe_stat(item.get('draw'))
                             
                             tp = 0
                             vps = 0
@@ -437,6 +457,14 @@ class LongshanksScraper(BaseScraper):
                             final_ep = tp if "xwing-legacy" not in self.base_url else None
                             final_tb = vps if "xwing-legacy" not in self.base_url else (mov if mov else vps)
                             
+                            if is_team_pass and t_name:
+                                name = t_name
+
+                            if team_results_only and not is_team_pass:
+                                if t_name and name:
+                                    self.player_team_map[name.lower()] = t_name
+                                continue
+
                             key = name
                             if key in participants_dict:
                                 pr = participants_dict[key]
@@ -447,10 +475,10 @@ class LongshanksScraper(BaseScraper):
                                     pr.swiss_rank, pr.swiss_wins, pr.swiss_losses, pr.swiss_draws = rank, wins, losses, draws
                                     pr.swiss_event_points, pr.swiss_tie_breaker_points = final_ep, final_tb
                             else:
-                                pr = PlayerResult(
+                                pr = PlayerStanding(
                                     tournament_id=int(tournament_id),
                                     player_name=name,
-                                    team_name=t_name,
+                                    team_name=t_name if team_results_only else t_name,
                                     list_json={}
                                 )
                                 if current_section == "cut":
@@ -461,7 +489,7 @@ class LongshanksScraper(BaseScraper):
                                     pr.swiss_event_points, pr.swiss_tie_breaker_points = final_ep, final_tb
                                 participants_dict[key] = pr
 
-                            if item.get('xws'):
+                            if item.get('xws') and not team_results_only:
                                 try:
                                     xws_json = json.loads(item['xws'])
                                     participants_dict[key].list_json = xws_json
@@ -473,7 +501,8 @@ class LongshanksScraper(BaseScraper):
                             logger.warning(f"Error parsing item: {loop_e}")
 
                 participants = list(participants_dict.values())
-                self._extract_lists_from_icons(page, participants, tournament_id)
+                if not team_results_only:
+                    self._extract_lists_from_icons(page, participants, tournament_id)
                 
             except Exception as e:
                 logger.error(f"Error scraping participants: {e}")
@@ -778,6 +807,7 @@ class LongshanksScraper(BaseScraper):
                     f"Found {len(round_options)} rounds in dropdown."
                 )
 
+                seen_team_matches = set()
                 for opt in round_options:
                     round_text = opt["text"]
                     round_val = opt["value"]
@@ -873,6 +903,14 @@ class LongshanksScraper(BaseScraper):
                             p1_name = p1_link.inner_text().strip()
                             p2_name = p2_link.inner_text().strip()
 
+                            if self.is_team_event and self.player_team_map:
+                                p1_team = self.player_team_map.get(p1_name.lower())
+                                p2_team = self.player_team_map.get(p2_name.lower())
+                                if p1_team:
+                                    p1_name = p1_team
+                                if p2_team:
+                                    p2_name = p2_team
+
                             # Extract scores from .score elements
                             s1 = 0
                             s2 = 0
@@ -903,6 +941,16 @@ class LongshanksScraper(BaseScraper):
                                 winner_name = p2_name
 
                             is_bye = "bye" in p2_name.lower()
+
+                            if self.is_team_event:
+                                match_key = (
+                                    round_num,
+                                    round_type,
+                                    tuple(sorted([p1_name.lower(), p2_name.lower()])),
+                                )
+                                if match_key in seen_team_matches:
+                                    continue
+                                seen_team_matches.add(match_key)
 
                             m_dict = {
                                 "round_number": round_num,
@@ -1061,7 +1109,7 @@ class LongshanksScraper(BaseScraper):
         self, 
         tournament_id: str,
         subdomain: str | None = None
-    ) -> tuple[Tournament, list[PlayerResult], list[Match]]:
+    ) -> tuple[Tournament, list[PlayerStanding], list[Match]]:
         """Override to support runtime subdomain switching."""
         if subdomain:
             self.subdomain = subdomain
@@ -1073,7 +1121,7 @@ class LongshanksScraper(BaseScraper):
 def scrape_longshanks_event(
     event_id: int | str, 
     subdomain: str = "xwing"
-) -> tuple[Tournament, list[PlayerResult], list[Match]]:
+) -> tuple[Tournament, list[PlayerStanding], list[Match]]:
     """
     Convenience function to scrape a single Longshanks event.
     
@@ -1082,7 +1130,7 @@ def scrape_longshanks_event(
         subdomain: "xwing" for 2.5, "xwing-legacy" for 2.0
     
     Returns:
-        Tuple of (Tournament, list[PlayerResult], list[Match])
+        Tuple of (Tournament, list[PlayerStanding], list[Match])
     """
     scraper = LongshanksScraper(subdomain=subdomain)
     return scraper.run_full_scrape(str(event_id))
