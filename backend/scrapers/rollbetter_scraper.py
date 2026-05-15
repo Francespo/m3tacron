@@ -465,14 +465,15 @@ class RollbetterScraper(BaseScraper):
         date_to: date_type,
         max_pages: int | None = None
     ) -> list[dict]:
-        """Discover tournament URLs from Rollbetter game listing pages.
+        """Discover tournament URLs from the Rollbetter API.
 
-        Scrapes /games/{game_id} with "Past" filter and pagination.
+        Uses the public API directly — a single HTTP request replaces
+        ~60 pages of Playwright UI scraping.
 
         Args:
             date_from: Start of date range (inclusive).
             date_to: End of date range (inclusive).
-            max_pages: Max pages to scrape. None = all pages.
+            max_pages: Unused (API returns all in one call).
 
         Returns:
             List of dicts: {url, name, date, player_count}.
@@ -481,97 +482,49 @@ class RollbetterScraper(BaseScraper):
             raise ValueError("game_id is required for list_tournaments. Set it in constructor.")
 
         results = []
-        listing_url = f"{self.BASE_URL}/games/{self.game_id}"
+        api_url = (
+            f"https://api.rollbetter.gg/tournaments"
+            f"?skip=0&take=2000&gameId={self.game_id}&when=past"
+        )
 
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
+        data = self._fetch_api_json(api_url)
+        if not data:
+            logger.warning(f"Rollbetter API listing returned no data for gameId={self.game_id}")
+            return []
+
+        logger.info(
+            f"Rollbetter API returned {data.get('count', 0)} total tournaments for gameId={self.game_id}"
+        )
+
+        for t in data.get("tournaments", []):
             try:
-                page.goto(listing_url, wait_until="load", timeout=30000)
-                page.wait_for_timeout(3000)
+                t_date = self._parse_api_date(t.get("startDate")).date()
 
-                # Click "Past" filter to show completed tournaments
-                past_btn = page.locator("button:has-text('Past')").first
-                if past_btn.count() > 0:
-                    past_btn.click()
-                    page.wait_for_timeout(3000)
+                # Client-side date filtering
+                if t_date < date_from or t_date > date_to:
+                    continue
 
-                pages_scraped = 0
-                stop_early = False
-                consecutive_misses = 0
-                MAX_CONSECUTIVE_MISSES = 5
+                t_id = t.get("id")
+                if not t_id:
+                    continue
 
-                while True:
-                    pages_scraped += 1
-                    if max_pages and pages_scraped > max_pages:
-                        break
+                title = (t.get("title") or "").strip()
+                if not title:
+                    title = f"Rollbetter Event {t_id}"
 
-                    # Extract tournament cards
-                    cards = page.locator(".card.mb-3").all()
-                    logger.info(f"Page {pages_scraped}: found {len(cards)} tournament cards.")
+                results.append({
+                    "url": f"{self.BASE_URL}/tournaments/{t_id}",
+                    "name": title,
+                    "date": t_date.isoformat(),
+                    "player_count": t.get("maxPlayerCount", 0),
+                })
+            except Exception as exc:
+                logger.debug(f"Skipping malformed API tournament entry: {exc}")
 
-                    for card in cards:
-                        try:
-                            # Name + URL from card header
-                            name_link = card.locator(".card-header a[href*='/tournaments/']").first
-                            if name_link.count() == 0:
-                                continue
-                            name = name_link.inner_text().strip()
-                            href = name_link.get_attribute("href") or ""
-                            url = f"{self.BASE_URL}{href}" if href.startswith("/") else href
-
-                            # Date & player count from card body text
-                            body_text = card.locator(".card-body").first.inner_text()
-
-                            # Parse date (e.g. "Jan 25, 2026")
-                            event_date = self._parse_date(body_text).date()
-
-                            # Date range filter
-                            if event_date > date_to:
-                                continue
-                            
-                            if event_date < date_from:
-                                # Count consecutive misses to handle out-of-order listings
-                                consecutive_misses += 1
-                                if consecutive_misses >= MAX_CONSECUTIVE_MISSES:
-                                    stop_early = True
-                                    break
-                                continue # Skip this one, but don't stop yet
-                            else:
-                                # Valid date found, reset counter
-                                consecutive_misses = 0
-
-                            # Player count (e.g. "9 / 16")
-                            player_count = 0
-                            pc_match = re.search(r"(\d+)\s*/\s*\d+", body_text)
-                            if pc_match:
-                                player_count = int(pc_match.group(1))
-
-                            results.append({
-                                "url": url,
-                                "name": name,
-                                "date": event_date.isoformat(),
-                                "player_count": player_count,
-                            })
-                        except Exception as e:
-                            logger.debug(f"Error parsing card: {e}")
-
-                    if stop_early:
-                        break
-
-                    # Pagination: look for "Next" button
-                    next_btn = page.locator(".page-item:not(.disabled) .page-link:has-text('Next')").first
-                    if next_btn.count() > 0:
-                        next_btn.click()
-                        page.wait_for_timeout(3000)
-                    else:
-                        break
-            except Exception as e:
-                logger.error(f"Error listing tournaments: {e}")
-            finally:
-                browser.close()
-
-        logger.info(f"Discovered {len(results)} tournaments from Rollbetter (game {self.game_id}).")
+        logger.info(
+            f"Discovered {len(results)} tournaments in range "
+            f"from Rollbetter (game {self.game_id})."
+        )
         return results
 
     def get_tournament_data(self, tournament_id: str, inferred_format: Format | None = None) -> Tournament:

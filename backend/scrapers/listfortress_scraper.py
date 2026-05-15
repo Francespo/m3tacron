@@ -15,7 +15,6 @@ class ListFortressScraper(BaseScraper):
     """Scraper logic for ListFortress API."""
 
     BASE_URL = "https://listfortress.com/api/v1"
-    MAX_TOURNAMENTS_PER_FETCH = 20
 
     def __init__(self):
         # ListFortress API doesn't require complex session handling, but we init session anyway
@@ -28,59 +27,45 @@ class ListFortressScraper(BaseScraper):
         date_to: datetime.date,
         max_pages: int | None = None
     ) -> list[dict]:
-        """Discover tournament URLs from ListFortress API.
+        """Discover tournament URLs from the ListFortress API.
+
+        Fetches the full tournament list (single API call), then filters
+        client-side by date range. The ListFortress API returns all
+        tournaments in one response — no pagination needed.
 
         Args:
-            date_from: Start date.
-            date_to: End date.
-            max_pages: Ignored for now (fetched in one go or limited).
+            date_from: Start of date range (inclusive).
+            date_to: End of date range (inclusive).
+            max_pages: Unused (ListFortress returns all in one call).
 
         Returns:
-            List of dicts with keys: url, name, date, player_count.
+            List of dicts: {url, name, date, player_count}.
         """
-        """Fetch list of tournaments from API.
-
-        Note: ListFortress API returns ALL tournaments in one go usually, 
-        or we might need to filter client-side if the API doesn't support format filtering parameters.
-        Docs are sparse, so we'll fetch all and filter.
-        
-        Args:
-            fmt: Format filter (STANDARD/EXTENDED/etc).
-            offset: Not fully supported by LF API in standard way, might be ID based. 
-                   For now, we'll fetch recent ones.
-        """
-        # ListFortress doesn't seem to have a robust "since" filter in /tournaments
-        # It returns a huge JSON. We might want to limit this in production or cache it.
-        # For this prototype, we'll fetch and filter the last ~50-100 relevant ones.
-        
         try:
             resp = self.session.get(f"{self.BASE_URL}/tournaments")
             resp.raise_for_status()
             data = resp.json()
-            
-            # data is a list of dicts
-            results = []
-            # Sort by ID descending to get newest first (approx) or date
-            data.sort(key=lambda x: x.get("id", 0), reverse=True)
-            
-            count = 0
-            for item in data:
-                if count >= self.MAX_TOURNAMENTS_PER_FETCH:
-                    break
 
+            # Sort by ID descending (newest first, roughly chronological)
+            sorted_data = sorted(data, key=lambda x: x.get("id", 0), reverse=True)
+
+            results = []
+            for item in sorted_data:
                 t_date = self._parse_date(item.get("date"))
                 if t_date.date() < date_from or t_date.date() > date_to:
                     continue
 
-                # Return dict as per BaseScraper contract
                 results.append({
                     "url": f"https://listfortress.com/tournaments/{item['id']}",
                     "name": str(item["name"]).strip(),
-                    "date": t_date,
-                    "player_count": 0 # Not available in simple list?
+                    "date": t_date.date().isoformat(),
+                    "player_count": item.get("participants_count", 0),
                 })
-                count += 1
-                
+
+            logger.info(
+                f"Discovered {len(results)} tournaments from ListFortress "
+                f"(out of {len(sorted_data)} total)."
+            )
             return results
 
         except Exception as e:

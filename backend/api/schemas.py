@@ -77,7 +77,7 @@ class TournamentData(BaseModel):
     url: str
 
 
-class PlayerResultData(BaseModel):
+class PlayerStandingData(BaseModel):
     id: int
     name: str
     rank: int
@@ -151,8 +151,8 @@ class PaginatedShipsResponse(BaseModel):
 
 class TournamentDetailResponse(BaseModel):
     tournament: TournamentData
-    players_swiss: list[PlayerResultData]
-    players_cut: list[PlayerResultData]
+    players_swiss: list[PlayerStandingData]
+    players_cut: list[PlayerStandingData]
     matches: list[MatchData]
 
 
