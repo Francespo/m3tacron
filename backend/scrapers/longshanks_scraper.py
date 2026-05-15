@@ -478,7 +478,6 @@ class LongshanksScraper(BaseScraper):
                                 pr = PlayerStanding(
                                     tournament_id=int(tournament_id),
                                     player_name=name,
-                                    team_name=t_name if team_results_only else t_name,
                                     list_json={}
                                 )
                                 if current_section == "cut":
@@ -498,7 +497,7 @@ class LongshanksScraper(BaseScraper):
                                         self.inferred_format = infer_format_from_xws(xws_json)
                                 except: pass
                         except Exception as loop_e:
-                            logger.warning(f"Error parsing item: {loop_e}")
+                            import traceback; traceback.print_exc()
 
                 participants = list(participants_dict.values())
                 if not team_results_only:
@@ -808,9 +807,21 @@ class LongshanksScraper(BaseScraper):
                 )
 
                 seen_team_matches = set()
-                for opt in round_options:
-                    round_text = opt["text"]
-                    round_val = opt["value"]
+                passes = [False]
+                if self.is_team_event:
+                    passes = [True, False]
+
+                for is_team_pass in passes:
+                    if self.is_team_event:
+                        if is_team_pass:
+                            page.locator("a#tab_team").click()
+                        else:
+                            page.locator("a#tab_player").click()
+                        page.wait_for_timeout(1500)
+
+                    for opt in round_options:
+                        round_text = opt["text"]
+                        round_val = opt["value"]
 
                     # Parse round number and type from dropdown text
                     round_num = 0
@@ -903,7 +914,10 @@ class LongshanksScraper(BaseScraper):
                             p1_name = p1_link.inner_text().strip()
                             p2_name = p2_link.inner_text().strip()
 
-                            if self.is_team_event and self.player_team_map:
+                            # Only map player -> team names when scraping the team
+                            # view (is_team_pass True). This avoids converting
+                            # individual matches into team matches.
+                            if is_team_pass and self.is_team_event and self.player_team_map:
                                 p1_team = self.player_team_map.get(p1_name.lower())
                                 p2_team = self.player_team_map.get(p2_name.lower())
                                 if p1_team:
@@ -951,7 +965,6 @@ class LongshanksScraper(BaseScraper):
                                 if match_key in seen_team_matches:
                                     continue
                                 seen_team_matches.add(match_key)
-
                             m_dict = {
                                 "round_number": round_num,
                                 "round_type": round_type,
@@ -962,6 +975,7 @@ class LongshanksScraper(BaseScraper):
                                 "p1_name_temp": p1_name,
                                 "p2_name_temp": p2_name,
                                 "winner_name_temp": winner_name,
+                                "is_team_match": bool(is_team_pass),
                             }
                             matches.append(m_dict)
                         except Exception:

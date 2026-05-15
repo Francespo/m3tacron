@@ -39,7 +39,7 @@ from sqlmodel import Session, create_engine, select
 
 from ..database import engine, create_db_and_tables
 from ..data_structures.round_types import RoundType
-from ..models import Match, PlayerStanding, Tournament
+from ..models import Match, PlayerStanding, Tournament, TeamStanding, TeamMatch
 from ..scrapers.listfortress_scraper import ListFortressScraper
 from ..scrapers.longshanks_scraper import LongshanksScraper
 from ..scrapers.rollbetter_scraper import RollbetterScraper
@@ -70,7 +70,7 @@ def parse_time_range(value: str) -> tuple[date, date]:
             - "last 3 months"  → last ~90 days
             - "last 6 months"  → last ~180 days
             - "last year"      → last 365 days
-            - "all time"       → 2012-01-01 to today
+            - "all time"       → 2018-09-13 to today
 
         Explicit ranges:
             - "YYYY-MM-DD:YYYY-MM-DD"       → exact range
@@ -112,7 +112,7 @@ def parse_time_range(value: str) -> tuple[date, date]:
         return today - timedelta(days=days - 1), today
 
     if normalized == "all time":
-        return date(2012, 1, 1), today
+        return date(2018, 9, 13), today
 
     # --- Legacy integer days ---
     try:
@@ -213,6 +213,34 @@ def save_tournament_data(
     session.add(tournament)
     session.flush()  # Flush so player FKs can reference tournament.id
 
+    # --- Teams: build TeamStanding rows if team names are present in players
+    team_names: set[str] = set()
+    for p in players:
+        tname = getattr(p, "team_name", None)
+        if tname:
+            team_names.add(tname.strip())
+    # Also include any team names that appear in team matches
+    for m in matches:
+        if isinstance(m, dict) and m.get("is_team_match"):
+            if m.get("p1_name_temp"):
+                team_names.add(m.get("p1_name_temp").strip())
+            if m.get("p2_name_temp"):
+                team_names.add(m.get("p2_name_temp").strip())
+
+    team_id_map: dict[str, int] = {}
+    if team_names:
+        max_tsid = session.exec(select(func.max(TeamStanding.id))).first()
+        next_tsid = (max_tsid or 0) + 1
+        for i, tname in enumerate(sorted(team_names)):
+            ts = TeamStanding(
+                id=next_tsid + i,
+                tournament_id=tournament.id,
+                team_name=tname,
+            )
+            session.add(ts)
+            team_id_map[tname.lower().strip()] = ts.id
+        session.flush()
+
     # Assign player IDs from current max + offset so they are unique.
     max_p = session.exec(select(func.max(PlayerStanding.id))).first()
     next_p_id = (max_p or 0) + 1
@@ -221,6 +249,10 @@ def save_tournament_data(
     for i, player in enumerate(players):
         player.id = next_p_id + i
         player.tournament_id = tournament.id
+        # Link player to team_id if team_name available
+        tname = getattr(player, "team_name", None)
+        if tname:
+            player.team_id = team_id_map.get(tname.lower().strip())
         session.add(player)
         if player.player_name:
             player_id_map[player.player_name.lower().strip()] = player.id
@@ -229,35 +261,63 @@ def save_tournament_data(
         session.flush()  # Flush so match FKs can reference player IDs
 
     # Assign match IDs from current max + offset.
-    # Scrapers return match dicts; convert them to Match objects here.
+    # Scrapers return match dicts; convert them to Match or TeamMatch objects here.
     max_m = session.exec(select(func.max(Match.id))).first()
     next_m_id = (max_m or 0) + 1
-    for i, match_raw in enumerate(matches):
-        if isinstance(match_raw, dict):
-            # Resolve player names to DB IDs directly from the scraper dict.
+    max_tm = session.exec(select(func.max(TeamMatch.id))).first()
+    next_tm_id = (max_tm or 0) + 1
+
+    m_counter = 0
+    tm_counter = 0
+    for match_raw in matches:
+        if isinstance(match_raw, dict) and match_raw.get("is_team_match"):
             p1_name = (match_raw.get("p1_name_temp") or "").lower().strip()
             p2_name = (match_raw.get("p2_name_temp") or "").lower().strip()
             winner_name = (match_raw.get("winner_name_temp") or "").lower().strip()
-            match = Match(
+            team1_id = team_id_map.get(p1_name)
+            team2_id = team_id_map.get(p2_name)
+            winner_id = team_id_map.get(winner_name)
+            tm = TeamMatch(
+                id=next_tm_id + tm_counter,
+                tournament_id=tournament.id,
                 round_number=match_raw["round_number"],
                 round_type=match_raw.get("round_type", RoundType.SWISS),
-                scenario=match_raw.get("scenario"),
-                player1_score=match_raw.get("player1_score", -1),
-                player2_score=match_raw.get("player2_score", -1),
+                team1_score=match_raw.get("player1_score", -1),
+                team2_score=match_raw.get("player2_score", -1),
                 is_bye=match_raw.get("is_bye", False),
-                player1_id=player_id_map.get(p1_name),
-                player2_id=player_id_map.get(p2_name),
-                winner_id=player_id_map.get(winner_name),
+                team1_id=team1_id,
+                team2_id=team2_id,
+                winner_id=winner_id,
             )
+            session.add(tm)
+            tm_counter += 1
         else:
-            match = match_raw
-            # Resolve winner from the object if it has a temp name attr.
-            winner_name_attr = getattr(match_raw, "winner_name_temp", None)
-            if winner_name_attr:
-                match.winner_id = player_id_map.get(winner_name_attr.lower().strip(), None)
-        match.id = next_m_id + i
-        match.tournament_id = tournament.id
-        session.add(match)
+            if isinstance(match_raw, dict):
+                # Resolve player names to DB IDs directly from the scraper dict.
+                p1_name = (match_raw.get("p1_name_temp") or "").lower().strip()
+                p2_name = (match_raw.get("p2_name_temp") or "").lower().strip()
+                winner_name = (match_raw.get("winner_name_temp") or "").lower().strip()
+                match = Match(
+                    round_number=match_raw["round_number"],
+                    round_type=match_raw.get("round_type", RoundType.SWISS),
+                    scenario=match_raw.get("scenario"),
+                    player1_score=match_raw.get("player1_score", -1),
+                    player2_score=match_raw.get("player2_score", -1),
+                    is_bye=match_raw.get("is_bye", False),
+                    player1_id=player_id_map.get(p1_name),
+                    player2_id=player_id_map.get(p2_name),
+                    winner_id=player_id_map.get(winner_name),
+                )
+            else:
+                match = match_raw
+                # Resolve winner from the object if it has a temp name attr.
+                winner_name_attr = getattr(match_raw, "winner_name_temp", None)
+                if winner_name_attr:
+                    match.winner_id = player_id_map.get(winner_name_attr.lower().strip(), None)
+            match.id = next_m_id + m_counter
+            match.tournament_id = tournament.id
+            session.add(match)
+            m_counter += 1
 
 
 def _extract_tournament_id(url: str) -> str:
@@ -496,7 +556,7 @@ def _write_sqlite(sqlite_path: str, saved_items: list) -> None:
             p_copies = [
                 PlayerStanding(
                     player_name=p.player_name,
-                    team_name=p.team_name,
+                    team_id=getattr(p, "team_id", None),
                     swiss_rank=p.swiss_rank,
                     swiss_wins=p.swiss_wins,
                     swiss_losses=p.swiss_losses,

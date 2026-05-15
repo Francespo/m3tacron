@@ -71,7 +71,6 @@ class PlayerStanding(SQLModel, table=True):
     tournament_id: int = Field(foreign_key="tournament.id")
     player_name: str = Field()
     team_id: int | None = Field(default=None, foreign_key="teamstanding.id")
-    team_name: str | None = Field(default=None)
     swiss_rank: int = Field(default=-1)
     swiss_wins: int = Field(default=-1)
     swiss_losses: int = Field(default=-1)
@@ -87,6 +86,7 @@ class PlayerStanding(SQLModel, table=True):
     list_json: dict = Field(default={}, sa_column=Column(JSON))
     
     tournament: Tournament | None = Relationship(back_populates="standings")
+    team: TeamStanding | None = Relationship(sa_relationship_kwargs={"lazy": "select"})
 
 
 class Match(SQLModel, table=True):
