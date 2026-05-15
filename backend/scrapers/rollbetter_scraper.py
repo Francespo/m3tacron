@@ -2,6 +2,8 @@
 import json
 import logging
 import re
+import urllib.error
+import urllib.request
 from datetime import datetime, date as date_type
 from playwright.sync_api import sync_playwright
 
@@ -59,8 +61,12 @@ class RollbetterScraper(BaseScraper):
                     # Wait for data load
                     page.wait_for_timeout(3000)
                     
-                    # Check for validation (throws error if fails)
+                    # Check for validation; if it fails, try API fallback before aborting.
                     if not self._validate_page(page, tournament_id):
+                        api_data = self._try_fetch_api_data(tournament_id, url)
+                        if api_data:
+                            self.cache[tournament_id] = api_data
+                            return
                         raise ValueError("Tournament failed validation")
 
                     # Try ListFortress Export Logic directly here
@@ -173,18 +179,283 @@ class RollbetterScraper(BaseScraper):
                     
                     # If we got here, we failed to get data
                     logger.warning(f"Attempt {attempt+1}: Failed to extract LF JSON.")
+
+                    # Last attempt: build a UI-only fallback so we still scrape metadata and matches.
+                    if attempt == 2:
+                        ui_data = self._build_fallback_from_ui(page, tournament_id, url)
+                        if ui_data:
+                            logger.info(f"Using UI-only fallback for {tournament_id}.")
+                            self.cache[tournament_id] = ui_data
+                            return
                     
             except Exception as e:
                 logger.error(f"Attempt {attempt+1} Error for {tournament_id}: {e}")
                 error_trace = e
                 # Retry loop continues
         
+        # If LF export flow failed, fall back to the public API.
+        api_data = self._try_fetch_api_data(tournament_id, f"{self.BASE_URL}/tournaments/{tournament_id}")
+        if api_data:
+            self.cache[tournament_id] = api_data
+            return
+
         logger.error(f"Failed to scrape LF data for {tournament_id} after 3 attempts.")
         if error_trace:
              import traceback
              traceback.print_exc()
         # Raise so worker knows it failed
         raise ValueError("Failed to ensure data")
+
+    def _build_fallback_from_ui(self, page, tournament_id: str, url: str) -> dict | None:
+        """Build a minimal dataset from UI when LF JSON is unavailable."""
+        try:
+            name = f"Rollbetter Event {tournament_id}"
+            h1 = page.locator("h1").first
+            if h1.count() > 0:
+                h1_text = h1.inner_text().strip()
+                if h1_text:
+                    name = h1_text
+
+            ui_date = self._scrape_date_from_ui(page).date()
+            tournament = Tournament(
+                id=int(tournament_id),
+                name=name,
+                date=ui_date,
+                player_count=0,
+                source=Source.ROLLBETTER,
+                url=url,
+                format=Format.OTHER,
+            )
+
+            location_data = self._extract_location(page)
+            if location_data:
+                tournament.location = location_data
+            else:
+                tournament.location = Location.create(
+                    city="Unknown",
+                    country="Unknown",
+                    continent="Unknown",
+                )
+
+            players = self._scrape_players_ui(page)
+            matches = self._scrape_detailed_matches(page, tournament_id)
+
+            if not players and matches:
+                players = self._build_players_from_matches(matches)
+
+            if matches:
+                self._compute_stats_from_matches(players, matches, tournament.format)
+
+            if players:
+                tournament.player_count = len(players)
+
+            logger.info(
+                "UI fallback built for %s: %s player(s), %s match(es), location=%s",
+                tournament_id,
+                len(players),
+                len(matches),
+                tournament.location,
+            )
+
+            return {
+                "tournament": tournament,
+                "players": players,
+                "matches": matches,
+            }
+        except Exception as exc:
+            logger.warning(f"UI fallback failed for {tournament_id}: {exc}")
+            return None
+
+    def _build_players_from_matches(self, matches: list[dict]) -> list[PlayerResult]:
+        players = {}
+        for m in matches:
+            for name in [m.get("p1_name_temp"), m.get("p2_name_temp")]:
+                if not name:
+                    continue
+                key = name.strip().lower()
+                if key not in players:
+                    players[key] = PlayerResult(
+                        player_name=name.strip(),
+                        swiss_rank=-1,
+                        swiss_wins=-1,
+                        swiss_losses=-1,
+                        swiss_draws=0,
+                        swiss_event_points=None,
+                        swiss_tie_breaker_points=-1,
+                    )
+        return list(players.values())
+
+    def _scrape_players_ui(self, page) -> list[PlayerResult]:
+        """Scrape standings table into PlayerResult list (no list data)."""
+        players = []
+        try:
+            standings_tab = page.locator("button[id$='-tab-standings'], button:has-text('Standings')").first
+            if standings_tab.count() > 0:
+                standings_tab.click()
+                page.wait_for_timeout(2000)
+
+            rows = page.locator("div.tab-pane.active table tbody tr").all()
+            if not rows:
+                rows = page.locator("table tbody tr").all()
+
+            logger.info("Standings UI rows found: %s", len(rows))
+
+            for row in rows:
+                cells = row.locator("td").all()
+                if len(cells) < 2:
+                    continue
+
+                first_text = cells[0].inner_text().strip()
+                rank = -1
+                name_idx = 0
+                if first_text.isdigit():
+                    rank = int(first_text)
+                    name_idx = 1
+
+                name = cells[name_idx].inner_text().strip()
+                if not name:
+                    continue
+
+                wins = -1
+                losses = -1
+                draws = 0
+                points = None
+
+                for cell in cells:
+                    txt = cell.inner_text().strip()
+                    if re.match(r"^\d+\s*-\s*\d+\s*-\s*\d+$", txt):
+                        parts = [int(p.strip()) for p in txt.split("-")]
+                        wins, losses, draws = parts
+                    elif re.match(r"^\d+\s*-\s*\d+$", txt):
+                        parts = [int(p.strip()) for p in txt.split("-")]
+                        wins, losses = parts
+                    elif txt.isdigit():
+                        # Keep the last numeric cell as a reasonable points guess.
+                        points = int(txt)
+
+                players.append(
+                    PlayerResult(
+                        player_name=name,
+                        swiss_rank=rank,
+                        swiss_wins=wins,
+                        swiss_losses=losses,
+                        swiss_draws=draws,
+                        swiss_event_points=points,
+                        swiss_tie_breaker_points=-1,
+                    )
+                )
+        except Exception as exc:
+            logger.warning(f"Standings UI player scrape failed: {exc}")
+
+        logger.info("Standings UI players parsed: %s", len(players))
+
+        return players
+
+    def _fetch_api_json(self, url: str) -> dict | None:
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0",
+                    "Accept": "application/json",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except (urllib.error.URLError, json.JSONDecodeError) as exc:
+            logger.debug(f"API fetch failed for {url}: {exc}")
+            return None
+
+    def _parse_api_date(self, value: str | None) -> datetime:
+        if not value:
+            return datetime.now()
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return datetime.now()
+
+    def _try_fetch_api_data(self, tournament_id: str, url: str) -> dict | None:
+        api_base = f"https://api.rollbetter.gg/tournaments/{tournament_id}"
+        info = self._fetch_api_json(api_base)
+        players_payload = self._fetch_api_json(f"{api_base}/players")
+
+        if not info or not players_payload:
+            return None
+
+        ladder = players_payload.get("ladder", []) or []
+        waitlist = players_payload.get("waitlist", []) or []
+        player_count = len(ladder) if ladder else info.get("registrationCount", 0) or 0
+
+        if player_count <= 1 and len(waitlist) <= 1:
+            logger.warning(
+                f"Tournament {tournament_id} has insufficient players (API). Skipping."
+            )
+            return None
+
+        title = info.get("title") or info.get("name") or f"Rollbetter Event {tournament_id}"
+        date_value = info.get("endDate") or info.get("startDate")
+        parsed_date = self._parse_api_date(date_value)
+        if parsed_date.date() > datetime.now().date():
+            logger.warning(
+                f"Tournament {tournament_id} is in the future ({parsed_date.date()}). Skipping."
+            )
+            return None
+
+        location = None
+        venue = info.get("venue") or ""
+        city = info.get("city") or ""
+        state = info.get("stateProvince") or ""
+        country = info.get("country") or ""
+        attendee_presence = (info.get("attendeePresence") or "").lower()
+        location_text = ", ".join([p for p in [venue, city, state, country] if p])
+
+        if "online" in attendee_presence or "virtual" in attendee_presence:
+            location = Location.create(city="Virtual", country="Virtual", continent="Virtual")
+        elif location_text:
+            from ..utils.geocoding import resolve_location
+            location = resolve_location(location_text)
+
+        tournament = Tournament(
+            id=int(tournament_id),
+            name=title,
+            date=parsed_date.date(),
+            player_count=player_count,
+            source=Source.ROLLBETTER,
+            url=url,
+            format=Format.OTHER,
+        )
+        if location:
+            tournament.location = location
+
+        players = []
+        for entry in ladder:
+            player = entry.get("player", {}) or {}
+            ranking = entry.get("ranking", {}) or {}
+            name = player.get("realName") or player.get("username") or "Unknown"
+
+            swiss_points = ranking.get("points1")
+            if swiss_points is None:
+                swiss_points = ranking.get("combinedPoints1")
+
+            players.append(
+                PlayerResult(
+                    player_name=name,
+                    team_name=player.get("affiliation"),
+                    swiss_rank=ranking.get("seed") or -1,
+                    swiss_wins=ranking.get("wins", -1),
+                    swiss_losses=ranking.get("losses", -1),
+                    swiss_draws=ranking.get("draws", 0),
+                    swiss_event_points=swiss_points,
+                    swiss_tie_breaker_points=ranking.get("mov"),
+                    cut_rank=ranking.get("elimPlacement"),
+                )
+            )
+
+        return {
+            "tournament": tournament,
+            "players": players,
+            "matches": [],
+        }
 
 
 
@@ -275,16 +546,6 @@ class RollbetterScraper(BaseScraper):
                             pc_match = re.search(r"(\d+)\s*/\s*\d+", body_text)
                             if pc_match:
                                 player_count = int(pc_match.group(1))
-
-                            # Skip tournaments with 0 or 1 registered players –
-                            # they are placeholder/empty events that will fail
-                            # validation anyway.
-                            if player_count <= 1:
-                                logger.debug(
-                                    f"Skipping '{name}' ({url}): "
-                                    f"only {player_count} player(s)."
-                                )
-                                continue
 
                             results.append({
                                 "url": url,
@@ -397,7 +658,7 @@ class RollbetterScraper(BaseScraper):
             return False
             
         # Count
-        player_count = 0
+        player_count = None
         try:
             badges = page.locator(".badge").all_inner_texts()
             for b in badges:
@@ -406,7 +667,7 @@ class RollbetterScraper(BaseScraper):
                     if parts[0].strip().isdigit():
                         player_count = int(parts[0].strip())
                         break
-            if player_count <= 1:
+            if player_count is not None and player_count <= 1:
                 logger.warning(f"Tournament {tournament_id} has insufficient players. Skipping.")
                 return False
         except: pass
