@@ -7,7 +7,7 @@ Extracts tournament data, player results with XWS, and match data.
 import logging
 import json
 import re
-from datetime import datetime, date as date_type
+from datetime import datetime, timedelta, date as date_type
 
 from playwright.sync_api import sync_playwright
 
@@ -1001,9 +1001,13 @@ class LongshanksScraper(BaseScraper):
         """
         results = []
         # Support date filtering directly via URL parameters
+        # Because Longshanks filters history by the *start date*, we need to search backward
+        # significantly (e.g. 120 days) to find long-running events (like leagues) that are 
+        # just now completely ending within our target [date_from, date_to] window.
         history_url = f"{self.base_url}/events/history/"
         if date_from and date_to:
-            history_url += f"?date_from={date_from.isoformat()}&date_to={date_to.isoformat()}"
+            search_from = date_from - timedelta(days=120)
+            history_url += f"?date_from={search_from.isoformat()}&date_to={date_to.isoformat()}"
         
         logger.info(f"Scraping Longshanks history: {history_url}")
 
@@ -1052,14 +1056,11 @@ class LongshanksScraper(BaseScraper):
                             parsed_date = self._parse_date(date_text)
                             event_date = parsed_date.date() if isinstance(parsed_date, datetime) else parsed_date
 
-                            # Date range filter — skip future events beyond range
-                            # (Just in case server includes future events?)
+                            # Filter based on the *end date* (event_date) falling within our *target* range
                             if event_date > date_to:
                                 continue
-                            
-                            # Server-side filtering handles the "from" date.
-                            # We treat all returned events as valid candidates if they are <= date_to.
-                            # No more stop_early logic based on start date.
+                            if event_date < date_from:
+                                continue
 
                             # Player count
                             size_text = page.evaluate(

@@ -2,10 +2,11 @@
   "name": "m3tacron-dev",
   "image": "mcr.microsoft.com/devcontainers/python:3-3.13-trixie",
   "features": {
-    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/devcontainers/features/node:2.0.0": {},
     "ghcr.io/devcontainers/features/github-cli:1": {},
-    "ghcr.io/devcontainers/features/copilot-cli:1": {}
-  },
+    "ghcr.io/devcontainers/features/copilot-cli:1": {},
+	  "ghcr.io/siri404/devcontainer-ai-features/gemini-cli:1": {}
+	},
   "forwardPorts": [8000, 3000, 8100, 5173],
   "portsAttributes": {
     "8000": {

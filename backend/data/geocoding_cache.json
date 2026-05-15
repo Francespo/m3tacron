@@ -684,7 +684,29 @@
     "country": "United States",
     "continent": "North America"
   },
-  "Odisea GamesAragon,\u00a0Spain": null,
-  "Hobby games Central, MoscowRussia": null,
-  "Afk gamesMichigan,\u00a0United States": null
+  "\u00cele-de-France,\u00a0France": {
+    "city": "\u00cele-de-France",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "Hovedstaden,\u00a0Denmark": {
+    "city": "Region Hovedstaden",
+    "country": "Danmark",
+    "continent": "Europe"
+  },
+  "Belo Horizonte, Minas Gerais,\u00a0Brazil": {
+    "city": "Belo Horizonte",
+    "country": "Brasil",
+    "continent": "South America"
+  },
+  "Burnaby, British Columbia, CA": {
+    "city": "Burnaby",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Ivaipor\u00e3, Paran\u00e1, BR": {
+    "city": "Ivaipor\u00e3",
+    "country": "Brasil",
+    "continent": "South America"
+  }
 }
