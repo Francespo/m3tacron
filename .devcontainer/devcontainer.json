@@ -5,7 +5,9 @@
     "ghcr.io/devcontainers/features/node:2.0.0": {},
     "ghcr.io/devcontainers/features/github-cli:1": {},
     "ghcr.io/devcontainers/features/copilot-cli:1": {},
-	  "ghcr.io/siri404/devcontainer-ai-features/gemini-cli:1": {}
+    "ghcr.io/siri404/devcontainer-ai-features/gemini-cli:1": {},
+    "ghcr.io/devcontainers/features/git-lfs:1": {},
+    "ghcr.io/devcontainers/features/node:2": {}
 	},
   "forwardPorts": [8000, 3000, 8100, 5173],
   "portsAttributes": {
