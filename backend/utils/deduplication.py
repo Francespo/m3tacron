@@ -2,7 +2,7 @@ from datetime import timedelta
 from difflib import SequenceMatcher
 import logging
 
-from m3tacron.backend.models import Tournament, PlayerStanding
+from ..models import Tournament, PlayerStanding
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ class DedupService:
         target: Tournament, 
         candidates: list[Tournament],
         target_players: list[PlayerStanding] | None = None,
-        candidate_players_map: dict[str, list[PlayerStanding]] | None = None
+        candidate_players_map: dict[int, list[PlayerStanding]] | None = None
     ) -> Tournament | None:
         """Find a duplicate of the target tournament in the list of candidates.
 
@@ -27,8 +27,6 @@ class DedupService:
         Returns:
             The matching Tournament object if a duplicate is found, else None.
         """
-        possible_matches = []
-
         for candidate in candidates:
             # 1. Filter by Date (+/- 1 day)
             # Some sources might be in different timezones or report "end date" vs "start date"
@@ -46,7 +44,7 @@ class DedupService:
             # 3. Calculate Player Overlap (if data available)
             player_score = 0.0
             if target_players and candidate_players_map:
-                c_players = candidate_players_map.get(str(candidate.id)) or candidate_players_map.get(candidate.id)
+                c_players = candidate_players_map.get(candidate.id)
                 if c_players:
                     player_score = self._calculate_player_overlap(target_players, c_players)
 
