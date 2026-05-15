@@ -37,11 +37,8 @@ on:
       upload_sqlite_artifact:
         description: 'Upload scraped SQLite database as an artifact'
         required: true
-        default: 'true'
-        type: choice
-        options:
-          - 'true'
-          - 'false'
+        default: true
+        type: boolean
 
 jobs:
   scrape:
