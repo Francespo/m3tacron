@@ -18,6 +18,7 @@ from ..models import Tournament, PlayerResult, Match
 from ..data_structures.formats import Format, infer_format_from_xws
 from ..data_structures.round_types import RoundType
 from ..data_structures.scenarios import Scenario
+from ..data_structures.location import Location
 
 logger = logging.getLogger(__name__)
 
@@ -316,6 +317,14 @@ class BaseScraper(ABC):
         tournament = self.get_tournament_data(
             tournament_id, inferred_format=inferred_format
         )
+
+        # Always ensure a non-null Location object.
+        if tournament.location is None:
+            tournament.location = Location.create(
+                city="Unknown",
+                country="Unknown",
+                continent="Unknown",
+            )
 
         # 4. Update player count from actual results
         if players and tournament.player_count == 0:
