@@ -180,14 +180,18 @@ def get_existing_urls(session: Session) -> set[str]:
 def _delete_existing_tournament(session: Session, url: str) -> None:
     from sqlmodel import delete
     from ..models import Match, TeamMatch, PlayerStanding, TeamStanding, Tournament
-    
-    existing = session.exec(select(Tournament).where(Tournament.url == url)).first()
+
+    existing = session.exec(select(Tournament).where(
+        Tournament.url == url)).first()
     if existing:
         logger.info(f"Deleting existing tournament data for {url}")
-        session.exec(delete(TeamMatch).where(TeamMatch.tournament_id == existing.id))
+        session.exec(delete(TeamMatch).where(
+            TeamMatch.tournament_id == existing.id))
         session.exec(delete(Match).where(Match.tournament_id == existing.id))
-        session.exec(delete(PlayerStanding).where(PlayerStanding.tournament_id == existing.id))
-        session.exec(delete(TeamStanding).where(TeamStanding.tournament_id == existing.id))
+        session.exec(delete(PlayerStanding).where(
+            PlayerStanding.tournament_id == existing.id))
+        session.exec(delete(TeamStanding).where(
+            TeamStanding.tournament_id == existing.id))
         session.exec(delete(Tournament).where(Tournament.id == existing.id))
         session.commit()
 
@@ -273,7 +277,8 @@ def save_tournament_data(
         if isinstance(match_raw, dict) and match_raw.get("is_team_match"):
             p1_name = (match_raw.get("p1_name_temp") or "").lower().strip()
             p2_name = (match_raw.get("p2_name_temp") or "").lower().strip()
-            winner_name = (match_raw.get("winner_name_temp") or "").lower().strip()
+            winner_name = (match_raw.get("winner_name_temp")
+                           or "").lower().strip()
             team1_id = team_id_map.get(p1_name)
             team2_id = team_id_map.get(p2_name)
             winner_id = team_id_map.get(winner_name)
@@ -296,7 +301,8 @@ def save_tournament_data(
                 # Resolve player names to DB IDs directly from the scraper dict.
                 p1_name = (match_raw.get("p1_name_temp") or "").lower().strip()
                 p2_name = (match_raw.get("p2_name_temp") or "").lower().strip()
-                winner_name = (match_raw.get("winner_name_temp") or "").lower().strip()
+                winner_name = (match_raw.get("winner_name_temp")
+                               or "").lower().strip()
                 match = Match(
                     round_number=match_raw["round_number"],
                     round_type=match_raw.get("round_type", RoundType.SWISS),
@@ -313,7 +319,8 @@ def save_tournament_data(
                 # Resolve winner from the object if it has a temp name attr.
                 winner_name_attr = getattr(match_raw, "winner_name_temp", None)
                 if winner_name_attr:
-                    match.winner_id = player_id_map.get(winner_name_attr.lower().strip(), None)
+                    match.winner_id = player_id_map.get(
+                        winner_name_attr.lower().strip(), None)
             match.id = next_m_id + m_counter
             match.tournament_id = tournament.id
             session.add(match)
@@ -363,7 +370,8 @@ def _scrape_by_url(
             last_exc: Exception | None = None
             for name, scraper in candidates:
                 try:
-                    tournament, players, matches = scraper.run_full_scrape(tournament_id)
+                    tournament, players, matches = scraper.run_full_scrape(
+                        tournament_id)
                     scraper_name = name
                     break
                 except Exception as exc:
@@ -376,15 +384,18 @@ def _scrape_by_url(
         elif "xwing-legacy.longshanks.org" in host:
             scraper = LongshanksScraper(subdomain="xwing-legacy")
             scraper_name = "longshanks_legacy"
-            tournament, players, matches = scraper.run_full_scrape(tournament_id)
+            tournament, players, matches = scraper.run_full_scrape(
+                tournament_id)
         elif "xwing.longshanks.org" in host:
             scraper = LongshanksScraper(subdomain="xwing")
             scraper_name = "longshanks_25"
-            tournament, players, matches = scraper.run_full_scrape(tournament_id)
+            tournament, players, matches = scraper.run_full_scrape(
+                tournament_id)
         elif "listfortress.com" in host:
             scraper = ListFortressScraper()
             scraper_name = "listfortress"
-            tournament, players, matches = scraper.run_full_scrape(tournament_id)
+            tournament, players, matches = scraper.run_full_scrape(
+                tournament_id)
         else:
             return False, f"Unsupported tournament URL host: {url}"
     except Exception as exc:
@@ -398,7 +409,8 @@ def _scrape_by_url(
             from .dedup_utils import check_for_duplicates
             dup = check_for_duplicates(session, tournament, players)
             if dup:
-                logger.info(f"[{scraper_name}] Dedup detected '{tournament.name}' is a duplicate of '{dup.name}' ({dup.url}). Skipping.")
+                logger.info(
+                    f"[{scraper_name}] Dedup detected '{tournament.name}' is a duplicate of '{dup.name}' ({dup.url}). Skipping.")
                 return False, f"Duplicate of {dup.url}"
 
         if overwrite:
@@ -446,7 +458,8 @@ def scrape_platform(
     Returns:
         Tuple of (saved_count, skipped_count).
     """
-    logger.info(f"[{scraper_name}] Listing tournaments from {date_from} to {date_to}...")
+    logger.info(
+        f"[{scraper_name}] Listing tournaments from {date_from} to {date_to}...")
     try:
         candidates = scraper.list_tournaments(date_from, date_to)
     except Exception as exc:
@@ -467,17 +480,20 @@ def scrape_platform(
 
         if url in existing_urls:
             if not overwrite:
-                logger.debug(f"[{scraper_name}] Already in DB, skipping: {name} ({url})")
+                logger.debug(
+                    f"[{scraper_name}] Already in DB, skipping: {name} ({url})")
                 skipped += 1
                 continue
             else:
-                logger.info(f"[{scraper_name}] Overwriting existing tournament: {name} ({url})")
+                logger.info(
+                    f"[{scraper_name}] Overwriting existing tournament: {name} ({url})")
 
         tournament_id = _extract_tournament_id(url)
         logger.info(f"[{scraper_name}] Scraping: {name} (id={tournament_id})")
 
         try:
-            tournament, players, matches = scraper.run_full_scrape(tournament_id)
+            tournament, players, matches = scraper.run_full_scrape(
+                tournament_id)
             # Ensure the URL is always stored; scrapers may not set it consistently.
             tournament.url = url
 
@@ -494,7 +510,8 @@ def scrape_platform(
                     from .dedup_utils import check_for_duplicates
                     dup = check_for_duplicates(session, tournament, players)
                     if dup:
-                        logger.info(f"[{scraper_name}] Dedup detected '{tournament.name}' is a duplicate of '{dup.name}' ({dup.url}). Skipping.")
+                        logger.info(
+                            f"[{scraper_name}] Dedup detected '{tournament.name}' is a duplicate of '{dup.name}' ({dup.url}). Skipping.")
                         skipped += 1
                         continue
 
@@ -606,8 +623,10 @@ def build_scrapers(
     scrapers: list[tuple[str, object]] = []
 
     if platform in ("all", "longshanks+rollbetter", "longshanks"):
-        scrapers.append(("longshanks_25", LongshanksScraper(subdomain="xwing")))
-        scrapers.append(("longshanks_legacy", LongshanksScraper(subdomain="xwing-legacy")))
+        scrapers.append(
+            ("longshanks_25", LongshanksScraper(subdomain="xwing")))
+        scrapers.append(
+            ("longshanks_legacy", LongshanksScraper(subdomain="xwing-legacy")))
 
     if platform in ("all", "longshanks+rollbetter", "rollbetter"):
         scrapers.append(("rollbetter_amg", RollbetterScraper(game_id=5)))
@@ -629,7 +648,8 @@ def main() -> int:
     parser.add_argument(
         "--platform",
         default="longshanks+rollbetter",
-        choices=["longshanks+rollbetter", "longshanks", "rollbetter", "listfortress", "all"],
+        choices=["longshanks+rollbetter", "longshanks",
+                 "rollbetter", "listfortress", "all"],
         help=(
             "Platform(s) to scrape. "
             "'longshanks+rollbetter' scrapes Longshanks and RollBetter (default). "
@@ -720,7 +740,8 @@ def main() -> int:
         )
     )
 
-    tournament_urls = [u.strip() for u in (args.tournament_urls or []) if u.strip()]
+    tournament_urls = [u.strip()
+                       for u in (args.tournament_urls or []) if u.strip()]
 
     if not args.dry_run:
         create_db_and_tables()
@@ -735,7 +756,8 @@ def main() -> int:
     else:
         scrapers = build_scrapers(args.platform, args.include_listfortress)
         if not scrapers:
-            logger.error("No scrapers configured for the given --platform value.")
+            logger.error(
+                "No scrapers configured for the given --platform value.")
             return 1
 
         if args.dry_run:
@@ -755,7 +777,8 @@ def main() -> int:
 
     with Session(engine) as session:
         existing_urls = get_existing_urls(session)
-    logger.info(f"Database contains {len(existing_urls)} existing tournament URL(s).")
+    logger.info(
+        f"Database contains {len(existing_urls)} existing tournament URL(s).")
 
     total_saved = 0
     total_skipped = 0

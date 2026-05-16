@@ -6,12 +6,13 @@ from ..models import Tournament, PlayerStanding
 
 logger = logging.getLogger(__name__)
 
+
 class DedupService:
     """Service to identify duplicate tournaments across different sources."""
 
     def find_duplicate(
-        self, 
-        target: Tournament, 
+        self,
+        target: Tournament,
         candidates: list[Tournament],
         target_players: list[PlayerStanding] | None = None,
         candidate_players_map: dict[int, list[PlayerStanding]] | None = None
@@ -33,9 +34,10 @@ class DedupService:
             # If dates are missing, we skip this check (but likely can't confirm dedup easily)
             if not target.date or not candidate.date:
                 continue
-                
+
             delta = abs(target.date - candidate.date)
-            if delta > timedelta(days=2): # Allow 48h slop for timezone/reporting diffs
+            # Allow 48h slop for timezone/reporting diffs
+            if delta > timedelta(days=2):
                 continue
 
             # 2. Calculate Name Similarity
@@ -46,7 +48,8 @@ class DedupService:
             if target_players and candidate_players_map:
                 c_players = candidate_players_map.get(candidate.id)
                 if c_players:
-                    player_score = self._calculate_player_overlap(target_players, c_players)
+                    player_score = self._calculate_player_overlap(
+                        target_players, c_players)
 
             # 4. Location Check (Simple country/state match if available)
             # Not strict scoring, but used as a tie-breaker or confidence booster?
@@ -54,11 +57,12 @@ class DedupService:
 
             # Decision Logic
             is_match = False
-            
+
             # High Confidence: Lots of player overlap
-            if player_score > 0.5: 
+            if player_score > 0.5:
                 is_match = True
-                logger.debug(f"Dedup Match (Player Overlap): {target.name} ({target.source}) == {candidate.name} ({candidate.source}) | Score: {player_score:.2f}")
+                logger.debug(
+                    f"Dedup Match (Player Overlap): {target.name} ({target.source}) == {candidate.name} ({candidate.source}) | Score: {player_score:.2f}")
 
             # Medium Confidence: High Name Match + Date Match (already filtered) + Same Player Count (approx)
             elif name_score > 0.85:
@@ -66,7 +70,8 @@ class DedupService:
                 # Allow 20% variance in player count (drops/no-shows)
                 if abs(target.player_count - candidate.player_count) / max(candidate.player_count, 1) < 0.2:
                     is_match = True
-                    logger.debug(f"Dedup Match (Name+Date): {target.name} ({target.source}) == {candidate.name} ({candidate.source}) | Score: {name_score:.2f}")
+                    logger.debug(
+                        f"Dedup Match (Name+Date): {target.name} ({target.source}) == {candidate.name} ({candidate.source}) | Score: {name_score:.2f}")
 
             if is_match:
                 return candidate
@@ -90,5 +95,5 @@ class DedupService:
 
         if union == 0:
             return 0.0
-            
+
         return intersection / union
