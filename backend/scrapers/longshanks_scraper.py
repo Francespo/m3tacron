@@ -8,6 +8,7 @@ import logging
 import json
 import re
 from datetime import datetime, timedelta, date as date_type
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 from playwright.sync_api import sync_playwright
 
@@ -1117,18 +1118,55 @@ class LongshanksScraper(BaseScraper):
                 page.wait_for_timeout(2000)
                 self._dismiss_cookie_popup(page)
 
-                pages_scraped = 0
-                stop_early = False
+                # Discover total page count from pagination links on the first page.
+                # Longshanks pagination uses URL-based navigation (?page=N) with
+                # "⟫⟫" as a plain-text separator (not a clickable element).
+                total_pages = 1
+                page_links = page.locator("a[href*='page=']").all()
+                for link in page_links:
+                    href = link.get_attribute("href") or ""
+                    match = re.search(r"page=(\d+)", href)
+                    if match:
+                        page_num = int(match.group(1))
+                        if page_num > total_pages:
+                            total_pages = page_num
 
-                while True:
-                    pages_scraped += 1
-                    if max_pages and pages_scraped > max_pages:
-                        break
+                if max_pages is not None:
+                    total_pages = min(total_pages, max_pages)
+
+                logger.info(
+                    f"Longshanks history ({self.subdomain}): "
+                    f"{total_pages} page(s) total, {max_pages or 'unlimited'} max."
+                )
+
+                # Build a reusable base for page URLs, preserving any existing
+                # query parameters (e.g. date_from / date_to).
+                parsed_base = urlparse(history_url)
+                base_query = parse_qs(parsed_base.query, keep_blank_values=True)
+                # Flatten parse_qs lists back to single values.
+                base_params: dict[str, str] = {
+                    k: v[0] for k, v in base_query.items()
+                }
+
+                for current_page in range(1, total_pages + 1):
+                    if current_page > 1:
+                        # Navigate by URL rather than clicking a button.
+                        params = dict(base_params)
+                        params["page"] = str(current_page)
+                        next_url = urlunparse(
+                            parsed_base._replace(
+                                query=urlencode(params, doseq=True)
+                            )
+                        )
+                        page.goto(next_url, wait_until="domcontentloaded",
+                                  timeout=30000)
+                        page.wait_for_timeout(2000)
 
                     # Extract tournament cards from current page
                     cards = page.locator(".event_display").all()
                     logger.info(
-                        f"Page {pages_scraped}: found {len(cards)} tournament cards.")
+                        f"Page {current_page}/{total_pages}: found {len(cards)} tournament cards."
+                    )
 
                     for card in cards:
                         try:
@@ -1190,17 +1228,6 @@ class LongshanksScraper(BaseScraper):
                         except Exception as e:
                             logger.debug(f"Error parsing card: {e}")
 
-                    if stop_early:
-                        break
-
-                    # Pagination: click next page button (⟫⟫ or next numbered page)
-                    next_btn = page.locator(
-                        "a.button.small:has-text('⟫⟫')").first
-                    if next_btn.count() > 0:
-                        next_btn.click()
-                        page.wait_for_timeout(2000)
-                    else:
-                        break
             except Exception as e:
                 logger.error(f"Error listing tournaments: {e}")
             finally:
