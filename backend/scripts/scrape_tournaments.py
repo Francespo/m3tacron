@@ -61,12 +61,6 @@ logger = logging.getLogger(__name__)
 # this lock around the commit window prevents duplicate-key violations.
 _DB_WRITE_LOCK = threading.Lock()
 
-# Module-level lock to serialize database writes across parallel scraper
-# workers.  The save_tournament_data helper assigns explicit IDs via
-# MAX+1, which is not atomic across concurrent transactions.  Holding
-# this lock around the commit window prevents duplicate-key violations.
-_DB_WRITE_LOCK = threading.Lock()
-
 
 def parse_time_range(value: str) -> tuple[date, date]:
     """Parse --time-range argument into (date_from, date_to).
@@ -547,19 +541,7 @@ def scrape_platform(
                     n_players = len(players)
                     n_matches = len(raw_matches)
                     session.commit()
-                    if overwrite:
-                        _delete_existing_tournament(session, url)
-                    save_tournament_data(session, tournament, players, matches)
-                    # Capture values for logging while the session is still open.
-                    t_name = tournament.name
-                    n_players = len(players)
-                    n_matches = len(raw_matches)
-                    session.commit()
 
-                existing_urls.add(url)
-                saved += 1
-                if saved_items is not None:
-                    saved_items.append((tournament, players, raw_matches))
                 existing_urls.add(url)
                 saved += 1
                 if saved_items is not None:
@@ -679,33 +661,6 @@ def build_scrapers(
         scrapers.append(("listfortress", ListFortressScraper()))
 
     return scrapers
-
-
-def _split_scrapers(
-    scrapers: list[tuple[str, object]],
-) -> tuple[list[tuple[str, object]], list[tuple[str, object]]]:
-    """Split scrapers into independent and dependent groups.
-
-    Independent scrapers (Longshanks, Rollbetter) can run in parallel
-    because they pull from different data sources with no URL overlap.
-
-    Dependent scrapers (ListFortress) must run *after* all independent
-    scrapers finish, so they can deduplicate against the full set of
-    already-saved tournament URLs.
-
-    Returns:
-        Tuple of (independent_scrapers, dependent_scrapers).
-    """
-    independent: list[tuple[str, object]] = []
-    dependent: list[tuple[str, object]] = []
-
-    for name, scraper in scrapers:
-        if "listfortress" in name:
-            dependent.append((name, scraper))
-        else:
-            independent.append((name, scraper))
-
-    return independent, dependent
 
 
 def _split_scrapers(
