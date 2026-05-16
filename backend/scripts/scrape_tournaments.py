@@ -31,6 +31,10 @@ Options:
 import argparse
 import logging
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
 from urllib.parse import urlparse
 
@@ -50,6 +54,18 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger(__name__)
+
+# Module-level lock to serialize database writes across parallel scraper
+# workers.  The save_tournament_data helper assigns explicit IDs via
+# MAX+1, which is not atomic across concurrent transactions.  Holding
+# this lock around the commit window prevents duplicate-key violations.
+_DB_WRITE_LOCK = threading.Lock()
+
+# Module-level lock to serialize database writes across parallel scraper
+# workers.  The save_tournament_data helper assigns explicit IDs via
+# MAX+1, which is not atomic across concurrent transactions.  Holding
+# this lock around the commit window prevents duplicate-key violations.
+_DB_WRITE_LOCK = threading.Lock()
 
 
 def parse_time_range(value: str) -> tuple[date, date]:
@@ -366,6 +382,8 @@ def _scrape_by_url(
             candidates = [
                 ("rollbetter_amg", RollbetterScraper(game_id=5)),
                 ("rollbetter_xwa", RollbetterScraper(game_id=17)),
+                ("rollbetter_legacy", RollbetterScraper(game_id=4)),
+                ("rollbetter_legacy", RollbetterScraper(game_id=4)),
             ]
             last_exc: Exception | None = None
             for name, scraper in candidates:
@@ -505,29 +523,47 @@ def scrape_platform(
             # commit so they remain accessible once the session closes (detaches
             # objects).  Without this, SQLAlchemy expires all attributes on commit
             # and any access after the 'with' block raises DetachedInstanceError.
-            with Session(engine, expire_on_commit=False) as session:
-                if scraper_name == "listfortress":
-                    from .dedup_utils import check_for_duplicates
-                    dup = check_for_duplicates(session, tournament, players)
-                    if dup:
-                        logger.info(
-                            f"[{scraper_name}] Dedup detected '{tournament.name}' is a duplicate of '{dup.name}' ({dup.url}). Skipping.")
-                        skipped += 1
-                        continue
+            #
+            # The DB write is serialised across parallel scraper workers via
+            # _DB_WRITE_LOCK because save_tournament_data assigns explicit
+            # IDs (MAX+1) which is not atomic across concurrent transactions.
+            with _DB_WRITE_LOCK:
+                with Session(engine, expire_on_commit=False) as session:
+                    if scraper_name == "listfortress":
+                        from .dedup_utils import check_for_duplicates
+                        dup = check_for_duplicates(
+                            session, tournament, players)
+                        if dup:
+                            logger.info(
+                                f"[{scraper_name}] Dedup detected '{tournament.name}' is a duplicate of '{dup.name}' ({dup.url}). Skipping.")
+                            skipped += 1
+                            continue
 
-                if overwrite:
-                    _delete_existing_tournament(session, url)
-                save_tournament_data(session, tournament, players, matches)
-                # Capture values for logging while the session is still open.
-                t_name = tournament.name
-                n_players = len(players)
-                n_matches = len(raw_matches)
-                session.commit()
+                    if overwrite:
+                        _delete_existing_tournament(session, url)
+                    save_tournament_data(session, tournament, players, matches)
+                    # Capture values for logging while the session is still open.
+                    t_name = tournament.name
+                    n_players = len(players)
+                    n_matches = len(raw_matches)
+                    session.commit()
+                    if overwrite:
+                        _delete_existing_tournament(session, url)
+                    save_tournament_data(session, tournament, players, matches)
+                    # Capture values for logging while the session is still open.
+                    t_name = tournament.name
+                    n_players = len(players)
+                    n_matches = len(raw_matches)
+                    session.commit()
 
-            existing_urls.add(url)
-            saved += 1
-            if saved_items is not None:
-                saved_items.append((tournament, players, raw_matches))
+                existing_urls.add(url)
+                saved += 1
+                if saved_items is not None:
+                    saved_items.append((tournament, players, raw_matches))
+                existing_urls.add(url)
+                saved += 1
+                if saved_items is not None:
+                    saved_items.append((tournament, players, raw_matches))
             logger.info(
                 f"[{scraper_name}] Saved '{t_name}' "
                 f"({n_players} player(s), {n_matches} match(es))."
@@ -611,7 +647,10 @@ def build_scrapers(
     """Build the list of (name, scraper) pairs to run.
 
     Longshanks is split into two instances (2.5 and Legacy 2.0 subdomains).
-    RollBetter is split into AMG (game 5) and XWA (game 17) game systems.
+    RollBetter is split into AMG (game 5), XWA (game 17), and Legacy 2.0
+    (game 4) game systems.
+    RollBetter is split into AMG (game 5), XWA (game 17), and Legacy 2.0
+    (game 4) game systems.
 
     Platform options:
         - 'longshanks+rollbetter': Longshanks and RollBetter only (default).
@@ -631,6 +670,8 @@ def build_scrapers(
     if platform in ("all", "longshanks+rollbetter", "rollbetter"):
         scrapers.append(("rollbetter_amg", RollbetterScraper(game_id=5)))
         scrapers.append(("rollbetter_xwa", RollbetterScraper(game_id=17)))
+        scrapers.append(("rollbetter_legacy", RollbetterScraper(game_id=4)))
+        scrapers.append(("rollbetter_legacy", RollbetterScraper(game_id=4)))
 
     if platform in ("listfortress", "all") or (
         platform == "longshanks+rollbetter" and include_listfortress
@@ -638,6 +679,60 @@ def build_scrapers(
         scrapers.append(("listfortress", ListFortressScraper()))
 
     return scrapers
+
+
+def _split_scrapers(
+    scrapers: list[tuple[str, object]],
+) -> tuple[list[tuple[str, object]], list[tuple[str, object]]]:
+    """Split scrapers into independent and dependent groups.
+
+    Independent scrapers (Longshanks, Rollbetter) can run in parallel
+    because they pull from different data sources with no URL overlap.
+
+    Dependent scrapers (ListFortress) must run *after* all independent
+    scrapers finish, so they can deduplicate against the full set of
+    already-saved tournament URLs.
+
+    Returns:
+        Tuple of (independent_scrapers, dependent_scrapers).
+    """
+    independent: list[tuple[str, object]] = []
+    dependent: list[tuple[str, object]] = []
+
+    for name, scraper in scrapers:
+        if "listfortress" in name:
+            dependent.append((name, scraper))
+        else:
+            independent.append((name, scraper))
+
+    return independent, dependent
+
+
+def _split_scrapers(
+    scrapers: list[tuple[str, object]],
+) -> tuple[list[tuple[str, object]], list[tuple[str, object]]]:
+    """Split scrapers into independent and dependent groups.
+
+    Independent scrapers (Longshanks, Rollbetter) can run in parallel
+    because they pull from different data sources with no URL overlap.
+
+    Dependent scrapers (ListFortress) must run *after* all independent
+    scrapers finish, so they can deduplicate against the full set of
+    already-saved tournament URLs.
+
+    Returns:
+        Tuple of (independent_scrapers, dependent_scrapers).
+    """
+    independent: list[tuple[str, object]] = []
+    dependent: list[tuple[str, object]] = []
+
+    for name, scraper in scrapers:
+        if "listfortress" in name:
+            dependent.append((name, scraper))
+        else:
+            independent.append((name, scraper))
+
+    return independent, dependent
 
 
 def main() -> int:
@@ -801,14 +896,132 @@ def main() -> int:
             else:
                 total_skipped += 1
     else:
-        for name, scraper in scrapers:
-            saved, skipped = scrape_platform(
-                scraper, name, date_from, date_to, args.max_tournaments, existing_urls,
-                saved_items=all_saved_items,
-                overwrite=args.overwrite
+        independent, dependent = _split_scrapers(scrapers)
+
+        # Stage 1: Run independent scrapers in parallel.
+        # Longshanks and Rollbetter pull from completely different domains,
+        # so there is no URL collision risk across parallel workers.
+        if independent:
+            logger.info(
+                f"Running {len(independent)} independent scraper(s) in parallel: "
+                f"{', '.join(n for n, _ in independent)}"
             )
-            total_saved += saved
-            total_skipped += skipped
+            with ThreadPoolExecutor(max_workers=len(independent)) as executor:
+                future_to_name: dict = {}
+                for name, scraper in independent:
+                    future = executor.submit(
+                        scrape_platform,
+                        scraper,
+                        name,
+                        date_from,
+                        date_to,
+                        args.max_tournaments,
+                        existing_urls,
+                        all_saved_items,
+                        args.overwrite,
+                    )
+                    future_to_name[future] = name
+
+                for future in as_completed(future_to_name):
+                    name = future_to_name[future]
+                    try:
+                        saved, skipped = future.result()
+                        total_saved += saved
+                        total_skipped += skipped
+                        logger.info(
+                            f"[{name}] Parallel worker finished: "
+                            f"{saved} saved, {skipped} skipped."
+                        )
+                    except Exception as exc:
+                        logger.error(
+                            f"[{name}] Parallel worker failed: {exc}",
+                            exc_info=True,
+                        )
+
+        # Stage 2: Run dependent scrapers (ListFortress) sequentially after
+        # all independent scrapers have completed, so it can deduplicate
+        # against the full set of already-saved tournament URLs.
+        if dependent:
+            logger.info(
+                f"Running {len(dependent)} dependent scraper(s) sequentially: "
+                f"{', '.join(n for n, _ in dependent)}"
+            )
+            for name, scraper in dependent:
+                saved, skipped = scrape_platform(
+                    scraper,
+                    name,
+                    date_from,
+                    date_to,
+                    args.max_tournaments,
+                    existing_urls,
+                    all_saved_items,
+                    args.overwrite,
+                )
+                total_saved += saved
+                total_skipped += skipped
+        independent, dependent = _split_scrapers(scrapers)
+
+        # Stage 1: Run independent scrapers in parallel.
+        # Longshanks and Rollbetter pull from completely different domains,
+        # so there is no URL collision risk across parallel workers.
+        if independent:
+            logger.info(
+                f"Running {len(independent)} independent scraper(s) in parallel: "
+                f"{', '.join(n for n, _ in independent)}"
+            )
+            with ThreadPoolExecutor(max_workers=len(independent)) as executor:
+                future_to_name: dict = {}
+                for name, scraper in independent:
+                    future = executor.submit(
+                        scrape_platform,
+                        scraper,
+                        name,
+                        date_from,
+                        date_to,
+                        args.max_tournaments,
+                        existing_urls,
+                        all_saved_items,
+                        args.overwrite,
+                    )
+                    future_to_name[future] = name
+
+                for future in as_completed(future_to_name):
+                    name = future_to_name[future]
+                    try:
+                        saved, skipped = future.result()
+                        total_saved += saved
+                        total_skipped += skipped
+                        logger.info(
+                            f"[{name}] Parallel worker finished: "
+                            f"{saved} saved, {skipped} skipped."
+                        )
+                    except Exception as exc:
+                        logger.error(
+                            f"[{name}] Parallel worker failed: {exc}",
+                            exc_info=True,
+                        )
+
+        # Stage 2: Run dependent scrapers (ListFortress) sequentially after
+        # all independent scrapers have completed, so it can deduplicate
+        # against the full set of already-saved tournament URLs.
+        if dependent:
+            logger.info(
+                f"Running {len(dependent)} dependent scraper(s) sequentially: "
+                f"{', '.join(n for n, _ in dependent)}"
+            )
+            for name, scraper in dependent:
+                saved, skipped = scrape_platform(
+                    scraper,
+                    name,
+                    date_from,
+                    date_to,
+                    args.max_tournaments,
+                    existing_urls,
+                    all_saved_items,
+                    args.overwrite,
+                )
+                total_saved += saved
+                total_skipped += skipped
 
     logger.info(
         f"Finished. Saved: {total_saved} new tournament(s), "
