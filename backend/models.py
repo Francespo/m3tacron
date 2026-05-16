@@ -28,16 +28,19 @@ class Tournament(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
     date: date
-    location: Location | None = Field(default=Location(city="Unknown", country="Unknown", continent="Unknown"), sa_column=Column(LocationType))
+    location: Location | None = Field(default=Location(
+        city="Unknown", country="Unknown", continent="Unknown"), sa_column=Column(LocationType))
     player_count: int = Field(default=0)
     team_count: int = Field(default=0)
     url: str
-    
+
     source: Source = Field(sa_column=Column(String))
     format: Format | None = Field(default=None, sa_column=Column(String))
-    
-    standings: list["PlayerStanding"] = Relationship(back_populates="tournament")
-    team_standings: list["TeamStanding"] = Relationship(back_populates="tournament")
+
+    standings: list["PlayerStanding"] = Relationship(
+        back_populates="tournament")
+    team_standings: list["TeamStanding"] = Relationship(
+        back_populates="tournament")
 
 
 class TeamStanding(SQLModel, table=True):
@@ -59,8 +62,9 @@ class TeamStanding(SQLModel, table=True):
     cut_draws: int | None = Field(default=None)
     cut_event_points: int | None = Field(default=None)
     cut_tie_breaker_points: int | None = Field(default=None)
-    
-    tournament: Tournament | None = Relationship(back_populates="team_standings")
+
+    tournament: Tournament | None = Relationship(
+        back_populates="team_standings")
 
 
 class PlayerStanding(SQLModel, table=True):
@@ -84,9 +88,10 @@ class PlayerStanding(SQLModel, table=True):
     cut_event_points: int | None = Field(default=None)
     cut_tie_breaker_points: int | None = Field(default=None)
     list_json: dict = Field(default={}, sa_column=Column(JSON))
-    
+
     tournament: Tournament | None = Relationship(back_populates="standings")
-    team: TeamStanding | None = Relationship(sa_relationship_kwargs={"lazy": "select"})
+    team: TeamStanding | None = Relationship(
+        sa_relationship_kwargs={"lazy": "select"})
 
 
 class Match(SQLModel, table=True):
@@ -95,19 +100,23 @@ class Match(SQLModel, table=True):
     """
     id: int | None = Field(default=None, primary_key=True)
     tournament_id: int = Field(foreign_key="tournament.id")
-    
+
     round_number: int
-    round_type: RoundType = Field(default=RoundType.SWISS, sa_column=Column(String))
+    round_type: RoundType = Field(
+        default=RoundType.SWISS, sa_column=Column(String))
     scenario: Scenario | None = Field(default=None, sa_column=Column(String))
-    
-    player1_id: int | None = Field(default=None, foreign_key="playerstanding.id")
-    player2_id: int | None = Field(default=None, foreign_key="playerstanding.id")
-    
+
+    player1_id: int | None = Field(
+        default=None, foreign_key="playerstanding.id")
+    player2_id: int | None = Field(
+        default=None, foreign_key="playerstanding.id")
+
     player1_score: int = Field(default=-1)
     player2_score: int = Field(default=-1)
-    
-    winner_id: int | None = Field(default=None) # -1 if draw
+
+    winner_id: int | None = Field(default=None)  # -1 if draw
     is_bye: bool = Field(default=False)
+
 
 class TeamMatch(SQLModel, table=True):
     """
@@ -115,18 +124,20 @@ class TeamMatch(SQLModel, table=True):
     """
     id: int | None = Field(default=None, primary_key=True)
     tournament_id: int = Field(foreign_key="tournament.id")
-    
+
     round_number: int
-    round_type: RoundType = Field(default=RoundType.SWISS, sa_column=Column(String))
-    
+    round_type: RoundType = Field(
+        default=RoundType.SWISS, sa_column=Column(String))
+
     team1_id: int | None = Field(default=None, foreign_key="teamstanding.id")
     team2_id: int | None = Field(default=None, foreign_key="teamstanding.id")
-    
+
     team1_score: int = Field(default=-1)
     team2_score: int = Field(default=-1)
-    
-    winner_id: int | None = Field(default=None) # -1 if draw
+
+    winner_id: int | None = Field(default=None)  # -1 if draw
     is_bye: bool = Field(default=False)
+
 
 class Supporter(SQLModel, table=True):
     """
@@ -139,7 +150,8 @@ class Supporter(SQLModel, table=True):
     last_contribution: datetime = Field(default_factory=datetime.now)
     is_anonymous: bool = Field(default=False)
 
-    contributions: list["Contribution"] = Relationship(back_populates="supporter")
+    contributions: list["Contribution"] = Relationship(
+        back_populates="supporter")
 
 
 class Contribution(SQLModel, table=True):
