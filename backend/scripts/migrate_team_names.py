@@ -30,7 +30,8 @@ def main():
             print(f"Tournament {t.id} '{t.name}': found teams: {team_names}")
 
             # Create TeamStanding rows for each team name if missing
-            existing = {ts.team_name.lower(): ts for ts in session.exec(select(TeamStanding).where(TeamStanding.tournament_id == t.id)).all()}
+            existing = {ts.team_name.lower(): ts for ts in session.exec(
+                select(TeamStanding).where(TeamStanding.tournament_id == t.id)).all()}
             created = {}
             for name in team_names:
                 key = name.lower().strip()
