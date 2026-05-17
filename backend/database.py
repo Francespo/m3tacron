@@ -29,6 +29,12 @@ if DATABASE_URL.startswith("sqlite"):
 engine = create_engine(
     DATABASE_URL,
     connect_args=_sqlite_connect_args if _sqlite_connect_args else {},
+    # pool_pre_ping verifies each connection is alive before use.
+    # Essential for long-running scrapers: a tournament can take 10+ minutes
+    # to scrape, and PostgreSQL/Supabase idle-timeout kills idle connections
+    # in the pool, causing "server closed the connection unexpectedly".
+    pool_pre_ping=True,
+    pool_recycle=300,  # recycle connections after 5 minutes (defense in depth)
 )
 
 if DATABASE_URL.startswith("sqlite"):
