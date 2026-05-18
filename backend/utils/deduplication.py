@@ -90,8 +90,8 @@ class DedupService:
         if not list_a or not list_b:
             return 0.0
 
-        names_a = set(p.player_name.lower().strip() for p in list_a)
-        names_b = set(p.player_name.lower().strip() for p in list_b)
+        names_a = set(p.player_name.lower().strip() for p in list_a if p.player_name)
+        names_b = set(p.player_name.lower().strip() for p in list_b if p.player_name)
 
         intersection = len(names_a.intersection(names_b))
         union = len(names_a.union(names_b))
