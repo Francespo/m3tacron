@@ -11,6 +11,7 @@ from ..data_structures.location import Location
 
 logger = logging.getLogger(__name__)
 
+
 class ListFortressScraper(BaseScraper):
     """Scraper logic for ListFortress API."""
 
@@ -47,7 +48,8 @@ class ListFortressScraper(BaseScraper):
             data = resp.json()
 
             # Sort by ID descending (newest first, roughly chronological)
-            sorted_data = sorted(data, key=lambda x: x.get("id", 0), reverse=True)
+            sorted_data = sorted(
+                data, key=lambda x: x.get("id", 0), reverse=True)
 
             results = []
             for item in sorted_data:
@@ -73,7 +75,7 @@ class ListFortressScraper(BaseScraper):
             return []
 
     def get_tournament_data(
-        self, 
+        self,
         tournament_id: str,
         inferred_format: Format | None = None
     ) -> Tournament:
@@ -88,7 +90,7 @@ class ListFortressScraper(BaseScraper):
             fmt = inferred_format
             if not fmt:
                 # User Requirement: Ignore ListFortress definition
-                # fmt = self._map_format(data.get("format_id")) 
+                # fmt = self._map_format(data.get("format_id"))
                 fmt = Format.OTHER
 
             return Tournament(
@@ -99,7 +101,7 @@ class ListFortressScraper(BaseScraper):
                 source=Source.LISTFORTRESS,
                 location=self._format_location(data),
                 player_count=len(data.get("participants", [])),
-                matches_count=0 # Updated later
+                matches_count=0  # Updated later
             )
         except Exception as e:
             logger.error(f"Failed to get tournament {tournament_id}: {e}")
@@ -124,7 +126,7 @@ class ListFortressScraper(BaseScraper):
             resp = self.session.get(url)
             resp.raise_for_status()
             data = resp.json()
-            
+
             parts = data.get("participants", [])
             for p in parts:
                 # ListFortress provides 'list_json' string which is XWS
@@ -134,7 +136,8 @@ class ListFortressScraper(BaseScraper):
                     try:
                         xws = json.loads(p["list_json"])
                     except json.JSONDecodeError:
-                        logger.warning(f"Invalid JSON for player {p.get('id')}")
+                        logger.warning(
+                            f"Invalid JSON for player {p.get('id')}")
 
                 pr = PlayerStanding(
                     player_name=p.get("name", "Unknown"),
@@ -145,10 +148,11 @@ class ListFortressScraper(BaseScraper):
                     swiss_tie_breaker_points=p.get("mov")
                 )
                 results.append(pr)
-                
+
         except Exception as e:
-            logger.error(f"Error fetching participants for {tournament_id}: {e}")
-            
+            logger.error(
+                f"Error fetching participants for {tournament_id}: {e}")
+
         return results
 
     def get_matches(self, tournament_id: str) -> list[Match]:
@@ -159,29 +163,30 @@ class ListFortressScraper(BaseScraper):
             resp = self.session.get(url)
             resp.raise_for_status()
             data = resp.json()
-            
+
             rounds = data.get("rounds", [])
             if not rounds:
-                return [] # Many LF events have no rounds
+                return []  # Many LF events have no rounds
 
             # Need to map player IDs to Names for the Match object
             # (Match object uses names currently, though IDs would be better long term)
             p_map = {p["id"]: p["name"] for p in data.get("participants", [])}
 
             for r in rounds:
-                r_type = RoundType.SWISS if r["roundtype_id"] == 1 else RoundType.CUT 
+                r_type = RoundType.SWISS if r["roundtype_id"] == 1 else RoundType.CUT
                 # Note: roundtype_id mapping is a guess/standard. 1=Swiss usually.
                 # Just assuming 'swiss' for now unless we see distinct ID.
-                # Actually, ListFortress might use "round_type" field? 
+                # Actually, ListFortress might use "round_type" field?
                 # rounds json: [{"roundtype_id": 1, "matches": [...]}]
-                
+
                 for m in r.get("matches", []):
                     p1_id = m.get("player1_id")
                     p2_id = m.get("player2_id")
                     winner_id = m.get("winner_id")
-                    
+
                     p1_name = p_map.get(p1_id, "Unknown")
-                    p2_name = p_map.get(p2_id, "Bye" if not p2_id else "Unknown")
+                    p2_name = p_map.get(
+                        p2_id, "Bye" if not p2_id else "Unknown")
 
                     # Result logic
                     winner_name = None
@@ -189,7 +194,7 @@ class ListFortressScraper(BaseScraper):
                         winner_name = p1_name
                     elif winner_id == p2_id:
                         winner_name = p2_name
-                    
+
                     match = {
                         "round_number": r.get("round_number", 0),
                         "round_type": r_type,
@@ -205,17 +210,17 @@ class ListFortressScraper(BaseScraper):
             logger.error(f"Error fetching matches for {tournament_id}: {e}")
 
         return matches
-        
+
     def _map_format(self, fmt_id: int) -> Format:
         # Standard=1, Extended=2? Guessing based on common knowledge of X-Wing legacy.
         # Ideally, we should fetch /api/v1/formats but it's static enough for now.
         if fmt_id == 1:
             return Format.AMG
         elif fmt_id == 2:
-            return Format.OTHER # Extended
-        elif fmt_id == 34: # From API ID 360 result (2nd Ed?)
-             return Format.AMG # Assume 2.0/2.5 are grouped or handle specifically
-        return Format.AMG # Default fallback
+            return Format.OTHER  # Extended
+        elif fmt_id == 34:  # From API ID 360 result (2nd Ed?)
+            return Format.AMG  # Assume 2.0/2.5 are grouped or handle specifically
+        return Format.AMG  # Default fallback
 
     def _format_location(self, data: dict) -> Location:
         from ..utils.geocoding import resolve_location
