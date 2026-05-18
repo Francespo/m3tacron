@@ -1,0 +1,72 @@
+﻿2026-05-18T16:30:53.1198159Z ##[group]Run actions/checkout@v4
+2026-05-18T16:30:53.1199382Z with:
+2026-05-18T16:30:53.1200065Z   repository: Francespo/m3tacron
+2026-05-18T16:30:53.1201176Z   token: ***
+2026-05-18T16:30:53.1201808Z   ssh-strict: true
+2026-05-18T16:30:53.1202490Z   ssh-user: git
+2026-05-18T16:30:53.1203189Z   persist-credentials: true
+2026-05-18T16:30:53.1204176Z   clean: true
+2026-05-18T16:30:53.1204886Z   sparse-checkout-cone-mode: true
+2026-05-18T16:30:53.1205751Z   fetch-depth: 1
+2026-05-18T16:30:53.1206420Z   fetch-tags: false
+2026-05-18T16:30:53.1207128Z   show-progress: true
+2026-05-18T16:30:53.1207824Z   lfs: false
+2026-05-18T16:30:53.1208463Z   submodules: false
+2026-05-18T16:30:53.1209170Z   set-safe-directory: true
+2026-05-18T16:30:53.1210195Z ##[endgroup]
+2026-05-18T16:30:53.2370085Z Syncing repository: Francespo/m3tacron
+2026-05-18T16:30:53.2374154Z ##[group]Getting Git version info
+2026-05-18T16:30:53.2375831Z Working directory is '/home/runner/work/m3tacron/m3tacron'
+2026-05-18T16:30:53.2377590Z [command]/usr/bin/git version
+2026-05-18T16:30:53.2439903Z git version 2.54.0
+2026-05-18T16:30:53.2467560Z ##[endgroup]
+2026-05-18T16:30:53.2484077Z Temporarily overriding HOME='/home/runner/work/_temp/60de2537-726b-4ab4-bdab-2204bee50b31' before making global git config changes
+2026-05-18T16:30:53.2488478Z Adding repository directory to the temporary git global config as a safe directory
+2026-05-18T16:30:53.2498698Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/m3tacron/m3tacron
+2026-05-18T16:30:53.2548126Z Deleting the contents of '/home/runner/work/m3tacron/m3tacron'
+2026-05-18T16:30:53.2551793Z ##[group]Initializing the repository
+2026-05-18T16:30:53.2557241Z [command]/usr/bin/git init /home/runner/work/m3tacron/m3tacron
+2026-05-18T16:30:53.2660397Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-05-18T16:30:53.2662255Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-05-18T16:30:53.2664458Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-05-18T16:30:53.2666291Z hint: call:
+2026-05-18T16:30:53.2667083Z hint:
+2026-05-18T16:30:53.2668098Z hint: 	git config --global init.defaultBranch <name>
+2026-05-18T16:30:53.2669113Z hint:
+2026-05-18T16:30:53.2670071Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-05-18T16:30:53.2672309Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-05-18T16:30:53.2673593Z hint:
+2026-05-18T16:30:53.2674601Z hint: 	git branch -m <name>
+2026-05-18T16:30:53.2675386Z hint:
+2026-05-18T16:30:53.2676925Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-05-18T16:30:53.2678784Z Initialized empty Git repository in /home/runner/work/m3tacron/m3tacron/.git/
+2026-05-18T16:30:53.2681676Z [command]/usr/bin/git remote add origin https://github.com/Francespo/m3tacron
+2026-05-18T16:30:53.2719365Z ##[endgroup]
+2026-05-18T16:30:53.2720591Z ##[group]Disabling automatic garbage collection
+2026-05-18T16:30:53.2722912Z [command]/usr/bin/git config --local gc.auto 0
+2026-05-18T16:30:53.2750767Z ##[endgroup]
+2026-05-18T16:30:53.2751898Z ##[group]Setting up auth
+2026-05-18T16:30:53.2758092Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-05-18T16:30:53.2790740Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-05-18T16:30:53.3135179Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-05-18T16:30:53.3165496Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-05-18T16:30:53.3382881Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-05-18T16:30:53.3422217Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-05-18T16:30:53.3639068Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-05-18T16:30:53.3673361Z ##[endgroup]
+2026-05-18T16:30:53.3674772Z ##[group]Fetching the repository
+2026-05-18T16:30:53.3684883Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +4786eceb85c4c4b53ae8dadf1d7ca09ab013c25f:refs/remotes/origin/copilot/sqlite-scraper-wrapper
+2026-05-18T16:30:53.8109793Z From https://github.com/Francespo/m3tacron
+2026-05-18T16:30:53.8113646Z  * [new ref]         4786eceb85c4c4b53ae8dadf1d7ca09ab013c25f -> origin/copilot/sqlite-scraper-wrapper
+2026-05-18T16:30:53.8177673Z ##[endgroup]
+2026-05-18T16:30:53.8179449Z ##[group]Determining the checkout info
+2026-05-18T16:30:53.8180927Z ##[endgroup]
+2026-05-18T16:30:53.8184197Z [command]/usr/bin/git sparse-checkout disable
+2026-05-18T16:30:53.8225775Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-05-18T16:30:53.8252499Z ##[group]Checking out the ref
+2026-05-18T16:30:53.8257770Z [command]/usr/bin/git checkout --progress --force -B copilot/sqlite-scraper-wrapper refs/remotes/origin/copilot/sqlite-scraper-wrapper
+2026-05-18T16:30:53.8467411Z Switched to a new branch 'copilot/sqlite-scraper-wrapper'
+2026-05-18T16:30:53.8470795Z branch 'copilot/sqlite-scraper-wrapper' set up to track 'origin/copilot/sqlite-scraper-wrapper'.
+2026-05-18T16:30:53.8478136Z ##[endgroup]
+2026-05-18T16:30:53.8514266Z [command]/usr/bin/git log -1 --format=%H
+2026-05-18T16:30:53.8536406Z 4786eceb85c4c4b53ae8dadf1d7ca09ab013c25f

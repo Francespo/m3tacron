@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 from difflib import SequenceMatcher
 import logging
 
@@ -35,7 +35,10 @@ class DedupService:
             if not target.date or not candidate.date:
                 continue
 
-            delta = abs(target.date - candidate.date)
+            target_date = target.date.date() if isinstance(target.date, datetime) else target.date
+            candidate_date = candidate.date.date() if isinstance(candidate.date, datetime) else candidate.date
+
+            delta = abs(target_date - candidate_date)
             # Allow 48h slop for timezone/reporting diffs
             if delta > timedelta(days=2):
                 continue
