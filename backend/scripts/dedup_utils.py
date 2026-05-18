@@ -8,7 +8,15 @@ from ..utils.deduplication import DedupService
 logger = logging.getLogger(__name__)
 dedup_service = DedupService()
 
-def check_for_duplicates(session: Session, new_tournament: Tournament, new_players: list[PlayerStanding]) -> Tournament | None:
+def check_for_duplicates(session: Session, new_tournament: Tournament, new_players: list[PlayerStanding], skip_url: str | None = None) -> Tournament | None:
+    """Identify if a tournament is a duplicate of another source.
+    
+    Args:
+        session: Active DB session.
+        new_tournament: The newly scraped tournament.
+        new_players: List of players for the new tournament.
+        skip_url: Optional URL to ignore (the tournament being updated).
+    """
     if not new_tournament.date:
         return None
     
@@ -16,6 +24,10 @@ def check_for_duplicates(session: Session, new_tournament: Tournament, new_playe
     end_date = new_tournament.date + timedelta(days=5)
     
     stmt = select(Tournament).where(Tournament.date >= start_date, Tournament.date <= end_date)
+    # If we are overwriting, we should ignore the current record in the candidates list
+    if skip_url:
+        stmt = stmt.where(Tournament.url != skip_url)
+        
     candidates = session.execute(stmt).scalars().all()
     
     if not candidates:
