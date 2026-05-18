@@ -40,7 +40,7 @@ def get_list_stats(
         
         for result, tournament in rows:
             t_fmt_raw = tournament.format
-            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
+            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "unknown")
             
             allowed_fmt = get_active_formats(filters.get("allowed_formats", None))
             if allowed_fmt and t_fmt not in allowed_fmt:

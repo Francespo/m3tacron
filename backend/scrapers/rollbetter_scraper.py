@@ -162,7 +162,7 @@ class RollbetterScraper(BaseScraper):
                             # Determine Format from Body Text (FALLBACK if XWS inference failed)
                             # XWS inference has priority (already done in _parse_from_json_v2)
                             current_format = self.cache[tournament_id]['tournament'].format
-                            if current_format == Format.OTHER:
+                            if current_format == Format.UNKNOWN:
                                 logger.info(
                                     "XWS inference failed or missing. Keeping format as OTHER (Conservative Policy).")
                             else:
@@ -254,7 +254,7 @@ class RollbetterScraper(BaseScraper):
                 player_count=0,
                 source=Source.ROLLBETTER,
                 url=url,
-                format=Format.OTHER,
+                format=Format.UNKNOWN,
             )
 
             location_data = self._extract_location(page)
@@ -490,7 +490,7 @@ class RollbetterScraper(BaseScraper):
             player_count=player_count,
             source=Source.ROLLBETTER,
             url=url,
-            format=Format.OTHER,
+            format=Format.UNKNOWN,
         )
         if location:
             tournament.location = location
@@ -831,7 +831,7 @@ class RollbetterScraper(BaseScraper):
 
         t = Tournament(
             id=int(tid), name=name, date=formatted_date,
-            player_count=len(players_json), source=Source.ROLLBETTER, url=url, format=Format.OTHER
+            player_count=len(players_json), source=Source.ROLLBETTER, url=url, format=Format.UNKNOWN
         )
 
         participants = []
@@ -908,11 +908,11 @@ class RollbetterScraper(BaseScraper):
             # We still want to allow scraping other data, but players might be empty if we rely on JSON
 
         # Format Inference
-        f = Format.OTHER
+        f = Format.UNKNOWN
         for p in results[:10]:
             if p.list_json and p.list_json.get("pilots"):
                 inferred = infer_format_from_xws(p.list_json)
-                if inferred != Format.OTHER:
+                if inferred != Format.UNKNOWN:
                     f = inferred
                     break
         t.format = f

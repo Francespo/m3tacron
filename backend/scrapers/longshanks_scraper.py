@@ -225,7 +225,7 @@ class LongshanksScraper(BaseScraper):
                         f"Using XWS-inferred format: {game_format.value}")
                 else:
                     # Fallback policy: Conservative (Format.OTHER)
-                    game_format = Format.OTHER
+                    game_format = Format.UNKNOWN
                     logger.info(
                         "No XWS format inferred. Defaulting to OTHER (Conservative Policy).")
 

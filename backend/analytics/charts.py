@@ -41,7 +41,7 @@ def get_card_usage_history(
         for result, tournament in rows:
             # Format Check
             t_fmt_raw = tournament.format
-            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
+            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "unknown")
             if allowed_formats and t_fmt not in allowed_formats:
                 continue
 

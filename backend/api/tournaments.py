@@ -147,14 +147,14 @@ def get_tournaments(
             loc_str = _get_location_string(t.location)
 
             # Ensure valid format and platform enums
-            fmt_str = t.format.lower() if t.format else "other"
+            fmt_str = t.format.lower() if t.format else "unknown"
             try:
                 # Direct match first (for case sensitivity if StrEnum requires it)
                 # StrEnum usually keeps case, let's try lower() if values are lower
                 # Checking formats.py earlier, values were lowercase mostly: "amg", "xwa"
                 fmt = Format(fmt_str)
             except ValueError:
-                fmt = Format.OTHER
+                fmt = Format.UNKNOWN
 
             src_str = t.source.lower() if t.source else "unknown"
             try:
@@ -187,11 +187,11 @@ def get_tournament_detail(tournament_id: int):
         player_count = session.exec(select(func.count(PlayerStanding.id)).where(PlayerStanding.tournament_id == t.id)).one_or_none() or 0
         loc_str = _get_location_string(t.location)
         
-        fmt_str = t.format.lower() if t.format else "other"
+        fmt_str = t.format.lower() if t.format else "unknown"
         try:
             fmt = Format(fmt_str)
         except ValueError:
-            fmt = Format.OTHER
+            fmt = Format.UNKNOWN
 
         src_str = t.source.lower() if t.source else "unknown"
         try:
