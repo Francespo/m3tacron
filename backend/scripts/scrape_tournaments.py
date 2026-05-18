@@ -529,8 +529,11 @@ def scrape_platform(
                 with Session(engine, expire_on_commit=False) as session:
                     if scraper_name == "listfortress":
                         from .dedup_utils import check_for_duplicates
+                        # If overwrite is enabled, allow ListFortress to update its own records
+                        # by excluding the current URL from the duplicate check.
+                        skip_url = url if overwrite else None
                         dup = check_for_duplicates(
-                            session, tournament, players)
+                            session, tournament, players, skip_url=skip_url)
                         if dup:
                             logger.info(
                                 f"[{scraper_name}] Dedup detected '{tournament.name}' is a duplicate of '{dup.name}' ({dup.url}). Skipping.")
