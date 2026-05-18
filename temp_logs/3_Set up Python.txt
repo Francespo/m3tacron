@@ -1,0 +1,21 @@
+﻿2026-05-18T16:30:53.8850489Z ##[group]Run actions/setup-python@v5
+2026-05-18T16:30:53.8851559Z with:
+2026-05-18T16:30:53.8852284Z   python-version: 3.12
+2026-05-18T16:30:53.8853122Z   cache: pip
+2026-05-18T16:30:53.8854121Z   check-latest: false
+2026-05-18T16:30:53.8855243Z   token: ***
+2026-05-18T16:30:53.8856284Z   update-environment: true
+2026-05-18T16:30:53.8857204Z   allow-prereleases: false
+2026-05-18T16:30:53.8858095Z   freethreaded: false
+2026-05-18T16:30:53.8858910Z ##[endgroup]
+2026-05-18T16:30:54.0589984Z ##[group]Installed versions
+2026-05-18T16:30:54.0750289Z Successfully set up CPython (3.12.13)
+2026-05-18T16:30:54.0753128Z ##[endgroup]
+2026-05-18T16:30:54.1889747Z [command]/opt/hostedtoolcache/Python/3.12.13/x64/bin/pip cache dir
+2026-05-18T16:30:56.0690821Z /home/runner/.cache/pip
+2026-05-18T16:30:56.2182097Z Cache hit for: setup-python-Linux-x64-24.04-Ubuntu-python-3.12.13-pip-772a8267ce46090f8091fac53b6f567dc8c03ced24ca9cf12c1394625a24e18f
+2026-05-18T16:30:57.2121486Z Received 72263654 of 72263654 (100.0%), 79.4 MBs/sec
+2026-05-18T16:30:57.2122798Z Cache Size: ~69 MB (72263654 B)
+2026-05-18T16:30:57.2192165Z [command]/usr/bin/tar -xf /home/runner/work/_temp/cd3687f6-4f35-4da0-84f2-26d06e1d61ff/cache.tzst -P -C /home/runner/work/m3tacron/m3tacron --use-compress-program unzstd
+2026-05-18T16:30:57.3345720Z Cache restored successfully
+2026-05-18T16:30:57.3387093Z Cache restored from key: setup-python-Linux-x64-24.04-Ubuntu-python-3.12.13-pip-772a8267ce46090f8091fac53b6f567dc8c03ced24ca9cf12c1394625a24e18f

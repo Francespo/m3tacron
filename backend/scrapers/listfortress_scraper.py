@@ -94,7 +94,7 @@ class ListFortressScraper(BaseScraper):
             return Tournament(
                 id=str(data["id"]),
                 name=str(data["name"]).strip(),
-                date=self._parse_date(data.get("date")),
+                date=self._parse_date(data.get("date")).date(),
                 format=fmt,
                 source=Source.LISTFORTRESS,
                 location=self._format_location(data),
@@ -169,7 +169,7 @@ class ListFortressScraper(BaseScraper):
             p_map = {p["id"]: p["name"] for p in data.get("participants", [])}
 
             for r in rounds:
-                r_type = RoundType.SWISS if r["roundtype_id"] == 1 else RoundType.ELIMINATION 
+                r_type = RoundType.SWISS if r["roundtype_id"] == 1 else RoundType.CUT 
                 # Note: roundtype_id mapping is a guess/standard. 1=Swiss usually.
                 # Just assuming 'swiss' for now unless we see distinct ID.
                 # Actually, ListFortress might use "round_type" field? 
