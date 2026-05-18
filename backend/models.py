@@ -80,7 +80,7 @@ class PlayerStanding(SQLModel, table=True):
     swiss_losses: int = Field(default=-1)
     swiss_draws: int = Field(default=0)
     swiss_event_points: int | None = Field(default=None)
-    swiss_tie_breaker_points: int = Field(default=None)
+    swiss_tie_breaker_points: int | None = Field(default=None)
     cut_rank: int | None = Field(default=None)
     cut_wins: int | None = Field(default=None)
     cut_losses: int | None = Field(default=None)
