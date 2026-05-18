@@ -30,7 +30,7 @@ def aggregate_squadron_stats(
         for result, tournament in rows:
             # Format filter
             t_fmt_raw = tournament.format
-            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
+            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "unknown")
             
             allowed_formats = get_active_formats(filters.get("allowed_formats", None))
             if allowed_formats and t_fmt not in allowed_formats:

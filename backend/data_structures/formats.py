@@ -6,7 +6,7 @@ from enum import StrEnum
 class MacroFormat(StrEnum):
     V2_5 = "2.5"
     V2_0 = "2.0"
-    OTHER = "other"
+    UNKNOWN = "unknown"
 
     @property
     def label(self) -> str:
@@ -14,7 +14,7 @@ class MacroFormat(StrEnum):
         match self:
             case MacroFormat.V2_5: return "2.5"
             case MacroFormat.V2_0: return "2.0"
-            case MacroFormat.OTHER: return "Unknown"
+            case MacroFormat.UNKNOWN: return "Unknown"
 
 
     def formats(self) -> list[str]:
@@ -22,7 +22,7 @@ class MacroFormat(StrEnum):
         match self:
             case MacroFormat.V2_5: return [Format.AMG, Format.XWA]
             case MacroFormat.V2_0: return [Format.LEGACY_X2PO, Format.LEGACY_XLC, Format.FFG]
-            case MacroFormat.OTHER: return [Format.OTHER]
+            case MacroFormat.UNKNOWN: return [Format.UNKNOWN]
 
 class Format(StrEnum):
     # 2.5 Group
@@ -34,8 +34,8 @@ class Format(StrEnum):
     LEGACY_X2PO = "legacy_x2po"
     LEGACY_XLC = "legacy_xlc"
     
-    # Other
-    OTHER = "other"
+    # Unknown
+    UNKNOWN = "unknown"
 
     @property
     def label(self) -> str:
@@ -58,14 +58,14 @@ class Format(StrEnum):
             case Format.LEGACY_X2PO | Format.LEGACY_XLC | Format.FFG:
                 return MacroFormat.V2_0
             case _:
-                return MacroFormat.OTHER
+                return MacroFormat.UNKNOWN
 
 def infer_format_from_xws(xws: dict) -> Format:
     """
     Infer format ID from XWS data based on vendor specific logic.
     """
     if not xws:
-        return Format.OTHER
+        return Format.UNKNOWN
 
     vendor = xws.get("vendor")
     if not isinstance(vendor, dict):
@@ -82,7 +82,7 @@ def infer_format_from_xws(xws: dict) -> Format:
         if "xwa" in ruleset: return Format.XWA
         
         # Don't eagerly return AMG! If unclear, use OTHER so we keep searching other lists.
-        return Format.OTHER 
+        return Format.UNKNOWN 
 
     # 2. Check YASB
     if "yasb" in vendor:
@@ -122,6 +122,6 @@ def infer_format_from_xws(xws: dict) -> Format:
         if "legacy" in ruleset: return Format.LEGACY_X2PO
         if "amg" in ruleset: return Format.AMG
         if "xwa" in ruleset: return Format.XWA
-        return Format.OTHER
+        return Format.UNKNOWN
 
-    return Format.OTHER
+    return Format.UNKNOWN
