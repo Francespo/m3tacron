@@ -138,12 +138,11 @@ class ListFortressScraper(BaseScraper):
 
                 pr = PlayerStanding(
                     player_name=p.get("name", "Unknown"),
-                    list_json=xws,
+                    list_json=xws or {},
                     swiss_rank=p.get("swiss_rank", 0),
-                    top_cut_rank=p.get("top_cut_rank"),
-                    score=p.get("score"),
-                    mov=p.get("mov"),
-                    sos=float(p.get("sos", 0.0)) if p.get("sos") else 0.0
+                    cut_rank=p.get("top_cut_rank"),
+                    swiss_event_points=p.get("score"),
+                    swiss_tie_breaker_points=p.get("mov")
                 )
                 results.append(pr)
                 
