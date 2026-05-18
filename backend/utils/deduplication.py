@@ -35,8 +35,10 @@ class DedupService:
             if not target.date or not candidate.date:
                 continue
 
-            target_date = target.date.date() if isinstance(target.date, datetime) else target.date
-            candidate_date = candidate.date.date() if isinstance(candidate.date, datetime) else candidate.date
+            target_date = target.date.date() if isinstance(
+                target.date, datetime) else target.date
+            candidate_date = candidate.date.date() if isinstance(
+                candidate.date, datetime) else candidate.date
 
             delta = abs(target_date - candidate_date)
             # Allow 48h slop for timezone/reporting diffs
@@ -90,8 +92,10 @@ class DedupService:
         if not list_a or not list_b:
             return 0.0
 
-        names_a = set(p.player_name.lower().strip() for p in list_a if p.player_name)
-        names_b = set(p.player_name.lower().strip() for p in list_b if p.player_name)
+        names_a = set(p.player_name.lower().strip()
+                      for p in list_a if p.player_name)
+        names_b = set(p.player_name.lower().strip()
+                      for p in list_b if p.player_name)
 
         intersection = len(names_a.intersection(names_b))
         union = len(names_a.union(names_b))
