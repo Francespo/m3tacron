@@ -115,7 +115,7 @@ def get_pilot_configurations(
         for result, tournament in rows:
             # Format check
             t_fmt = tournament.format
-            fmt_val = t_fmt.value if hasattr(t_fmt, "value") else (t_fmt or "other")
+            fmt_val = t_fmt.value if hasattr(t_fmt, "value") else (t_fmt or "unknown")
             if allowed and fmt_val not in allowed:
                 continue
 

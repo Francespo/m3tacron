@@ -91,7 +91,7 @@ class ListFortressScraper(BaseScraper):
             if not fmt:
                 # User Requirement: Ignore ListFortress definition
                 # fmt = self._map_format(data.get("format_id"))
-                fmt = Format.OTHER
+                fmt = Format.UNKNOWN
 
             return Tournament(
                 id=str(data["id"]),
@@ -217,7 +217,7 @@ class ListFortressScraper(BaseScraper):
         if fmt_id == 1:
             return Format.AMG
         elif fmt_id == 2:
-            return Format.OTHER  # Extended
+            return Format.UNKNOWN  # Extended
         elif fmt_id == 34:  # From API ID 360 result (2nd Ed?)
             return Format.AMG  # Assume 2.0/2.5 are grouped or handle specifically
         return Format.AMG  # Default fallback

@@ -305,7 +305,7 @@ class BaseScraper(ABC):
         for pl in players[:20]:
             if pl.list_json and pl.list_json.get("pilots"):
                 inferred = infer_format_from_xws(pl.list_json)
-                if inferred != Format.OTHER:
+                if inferred != Format.UNKNOWN:
                     inferred_format = inferred
                     logger.info(
                         f"XWS-inferred format {inferred.value} "

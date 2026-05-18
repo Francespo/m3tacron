@@ -91,7 +91,7 @@ def check_format_filter(tournament: Tournament, format_selection: dict[str, bool
     if not format_selection:
         return True
     
-    t_format_val = tournament.format.value if hasattr(tournament.format, "value") else (tournament.format or "other")
+    t_format_val = tournament.format.value if hasattr(tournament.format, "value") else (tournament.format or "unknown")
     
     if isinstance(format_selection, (list, set)):
         return t_format_val in format_selection
