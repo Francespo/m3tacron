@@ -416,6 +416,10 @@ def _scrape_by_url(
     tournament.url = url
     raw_matches = list(matches)
 
+    if len(players) == 0:
+        logger.info(f"[{scraper_name}] '{tournament.name}' has 0 players. Skipping.")
+        return False, None
+
     with Session(engine, expire_on_commit=False) as session:
         if scraper_name == "listfortress":
             from .dedup_utils import check_for_duplicates
