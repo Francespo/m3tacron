@@ -140,7 +140,7 @@ class ListFortressScraper(BaseScraper):
                             f"Invalid JSON for player {p.get('id')}")
 
                 pr = PlayerStanding(
-                    player_name=p.get("name", "Unknown"),
+                    player_name=p.get("name") or "Unknown",
                     list_json=xws or {},
                     swiss_rank=p.get("swiss_rank", 0),
                     cut_rank=p.get("top_cut_rank"),
