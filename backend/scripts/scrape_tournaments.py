@@ -359,10 +359,20 @@ def _scrape_by_url(
     """
     if url in existing_urls:
         if not overwrite:
-            logger.debug(f"Already in DB, skipping: {url}")
+            # Check if this IS NOT rollbetter/longshanks, and we have a rollbetter/longshanks version already?
+            # Actually, the 'existing_urls' check only handles the EXACT same URL.
+            # We need the dedup check here to catch rollbetter tournaments being re-scraped from listfortress.
+            logger.debug(f"Already in DB (URL match), skipping: {url}")
             return False, None
         else:
             logger.info(f"Overwriting existing tournament: {url}")
+    
+    # If it's listfortress, we check if it already exists from a better source
+    if "listfortress.com" in url and not overwrite:
+        # We don't have the tournament object yet, so we have to scrape it first or do a light check.
+        # But we can use _extract_tournament_id and do a quick check? 
+        # Actually, let's wait until we have the data object.
+        pass
 
     tournament_id = _extract_tournament_id(url)
     if not tournament_id:
@@ -421,10 +431,20 @@ def _scrape_by_url(
         return False, None
 
     with Session(engine, expire_on_commit=False) as session:
-        if scraper_name == "listfortress":
-            from .dedup_utils import check_for_duplicates
-            dup = check_for_duplicates(session, tournament, players)
-            if dup:
+        # Check source priority: listfortress can't overwrite/duplicate RB/Longshanks
+        # We always check for duplicates for listfortress unless forced otherwise.
+        from .dedup_utils import check_for_duplicates
+        dup = check_for_duplicates(session, tournament, players, overwrite=overwrite)
+        if dup:
+            # If the duplicate is NOT from listfortress, we NEVER allow overwrite by listfortress
+            if scraper_name == "listfortress" and dup.source != Source.LISTFORTRESS:
+                logger.info(
+                    f"[{scraper_name}] Protected tournament found: '{dup.name}' ({dup.source}). "
+                    f"Cannot overwrite with ListFortress data. Skipping."
+                )
+                return False, f"Duplicate of protected source {dup.source} ({dup.url})"
+
+            if scraper_name == "listfortress":
                 logger.info(
                     f"[{scraper_name}] Dedup detected '{tournament.name}' is a duplicate of '{dup.name}' ({dup.url}). Skipping.")
                 return False, f"Duplicate of {dup.url}"
@@ -527,13 +547,20 @@ def scrape_platform(
             # IDs (MAX+1) which is not atomic across concurrent transactions.
             with _DB_WRITE_LOCK:
                 with Session(engine, expire_on_commit=False) as session:
-                    if scraper_name == "listfortress":
-                        from .dedup_utils import check_for_duplicates
-                        # If overwrite is enabled, ListFortress can only overwrite if the 
-                        # existing record has the same source (listfortress).
-                        dup = check_for_duplicates(
-                            session, tournament, players, overwrite=overwrite)
-                        if dup:
+                    from .dedup_utils import check_for_duplicates
+                    # ListFortress cannot overwrite or duplicate higher priority sources
+                    dup = check_for_duplicates(
+                        session, tournament, players, overwrite=overwrite)
+                    if dup:
+                        if scraper_name == "listfortress" and dup.source != Source.LISTFORTRESS:
+                            logger.info(
+                                f"[{scraper_name}] Protected tournament found: '{dup.name}' ({dup.source}). "
+                                f"Cannot overwrite with ListFortress data. Skipping."
+                            )
+                            skipped += 1
+                            continue
+
+                        if scraper_name == "listfortress":
                             logger.info(
                                 f"[{scraper_name}] Dedup detected '{tournament.name}' is a duplicate of '{dup.name}' ({dup.url}). Skipping.")
                             skipped += 1
