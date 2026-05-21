@@ -125,4 +125,5 @@ jobs:
           git add backend/data/geocoding_cache.json
           if [ -f main.db ]; then git add main.db; fi
           git diff --cached --quiet || git commit -m "Update tournament data and geocoding cache" || exit 0
+          git pull --rebase --autostash
           git push
