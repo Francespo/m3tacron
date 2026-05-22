@@ -1,20 +1,21 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 from difflib import SequenceMatcher
 import logging
 
-from m3tacron.backend.models import Tournament, PlayerResult
+from ..models import Tournament, PlayerStanding
 
 logger = logging.getLogger(__name__)
+
 
 class DedupService:
     """Service to identify duplicate tournaments across different sources."""
 
     def find_duplicate(
-        self, 
-        target: Tournament, 
+        self,
+        target: Tournament,
         candidates: list[Tournament],
-        target_players: list[PlayerResult] | None = None,
-        candidate_players_map: dict[str, list[PlayerResult]] | None = None
+        target_players: list[PlayerStanding] | None = None,
+        candidate_players_map: dict[int, list[PlayerStanding]] | None = None
     ) -> Tournament | None:
         """Find a duplicate of the target tournament in the list of candidates.
 
@@ -27,17 +28,21 @@ class DedupService:
         Returns:
             The matching Tournament object if a duplicate is found, else None.
         """
-        possible_matches = []
-
         for candidate in candidates:
             # 1. Filter by Date (+/- 1 day)
             # Some sources might be in different timezones or report "end date" vs "start date"
             # If dates are missing, we skip this check (but likely can't confirm dedup easily)
             if not target.date or not candidate.date:
                 continue
-                
-            delta = abs(target.date - candidate.date)
-            if delta > timedelta(days=2): # Allow 48h slop for timezone/reporting diffs
+
+            target_date = target.date.date() if isinstance(
+                target.date, datetime) else target.date
+            candidate_date = candidate.date.date() if isinstance(
+                candidate.date, datetime) else candidate.date
+
+            delta = abs(target_date - candidate_date)
+            # Allow 48h slop for timezone/reporting diffs
+            if delta > timedelta(days=2):
                 continue
 
             # 2. Calculate Name Similarity
@@ -46,9 +51,10 @@ class DedupService:
             # 3. Calculate Player Overlap (if data available)
             player_score = 0.0
             if target_players and candidate_players_map:
-                c_players = candidate_players_map.get(str(candidate.id)) or candidate_players_map.get(candidate.id)
+                c_players = candidate_players_map.get(candidate.id)
                 if c_players:
-                    player_score = self._calculate_player_overlap(target_players, c_players)
+                    player_score = self._calculate_player_overlap(
+                        target_players, c_players)
 
             # 4. Location Check (Simple country/state match if available)
             # Not strict scoring, but used as a tie-breaker or confidence booster?
@@ -56,11 +62,12 @@ class DedupService:
 
             # Decision Logic
             is_match = False
-            
+
             # High Confidence: Lots of player overlap
-            if player_score > 0.5: 
+            if player_score > 0.5:
                 is_match = True
-                logger.debug(f"Dedup Match (Player Overlap): {target.name} ({target.source}) == {candidate.name} ({candidate.source}) | Score: {player_score:.2f}")
+                logger.debug(
+                    f"Dedup Match (Player Overlap): {target.name} ({target.source}) == {candidate.name} ({candidate.source}) | Score: {player_score:.2f}")
 
             # Medium Confidence: High Name Match + Date Match (already filtered) + Same Player Count (approx)
             elif name_score > 0.85:
@@ -68,7 +75,8 @@ class DedupService:
                 # Allow 20% variance in player count (drops/no-shows)
                 if abs(target.player_count - candidate.player_count) / max(candidate.player_count, 1) < 0.2:
                     is_match = True
-                    logger.debug(f"Dedup Match (Name+Date): {target.name} ({target.source}) == {candidate.name} ({candidate.source}) | Score: {name_score:.2f}")
+                    logger.debug(
+                        f"Dedup Match (Name+Date): {target.name} ({target.source}) == {candidate.name} ({candidate.source}) | Score: {name_score:.2f}")
 
             if is_match:
                 return candidate
@@ -79,18 +87,20 @@ class DedupService:
         """Return a similarity score between 0.0 and 1.0."""
         return SequenceMatcher(None, str(a).lower(), str(b).lower()).ratio()
 
-    def _calculate_player_overlap(self, list_a: list[PlayerResult], list_b: list[PlayerResult]) -> float:
+    def _calculate_player_overlap(self, list_a: list[PlayerStanding], list_b: list[PlayerStanding]) -> float:
         """Calculate Jaccard index of player names."""
         if not list_a or not list_b:
             return 0.0
 
-        names_a = set(p.player_name.lower().strip() for p in list_a)
-        names_b = set(p.player_name.lower().strip() for p in list_b)
+        names_a = set(p.player_name.lower().strip()
+                      for p in list_a if p.player_name)
+        names_b = set(p.player_name.lower().strip()
+                      for p in list_b if p.player_name)
 
         intersection = len(names_a.intersection(names_b))
         union = len(names_a.union(names_b))
 
         if union == 0:
             return 0.0
-            
+
         return intersection / union

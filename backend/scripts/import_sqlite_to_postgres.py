@@ -9,10 +9,10 @@ import psycopg2
 from psycopg2 import sql
 from psycopg2.extras import Json, execute_batch
 
-TABLES = ["tournament", "playerresult", "match"]
+TABLES = ["tournament", "playerstanding", "teamstanding", "match", "teammatch"]
 JSON_LIKE_COLUMNS = {
     "tournament": {"location"},
-    "playerresult": {"list_json"},
+    "playerstanding": {"list_json"},
 }
 
 

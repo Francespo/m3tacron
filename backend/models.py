@@ -3,7 +3,7 @@
 Database models and format utilities for the M3taCron platform.
 
 Defines:
-- Core entities: Tournament, PlayerResult, Match
+- Core entities: Tournament, PlayerStanding, TeamStanding, Match, TeamMatch
 - Format enums and helper functions
 - Duplicate detection and format inference utilities
 """
@@ -28,40 +28,59 @@ class Tournament(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
     date: date
-    location: Location | None = Field(default=Location(city="Unknown", country="Unknown", continent="Unknown"), sa_column=Column(LocationType))
+    location: Location | None = Field(default=Location(
+        city="Unknown", country="Unknown", continent="Unknown"), sa_column=Column(LocationType))
     player_count: int = Field(default=0)
     team_count: int = Field(default=0)
     url: str
-    
+
     source: Source = Field(sa_column=Column(String))
     format: Format | None = Field(default=None, sa_column=Column(String))
-    
-    results: list["PlayerResult"] = Relationship(back_populates="tournament")
-    
-    @property
-    def macro_format(self) -> str:
-        """Infer macro format from the specific format."""
-        if not self.format: return "other"
-        try:
-            return Format(self.format).macro.value
-        except ValueError:
-            return "other"
+
+    standings: list["PlayerStanding"] = Relationship(
+        back_populates="tournament")
+    team_standings: list["TeamStanding"] = Relationship(
+        back_populates="tournament")
 
 
-class PlayerResult(SQLModel, table=True):
+class TeamStanding(SQLModel, table=True):
+    """
+    A team's performance in a tournament.
+    """
+    id: int | None = Field(default=None, primary_key=True)
+    tournament_id: int = Field(foreign_key="tournament.id")
+    team_name: str = Field()
+    swiss_rank: int = Field(default=-1)
+    swiss_wins: int = Field(default=-1)
+    swiss_losses: int = Field(default=-1)
+    swiss_draws: int = Field(default=0)
+    swiss_event_points: int | None = Field(default=None)
+    swiss_tie_breaker_points: int | None = Field(default=None)
+    cut_rank: int | None = Field(default=None)
+    cut_wins: int | None = Field(default=None)
+    cut_losses: int | None = Field(default=None)
+    cut_draws: int | None = Field(default=None)
+    cut_event_points: int | None = Field(default=None)
+    cut_tie_breaker_points: int | None = Field(default=None)
+
+    tournament: Tournament | None = Relationship(
+        back_populates="team_standings")
+
+
+class PlayerStanding(SQLModel, table=True):
     """
     A player's performance in a tournament.
     """
     id: int | None = Field(default=None, primary_key=True)
     tournament_id: int = Field(foreign_key="tournament.id")
     player_name: str = Field()
-    team_name: str | None = Field(default=None)
+    team_id: int | None = Field(default=None, foreign_key="teamstanding.id")
     swiss_rank: int = Field(default=-1)
     swiss_wins: int = Field(default=-1)
     swiss_losses: int = Field(default=-1)
     swiss_draws: int = Field(default=0)
     swiss_event_points: int | None = Field(default=None)
-    swiss_tie_breaker_points: int = Field(default=None)
+    swiss_tie_breaker_points: int | None = Field(default=None)
     cut_rank: int | None = Field(default=None)
     cut_wins: int | None = Field(default=None)
     cut_losses: int | None = Field(default=None)
@@ -69,8 +88,10 @@ class PlayerResult(SQLModel, table=True):
     cut_event_points: int | None = Field(default=None)
     cut_tie_breaker_points: int | None = Field(default=None)
     list_json: dict = Field(default={}, sa_column=Column(JSON))
-    
-    tournament: Tournament | None = Relationship(back_populates="results")
+
+    tournament: Tournament | None = Relationship(back_populates="standings")
+    team: TeamStanding | None = Relationship(
+        sa_relationship_kwargs={"lazy": "select"})
 
 
 class Match(SQLModel, table=True):
@@ -79,23 +100,44 @@ class Match(SQLModel, table=True):
     """
     id: int | None = Field(default=None, primary_key=True)
     tournament_id: int = Field(foreign_key="tournament.id")
-    
+
     round_number: int
-    round_type: RoundType = Field(default=RoundType.SWISS, sa_column=Column(String))
+    round_type: RoundType = Field(
+        default=RoundType.SWISS, sa_column=Column(String))
     scenario: Scenario | None = Field(default=None, sa_column=Column(String))
-    
-    player1_id: int | None = Field(default=None, foreign_key="playerresult.id")
-    player2_id: int | None = Field(default=None, foreign_key="playerresult.id")
-    
+
+    player1_id: int | None = Field(
+        default=None, foreign_key="playerstanding.id")
+    player2_id: int | None = Field(
+        default=None, foreign_key="playerstanding.id")
+
     player1_score: int = Field(default=-1)
     player2_score: int = Field(default=-1)
-    
-    winner_id: int | None = Field(default=None) # -1 if draw
+
+    winner_id: int | None = Field(default=None)  # -1 if draw
     is_bye: bool = Field(default=False)
-    
-    # Debug fields for name matching
-    p1_name_temp: str | None = Field(default=None)
-    p2_name_temp: str | None = Field(default=None)
+
+
+class TeamMatch(SQLModel, table=True):
+    """
+    A single game between two teams in a round.
+    """
+    id: int | None = Field(default=None, primary_key=True)
+    tournament_id: int = Field(foreign_key="tournament.id")
+
+    round_number: int
+    round_type: RoundType = Field(
+        default=RoundType.SWISS, sa_column=Column(String))
+
+    team1_id: int | None = Field(default=None, foreign_key="teamstanding.id")
+    team2_id: int | None = Field(default=None, foreign_key="teamstanding.id")
+
+    team1_score: int = Field(default=-1)
+    team2_score: int = Field(default=-1)
+
+    winner_id: int | None = Field(default=None)  # -1 if draw
+    is_bye: bool = Field(default=False)
+
 
 class Supporter(SQLModel, table=True):
     """
@@ -108,7 +150,8 @@ class Supporter(SQLModel, table=True):
     last_contribution: datetime = Field(default_factory=datetime.now)
     is_anonymous: bool = Field(default=False)
 
-    contributions: list["Contribution"] = Relationship(back_populates="supporter")
+    contributions: list["Contribution"] = Relationship(
+        back_populates="supporter")
 
 
 class Contribution(SQLModel, table=True):
