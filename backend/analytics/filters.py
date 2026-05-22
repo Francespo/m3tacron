@@ -8,7 +8,7 @@ def filter_query(query, filters: dict):
     Apply SQL-level filters to the query.
 
     Args:
-        query: SQLModel select query joining PlayerResult and Tournament.
+        query: SQLModel select query joining PlayerStanding and Tournament.
         filters: Dictionary containing optional keys:
             - date_start: str (YYYY-MM-DD)
             - date_end: str (YYYY-MM-DD)
@@ -91,7 +91,7 @@ def check_format_filter(tournament: Tournament, format_selection: dict[str, bool
     if not format_selection:
         return True
     
-    t_format_val = tournament.format.value if hasattr(tournament.format, "value") else (tournament.format or "other")
+    t_format_val = tournament.format.value if hasattr(tournament.format, "value") else (tournament.format or "unknown")
     
     if isinstance(format_selection, (list, set)):
         return t_format_val in format_selection

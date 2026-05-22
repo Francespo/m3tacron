@@ -14,10 +14,11 @@ from abc import ABC, abstractmethod
 from datetime import datetime, date
 
 # Database Models
-from ..models import Tournament, PlayerResult, Match
+from ..models import Tournament, PlayerStanding, Match
 from ..data_structures.formats import Format, infer_format_from_xws
 from ..data_structures.round_types import RoundType
 from ..data_structures.scenarios import Scenario
+from ..data_structures.location import Location
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +129,7 @@ class BaseScraper(ABC):
 
     def _compute_stats_from_matches(
         self,
-        players: list[PlayerResult],
+        players: list[PlayerStanding],
         matches: list[dict],
         fmt: Format
     ) -> None:
@@ -138,7 +139,7 @@ class BaseScraper(ABC):
         Modifies players in place.
 
         Args:
-            players: List of PlayerResult to update.
+            players: List of PlayerStanding to update.
             matches: List of match dicts with p1/p2 names, scores, winner.
             fmt: Tournament format (affects point calculation).
         """
@@ -261,11 +262,11 @@ class BaseScraper(ABC):
         pass
 
     @abstractmethod
-    def get_participants(self, tournament_id: str) -> list[PlayerResult]:
+    def get_participants(self, tournament_id: str) -> list[PlayerStanding]:
         """Fetch all registered players and their squad lists.
 
         Returns:
-            List of PlayerResult model instances.
+            List of PlayerStanding model instances.
         """
         pass
 
@@ -283,7 +284,7 @@ class BaseScraper(ABC):
     def run_full_scrape(
         self,
         tournament_id: str
-    ) -> tuple[Tournament, list[PlayerResult], list[Match]]:
+    ) -> tuple[Tournament, list[PlayerStanding], list[Match]]:
         """Execute a complete scrape with XWS-priority format inference.
 
         Flow:
@@ -294,7 +295,7 @@ class BaseScraper(ABC):
         5. Get matches
 
         Returns:
-            Tuple of (Tournament, list[PlayerResult], list[Match]).
+            Tuple of (Tournament, list[PlayerStanding], list[Match]).
         """
         # 1. Get participants first for XWS data
         players = self.get_participants(tournament_id)
@@ -304,7 +305,7 @@ class BaseScraper(ABC):
         for pl in players[:20]:
             if pl.list_json and pl.list_json.get("pilots"):
                 inferred = infer_format_from_xws(pl.list_json)
-                if inferred != Format.OTHER:
+                if inferred != Format.UNKNOWN:
                     inferred_format = inferred
                     logger.info(
                         f"XWS-inferred format {inferred.value} "
@@ -316,6 +317,14 @@ class BaseScraper(ABC):
         tournament = self.get_tournament_data(
             tournament_id, inferred_format=inferred_format
         )
+
+        # Always ensure a non-null Location object.
+        if tournament.location is None:
+            tournament.location = Location.create(
+                city="Unknown",
+                country="Unknown",
+                continent="Unknown",
+            )
 
         # 4. Update player count from actual results
         if players and tournament.player_count == 0:

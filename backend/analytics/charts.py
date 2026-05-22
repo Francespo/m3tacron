@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 from sqlmodel import Session, select
 from ..database import engine
-from ..models import PlayerResult, Tournament
+from ..models import PlayerStanding, Tournament
 from ..data_structures.formats import Format
 from .filters import filter_query, apply_tournament_filters
 
@@ -26,7 +26,7 @@ def get_card_usage_history(
     ]
     """
     with Session(engine) as session:
-        query = select(PlayerResult, Tournament).where(PlayerResult.tournament_id == Tournament.id)
+        query = select(PlayerStanding, Tournament).where(PlayerStanding.tournament_id == Tournament.id)
         query = filter_query(query, filters)
         rows = session.exec(query).all()
         
@@ -41,7 +41,7 @@ def get_card_usage_history(
         for result, tournament in rows:
             # Format Check
             t_fmt_raw = tournament.format
-            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
+            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "unknown")
             if allowed_formats and t_fmt not in allowed_formats:
                 continue
 
