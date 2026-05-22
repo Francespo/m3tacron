@@ -514,15 +514,24 @@ def scrape_platform(
         url: str = item.get("url", "")
         name: str = item.get("name", "Unknown")
 
-        if url in existing_urls:
+        # Double-check existing_urls inside the lock to prevent race conditions 
+        # between parallel platform scrapers (e.g. multiple Rollbetter workers).
+        with _DB_WRITE_LOCK:
+            if url in existing_urls:
+                if not overwrite:
+                    logger.debug(
+                        f"[{scraper_name}] Already in DB, skipping: {name} ({url})")
+                    skipped += 1
+                    continue
+                else:
+                    logger.info(
+                        f"[{scraper_name}] Overwriting existing tournament: {name} ({url})")
+            
+            # Since scraping is slow, we don't want to hold the lock during the request.
+            # However, we need to prevent another thread from starting the same URL.
+            # We can add it to existing_urls immediately as a 'reservation'.
             if not overwrite:
-                logger.debug(
-                    f"[{scraper_name}] Already in DB, skipping: {name} ({url})")
-                skipped += 1
-                continue
-            else:
-                logger.info(
-                    f"[{scraper_name}] Overwriting existing tournament: {name} ({url})")
+                existing_urls.add(url)
 
         tournament_id = _extract_tournament_id(url)
         logger.info(f"[{scraper_name}] Scraping: {name} (id={tournament_id})")
