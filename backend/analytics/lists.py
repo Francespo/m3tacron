@@ -4,7 +4,7 @@ List Analytics - Aggregation Logic for Squad Lists.
 from sqlmodel import Session, select
 import json
 from ..database import engine
-from ..models import PlayerResult, Tournament
+from ..models import PlayerStanding, Tournament
 from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
 from .filters import filter_query, get_active_formats, apply_tournament_filters
@@ -20,8 +20,8 @@ def aggregate_list_stats(
     """
     with Session(engine) as session:
         # Load filtered results
-        query = select(PlayerResult, Tournament).where(
-            PlayerResult.tournament_id == Tournament.id
+        query = select(PlayerStanding, Tournament).where(
+            PlayerStanding.tournament_id == Tournament.id
         )
         query = filter_query(query, filters)
         rows = session.exec(query).all()
@@ -32,7 +32,7 @@ def aggregate_list_stats(
 
         for result, tournament in rows:
             t_fmt_raw = tournament.format
-            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
+            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "unknown")
             
             if allowed_formats and t_fmt not in allowed_formats: continue
             if not apply_tournament_filters(tournament, filters): continue

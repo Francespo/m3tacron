@@ -2,11 +2,13 @@
 import json
 import logging
 import re
+import urllib.error
+import urllib.request
 from datetime import datetime, date as date_type
 from playwright.sync_api import sync_playwright
 
 from .base import BaseScraper
-from ..models import Tournament, PlayerResult, Match
+from ..models import Tournament, PlayerStanding, Match
 from ..data_structures.formats import Format, infer_format_from_xws
 from ..data_structures.source import Source
 from ..data_structures.round_types import RoundType
@@ -21,13 +23,14 @@ XWING_25AMG_URL = "https://rollbetter.gg/games/5"
 XWING_25XWA_URL = "https://rollbetter.gg/games/17"
 XWING_20_URL = "https://rollbetter.gg/games/4"
 
+
 class RollbetterScraper(BaseScraper):
     """
     Improved RollBetter Scraper (V2).
     """
-    
+
     BASE_URL = "https://rollbetter.gg"
-    
+
     def __init__(self, game_id: int | None = None):
         """Initialize scraper.
 
@@ -39,7 +42,6 @@ class RollbetterScraper(BaseScraper):
         self.game_id = game_id
         self.cache = {}  # Map ID -> dict (full data)
 
-
     def _ensure_data(self, tournament_id: str):
         """Load data if not in cache."""
         if tournament_id in self.cache:
@@ -50,100 +52,122 @@ class RollbetterScraper(BaseScraper):
             try:
                 # Scrape ListFortress JSON from Rollbetter
                 url = f"{self.BASE_URL}/tournaments/{tournament_id}"
-                
+
                 with sync_playwright() as p:
                     browser = p.chromium.launch(headless=True)
                     page = browser.new_page()
                     page.goto(url, wait_until="load", timeout=60000)
-                    
+
                     # Wait for data load
                     page.wait_for_timeout(3000)
-                    
-                    # Check for validation (throws error if fails)
+
+                    # Check for validation; if it fails, try API fallback before aborting.
                     if not self._validate_page(page, tournament_id):
+                        api_data = self._try_fetch_api_data(tournament_id, url)
+                        if api_data:
+                            self.cache[tournament_id] = api_data
+                            return
                         raise ValueError("Tournament failed validation")
 
                     # Try ListFortress Export Logic directly here
                     lf_data = None
                     triggered = False
-                    
+
                     # 1. Look for Export Button (Dropdown)
                     try:
                         export_btn = page.locator("button:has-text('Export')")
                         if export_btn.count() > 0 and export_btn.first.is_visible():
                             export_btn.first.click()
                             page.wait_for_timeout(500)
-                    except: pass
-                    
+                    except:
+                        pass
+
                     # 2. Look for "List Fortress" link/button
-                    lf_btn = page.locator("a:has-text('List Fortress'), button:has-text('List Fortress')")
+                    lf_btn = page.locator(
+                        "a:has-text('List Fortress'), button:has-text('List Fortress')")
                     if lf_btn.count() > 0:
-                        logger.info(f"Found List Fortress export button for {tournament_id}")
+                        logger.info(
+                            f"Found List Fortress export button for {tournament_id}")
                         lf_btn.first.click()
                         triggered = True
                     else:
                         # Fallback: maybe just "JSON" or "Export JSON"
-                        json_btn = page.locator("a:has-text('JSON'), button:has-text('JSON')")
+                        json_btn = page.locator(
+                            "a:has-text('JSON'), button:has-text('JSON')")
                         if json_btn.count() > 0:
-                             json_btn.first.click()
-                             triggered = True
-                    
+                            json_btn.first.click()
+                            triggered = True
+
                     if triggered:
                         logger.info("Triggered JSON calculation...")
                         # Wait for the modal and the "Calculate" button if needed (sometimes auto triggers)
-                        
+
                         # Sometimes we need to click "Calculate" inside modal
-                        calc_btn = page.locator("button:has-text('Calculate List Fortress JSON')")
+                        calc_btn = page.locator(
+                            "button:has-text('Calculate List Fortress JSON')")
                         try:
                             if calc_btn.count() > 0:
                                 calc_btn.first.click()
                                 page.wait_for_timeout(1000)
-                        except: pass
+                        except:
+                            pass
 
-                        page.wait_for_timeout(2000) # Wait for modal population
-                        
+                        # Wait for modal population
+                        page.wait_for_timeout(2000)
+
                         # Extract from Modal
                         if page.locator("div.modal-content textarea").count() > 0:
-                             lf_data = page.locator("div.modal-content textarea").first.input_value()
+                            lf_data = page.locator(
+                                "div.modal-content textarea").first.input_value()
                         elif page.locator("textarea.copy-target").count() > 0:
-                             lf_data = page.locator("textarea.copy-target").first.input_value()
+                            lf_data = page.locator(
+                                "textarea.copy-target").first.input_value()
                         elif page.locator("textarea").count() > 0:
-                             # Generic textarea if only one
-                             lf_data = page.locator("textarea").first.input_value()
-                        
+                            # Generic textarea if only one
+                            lf_data = page.locator(
+                                "textarea").first.input_value()
+
                         # Close modal
                         page.keyboard.press("Escape")
-                    
+
                     if lf_data:
-                        logger.info(f"Using LF JSON for {tournament_id} (Length: {len(lf_data)})")
-                        self.cache[tournament_id] = self._parse_from_json_v2(json.loads(lf_data) if isinstance(lf_data, str) else lf_data, tid=tournament_id, url=url)
-                        
+                        logger.info(
+                            f"Using LF JSON for {tournament_id} (Length: {len(lf_data)})")
+                        self.cache[tournament_id] = self._parse_from_json_v2(json.loads(
+                            lf_data) if isinstance(lf_data, str) else lf_data, tid=tournament_id, url=url)
+
                         # Fix Name from H1 if JSON was generic
                         try:
-                            h1_text = page.locator("h1").first.inner_text().strip()
+                            h1_text = page.locator(
+                                "h1").first.inner_text().strip()
                             if h1_text and "Rollbetter Event" in self.cache[tournament_id]['tournament'].name:
-                                 self.cache[tournament_id]['tournament'].name = h1_text
-                        except: pass
-                        
+                                self.cache[tournament_id]['tournament'].name = h1_text
+                        except:
+                            pass
+
                         # Now scrape UI for Location and Detailed Matches
                         try:
                             # Refine Date from UI (JSON date often fails or is today)
                             ui_date = self._scrape_date_from_ui(page)
                             if ui_date.date() != datetime.now().date():
-                                self.cache[tournament_id]['tournament'].date = ui_date.date()
-                                logger.info(f"Updated date from UI: {ui_date.date()}")
+                                self.cache[tournament_id]['tournament'].date = ui_date.date(
+                                )
+                                logger.info(
+                                    f"Updated date from UI: {ui_date.date()}")
 
                             location_data = self._extract_location(page)
                             if location_data:
                                 self.cache[tournament_id]['tournament'].location = location_data
-                            
+
                             # Determine Format from Body Text (FALLBACK if XWS inference failed)
                             # XWS inference has priority (already done in _parse_from_json_v2)
                             current_format = self.cache[tournament_id]['tournament'].format
-                            if current_format == Format.OTHER:
-                                logger.info("XWS inference failed or missing. Keeping format as OTHER (Conservative Policy).")
+                            if current_format == Format.UNKNOWN:
+                                logger.info(
+                                    "XWS inference failed or missing. Keeping format as OTHER (Conservative Policy).")
                             else:
-                                logger.info(f"Using XWS-inferred format: {current_format.value}")
+                                logger.info(
+                                    f"Using XWS-inferred format: {current_format.value}")
 
                             # Scrape UI Standings for missing stats
                             ui_stats = self._scrape_standings_ui(page)
@@ -152,41 +176,354 @@ class RollbetterScraper(BaseScraper):
                                     key = p.player_name.lower().strip()
                                     if key in ui_stats:
                                         s = ui_stats[key]
-                                        if s["wins"] != -1: p.swiss_wins = s["wins"]
-                                        if s["losses"] != -1: p.swiss_losses = s["losses"]
-                                        if s["draws"] != -1: p.swiss_draws = s["draws"]
-                                        
+                                        if s["wins"] != -1:
+                                            p.swiss_wins = s["wins"]
+                                        if s["losses"] != -1:
+                                            p.swiss_losses = s["losses"]
+                                        if s["draws"] != -1:
+                                            p.swiss_draws = s["draws"]
+
                                         # Only update points if NOT Legacy and JSON was empty
                                         if self.cache[tournament_id]['tournament'].format != Format.LEGACY_X2PO:
                                             if (p.swiss_event_points is None or p.swiss_event_points <= 0) and s.get("points", 0) > 0:
-                                                 p.swiss_event_points = s["points"]
+                                                p.swiss_event_points = s["points"]
 
-                            matches = self._scrape_detailed_matches(page, tournament_id)
+                            matches = self._scrape_detailed_matches(
+                                page, tournament_id)
                             if matches:
                                 self.cache[tournament_id]['matches'] = matches
                                 # Compute missing stats from matches
-                                self._compute_stats_from_matches(self.cache[tournament_id]['players'], matches, self.cache[tournament_id]['tournament'].format)
+                                self._compute_stats_from_matches(
+                                    self.cache[tournament_id]['players'], matches, self.cache[tournament_id]['tournament'].format)
                         except Exception as e:
-                            logger.warning(f"UI detail scrape failed for {tournament_id}: {e}")
-                        
-                        return # Success!
-                    
+                            logger.warning(
+                                f"UI detail scrape failed for {tournament_id}: {e}")
+
+                        return  # Success!
+
                     # If we got here, we failed to get data
-                    logger.warning(f"Attempt {attempt+1}: Failed to extract LF JSON.")
-                    
+                    logger.warning(
+                        f"Attempt {attempt+1}: Failed to extract LF JSON.")
+
+                    # Last attempt: build a UI-only fallback so we still scrape metadata and matches.
+                    if attempt == 2:
+                        ui_data = self._build_fallback_from_ui(
+                            page, tournament_id, url)
+                        if ui_data:
+                            logger.info(
+                                f"Using UI-only fallback for {tournament_id}.")
+                            self.cache[tournament_id] = ui_data
+                            return
+
             except Exception as e:
-                logger.error(f"Attempt {attempt+1} Error for {tournament_id}: {e}")
+                logger.error(
+                    f"Attempt {attempt+1} Error for {tournament_id}: {e}")
                 error_trace = e
                 # Retry loop continues
-        
-        logger.error(f"Failed to scrape LF data for {tournament_id} after 3 attempts.")
+
+        # If LF export flow failed, fall back to the public API.
+        api_data = self._try_fetch_api_data(
+            tournament_id, f"{self.BASE_URL}/tournaments/{tournament_id}")
+        if api_data:
+            self.cache[tournament_id] = api_data
+            return
+
+        logger.error(
+            f"Failed to scrape LF data for {tournament_id} after 3 attempts.")
         if error_trace:
-             import traceback
-             traceback.print_exc()
+            import traceback
+            traceback.print_exc()
         # Raise so worker knows it failed
         raise ValueError("Failed to ensure data")
 
+    def _build_fallback_from_ui(self, page, tournament_id: str, url: str) -> dict | None:
+        """Build a minimal dataset from UI when LF JSON is unavailable."""
+        try:
+            name = f"Rollbetter Event {tournament_id}"
+            h1 = page.locator("h1").first
+            if h1.count() > 0:
+                h1_text = h1.inner_text().strip()
+                if h1_text:
+                    name = h1_text
 
+            ui_date = self._scrape_date_from_ui(page).date()
+            tournament = Tournament(
+                id=int(tournament_id),
+                name=name,
+                date=ui_date,
+                player_count=0,
+                source=Source.ROLLBETTER,
+                url=url,
+                format=Format.UNKNOWN,
+            )
+
+            location_data = self._extract_location(page)
+            if location_data:
+                tournament.location = location_data
+            else:
+                tournament.location = Location.create(
+                    city="Unknown",
+                    country="Unknown",
+                    continent="Unknown",
+                )
+
+            # Augment with API timezone for continent if needed
+            if not tournament.location.continent or tournament.location.continent == "Unknown":
+                try:
+                    import urllib.request
+                    import json
+                    req = urllib.request.Request(
+                        f"https://api.rollbetter.gg/tournaments/{tournament_id}",
+                        headers={"User-Agent": "Mozilla/5.0",
+                                 "Accept": "application/json"}
+                    )
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        info = json.loads(resp.read().decode("utf-8"))
+                        tz = info.get("timezone") or ""
+                        if tz and ":" in tz:
+                            cont = tz.split(":")[0].strip()
+                            # Use Pydantic/Model assign correctly
+                            if hasattr(tournament.location, 'continent'):
+                                tournament.location.continent = cont
+                except Exception as e:
+                    logger.debug(
+                        f"Failed to fetch timezone from API for continent fallback: {e}")
+
+            players = self._scrape_players_ui(page)
+            matches = self._scrape_detailed_matches(page, tournament_id)
+
+            if not players and matches:
+                players = self._build_players_from_matches(matches)
+
+            if matches:
+                self._compute_stats_from_matches(
+                    players, matches, tournament.format)
+
+            if players:
+                tournament.player_count = len(players)
+
+            logger.info(
+                "UI fallback built for %s: %s player(s), %s match(es), location=%s",
+                tournament_id,
+                len(players),
+                len(matches),
+                tournament.location,
+            )
+
+            return {
+                "tournament": tournament,
+                "players": players,
+                "matches": matches,
+            }
+        except Exception as exc:
+            logger.warning(f"UI fallback failed for {tournament_id}: {exc}")
+            return None
+
+    def _build_players_from_matches(self, matches: list[dict]) -> list[PlayerStanding]:
+        players = {}
+        for m in matches:
+            for name in [m.get("p1_name_temp"), m.get("p2_name_temp")]:
+                if not name:
+                    continue
+                key = name.strip().lower()
+                if key not in players:
+                    players[key] = PlayerStanding(
+                        player_name=name.strip(),
+                        swiss_rank=-1,
+                        swiss_wins=-1,
+                        swiss_losses=-1,
+                        swiss_draws=0,
+                        swiss_event_points=None,
+                        swiss_tie_breaker_points=-1,
+                    )
+        return list(players.values())
+
+    def _scrape_players_ui(self, page) -> list[PlayerStanding]:
+        """Scrape standings table into PlayerStanding list (no list data)."""
+        players = []
+        try:
+            standings_tab = page.locator(
+                "button[id$='-tab-standings'], button:has-text('Standings')").first
+            if standings_tab.count() > 0:
+                standings_tab.click()
+                page.wait_for_timeout(2000)
+
+            rows = page.locator("div.tab-pane.active table tbody tr").all()
+            if not rows:
+                rows = page.locator("table tbody tr").all()
+
+            logger.info("Standings UI rows found: %s", len(rows))
+
+            for row in rows:
+                cells = row.locator("td").all()
+                if len(cells) < 2:
+                    continue
+
+                first_text = cells[0].inner_text().strip()
+                rank = -1
+                name_idx = 0
+                if first_text.isdigit():
+                    rank = int(first_text)
+                    name_idx = 1
+
+                name = cells[name_idx].inner_text().strip()
+                if not name:
+                    continue
+
+                wins = -1
+                losses = -1
+                draws = 0
+                points = None
+
+                for cell in cells:
+                    txt = cell.inner_text().strip()
+                    if re.match(r"^\d+\s*-\s*\d+\s*-\s*\d+$", txt):
+                        parts = [int(p.strip()) for p in txt.split("-")]
+                        wins, losses, draws = parts
+                    elif re.match(r"^\d+\s*-\s*\d+$", txt):
+                        parts = [int(p.strip()) for p in txt.split("-")]
+                        wins, losses = parts
+                    elif txt.isdigit():
+                        # Keep the last numeric cell as a reasonable points guess.
+                        points = int(txt)
+
+                players.append(
+                    PlayerStanding(
+                        player_name=name,
+                        swiss_rank=rank,
+                        swiss_wins=wins,
+                        swiss_losses=losses,
+                        swiss_draws=draws,
+                        swiss_event_points=points,
+                        swiss_tie_breaker_points=-1,
+                    )
+                )
+        except Exception as exc:
+            logger.warning(f"Standings UI player scrape failed: {exc}")
+
+        logger.info("Standings UI players parsed: %s", len(players))
+
+        return players
+
+    def _fetch_api_json(self, url: str) -> dict | None:
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0",
+                    "Accept": "application/json",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except (urllib.error.URLError, json.JSONDecodeError) as exc:
+            logger.debug(f"API fetch failed for {url}: {exc}")
+            return None
+
+    def _parse_api_date(self, value: str | None) -> datetime:
+        if not value:
+            return datetime.now()
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return datetime.now()
+
+    def _try_fetch_api_data(self, tournament_id: str, url: str) -> dict | None:
+        api_base = f"https://api.rollbetter.gg/tournaments/{tournament_id}"
+        info = self._fetch_api_json(api_base)
+        players_payload = self._fetch_api_json(f"{api_base}/players")
+
+        if not info or not players_payload:
+            return None
+
+        ladder = players_payload.get("ladder", []) or []
+        waitlist = players_payload.get("waitlist", []) or []
+        player_count = len(ladder) if ladder else info.get(
+            "registrationCount", 0) or 0
+
+        if player_count <= 1 and len(waitlist) <= 1:
+            logger.warning(
+                f"Tournament {tournament_id} has insufficient players (API). Skipping."
+            )
+            return None
+
+        title = info.get("title") or info.get(
+            "name") or f"Rollbetter Event {tournament_id}"
+        date_value = info.get("endDate") or info.get("startDate")
+        parsed_date = self._parse_api_date(date_value)
+        if parsed_date.date() > datetime.now().date():
+            logger.warning(
+                f"Tournament {tournament_id} is in the future ({parsed_date.date()}). Skipping."
+            )
+            return None
+
+        location = None
+        venue = info.get("venue") or ""
+        city = info.get("city") or ""
+        state = info.get("stateProvince") or ""
+        country = info.get("country") or ""
+        attendee_presence = (info.get("attendeePresence") or "").lower()
+        location_text = ", ".join(
+            [p for p in [venue, city, state, country] if p])
+
+        if "online" in attendee_presence or "virtual" in attendee_presence:
+            location = Location.create(
+                city="Virtual", country="Virtual", continent="Virtual")
+        elif location_text:
+            from ..utils.geocoding import resolve_location
+            location = resolve_location(location_text)
+
+        tz = info.get("timezone") or ""
+        if tz and ":" in tz:
+            cont = tz.split(":")[0].strip()
+            if location:
+                if not location.continent or location.continent == "Unknown":
+                    location.continent = cont
+            else:
+                location = Location.create(
+                    city="Unknown", country="Unknown", continent=cont)
+
+        tournament = Tournament(
+            id=int(tournament_id),
+            name=title,
+            date=parsed_date.date(),
+            player_count=player_count,
+            source=Source.ROLLBETTER,
+            url=url,
+            format=Format.UNKNOWN,
+        )
+        if location:
+            tournament.location = location
+
+        players = []
+        for entry in ladder:
+            player = entry.get("player", {}) or {}
+            ranking = entry.get("ranking", {}) or {}
+            name = player.get("realName") or player.get(
+                "username") or "Unknown"
+
+            swiss_points = ranking.get("points1")
+            if swiss_points is None:
+                swiss_points = ranking.get("combinedPoints1")
+
+            players.append(
+                PlayerStanding(
+                    player_name=name,
+                    swiss_rank=ranking.get("seed") or -1,
+                    swiss_wins=ranking.get("wins", -1),
+                    swiss_losses=ranking.get("losses", -1),
+                    swiss_draws=ranking.get("draws", 0),
+                    swiss_event_points=swiss_points,
+                    swiss_tie_breaker_points=ranking.get("mov"),
+                    cut_rank=ranking.get("elimPlacement"),
+                )
+            )
+
+        return {
+            "tournament": tournament,
+            "players": players,
+            "matches": [],
+        }
 
     def list_tournaments(
         self,
@@ -194,124 +531,81 @@ class RollbetterScraper(BaseScraper):
         date_to: date_type,
         max_pages: int | None = None
     ) -> list[dict]:
-        """Discover tournament URLs from Rollbetter game listing pages.
+        """Discover tournament URLs from the Rollbetter API.
 
-        Scrapes /games/{game_id} with "Past" filter and pagination.
+        Uses the public API directly — a single HTTP request replaces
+        ~60 pages of Playwright UI scraping.
 
         Args:
             date_from: Start of date range (inclusive).
             date_to: End of date range (inclusive).
-            max_pages: Max pages to scrape. None = all pages.
+            max_pages: Unused (API returns all in one call).
 
         Returns:
             List of dicts: {url, name, date, player_count}.
         """
         if not self.game_id:
-            raise ValueError("game_id is required for list_tournaments. Set it in constructor.")
+            raise ValueError(
+                "game_id is required for list_tournaments. Set it in constructor.")
 
         results = []
-        listing_url = f"{self.BASE_URL}/games/{self.game_id}"
+        api_url = (
+            f"https://api.rollbetter.gg/tournaments"
+            f"?skip=0&take=2000&gameId={self.game_id}&when=past"
+        )
 
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
+        data = self._fetch_api_json(api_url)
+        if not data:
+            logger.warning(
+                f"Rollbetter API listing returned no data for gameId={self.game_id}")
+            return []
+
+        logger.info(
+            f"Rollbetter API returned {data.get('count', 0)} total tournaments for gameId={self.game_id}"
+        )
+
+        for t in data.get("tournaments", []):
             try:
-                page.goto(listing_url, wait_until="load", timeout=30000)
-                page.wait_for_timeout(3000)
+                date_str = t.get("endDate") or t.get("startDate")
+                t_date = self._parse_api_date(date_str).date()
 
-                # Click "Past" filter to show completed tournaments
-                past_btn = page.locator("button:has-text('Past')").first
-                if past_btn.count() > 0:
-                    past_btn.click()
-                    page.wait_for_timeout(3000)
+                # Client-side date filtering
+                if t_date < date_from or t_date > date_to:
+                    continue
 
-                pages_scraped = 0
-                stop_early = False
-                consecutive_misses = 0
-                MAX_CONSECUTIVE_MISSES = 5
+                t_id = t.get("id")
+                if not t_id:
+                    continue
 
-                while True:
-                    pages_scraped += 1
-                    if max_pages and pages_scraped > max_pages:
-                        break
+                title = (t.get("title") or "").strip()
+                if not title:
+                    title = f"Rollbetter Event {t_id}"
 
-                    # Extract tournament cards
-                    cards = page.locator(".card.mb-3").all()
-                    logger.info(f"Page {pages_scraped}: found {len(cards)} tournament cards.")
+                results.append({
+                    "url": f"{self.BASE_URL}/tournaments/{t_id}",
+                    "name": title,
+                    "date": t_date.isoformat(),
+                    "player_count": t.get("maxPlayerCount", 0),
+                })
+            except Exception as exc:
+                logger.debug(f"Skipping malformed API tournament entry: {exc}")
 
-                    for card in cards:
-                        try:
-                            # Name + URL from card header
-                            name_link = card.locator(".card-header a[href*='/tournaments/']").first
-                            if name_link.count() == 0:
-                                continue
-                            name = name_link.inner_text().strip()
-                            href = name_link.get_attribute("href") or ""
-                            url = f"{self.BASE_URL}{href}" if href.startswith("/") else href
-
-                            # Date & player count from card body text
-                            body_text = card.locator(".card-body").first.inner_text()
-
-                            # Parse date (e.g. "Jan 25, 2026")
-                            event_date = self._parse_date(body_text).date()
-
-                            # Date range filter
-                            if event_date > date_to:
-                                continue
-                            
-                            if event_date < date_from:
-                                # Count consecutive misses to handle out-of-order listings
-                                consecutive_misses += 1
-                                if consecutive_misses >= MAX_CONSECUTIVE_MISSES:
-                                    stop_early = True
-                                    break
-                                continue # Skip this one, but don't stop yet
-                            else:
-                                # Valid date found, reset counter
-                                consecutive_misses = 0
-
-                            # Player count (e.g. "9 / 16")
-                            player_count = 0
-                            pc_match = re.search(r"(\d+)\s*/\s*\d+", body_text)
-                            if pc_match:
-                                player_count = int(pc_match.group(1))
-
-                            results.append({
-                                "url": url,
-                                "name": name,
-                                "date": event_date.isoformat(),
-                                "player_count": player_count,
-                            })
-                        except Exception as e:
-                            logger.debug(f"Error parsing card: {e}")
-
-                    if stop_early:
-                        break
-
-                    # Pagination: look for "Next" button
-                    next_btn = page.locator(".page-item:not(.disabled) .page-link:has-text('Next')").first
-                    if next_btn.count() > 0:
-                        next_btn.click()
-                        page.wait_for_timeout(3000)
-                    else:
-                        break
-            except Exception as e:
-                logger.error(f"Error listing tournaments: {e}")
-            finally:
-                browser.close()
-
-        logger.info(f"Discovered {len(results)} tournaments from Rollbetter (game {self.game_id}).")
+        logger.info(
+            f"Discovered {len(results)} tournaments in range "
+            f"from Rollbetter (game {self.game_id})."
+        )
         return results
 
     def get_tournament_data(self, tournament_id: str, inferred_format: Format | None = None) -> Tournament:
         self._ensure_data(tournament_id)
         return self.cache[tournament_id]['tournament']
 
-    def get_participants(self, tournament_id: str) -> list[PlayerResult]:
+    def get_participants(self, tournament_id: str) -> list[PlayerStanding]:
         self._ensure_data(tournament_id)
         players = self.cache[tournament_id]['players']
         if not players:
-            logger.warning(f"Rollbetter: No players found for {tournament_id} even after ensure_data.")
+            logger.warning(
+                f"Rollbetter: No players found for {tournament_id} even after ensure_data.")
         return players
 
     def get_matches(self, tournament_id: str) -> list[Match]:
@@ -321,73 +615,82 @@ class RollbetterScraper(BaseScraper):
     def _scrape_date_from_ui(self, page) -> datetime:
         try:
             # 1. High Confidence: Event Calendar Icon
-            calendar_icon = page.locator(".bi-calendar-event, .bi-calendar-date").first
+            calendar_icon = page.locator(
+                ".bi-calendar-event, .bi-calendar-date").first
             if calendar_icon.count() > 0:
-                 raw_text = calendar_icon.locator("xpath=..").inner_text()
-                 # Clean hidden characters (NBSP, etc)
-                 import unicodedata
-                 clean_text = unicodedata.normalize("NFKD", raw_text).strip()
-                 return self._parse_date(clean_text)
-            
+                raw_text = calendar_icon.locator("xpath=..").inner_text()
+                # Clean hidden characters (NBSP, etc)
+                import unicodedata
+                clean_text = unicodedata.normalize("NFKD", raw_text).strip()
+                return self._parse_date(clean_text)
+
             # 2. Low Confidence: Generic Icon
             calendar_icon = page.locator(".bi-calendar, .fa-calendar").first
             if calendar_icon.count() > 0:
-                 parent = calendar_icon.locator("xpath=..").inner_text()
-                 parsed = self._parse_date(parent)
-                 if parsed.date() != datetime.now().date(): 
-                     return parsed
-            
+                parent = calendar_icon.locator("xpath=..").inner_text()
+                parsed = self._parse_date(parent)
+                if parsed.date() != datetime.now().date():
+                    return parsed
+
             # 3. Last Resort: Search Body Text for "Date: Mmm dd, YYYY" or just the date pattern
             # Using regex on the first 2000 chars of body might be safer/faster
             body_intro = page.locator("body").inner_text()[:2000]
             # Look for specific keys first
-            m = re.search(r"(?:Date|When):\s*([a-zA-Z]+\s+\d{1,2},?\s+\d{4})", body_intro, re.IGNORECASE)
+            m = re.search(
+                r"(?:Date|When):\s*([a-zA-Z]+\s+\d{1,2},?\s+\d{4})", body_intro, re.IGNORECASE)
             if m:
-                 return self._parse_date(m.group(1))
-                 
+                return self._parse_date(m.group(1))
+
             # Look for raw date pattern (riskier, but 'Aug 19, 2023' is distinct)
-            m2 = re.search(r"\b([A-Z][a-z]{2}\s+\d{1,2},?\s+\d{4})\b", body_intro)
+            m2 = re.search(
+                r"\b([A-Z][a-z]{2}\s+\d{1,2},?\s+\d{4})\b", body_intro)
             if m2:
-                 return self._parse_date(m2.group(1))
-                 
-        except: pass
+                return self._parse_date(m2.group(1))
+
+        except:
+            pass
         return datetime.now()
 
     def _validate_page(self, page, tournament_id) -> bool:
         body_text = page.inner_text("body")
-        
+
         # 1. Game System
         h1_text = ""
         try:
             h1 = page.locator("h1").first
             if h1.count() > 0:
                 h1_text = h1.inner_text()
-        except: pass
-        
+        except:
+            pass
+
         is_xwing_title = "x-wing" in h1_text.lower()
-        
+
         if "Marvel Crisis Protocol" in body_text and not is_xwing_title:
-             logger.warning(f"Tournament {tournament_id} seems to be Marvel Crisis Protocol. Skipping.")
-             return False
-             
+            logger.warning(
+                f"Tournament {tournament_id} seems to be Marvel Crisis Protocol. Skipping.")
+            return False
+
         if "Star Wars: Legion" in body_text and not is_xwing_title:
-             logger.warning(f"Tournament {tournament_id} seems to be Legion. Skipping.")
-             return False
-            
+            logger.warning(
+                f"Tournament {tournament_id} seems to be Legion. Skipping.")
+            return False
+
         if "X-Wing" not in body_text and "Miniatures Game" not in body_text and not is_xwing_title:
-             logger.warning(f"Tournament {tournament_id} missing 'X-Wing' identifier. Proceeding.")
-             # return False 
+            logger.warning(
+                f"Tournament {tournament_id} missing 'X-Wing' identifier. Proceeding.")
+            # return False
 
         # Date
         date_obj = self._scrape_date_from_ui(page)
-            
+
         # Allow "Today" as valid (<=)
         if date_obj.date() > datetime.now().date():
-            logger.warning(f"Tournament {tournament_id} is in the future ({date_obj.date()}). Skipping.")
+            logger.warning(
+                f"Tournament {tournament_id} is in the future ({date_obj.date()}). Skipping.")
             return False
-            
+
         # Count
-        player_count = 0
+        player_count = None
         try:
             badges = page.locator(".badge").all_inner_texts()
             for b in badges:
@@ -396,38 +699,44 @@ class RollbetterScraper(BaseScraper):
                     if parts[0].strip().isdigit():
                         player_count = int(parts[0].strip())
                         break
-            if player_count <= 1:
-                logger.warning(f"Tournament {tournament_id} has insufficient players. Skipping.")
+            if player_count is not None and player_count <= 1:
+                logger.warning(
+                    f"Tournament {tournament_id} has insufficient players. Skipping.")
                 return False
-        except: pass
-            
+        except:
+            pass
+
         return True
 
     def _extract_location(self, page) -> dict | None:
         from ..utils.geocoding import resolve_location
         from ..data_structures.location import Location
         location_data = None
-        
+
         # Strategy 0: Scoped Metadata Check (Avoids matching "Online" in description)
         try:
             # The metadata row often has justify-last-start class
             meta_row = page.locator("div.justify-last-start").first
             if meta_row.count() > 0:
                 # Check for Online icons/text within this container only
-                online_indicators = meta_row.locator("i.bi-person-video, i.fa-laptop, i.bi-laptop, :text('Online')").all()
+                online_indicators = meta_row.locator(
+                    "i.bi-person-video, i.fa-laptop, i.bi-laptop, :text('Online')").all()
                 for el in online_indicators:
                     txt = el.inner_text().lower() if el.count() > 0 else ""
                     # Also check parent text if it's just the icon
                     parent_txt = el.locator("..").inner_text().lower()
                     if "online" in txt or "online" in parent_txt:
-                        logger.info(f"Found Online indicator in metadata: '{parent_txt}'. Forcing Virtual.")
+                        logger.info(
+                            f"Found Online indicator in metadata: '{parent_txt}'. Forcing Virtual.")
                         return Location.create(city="Virtual", country="Virtual", continent="Virtual")
-                
-                # If we find "In Person" here, we should NOT return Virtual, 
+
+                # If we find "In Person" here, we should NOT return Virtual,
                 # even if Strategy 2/3 would find it elsewhere.
-                in_person = meta_row.locator("i.bi-person-fill, i.fa-users, :text('In Person')").first
+                in_person = meta_row.locator(
+                    "i.bi-person-fill, i.fa-users, :text('In Person')").first
                 if in_person.count() > 0:
-                    logger.info("Found 'In Person' in metadata. Avoiding Virtual override.")
+                    logger.info(
+                        "Found 'In Person' in metadata. Avoiding Virtual override.")
                     # Continue to Strategy 1 (standard location resolution)
         except Exception as e:
             logger.debug(f"Metadata scoped check failed: {e}")
@@ -438,42 +747,50 @@ class RollbetterScraper(BaseScraper):
             if h1.count() > 0:
                 h1_text = h1.inner_text().lower()
                 if "online" in h1_text or "virtual" in h1_text:
-                        logger.info(f"Found '{h1_text}' in title. Forcing Virtual.")
-                        return Location.create(city="Virtual", country="Virtual", continent="Virtual")
-        except: pass
+                    logger.info(
+                        f"Found '{h1_text}' in title. Forcing Virtual.")
+                    return Location.create(city="Virtual", country="Virtual", continent="Virtual")
+        except:
+            pass
 
         if any(ind in body_text for ind in online_indicators):
             return Location.create(city="Virtual", country="Virtual", continent="Virtual")
-        
+
         # Strategy 1: Icons (wait for them)
         try:
-            page.wait_for_selector(".bi-geo-alt, .fa-map-marker-alt, .fa-map-marker", timeout=3000)
+            page.wait_for_selector(
+                ".bi-geo-alt, .fa-map-marker-alt, .fa-map-marker", timeout=3000)
         except:
             pass
-            
-        loc_icon = page.locator(".bi-geo-alt, .fa-map-marker-alt, .fa-map-marker").first
+
+        loc_icon = page.locator(
+            ".bi-geo-alt, .fa-map-marker-alt, .fa-map-marker").first
         if loc_icon.count() > 0:
             full_text = loc_icon.locator("..").inner_text().strip()
             if full_text:
                 # Use new geocoding logic
                 location_data = resolve_location(full_text)
-        
+
         # Strategy 2: Fallback to text blocks
         if not location_data:
             try:
                 page.wait_for_selector("div.overflow-protected", timeout=3000)
-            except: pass
-            
+            except:
+                pass
+
             blocks = page.locator("div.overflow-protected").all()
             for block in blocks:
                 text = block.inner_text().strip()
-                if text in ["Started", "Open", "More", "Show More", "List Fortress", "In Person"]: continue
+                if text in ["Started", "Open", "More", "Show More", "List Fortress", "In Person"]:
+                    continue
                 # Handle "Online" explicitly - aggressively
                 if "online" in text.lower():
                     return Location.create(city="Virtual", country="Virtual", continent="Virtual")
-                if "X-Wing" in text or "Standard" in text or "Legacy" in text or "Round" in text: continue
-                if ":" in text and ("AM" in text or "PM" in text): continue
-                
+                if "X-Wing" in text or "Standard" in text or "Legacy" in text or "Round" in text:
+                    continue
+                if ":" in text and ("AM" in text or "PM" in text):
+                    continue
+
                 if len(text) < 100:
                     # Try to resolve any short text block that might be a location
                     loc = resolve_location(text)
@@ -483,7 +800,6 @@ class RollbetterScraper(BaseScraper):
         return location_data
 
     # _try_listfortress_export removed as logic moved into _ensure_data retry loop
-
 
     def _parse_from_json_v2(self, data: dict, tid: str, url: str):
         """
@@ -504,17 +820,18 @@ class RollbetterScraper(BaseScraper):
         date_str = data.get("date", "")
         formatted_date = datetime.now().date()
         if date_str:
-            try: formatted_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-            except: pass
-        
+            try:
+                formatted_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            except:
+                pass
 
-        
         # Players
-        players_json = data.get("players", []) or data.get("participants", []) or data.get("standings", [])
+        players_json = data.get("players", []) or data.get(
+            "participants", []) or data.get("standings", [])
 
         t = Tournament(
             id=int(tid), name=name, date=formatted_date,
-            player_count=len(players_json), platform=Platform.ROLLBETTER, url=url, format=Format.OTHER
+            player_count=len(players_json), source=Source.ROLLBETTER, url=url, format=Format.UNKNOWN
         )
 
         participants = []
@@ -527,18 +844,23 @@ class RollbetterScraper(BaseScraper):
                 raw_list = player.get("list", {})
                 list_json = {}
                 if isinstance(raw_list, str) and raw_list.strip():
-                    try: list_json = json.loads(raw_list)
-                    except: pass
+                    try:
+                        list_json = json.loads(raw_list)
+                    except:
+                        pass
                 elif isinstance(raw_list, dict):
                     list_json = raw_list
-                
+
                 # Rollbetter JSON typically has: rank, wins, losses, draws, points
                 # Use these as Swiss stats (and general stats if no cut)
                 # Helper for safe int casting
                 def safe_int(val, default=-1):
-                    if val is None: return default
-                    try: return int(val)
-                    except: return default
+                    if val is None:
+                        return default
+                    try:
+                        return int(val)
+                    except:
+                        return default
 
                 # Rollbetter JSON typically has: rank, wins, losses, draws, points
                 # Use these as Swiss stats (and general stats if no cut)
@@ -553,17 +875,19 @@ class RollbetterScraper(BaseScraper):
                     pr_dict = player.get("rank")
                     swiss_rank = safe_int(pr_dict.get("swiss"), 0)
                     cut_rank = safe_int(pr_dict.get("elimination"), None)
-                
+
                 swiss_wins = safe_int(player.get("wins"), -1)
                 swiss_losses = safe_int(player.get("losses"), -1)
                 swiss_draws = safe_int(player.get("draws"), 0)
                 # Points can be "points" or "tournament_points"
-                swiss_points = safe_int(player.get("points"), safe_int(player.get("tournament_points"), -1))
-                
+                swiss_points = safe_int(player.get("points"), safe_int(
+                    player.get("tournament_points"), -1))
+
                 # Tie Breaker: Use MOV or SOS or MP
-                swiss_tb = safe_int(player.get("mov"), safe_int(player.get("sos"), safe_int(player.get("mission_points"), -1)))
-                
-                pr = PlayerResult(
+                swiss_tb = safe_int(player.get("mov"), safe_int(
+                    player.get("sos"), safe_int(player.get("mission_points"), -1)))
+
+                pr = PlayerStanding(
                     tournament_id=int(tid),
                     player_name=player.get("name", "Unknown"),
                     swiss_rank=swiss_rank,
@@ -575,30 +899,31 @@ class RollbetterScraper(BaseScraper):
                     cut_rank=cut_rank,
                     list_json=list_json
                 )
-                
+
                 results.append(pr)
         except Exception as e:
             logger.error(f"Error checking LF data for {tid}: {e}")
             import traceback
             traceback.print_exc()
             # We still want to allow scraping other data, but players might be empty if we rely on JSON
-        
+
         # Format Inference
-        f = Format.OTHER
+        f = Format.UNKNOWN
         for p in results[:10]:
             if p.list_json and p.list_json.get("pilots"):
                 inferred = infer_format_from_xws(p.list_json)
-                if inferred != Format.OTHER:
-                    f = inferred; break
+                if inferred != Format.UNKNOWN:
+                    f = inferred
+                    break
         t.format = f
-        
+
         # Apply Legacy Logic: Nullify EP if Legacy
-        # Note: We might detect Legacy later from body text in _ensure_data, 
+        # Note: We might detect Legacy later from body text in _ensure_data,
         # so this loop might need to run again or be handled in _ensure_data?
         # Let's handle it here IF inferred, and also in _ensure_data.
         if f == Format.LEGACY_X2PO:
-             for p in results:
-                  p.swiss_event_points = None
+            for p in results:
+                p.swiss_event_points = None
 
         return {'tournament': t, 'players': results, 'matches': []}
 
@@ -610,37 +935,40 @@ class RollbetterScraper(BaseScraper):
         stats_map = {}
         try:
             # Click Standings Tab
-            standings_tab = page.locator("button[id$='-tab-standings'], button:has-text('Standings')").first
+            standings_tab = page.locator(
+                "button[id$='-tab-standings'], button:has-text('Standings')").first
             if standings_tab.count() > 0:
                 standings_tab.click()
                 page.wait_for_timeout(2000)
-                
+
                 # Find the main table
                 # Usually table within the active tab pane
                 rows = page.locator("div.tab-pane.active table tbody tr").all()
                 if not rows:
-                     rows = page.locator("table tbody tr").all()
-                
+                    rows = page.locator("table tbody tr").all()
+
                 logger.info(f"Found {len(rows)} rows in Standings UI.")
-                
+
                 for row in rows:
                     cells = row.locator("td").all()
                     # Expected columns: Rank, Name, Faction, W-L, MOV, SOS, Points
-                    if len(cells) < 4: continue
-                    
+                    if len(cells) < 4:
+                        continue
+
                     try:
                         # Name (usually index 1 or 2 depending on rank column)
                         # Let's try to identify by content
                         # Rank is usually #0
                         name = cells[1].inner_text().strip()
-                        if not name: name = cells[2].inner_text().strip() # Fallback
-                        
+                        if not name:
+                            name = cells[2].inner_text().strip()  # Fallback
+
                         # Stats are tricky. Let's look for W-L pattern (e.g. "3 - 1") in all cells
                         wins = -1
                         losses = -1
                         draws = 0
                         points = 0
-                        
+
                         for cell in cells:
                             txt = cell.inner_text().strip()
                             # W-L check
@@ -649,37 +977,38 @@ class RollbetterScraper(BaseScraper):
                                 if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
                                     wins = int(parts[0])
                                     losses = int(parts[1])
-                            
+
                             # Points check (integer, usually higher value, but could be small like 3)
                             # Hard to distinguish from Rank or MOV without headers.
                             # But usually Points is the last or second to last column?
-                            
+
                         # If we can't find columns strictly, let's use fixed indices for Rollbetter V2
                         # Rank (0), Name (1), Faction (2), Points (3), W-L (4), MOV (5), SOS (6) ?
                         # Let's verify by checking if Col 4 has dash
                         # The DEBUG script showed nothing for Rollbetter. I'm flying blind on UI layout.
                         # I'll rely on generic text parsing for W-L.
                         # For Points, I'll trust the JSON unless it is 0/missing.
-                        
+
                         # Better Parsing based on observation:
                         # Col 1: Name
                         # Col 3/4?: W-L (e.g. 3-1)
-                        
+
                         if wins != -1:
                             import re
                             # Normalize name for mapping
                             key = name.lower().strip()
                             stats_map[key] = {
                                 "wins": wins,
-                                "losses": losses, 
+                                "losses": losses,
                                 "draws": draws
                             }
-                    except: pass
+                    except:
+                        pass
             else:
                 logger.warning("Standings tab not found.")
         except Exception as e:
             logger.warning(f"UI Standings scrape failed: {e}")
-        
+
         return stats_map
 
     def _scrape_detailed_matches(self, page, tid: str) -> list[Match]:
@@ -693,102 +1022,125 @@ class RollbetterScraper(BaseScraper):
             if rounds_tab.count() == 0:
                 logger.warning("Rounds tab not found.")
                 return []
-            
+
             rounds_tab.click()
             logger.info("Clicked Rounds tab. Waiting for sub-tabs...")
-            page.wait_for_timeout(2000) # Slightly longer wait
-            
+            page.wait_for_timeout(2000)  # Slightly longer wait
+
             # 2. Find all round sub-tabs
             import re
-            round_btns = page.get_by_role("tab", name=re.compile(r"Round \d+", re.IGNORECASE)).all()
-            
+            round_btns = page.get_by_role(
+                "tab", name=re.compile(r"Round \d+", re.IGNORECASE)).all()
+
             if not round_btns:
-                logger.info("Found no 'Round' role tabs, trying generic buttons...")
+                logger.info(
+                    "Found no 'Round' role tabs, trying generic buttons...")
                 all_btns = page.locator("button").all()
-                round_btns = [b for b in all_btns if "Round" in (b.inner_text() or "")]
-            
+                round_btns = [b for b in all_btns if "Round" in (
+                    b.inner_text() or "")]
+
             if not round_btns:
                 logger.warning("No round buttons found.")
                 return []
 
             logger.info(f"Found {len(round_btns)} rounds to scrape.")
-            
+
             # Check for Legacy format indicators
             is_legacy = False
             try:
                 body_text = page.inner_text("body").lower()
                 if "legacy" in body_text or "2.0" in body_text:
                     is_legacy = True
-            except: pass
+            except:
+                pass
 
             for r_idx, btn in enumerate(round_btns):
                 try:
                     btn_text = btn.inner_text()
                     logger.info(f"Scraping {btn_text}...")
-                    
+
                     round_type = RoundType.SWISS
                     if "Top" in btn_text or "Elimination" in btn_text or "Cut" in btn_text:
                         round_type = RoundType.CUT
-                        
+
                     btn.click()
-                    page.wait_for_timeout(2000) 
-                    
+
+                    # Wait for the active round panel to load a match table.
+                    try:
+                        page.wait_for_selector(
+                            ".tab-pane.active table:has(th:has-text('Result')), "
+                            ".tab-pane.active table:has(th:has-text('Players')), "
+                            ".tab-pane.active table:has(td:has-text('Win'))",
+                            timeout=10000,
+                        )
+                    except Exception:
+                        page.wait_for_timeout(2000)
+
                     # Extract Scenario
                     scenario_text = ""
-                    scenario_el = page.locator("div:has-text('Scenario:'), p:has-text('Scenario:'), b:has-text('Scenario:')").last
+                    scenario_el = page.locator(
+                        "div:has-text('Scenario:'), p:has-text('Scenario:'), b:has-text('Scenario:')").last
                     if scenario_el.count() > 0:
                         text = scenario_el.inner_text().strip()
                         if "Scenario:" in text:
                             scenario_text = text.split("Scenario:")[1].strip()
-                    
+
                     # Map Scenario Enum
                     # DEFAULT: Other/Unknown if extraction fails (User requirement)
                     # UNLESS Legacy -> No Scenario
                     scenario_val = Scenario.OTHER_UNKNOWN
                     if is_legacy:
                         scenario_val = Scenario.NO_SCENARIO
-                    
+
                     if scenario_text:
                         s_norm = scenario_text.lower().replace(" ", "_")
-                        
+
                         # Fix for Assault at/the Satellite Array
                         if "assault_the_satellite" in s_norm:
                             s_norm = "assault_at_the_satellite_array"
-                            
+
                         found = False
                         for s in Scenario:
-                            if s.value == s_norm: 
+                            if s.value == s_norm:
                                 scenario_val = s
                                 found = True
                                 break
                         if not found:
-                             logger.warning(f"Unknown scenario text: {scenario_text}")
-                             # If we found text but couldn't map it, keep OTHER_UNKNOWN?
-                             # Or use logic? Let's check strict mapping.
-                             pass
+                            logger.warning(
+                                f"Unknown scenario text: {scenario_text}")
+                            # If we found text but couldn't map it, keep OTHER_UNKNOWN?
+                            # Or use logic? Let's check strict mapping.
+                            pass
 
                     # Extract Matches
                     # Find the table that contains 'Player' or 'Result'
-                    table = page.locator("table:has(th:has-text('Result')), table:has(td:has-text('Win'))").last
+                    active_panel = page.locator(".tab-pane.active")
+                    table = active_panel.locator(
+                        "table:has(th:has-text('Result')), "
+                        "table:has(th:has-text('Players')), "
+                        "table:has(td:has-text('Win'))",
+                    ).first
                     if table.count() == 0:
-                        logger.warning(f"No match table found for round {r_idx+1}")
+                        logger.warning(
+                            f"No match table found for round {r_idx+1}")
                         continue
-                        
+
                     # New Logic: Iterate rows and look for pairs based on rowspan
-                    # Rollbetter Structure: 
+                    # Rollbetter Structure:
                     # Row 1 (Top): [Table# rowspan=2] [P1 Name] [Result] [EP] [Score/MP]
                     # Row 2 (Bot): [P2 Name] [Result] [EP] [Score/MP]
-                    
+
                     # Convert to ElementHandle for query_selector_all support
                     table_el = table.element_handle()
                     if not table_el:
-                         logger.warning(f"Could not get element handle for table round {r_idx+1}")
-                         continue
-                         
+                        logger.warning(
+                            f"Could not get element handle for table round {r_idx+1}")
+                        continue
+
                     rows = table_el.query_selector_all("tbody tr")
                     if not rows:
-                         rows = table_el.query_selector_all("tr")
-                         
+                        rows = table_el.query_selector_all("tr")
+
                     i = 0
                     while i < len(rows):
                         row1 = rows[i]
@@ -798,25 +1150,27 @@ class RollbetterScraper(BaseScraper):
                             continue
 
                         cells1 = row1.query_selector_all("td")
-                        if not cells1: 
+                        if not cells1:
                             i += 1
                             continue
-                            
+
                         # Check for rowspan on the first cell (Table #)
                         first_cell_attr = cells1[0].get_attribute("rowspan")
                         is_paired = first_cell_attr == "2"
-                        
+
                         if is_paired and i + 1 < len(rows):
                             row2 = rows[i+1]
                             cells2 = row2.query_selector_all("td")
-                            
+
                             # Extract P1 (Row 1)
                             # Offset: cell 0 is Table#, cell 1 is Name, 2 is Result, 3 is EP, 4 is Score
-                            
+
                             if len(cells1) >= 5:
                                 p1_name = cells1[1].inner_text().strip()
-                                p1_res = cells1[2].inner_text().strip().lower() # "win" or "loss"
-                                p1_score = self._parse_int(cells1[4].inner_text())
+                                p1_res = cells1[2].inner_text(
+                                ).strip().lower()  # "win" or "loss"
+                                p1_score = self._parse_int(
+                                    cells1[4].inner_text())
                             else:
                                 p1_name = "Unknown"
                                 p1_score = 0
@@ -827,23 +1181,26 @@ class RollbetterScraper(BaseScraper):
                             if len(cells2) >= 4:
                                 p2_name = cells2[0].inner_text().strip()
                                 p2_res = cells2[1].inner_text().strip().lower()
-                                p2_score = self._parse_int(cells2[3].inner_text())
+                                p2_score = self._parse_int(
+                                    cells2[3].inner_text())
                             else:
                                 p2_name = "Unknown"
                                 p2_score = 0
                                 p2_res = ""
-                                
+
                             # Refine Winner
                             winner_name = None
-                            if "win" in p1_res: winner_name = p1_name
-                            elif "win" in p2_res: winner_name = p2_name
-                            
+                            if "win" in p1_res:
+                                winner_name = p1_name
+                            elif "win" in p2_res:
+                                winner_name = p2_name
+
                             # Detect Bye
                             is_bye = False
                             if "bye" in str(p2_name).lower() or not p2_name or p2_name == "Unknown":
-                                 is_bye = True
-                                 p2_name = None 
-                            
+                                is_bye = True
+                                p2_name = None
+
                             m_dict = {
                                 "round_number": r_idx + 1,
                                 "round_type": round_type,
@@ -856,9 +1213,9 @@ class RollbetterScraper(BaseScraper):
                                 "winner_name_temp": winner_name
                             }
                             matches.append(m_dict)
-                            
-                            i += 2 # Skip the second row of the pair
-                            
+
+                            i += 2  # Skip the second row of the pair
+
                         else:
                             # Single or Bye row
                             if len(cells1) >= 2:
@@ -877,10 +1234,10 @@ class RollbetterScraper(BaseScraper):
                                 matches.append(m_dict)
                             i += 1
                 except Exception as round_err:
-                    logger.warning(f"Error scraping round {r_idx+1}: {round_err}")
-            
+                    logger.warning(
+                        f"Error scraping round {r_idx+1}: {round_err}")
+
         except Exception as e:
             logger.warning(f"Detailed match scrape failed: {e}")
-            
-        return matches
 
+        return matches

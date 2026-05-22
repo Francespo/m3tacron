@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select, func
 from ..database import engine
-from ..models import PlayerResult, Tournament
+from ..models import PlayerStanding, Tournament
 from ..analytics.filters import filter_query, get_active_formats
 from ..data_structures.data_source import DataSource
 from .formatters import enrich_list_data
@@ -24,8 +24,8 @@ def get_list_stats(
     filters = {"allowed_formats": allowed_formats}
     
     with Session(engine) as session:
-        query = select(PlayerResult, Tournament).where(
-            PlayerResult.tournament_id == Tournament.id
+        query = select(PlayerStanding, Tournament).where(
+            PlayerStanding.tournament_id == Tournament.id
         )
         query = filter_query(query, filters)
         rows = session.exec(query).all()
@@ -40,7 +40,7 @@ def get_list_stats(
         
         for result, tournament in rows:
             t_fmt_raw = tournament.format
-            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
+            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "unknown")
             
             allowed_fmt = get_active_formats(filters.get("allowed_formats", None))
             if allowed_fmt and t_fmt not in allowed_fmt:
