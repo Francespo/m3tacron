@@ -9,6 +9,8 @@ import psycopg2
 from psycopg2 import sql
 from psycopg2.extras import Json, execute_batch
 
+from backend.utils.cache import bump_cache_version, warm_default_cache
+
 TABLES = ["tournament", "playerstanding", "teamstanding", "match", "teammatch"]
 JSON_LIKE_COLUMNS = {
     "tournament": {"location"},
@@ -119,6 +121,8 @@ def main() -> int:
                 print(f"{table_name}: imported {len(tuples)} rows")
 
         pg_conn.commit()
+        bump_cache_version("sqlite_to_postgres_import")
+        warm_default_cache()
         print("Import completed successfully.")
         return 0
 

@@ -7,6 +7,7 @@ from ..database import engine
 from ..models import PlayerStanding, Tournament
 from ..utils.xwing_data.pilots import load_all_pilots
 from ..utils.xwing_data.upgrades import load_all_upgrades
+from ..utils.list_keys import coerce_list_json
 from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
 from .filters import filter_query, get_active_formats, apply_tournament_filters
@@ -263,8 +264,9 @@ def aggregate_card_stats(
 
             if not apply_tournament_filters(tournament, filters): continue
 
-            xws = result.list_json
-            if not xws or not isinstance(xws, dict): continue
+            xws = coerce_list_json(result.list_json)
+            if not xws:
+                continue
             
             # List Stats
             s_wins = result.swiss_wins or 0

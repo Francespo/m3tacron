@@ -2,6 +2,7 @@ from fastapi import APIRouter, Query
 from ..analytics.lists import aggregate_list_stats
 from ..data_structures.data_source import DataSource
 from ..data_structures.factions import Faction
+from ..utils.cache import cached
 from .schemas import PaginatedListsResponse
 
 router = APIRouter(prefix="/api/lists", tags=["Lists"])
@@ -16,6 +17,7 @@ def _match_faction(f_enum: Faction, allowed_list: list[str]) -> bool:
     return f_enum.value.replace("-", "") in norm_allowed
 
 @router.get("", response_model=PaginatedListsResponse)
+@cached("api.lists.get_lists")
 def get_lists(
     page: int = Query(0, ge=0),
     size: int = Query(20, ge=1, le=100),

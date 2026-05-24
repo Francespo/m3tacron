@@ -47,6 +47,7 @@ from ..models import Match, PlayerStanding, Tournament, TeamStanding, TeamMatch
 from ..scrapers.listfortress_scraper import ListFortressScraper
 from ..scrapers.longshanks_scraper import LongshanksScraper
 from ..scrapers.rollbetter_scraper import RollbetterScraper
+from ..utils.cache import bump_cache_version, warm_default_cache
 
 logging.basicConfig(
     level=logging.INFO,
@@ -1032,6 +1033,10 @@ def main() -> int:
             logger.error(f"Failed to write SQLite artifact: {exc}")
     elif args.sqlite_output and not all_saved_items:
         logger.info("No new tournaments saved; skipping SQLite artifact.")
+
+    if total_saved > 0:
+        bump_cache_version("scrape_tournaments")
+        warm_default_cache()
 
     return 0
 

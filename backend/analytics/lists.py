@@ -7,6 +7,7 @@ from ..database import engine
 from ..models import PlayerStanding, Tournament
 from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
+from ..utils.list_keys import coerce_list_json
 from .filters import filter_query, get_active_formats, apply_tournament_filters
 
 def aggregate_list_stats(
@@ -37,8 +38,9 @@ def aggregate_list_stats(
             if allowed_formats and t_fmt not in allowed_formats: continue
             if not apply_tournament_filters(tournament, filters): continue
 
-            xws = result.list_json
-            if not xws or not isinstance(xws, dict): continue
+            xws = coerce_list_json(result.list_json)
+            if not xws:
+                continue
             
             pilots = xws.get("pilots", [])
             if not pilots: continue

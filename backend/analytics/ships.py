@@ -10,6 +10,7 @@ from ..models import PlayerStanding, Tournament
 from ..utils.xwing_data.pilots import load_all_pilots
 from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
+from ..utils.list_keys import coerce_list_json
 from .filters import filter_query, get_active_formats, apply_tournament_filters
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
 from ..utils.list_keys import get_list_key
@@ -71,8 +72,9 @@ def aggregate_ship_stats(
             if allowed_formats and t_fmt not in allowed_formats: continue
             if not apply_tournament_filters(tournament, filters): continue
             
-            xws = result.list_json
-            if not xws or not isinstance(xws, dict): continue
+            xws = coerce_list_json(result.list_json)
+            if not xws:
+                continue
             
             s_wins = result.swiss_wins or 0
             s_losses = result.swiss_losses or 0
