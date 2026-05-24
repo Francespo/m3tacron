@@ -5,6 +5,7 @@ from ..models import Tournament, PlayerStanding, Match
 from ..data_structures.formats import Format
 from ..data_structures.source import Source
 from ..data_structures.factions import Faction
+from ..utils.cache import cached
 from .schemas import (
     PaginatedTournamentsResponse,
     TournamentData,
@@ -74,6 +75,7 @@ def get_locations():
         return result
 
 @router.get("", response_model=PaginatedTournamentsResponse)
+@cached("api.tournaments.get_tournaments")
 def get_tournaments(
     page: int = Query(0, ge=0),
     size: int = Query(20, ge=1, le=100),
@@ -176,6 +178,7 @@ def get_tournaments(
         return PaginatedTournamentsResponse(items=items, total=total, page=page, size=size)
 
 @router.get("/{tournament_id}", response_model=TournamentDetailResponse)
+@cached("api.tournaments.get_tournament_detail")
 def get_tournament_detail(tournament_id: int):
     from ..utils.xwing_data.parser import normalize_faction
     

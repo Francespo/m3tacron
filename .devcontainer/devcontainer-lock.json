@@ -19,11 +19,6 @@
       "version": "2.0.0",
       "resolved": "ghcr.io/devcontainers/features/node@sha256:fedd4c11f7adfb64283b578dddc7da906728daa25fa293351c9d913231acf12f",
       "integrity": "sha256:fedd4c11f7adfb64283b578dddc7da906728daa25fa293351c9d913231acf12f"
-    },
-    "ghcr.io/siri404/devcontainer-ai-features/gemini-cli:1": {
-      "version": "1.0.1",
-      "resolved": "ghcr.io/siri404/devcontainer-ai-features/gemini-cli@sha256:99754255ee3d9596430bf730c0e55475bd9d7d741845d96e6ec3c81a89fec51b",
-      "integrity": "sha256:99754255ee3d9596430bf730c0e55475bd9d7d741845d96e6ec3c81a89fec51b"
     }
   }
 }

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Query, Depends
 from ..analytics.core import aggregate_card_stats
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
 from ..data_structures.data_source import DataSource
+from ..utils.cache import cached
 from .schemas import PaginatedPilotsResponse, PaginatedUpgradesResponse
 
 router = APIRouter(prefix="/api/cards", tags=["Cards"])
@@ -85,6 +86,7 @@ def _build_filters(
 
 
 @router.get("/pilots", response_model=PaginatedPilotsResponse)
+@cached("api.cards.get_pilots")
 def get_pilots(
     page: int = Query(0, ge=0),
     size: int = Query(20, ge=1, le=100),
@@ -161,6 +163,7 @@ def get_pilots(
 
 
 @router.get("/upgrades", response_model=PaginatedUpgradesResponse)
+@cached("api.cards.get_upgrades")
 def get_upgrades(
     page: int = Query(0, ge=0),
     size: int = Query(20, ge=1, le=100),
