@@ -5,7 +5,34 @@ function normalizeBackendApiBase(raw: string): string {
     return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
 }
 
-function resolveBackendApiBase(): string {
+function resolveBackendFromRequestHost(url: URL): string | null {
+    const host = url.hostname.toLowerCase();
+
+    // Preview: 110.dev.m3tacron.com -> 110.api.dev.m3tacron.com
+    const previewMatch = host.match(/^(\d+)\.dev\.m3tacron\.com$/);
+    if (previewMatch) {
+        return `${url.protocol}//${previewMatch[1]}.api.dev.m3tacron.com/api`;
+    }
+
+    // Shared dev domain.
+    if (host === 'dev.m3tacron.com') {
+        return `${url.protocol}//api.dev.m3tacron.com/api`;
+    }
+
+    // Production domains.
+    if (host === 'm3tacron.com' || host === 'www.m3tacron.com') {
+        return `${url.protocol}//api.m3tacron.com/api`;
+    }
+
+    return null;
+}
+
+function resolveBackendApiBase(url: URL): string {
+    const fromHost = resolveBackendFromRequestHost(url);
+    if (fromHost) {
+        return fromHost;
+    }
+
     const envBase = process.env.VITE_API_BASE;
 
     if (!envBase || envBase.startsWith('/')) {
@@ -23,12 +50,12 @@ function resolveBackendApiBase(): string {
     }
 }
 
-const BACKEND_API_BASE = resolveBackendApiBase();
-
 export async function GET({ url, fetch }) {
     const source = url.searchParams.get('data_source') || 'xwa';
+    const backendApiBase = resolveBackendApiBase(url);
+
     try {
-        const res = await fetch(`${BACKEND_API_BASE}/meta-snapshot?data_source=${source}`);
+        const res = await fetch(`${backendApiBase}/meta-snapshot?data_source=${source}`);
         if (!res.ok) {
             throw new Error(`Backend error: ${res.status}`);
         }
