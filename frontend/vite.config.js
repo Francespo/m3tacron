@@ -33,6 +33,13 @@ function resolveApiProxyTarget() {
 	return resolved;
 }
 
+// Ensure we never return an empty string as proxy target
+function resolveSafeApiProxyTarget() {
+	const t = resolveApiProxyTarget();
+	if (!t || String(t).trim() === '') return undefined;
+	return t;
+}
+
 function resolveAllowedHosts() {
 	const raw = process.env.VITE_ALLOWED_HOSTS;
 	if (!raw) {
@@ -71,7 +78,7 @@ export default defineConfig({
 		...(proxyTarget
 			? {
 					proxy: {
-						'/api': proxyTarget
+						'/api': resolveSafeApiProxyTarget()
 					}
 				}
 			: {})
