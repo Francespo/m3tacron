@@ -34,19 +34,35 @@ function resolveApiProxyTarget() {
 }
 
 function resolveAllowedHosts() {
-	const raw = process.env.VITE_ALLOWED_HOSTS;
-	if (!raw) {
-		const fallback = ['localhost', '127.0.0.1', '.dev.m3tacron.com'];
-		logConfig('VITE_ALLOWED_HOSTS_RAW', raw);
-		logConfig('VITE_ALLOWED_HOSTS_RESOLVED', fallback);
-		return fallback;
+	const hosts = new Set(['localhost', '127.0.0.1']);
+	const sources = [
+		process.env.ORIGIN,
+		process.env.COOLIFY_URL,
+		process.env.VITE_API_BASE,
+		process.env.VITE_PROXY_TARGET
+	];
+
+	for (const source of sources) {
+		if (!source) continue;
+		try {
+			hosts.add(new URL(source).hostname);
+		} catch {
+			continue;
+		}
 	}
 
-	const resolved = raw
-		.split(',')
-		.map((host) => host.trim())
-		.filter(Boolean);
+	const raw = process.env.VITE_ALLOWED_HOSTS;
+	if (raw) {
+		raw
+			.split(',')
+			.map((host) => host.trim())
+			.filter(Boolean)
+			.forEach((host) => hosts.add(host));
+	} else {
+		hosts.add('.dev.m3tacron.com');
+	}
 
+	const resolved = Array.from(hosts);
 	logConfig('VITE_ALLOWED_HOSTS_RAW', raw);
 	logConfig('VITE_ALLOWED_HOSTS_RESOLVED', resolved);
 	return resolved;
