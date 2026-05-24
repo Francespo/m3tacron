@@ -16,6 +16,7 @@ from ..utils.xwing_data.upgrades import load_all_upgrades
 from ..database import engine
 from ..models import PlayerStanding, Tournament
 from sqlmodel import Session, select
+from ..utils.list_keys import coerce_list_json
 
 router = APIRouter(prefix="/api/pilot", tags=["Pilot Detail"])
 
@@ -119,8 +120,8 @@ def get_pilot_configurations(
             if allowed and fmt_val not in allowed:
                 continue
 
-            xws = result.list_json
-            if not xws or not isinstance(xws, dict):
+            xws = coerce_list_json(result.list_json)
+            if not xws:
                 continue
 
             # Find this pilot in the list

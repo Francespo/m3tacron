@@ -5,6 +5,7 @@ from ..models import Tournament, PlayerStanding, Match
 from ..data_structures.formats import Format
 from ..data_structures.source import Source
 from ..data_structures.factions import Faction
+from ..utils.list_keys import coerce_list_json
 from .schemas import (
     PaginatedTournamentsResponse,
     TournamentData,
@@ -217,7 +218,8 @@ def get_tournament_detail(tournament_id: int):
         players_cut = []
         
         for p in all_results:
-            raw_faction = p.list_json.get("faction", "Unknown") if p.list_json and isinstance(p.list_json, dict) else "Unknown"
+            player_list_json = coerce_list_json(p.list_json)
+            raw_faction = player_list_json.get("faction", "Unknown") if player_list_json else "Unknown"
             f_xws = normalize_faction(raw_faction)
             
             try:
@@ -225,7 +227,7 @@ def get_tournament_detail(tournament_id: int):
             except ValueError:
                 faction_enum = Faction.UNKNOWN
             
-            has_list = bool(p.list_json and isinstance(p.list_json, dict) and p.list_json.get("pilots"))
+            has_list = bool(player_list_json and player_list_json.get("pilots"))
             
             p_res = PlayerStandingData(
                 id=p.id,
@@ -236,7 +238,7 @@ def get_tournament_detail(tournament_id: int):
                 wins=(p.swiss_wins or 0) + (p.cut_wins or 0),
                 losses=(p.swiss_losses or 0) + (p.cut_losses or 0),
                 faction=faction_enum,
-                list_json=p.list_json if has_list else None
+                list_json=player_list_json if has_list else None
             )
             
             players_swiss.append(p_res)

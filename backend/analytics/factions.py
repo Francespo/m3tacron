@@ -7,6 +7,7 @@ from ..database import engine
 from ..models import PlayerStanding, Tournament
 from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
+from ..utils.list_keys import coerce_list_json
 from .filters import filter_query, get_active_formats, apply_tournament_filters
 from ..utils.list_keys import get_list_key
 
@@ -52,8 +53,8 @@ def aggregate_faction_stats(
             if not apply_tournament_filters(tournament, filters):
                 continue
                 
-            xws = result.list_json
-            if not xws or not isinstance(xws, dict):
+            xws = coerce_list_json(result.list_json)
+            if not xws:
                 continue
                 
             list_faction_raw = xws.get("faction", "unknown")
