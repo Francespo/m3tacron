@@ -5,7 +5,7 @@ from ..models import PlayerStanding, Tournament
 from ..analytics.filters import filter_query, get_active_formats
 from ..data_structures.data_source import DataSource
 from .formatters import enrich_list_data
-from ..utils.list_keys import get_list_key
+from ..utils.list_keys import coerce_list_json, get_list_key
 
 router = APIRouter(prefix="/api/list", tags=["List Detail"])
 
@@ -46,8 +46,8 @@ def get_list_stats(
             if allowed_fmt and t_fmt not in allowed_fmt:
                 continue
 
-            xws = result.list_json
-            if not xws or not isinstance(xws, dict):
+            xws = coerce_list_json(result.list_json)
+            if not xws:
                 continue
                 
             sig = get_list_key(xws)

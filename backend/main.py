@@ -20,6 +20,7 @@ from .api.ship_detail import router as ship_detail_router
 from .api.squadron_detail import router as squadron_detail_router
 from .api.list_detail import router as list_detail_router
 from .api.support import router as support_router
+from .utils.cache import cached
 
 app = FastAPI(title="M3taCron Backend", version="1.0.0")
 
@@ -71,6 +72,7 @@ def read_root():
 
 
 @app.get("/api/meta-snapshot", response_model=MetaSnapshotResponse)
+@cached("api.main.get_snapshot")
 def get_snapshot(data_source: str = Query("xwa", description="Data source: xwa or legacy")):
     ds_enum = DataSource.XWA if data_source == "xwa" else DataSource.LEGACY
     

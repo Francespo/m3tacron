@@ -1,10 +1,29 @@
 import json
+from typing import Any
 
-def get_list_key(xws: dict) -> str:
+
+def coerce_list_json(raw: Any) -> dict:
+    """Return a dict for a list payload, parsing JSON strings when needed."""
+    if isinstance(raw, dict):
+        return raw
+
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            return {}
+        if isinstance(parsed, dict):
+            return parsed
+
+    return {}
+
+
+def get_list_key(xws: Any) -> str:
     """
     Generate a unique, canonical signature for a list based on pilots and upgrades.
     """
-    if not xws or not isinstance(xws, dict):
+    xws = coerce_list_json(xws)
+    if not xws:
         return ""
     
     pilots = xws.get("pilots", [])
