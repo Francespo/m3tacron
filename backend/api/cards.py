@@ -3,8 +3,10 @@ from ..analytics.core import aggregate_card_stats
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
 from ..data_structures.data_source import DataSource
 from .schemas import PaginatedPilotsResponse, PaginatedUpgradesResponse
+from ..cache import cached_response
 
 router = APIRouter(prefix="/api/cards", tags=["Cards"])
+
 
 def _build_filters(
     formats: list[str] | None = None,
@@ -40,7 +42,7 @@ def _build_filters(
     player_count_min: int | None = None,
     player_count_max: int | None = None,
 ) -> dict:
-    
+
     # Base sizes mapping
     sizes_dict = {}
     if base_sizes:
@@ -85,13 +87,14 @@ def _build_filters(
 
 
 @router.get("/pilots", response_model=PaginatedPilotsResponse)
+@cached_response(ttl_seconds=3600)
 def get_pilots(
     page: int = Query(0, ge=0),
     size: int = Query(20, ge=1, le=100),
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Popularity"),
     sort_direction: str = Query("desc"),
-    
+
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
     ships: list[str] | None = Query(None),
@@ -155,19 +158,20 @@ def get_pilots(
 
     data = aggregate_card_stats(filters, criteria, s_dir, "pilots", ds_enum)
     total = len(data)
-    items = data[page * size : (page + 1) * size]
-    
+    items = data[page * size: (page + 1) * size]
+
     return PaginatedPilotsResponse(items=items, total=total, page=page, size=size)
 
 
 @router.get("/upgrades", response_model=PaginatedUpgradesResponse)
+@cached_response(ttl_seconds=3600)
 def get_upgrades(
     page: int = Query(0, ge=0),
     size: int = Query(20, ge=1, le=100),
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Popularity"),
     sort_direction: str = Query("desc"),
-    
+
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
     upgrade_types: list[str] | None = Query(None),
@@ -208,6 +212,6 @@ def get_upgrades(
 
     data = aggregate_card_stats(filters, criteria, s_dir, "upgrades", ds_enum)
     total = len(data)
-    items = data[page * size : (page + 1) * size]
-    
+    items = data[page * size: (page + 1) * size]
+
     return PaginatedUpgradesResponse(items=items, total=total, page=page, size=size)

@@ -20,6 +20,7 @@ from .api.ship_detail import router as ship_detail_router
 from .api.squadron_detail import router as squadron_detail_router
 from .api.list_detail import router as list_detail_router
 from .api.support import router as support_router
+from .cache import cached_response, clear_cache
 
 app = FastAPI(title="M3taCron Backend", version="1.0.0")
 
@@ -71,6 +72,7 @@ def read_root():
 
 
 @app.get("/api/meta-snapshot", response_model=MetaSnapshotResponse)
+@cached_response(ttl_seconds=3600)
 def get_snapshot(data_source: str = Query("xwa", description="Data source: xwa or legacy")):
     ds_enum = DataSource.XWA if data_source == "xwa" else DataSource.LEGACY
     
@@ -109,3 +111,10 @@ def get_snapshot(data_source: str = Query("xwa", description="Data source: xwa o
         total_tournaments=total_tournaments,
         total_players=total_players
     )
+
+
+@app.post("/api/cache/invalidate")
+def invalidate_cache():
+    """Manually invalidate all cached responses. Used after data refresh."""
+    clear_cache()
+    return {"status": "success", "message": "Cache invalidated"}

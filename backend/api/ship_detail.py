@@ -14,11 +14,13 @@ from ..data_structures.sorting_order import SortingCriteria, SortDirection
 from ..data_structures.data_source import DataSource
 from ..utils.xwing_data.ships import load_all_ships
 from .formatters import enrich_list_data
+from ..cache import cached_response
 
 router = APIRouter(prefix="/api/ship", tags=["Ship Detail"])
 
 
 @router.get("/{ship_xws}")
+@cached_response(ttl_seconds=3600)
 def get_ship_info(
     ship_xws: str,
     data_source: str = Query("xwa"),
@@ -40,6 +42,7 @@ def get_ship_info(
 
 
 @router.get("/{ship_xws}/pilots")
+@cached_response(ttl_seconds=3600)
 def get_ship_pilots(
     ship_xws: str,
     data_source: str = Query("xwa"),
@@ -65,6 +68,7 @@ def get_ship_pilots(
 
 
 @router.get("/{ship_xws}/lists")
+@cached_response(ttl_seconds=3600)
 def get_ship_lists(
     ship_xws: str,
     data_source: str = Query("xwa"),
@@ -85,6 +89,7 @@ def get_ship_lists(
 
 
 @router.get("/{ship_xws}/squadrons")
+@cached_response(ttl_seconds=3600)
 def get_ship_squadrons(
     ship_xws: str,
     data_source: str = Query("xwa"),

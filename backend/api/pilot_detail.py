@@ -16,11 +16,13 @@ from ..utils.xwing_data.upgrades import load_all_upgrades
 from ..database import engine
 from ..models import PlayerStanding, Tournament
 from sqlmodel import Session, select
+from ..cache import cached_response
 
 router = APIRouter(prefix="/api/pilot", tags=["Pilot Detail"])
 
 
 @router.get("/{pilot_xws}")
+@cached_response(ttl_seconds=3600)
 def get_pilot_info(
     pilot_xws: str,
     data_source: str = Query("xwa"),
@@ -33,6 +35,7 @@ def get_pilot_info(
 
 
 @router.get("/{pilot_xws}/upgrades")
+@cached_response(ttl_seconds=3600)
 def get_pilot_upgrades(
     pilot_xws: str,
     data_source: str = Query("xwa"),
@@ -64,6 +67,7 @@ def get_pilot_upgrades(
 
 
 @router.get("/{pilot_xws}/chart")
+@cached_response(ttl_seconds=3600)
 def get_pilot_chart(
     pilot_xws: str,
     data_source: str = Query("xwa"),
@@ -85,6 +89,7 @@ def get_pilot_chart(
 
 
 @router.get("/{pilot_xws}/configurations")
+@cached_response(ttl_seconds=3600)
 def get_pilot_configurations(
     pilot_xws: str,
     data_source: str = Query("xwa"),

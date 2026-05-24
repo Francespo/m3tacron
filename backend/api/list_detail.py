@@ -6,6 +6,7 @@ from ..analytics.filters import filter_query, get_active_formats
 from ..data_structures.data_source import DataSource
 from .formatters import enrich_list_data
 from ..utils.list_keys import get_list_key
+from ..cache import cached_response
 
 router = APIRouter(prefix="/api/list", tags=["List Detail"])
 
@@ -13,6 +14,7 @@ router = APIRouter(prefix="/api/list", tags=["List Detail"])
 
 
 @router.get("/{list_id:path}/stats")
+@cached_response(ttl_seconds=3600)
 def get_list_stats(
     list_id: str,
     data_source: str = Query("xwa", description="Data source: xwa or legacy"),

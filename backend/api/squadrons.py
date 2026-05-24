@@ -4,10 +4,12 @@ from ..data_structures.data_source import DataSource
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
 from .schemas import PaginatedListsResponse, ListData, PilotData
 from ..utils.xwing_data.ships import get_ship_icon_name
+from ..cache import cached_response
 
 router = APIRouter(prefix="/api/squadrons", tags=["Squadrons"])
 
 @router.get("")
+@cached_response(ttl_seconds=3600)
 def get_squadrons(
     page: int = Query(0, ge=0),
     size: int = Query(20, ge=1, le=100),

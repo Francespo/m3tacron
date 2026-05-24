@@ -6,10 +6,12 @@ from ..analytics.filters import filter_query, get_active_formats
 from ..analytics.lists import aggregate_list_stats
 from ..data_structures.data_source import DataSource
 from .formatters import enrich_list_data
+from ..cache import cached_response
 
 router = APIRouter(prefix="/api/squadron", tags=["Squadron Detail"])
 
 @router.get("/{signature:path}/stats")
+@cached_response(ttl_seconds=3600)
 def get_squadron_stats(
     signature: str,
     data_source: str = Query("xwa", description="Data source: xwa or legacy"),
@@ -86,6 +88,7 @@ def get_squadron_stats(
         }
 
 @router.get("/{signature:path}/pilots")
+@cached_response(ttl_seconds=3600)
 def get_squadron_pilots(
     signature: str,
     data_source: str = Query("xwa", description="Data source: xwa or legacy"),
@@ -171,6 +174,7 @@ def get_squadron_pilots(
     return results
 
 @router.get("/{signature:path}/lists")
+@cached_response(ttl_seconds=3600)
 def get_squadron_lists(
     signature: str,
     data_source: str = Query("xwa", description="Data source: xwa or legacy"),

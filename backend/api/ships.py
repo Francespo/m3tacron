@@ -4,10 +4,12 @@ from ..data_structures.sorting_order import SortingCriteria, SortDirection
 from ..data_structures.data_source import DataSource
 from .schemas import PaginatedShipsResponse
 from ..utils.xwing_data.ships import load_all_ships
+from ..cache import cached_response
 
 router = APIRouter(prefix="/api/ships", tags=["Ships"])
 
 @router.get("/all")
+@cached_response(ttl_seconds=3600)
 def get_all_ships(data_source: str = Query("xwa")):
     """Return every chassis once, with all playable factions merged."""
     ds_enum = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
@@ -30,6 +32,7 @@ def get_all_ships(data_source: str = Query("xwa")):
     return results
 
 @router.get("", response_model=PaginatedShipsResponse)
+@cached_response(ttl_seconds=3600)
 def get_ships(
     page: int = Query(0, ge=0),
     size: int = Query(20, ge=1, le=100),
