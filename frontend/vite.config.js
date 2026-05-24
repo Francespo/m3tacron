@@ -36,9 +36,10 @@ function resolveApiProxyTarget() {
 function resolveAllowedHosts() {
 	const raw = process.env.VITE_ALLOWED_HOSTS;
 	if (!raw) {
+		const fallback = ['localhost', '127.0.0.1', '.dev.m3tacron.com'];
 		logConfig('VITE_ALLOWED_HOSTS_RAW', raw);
-		logConfig('VITE_ALLOWED_HOSTS_RESOLVED', undefined);
-		return undefined;
+		logConfig('VITE_ALLOWED_HOSTS_RESOLVED', fallback);
+		return fallback;
 	}
 
 	const resolved = raw
