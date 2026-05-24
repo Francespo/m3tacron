@@ -41,6 +41,14 @@ function resolveAllowedHosts() {
 		return undefined;
 	}
 
+	const normalized = raw.trim().toLowerCase();
+
+	if (normalized === 'true') {
+		logConfig('VITE_ALLOWED_HOSTS_RAW', raw);
+		logConfig('VITE_ALLOWED_HOSTS_RESOLVED', true);
+		return true;
+	}
+
 	const resolved = raw
 		.split(',')
 		.map((host) => host.trim())
