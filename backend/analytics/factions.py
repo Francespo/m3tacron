@@ -1,8 +1,7 @@
 """
 Faction Analytics - Aggregation Logic for Factions.
 """
-from sqlmodel import Session, select, func
-import json
+from sqlmodel import Session, select
 from ..database import engine
 from ..models import PlayerStanding, Tournament
 from ..data_structures.factions import Faction
@@ -138,25 +137,10 @@ def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats:
     pilot_stats = aggregate_card_stats(filters, mode="pilots", data_source=data_source)
     upgrade_stats = aggregate_card_stats(filters, mode="upgrades", data_source=data_source)
     
-    total_games = sum(f["games_count"] for f in faction_stats)
-    total_lists = sum(f["list_count"] for f in faction_stats) # Approx total lists analyzed
-    
-    # Calculate stats for the snapshot range
-    # total_tournaments? we need to count them.
-    # aggregate functions don't return total tournaments.
-    # But we can query quickly here.
-    
-    with Session(engine) as session:
-        q_t = select(func.count(Tournament.id)).where(Tournament.date >= date_str)
-        q_p = select(func.count(PlayerStanding.id)).join(Tournament).where(Tournament.date >= date_str)
-        # Apply format filters
-        # Note: apply_tournament_filters is python side usually, but allowed_formats can be SQL if possible
-        # For simple counts we can approx or rely on aggregates.
-        # But wait, schemas.MetaSnapshotResponse needs total_tournaments and total_players.
-        
-        # Let's trust stats or query roughly.
-        total_tournaments = 0 # Placeholder if heavy
-        total_players = 0     # Placeholder
+    # `main.py` computes `total_tournaments` and `total_players` directly from DB.
+    # Keep snapshot-level placeholders here to preserve response shape.
+    total_tournaments = 0
+    total_players = 0
     
     return {
         "factions": faction_stats,
@@ -166,6 +150,6 @@ def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats:
         "upgrades": upgrade_stats,
         "last_sync": datetime.now().strftime("%Y-%m-%d"),
         "date_range": "Last 90 Days",
-        "total_tournaments": total_tournaments, # Should implement proper counting if needed
+        "total_tournaments": total_tournaments,
         "total_players": total_players
     }
