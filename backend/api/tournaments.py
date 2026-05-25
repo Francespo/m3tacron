@@ -6,6 +6,7 @@ from ..data_structures.formats import Format
 from ..data_structures.source import Source
 from ..data_structures.factions import Faction
 from ..utils.list_keys import coerce_list_json
+from ..utils.stats import normalize_stat_count
 from .schemas import (
     PaginatedTournamentsResponse,
     TournamentData,
@@ -235,8 +236,8 @@ def get_tournament_detail(tournament_id: int):
                 rank=p.swiss_rank if p.swiss_rank is not None else 0,
                 swiss_rank=p.swiss_rank if p.swiss_rank is not None else 0,
                 cut_rank=p.cut_rank,
-                wins=(p.swiss_wins or 0) + (p.cut_wins or 0),
-                losses=(p.swiss_losses or 0) + (p.cut_losses or 0),
+                wins=normalize_stat_count(p.swiss_wins) + normalize_stat_count(p.cut_wins),
+                losses=normalize_stat_count(p.swiss_losses) + normalize_stat_count(p.cut_losses),
                 faction=faction_enum,
                 list_json=player_list_json if has_list else None
             )

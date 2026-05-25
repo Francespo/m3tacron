@@ -6,6 +6,7 @@ from ..analytics.filters import filter_query, get_active_formats
 from ..data_structures.data_source import DataSource
 from .formatters import enrich_list_data
 from ..utils.list_keys import coerce_list_json, get_list_key
+from ..utils.stats import normalize_stat_count
 
 router = APIRouter(prefix="/api/list", tags=["List Detail"])
 
@@ -60,13 +61,13 @@ def get_list_stats(
                     pilots = xws.get("pilots", [])
                     points = xws.get("points", 0)
                     
-                s_wins = result.swiss_wins or 0
-                s_losses = result.swiss_losses or 0
-                s_draws = result.swiss_draws or 0
-                c_wins = result.cut_wins or 0
-                c_losses = result.cut_losses or 0
-                c_draws = result.cut_draws or 0
-                
+                s_wins = normalize_stat_count(result.swiss_wins)
+                s_losses = normalize_stat_count(result.swiss_losses)
+                s_draws = normalize_stat_count(result.swiss_draws)
+                c_wins = normalize_stat_count(result.cut_wins)
+                c_losses = normalize_stat_count(result.cut_losses)
+                c_draws = normalize_stat_count(result.cut_draws)
+
                 w = s_wins + c_wins
                 g = w + s_losses + s_draws + c_losses + c_draws
                 

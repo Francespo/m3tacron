@@ -7,6 +7,7 @@ from ..analytics.lists import aggregate_list_stats
 from ..data_structures.data_source import DataSource
 from .formatters import enrich_list_data
 from ..utils.list_keys import coerce_list_json
+from ..utils.stats import normalize_stat_count
 
 router = APIRouter(prefix="/api/squadron", tags=["Squadron Detail"])
 
@@ -60,13 +61,13 @@ def get_squadron_stats(
             # Flexible matching (strip spaces/commas for comparison if needed, but start with exact)
             if sig == signature or sig.replace(" ", "") == signature.replace(" ", ""):
                 faction = xws.get("faction", faction)
-                s_wins = result.swiss_wins or 0
-                s_losses = result.swiss_losses or 0
-                s_draws = result.swiss_draws or 0
-                c_wins = result.cut_wins or 0
-                c_losses = result.cut_losses or 0
-                c_draws = result.cut_draws or 0
-                
+                s_wins = normalize_stat_count(result.swiss_wins)
+                s_losses = normalize_stat_count(result.swiss_losses)
+                s_draws = normalize_stat_count(result.swiss_draws)
+                c_wins = normalize_stat_count(result.cut_wins)
+                c_losses = normalize_stat_count(result.cut_losses)
+                c_draws = normalize_stat_count(result.cut_draws)
+
                 w = s_wins + c_wins
                 g = w + s_losses + s_draws + c_losses + c_draws
                 
@@ -126,13 +127,13 @@ def get_squadron_pilots(
             sig = ", ".join(ships)
             
             if sig == signature or sig.replace(" ", "") == signature.replace(" ", ""):
-                s_wins = result.swiss_wins or 0
-                s_losses = result.swiss_losses or 0
-                s_draws = result.swiss_draws or 0
-                c_wins = result.cut_wins or 0
-                c_losses = result.cut_losses or 0
-                c_draws = result.cut_draws or 0
-                
+                s_wins = normalize_stat_count(result.swiss_wins)
+                s_losses = normalize_stat_count(result.swiss_losses)
+                s_draws = normalize_stat_count(result.swiss_draws)
+                c_wins = normalize_stat_count(result.cut_wins)
+                c_losses = normalize_stat_count(result.cut_losses)
+                c_draws = normalize_stat_count(result.cut_draws)
+
                 w = s_wins + c_wins
                 g = w + s_losses + s_draws + c_losses + c_draws
                 

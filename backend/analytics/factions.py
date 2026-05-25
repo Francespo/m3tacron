@@ -7,6 +7,7 @@ from ..models import PlayerStanding, Tournament
 from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
 from ..utils.list_keys import coerce_list_json
+from ..utils.stats import normalize_stat_count
 from .filters import filter_query, get_active_formats, apply_tournament_filters
 from ..utils.list_keys import get_list_key
 
@@ -71,12 +72,12 @@ def aggregate_faction_stats(
                 # Should be initialized, but if not (e.g. unknown faction)
                  continue
             
-            s_wins = result.swiss_wins or 0
-            s_losses = result.swiss_losses or 0
-            s_draws = result.swiss_draws or 0
-            c_wins = result.cut_wins or 0
-            c_losses = result.cut_losses or 0
-            c_draws = result.cut_draws or 0
+            s_wins = normalize_stat_count(result.swiss_wins)
+            s_losses = normalize_stat_count(result.swiss_losses)
+            s_draws = normalize_stat_count(result.swiss_draws)
+            c_wins = normalize_stat_count(result.cut_wins)
+            c_losses = normalize_stat_count(result.cut_losses)
+            c_draws = normalize_stat_count(result.cut_draws)
             
             wins = s_wins + c_wins
             games = wins + s_losses + s_draws + c_losses + c_draws
