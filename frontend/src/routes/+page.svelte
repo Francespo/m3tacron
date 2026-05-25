@@ -59,6 +59,29 @@
         }
     });
 
+    function resolveDashboardMetaUrl(source: string): string {
+        if (!browser) {
+            return `/api/meta-snapshot?data_source=${source}`;
+        }
+
+        const { protocol, hostname } = window.location;
+        const previewMatch = hostname.match(/^(\d+)\.dev\.m3tacron\.com$/);
+
+        if (previewMatch) {
+            return `${protocol}//${previewMatch[1]}.api.dev.m3tacron.com/api/meta-snapshot?data_source=${source}`;
+        }
+
+        if (hostname === "dev.m3tacron.com") {
+            return `${protocol}//api.dev.m3tacron.com/api/meta-snapshot?data_source=${source}`;
+        }
+
+        if (hostname === "m3tacron.com" || hostname === "www.m3tacron.com") {
+            return `${protocol}//api.m3tacron.com/api/meta-snapshot?data_source=${source}`;
+        }
+
+        return `/api/meta-snapshot?data_source=${source}`;
+    }
+
     $effect(() => {
         if (!browser) return;
 
@@ -89,7 +112,7 @@
         error = false;
         errorMsg = "";
 
-        const targetUrl = `/api/meta-snapshot?data_source=${source}`;
+        const targetUrl = resolveDashboardMetaUrl(source);
         fetch(targetUrl)
             .then(async (res) => {
                 if (!res.ok) {

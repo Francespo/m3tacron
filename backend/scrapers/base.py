@@ -19,6 +19,7 @@ from ..data_structures.formats import Format, infer_format_from_xws
 from ..data_structures.round_types import RoundType
 from ..data_structures.scenarios import Scenario
 from ..data_structures.location import Location
+from ..utils.list_keys import coerce_list_json
 
 logger = logging.getLogger(__name__)
 
@@ -303,8 +304,9 @@ class BaseScraper(ABC):
         # 2. Infer format from XWS data
         inferred_format = None
         for pl in players[:20]:
-            if pl.list_json and pl.list_json.get("pilots"):
-                inferred = infer_format_from_xws(pl.list_json)
+            list_json = coerce_list_json(pl.list_json)
+            if list_json and list_json.get("pilots"):
+                inferred = infer_format_from_xws(list_json)
                 if inferred != Format.UNKNOWN:
                     inferred_format = inferred
                     logger.info(
