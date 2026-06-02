@@ -26,7 +26,7 @@ assets/external/
 *.swp
 *.swo
 .DS_Store
-devcontainer-lock.json
+.devcontainer/devcontainer-lock.json
 
 # --- Secrets ---
 .env
@@ -39,4 +39,4 @@ issues.json
 temp_*.txt
 *-issue-*
 
-.local/
+node_modules/
