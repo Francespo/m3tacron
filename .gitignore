@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.benchmarks/
 .venv/
 venv/
 ENV/
@@ -12,6 +14,7 @@ error.log
 # --- Reflex / Web ---
 .web/
 .states/
+node_modules/
 
 # --- Database ---
 *.db

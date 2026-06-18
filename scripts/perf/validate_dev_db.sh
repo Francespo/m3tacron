@@ -84,7 +84,8 @@ for table in "${REQUIRED_TABLES[@]}"; do
 done
 
 log "--- Column Checks ---"
-for entry in "${CRITICAL_COLUMNS[@]}"; IFS=":" read -r table columns <<< "$entry"; do
+for entry in "${CRITICAL_COLUMNS[@]}"; do
+    IFS=":" read -r table columns <<< "$entry"
     for col in $(echo "$columns" | tr ',' ' '); do
         col_exists=$(run_query "SELECT 1 FROM information_schema.columns WHERE table_name='$table' AND column_name='$col';")
         if [ -n "$col_exists" ] && [ "$col_exists" = "1" ]; then
