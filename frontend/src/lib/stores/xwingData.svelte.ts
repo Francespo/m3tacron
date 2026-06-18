@@ -143,8 +143,9 @@ class XwingDataStore {
 
             this.data[source] = json;
             this.pilotCountByShip[source] = null;
-        } catch (e) {
-            this.error = e.message;
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : String(e);
+            this.error = message;
             console.error(`XwingDataStore init error (${source}):`, e);
         } finally {
             this.loading = false;

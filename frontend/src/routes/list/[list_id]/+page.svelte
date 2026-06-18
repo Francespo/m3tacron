@@ -106,7 +106,7 @@
                         >
                         <span
                             class="text-lg font-mono font-bold"
-                            style="color: {getWinRateColor(win_rate)}"
+                            style="color: {getWinRateColor(Number(win_rate))}"
                         >
                             {win_rate}%
                         </span>
