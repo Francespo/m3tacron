@@ -7,6 +7,7 @@ REPORTS_DIR="$PROJECT_ROOT/reports"
 OUTPUT_FILE=""
 RUN_ID=""
 ENVIRONMENT="local-docker"
+TARGET="local"
 COMMIT_SHA=""
 
 usage() {
@@ -20,6 +21,7 @@ Options:
   --output FILE        Output report path (default: reports/report.json)
   --run-id ID          Run identifier (auto-generated if omitted)
   --env ENV            Environment name (default: local-docker)
+  --target TARGET      Target name: local or live (default: local)
   --commit SHA         Git commit SHA
   -h, --help           Show this help
 EOF
@@ -31,6 +33,7 @@ while [[ $# -gt 0 ]]; do
         --output) OUTPUT_FILE="$2"; shift 2 ;;
         --run-id) RUN_ID="$2"; shift 2 ;;
         --env) ENVIRONMENT="$2"; shift 2 ;;
+        --target) TARGET="$2"; shift 2 ;;
         --commit) COMMIT_SHA="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1"; usage; exit 1 ;;
@@ -497,7 +500,7 @@ for f in "$REPORTS_DIR/stats_summary.json" "$PROJECT_ROOT/.omo/evidence/docker-s
     fi
 done
 
-python3 - "$OUTPUT_FILE" "$RUN_ID" "$ENVIRONMENT" "$COMMIT_SHA" "$db_snapshot" "$k6_metrics" "$lighthouse_metrics" "$bench_metrics" "$docker_metrics" "$slo_checks" "$overall_status" "$missing_info" "$validation_manifest_path" "$lighthouse_artifact_path" "$benchmark_artifact_path" "$docker_stats_path" <<'PYEOF'
+python3 - "$OUTPUT_FILE" "$RUN_ID" "$ENVIRONMENT" "$TARGET" "$COMMIT_SHA" "$db_snapshot" "$k6_metrics" "$lighthouse_metrics" "$bench_metrics" "$docker_metrics" "$slo_checks" "$overall_status" "$missing_info" "$validation_manifest_path" "$lighthouse_artifact_path" "$benchmark_artifact_path" "$docker_stats_path" <<'PYEOF'
 import json
 import sys
 from datetime import datetime, timezone
@@ -505,19 +508,20 @@ from datetime import datetime, timezone
 output = sys.argv[1]
 run_id = sys.argv[2]
 environment = sys.argv[3]
-commit_sha = sys.argv[4]
-db_snapshot = json.loads(sys.argv[5])
-k6 = json.loads(sys.argv[6])
-lh = json.loads(sys.argv[7])
-bench = json.loads(sys.argv[8])
-docker = json.loads(sys.argv[9])
-slo = json.loads(sys.argv[10])
-overall_status = sys.argv[11]
-missing = json.loads(sys.argv[12])
-val_manifest_path = sys.argv[13] if len(sys.argv) > 13 else ""
-lh_artifact = sys.argv[14] if len(sys.argv) > 14 else ""
-bench_artifact = sys.argv[15] if len(sys.argv) > 15 else ""
-docker_artifact = sys.argv[16] if len(sys.argv) > 16 else ""
+target = sys.argv[4]
+commit_sha = sys.argv[5]
+db_snapshot = json.loads(sys.argv[6])
+k6 = json.loads(sys.argv[7])
+lh = json.loads(sys.argv[8])
+bench = json.loads(sys.argv[9])
+docker = json.loads(sys.argv[10])
+slo = json.loads(sys.argv[11])
+overall_status = sys.argv[12]
+missing = json.loads(sys.argv[13])
+val_manifest_path = sys.argv[14] if len(sys.argv) > 14 else ""
+lh_artifact = sys.argv[15] if len(sys.argv) > 15 else ""
+bench_artifact = sys.argv[16] if len(sys.argv) > 16 else ""
+docker_artifact = sys.argv[17] if len(sys.argv) > 17 else ""
 
 report = {
     "schema_version": "1.0.0",
@@ -525,6 +529,7 @@ report = {
         "run_id": run_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "environment": environment,
+        "target": target,
         "commit_sha": commit_sha,
         "db_snapshot": db_snapshot,
     },

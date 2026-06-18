@@ -123,6 +123,57 @@ bash scripts/perf/validate_report.sh reports/report.json
 cat reports/report.json | bash scripts/perf/redact_logs.sh > reports/report-redacted.json
 ```
 
+## Live Mode (against the deployed Coolify site)
+
+Live mode runs the performance suite against the production deployment instead of a local stack. This catches regressions in the real environment (Traefik, CORS, real DB, real CDN) that local mode cannot.
+
+### What it does
+
+- Skips the local Docker stack (`docker compose up`/`down`).
+- Points k6 at the live API (`LIVE_API_URL`).
+- Points Lighthouse and Playwright Web Vitals at the live frontend (`LIVE_FRONTEND_URL`).
+- Optionally validates the live DB if `LIVE_DB_URL` is provided (read-only connection expected).
+- Skips `capture_docker_stats.sh` (no local containers to measure).
+- Writes the report to `reports/live-<mode>-<timestamp>/report.json` with `metadata.target = "live"`.
+
+### Defaults
+
+| Variable | Default |
+|----------|---------|
+| `LIVE_FRONTEND_URL` | `https://m3tacron.com` |
+| `LIVE_API_URL` | `https://api.m3tacron.com` |
+| `LIVE_DB_URL` | (unset, validation skipped) |
+
+### Usage
+
+```bash
+# Smoke against production (safe, 1 VU, 30s)
+bash scripts/perf/run_local.sh --target live --mode smoke
+
+# Baseline against production (5–20 VUs, 3m)
+bash scripts/perf/run_local.sh --target live --mode baseline
+
+# All modes against production
+bash scripts/perf/run_local.sh --target live --mode all
+```
+
+### Optional live DB validation
+
+Provide a read-only PostgreSQL connection string to validate the deployed schema before running:
+
+```bash
+export LIVE_DB_URL="postgres://readonly:password@db.host:5432/m3tacron"
+bash scripts/perf/run_local.sh --target live --mode smoke
+```
+
+Validation runs the same checks as local mode (8 tables, critical columns, smoke query) and writes a manifest to `.omo/evidence/validation_manifest_*.json` with `"source": "live"`.
+
+### Caveats
+
+- Live mode sends real HTTP traffic to the production site. The smoke profile is safe; higher modes (baseline/stress/soak/spike) will generate load on production infrastructure. Use with care.
+- The CORS policy on the live API only allows requests from `m3tacron.com` / `www.m3tacron.com`. k6 and Lighthouse send requests without an `Origin` header (or with a non-browser origin), so CORS preflight does not block them. Playwright sets `Origin: https://m3tacron.com` via `PLAYWRIGHT_BASE_URL`, so it is also allowed.
+- Reports under `reports/live-*/` are local-only evidence. Do not commit them or upload them to CI artifacts unless you have scrubbed the contents.
+
 ## CI Usage
 
 The GitHub Actions workflow runs on:
