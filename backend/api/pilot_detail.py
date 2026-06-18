@@ -14,7 +14,7 @@ from ..data_structures.data_source import DataSource
 from ..utils.xwing_data.pilots import load_all_pilots
 from ..utils.xwing_data.upgrades import load_all_upgrades
 from ..database import engine
-from ..models import PlayerResult, Tournament
+from ..models import PlayerStanding, Tournament
 from sqlmodel import Session, select
 
 router = APIRouter(prefix="/api/pilot", tags=["Pilot Detail"])
@@ -107,15 +107,15 @@ def get_pilot_configurations(
     config_stats: dict[str, dict] = {}  # frozen_key -> {count, wins, upgrades_list}
 
     with Session(engine) as session:
-        query = select(PlayerResult, Tournament).where(
-            PlayerResult.tournament_id == Tournament.id
+        query = select(PlayerStanding, Tournament).where(
+            PlayerStanding.tournament_id == Tournament.id
         )
         rows = session.exec(query).all()
 
         for result, tournament in rows:
             # Format check
             t_fmt = tournament.format
-            fmt_val = t_fmt.value if hasattr(t_fmt, "value") else (t_fmt or "other")
+            fmt_val = t_fmt.value if hasattr(t_fmt, "value") else (t_fmt or "unknown")
             if allowed and fmt_val not in allowed:
                 continue
 

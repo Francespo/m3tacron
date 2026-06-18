@@ -6,7 +6,7 @@ from enum import StrEnum
 class MacroFormat(StrEnum):
     V2_5 = "2.5"
     V2_0 = "2.0"
-    OTHER = "other"
+    UNKNOWN = "unknown"
 
     @property
     def label(self) -> str:
@@ -14,7 +14,7 @@ class MacroFormat(StrEnum):
         match self:
             case MacroFormat.V2_5: return "2.5"
             case MacroFormat.V2_0: return "2.0"
-            case MacroFormat.OTHER: return "Unknown"
+            case MacroFormat.UNKNOWN: return "Unknown"
 
 
     def formats(self) -> list[str]:
@@ -22,7 +22,7 @@ class MacroFormat(StrEnum):
         match self:
             case MacroFormat.V2_5: return [Format.AMG, Format.XWA]
             case MacroFormat.V2_0: return [Format.LEGACY_X2PO, Format.LEGACY_XLC, Format.FFG]
-            case MacroFormat.OTHER: return [Format.OTHER]
+            case MacroFormat.UNKNOWN: return [Format.UNKNOWN]
 
 class Format(StrEnum):
     # 2.5 Group
@@ -34,8 +34,8 @@ class Format(StrEnum):
     LEGACY_X2PO = "legacy_x2po"
     LEGACY_XLC = "legacy_xlc"
     
-    # Other
-    OTHER = "other"
+    # Unknown
+    UNKNOWN = "unknown"
 
     @property
     def label(self) -> str:
@@ -58,32 +58,22 @@ class Format(StrEnum):
             case Format.LEGACY_X2PO | Format.LEGACY_XLC | Format.FFG:
                 return MacroFormat.V2_0
             case _:
-                return MacroFormat.OTHER
+                return MacroFormat.UNKNOWN
 
 def infer_format_from_xws(xws: dict) -> Format:
     """
     Infer format ID from XWS data based on vendor specific logic.
     """
     if not xws:
-        return Format.OTHER
+        return Format.UNKNOWN
 
-    vendor = xws.get("vendor", {})
+    vendor = xws.get("vendor")
+    if not isinstance(vendor, dict):
+        vendor = {}
     
     # 1. Check LBN (Launch Bay Next)
     if "lbn" in vendor:
-        # LBN logic: check "ruleset" (field not inside vendor, but likely top level or implied?)
-        # User said: "se è lbn deve guardare il 'ruleset'(il campo non è contenuto nel vendor)"
-        # This implies checking xws['ruleset']?? Or xws['format']?
-        # User said: "se è lbn deve guardare il "ruleset"(il campo non è contenuto nel vendor)" -> So look at xws.get("ruleset")? or xws.get("format")?
-        # Usually XWS has a top level 'format' or 'ruleset' key.
-        # User instructions: "Legacy = Legacy (X2PO), AMG = amg, xwa = XWA"
-        
-        # Checking top-level fields
-        # Note: LBN often puts format info in 'description' or just implies it via points. 
-        # But let's follow user instruction: check "ruleset" (outside vendor).
-        
         ruleset = xws.get("ruleset", "").lower()
-        # Fallback to 'format' if ruleset is empty? User said "ruleset".
         if not ruleset: 
             ruleset = xws.get("format", "").lower()
 
@@ -91,8 +81,8 @@ def infer_format_from_xws(xws: dict) -> Format:
         if "amg" in ruleset: return Format.AMG
         if "xwa" in ruleset: return Format.XWA
         
-        # Default for LBN if unclear? Maybe AMG?
-        return Format.AMG 
+        # Don't eagerly return AMG! If unclear, use OTHER so we keep searching other lists.
+        return Format.UNKNOWN 
 
     # 2. Check YASB
     if "yasb" in vendor:
@@ -132,7 +122,6 @@ def infer_format_from_xws(xws: dict) -> Format:
         if "legacy" in ruleset: return Format.LEGACY_X2PO
         if "amg" in ruleset: return Format.AMG
         if "xwa" in ruleset: return Format.XWA
-        return Format.AMG
+        return Format.UNKNOWN
 
-    return Format.OTHER
-
+    return Format.UNKNOWN

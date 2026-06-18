@@ -6,7 +6,7 @@ import os
 import time
 
 from .database import engine, create_db_and_tables
-from .models import Tournament, PlayerResult
+from .models import Tournament, PlayerStanding
 from .analytics.factions import get_meta_snapshot
 from .data_structures.data_source import DataSource
 from .api.schemas import MetaSnapshotResponse
@@ -91,7 +91,7 @@ def get_snapshot(data_source: str = Query("xwa", description="Data source: xwa o
             res_tournaments = session.exec(total_tournaments_query).one_or_none()
             total_tournaments = res_tournaments if res_tournaments else 0
             
-            total_players_query = select(func.count(PlayerResult.id)).join(Tournament).where(Tournament.date >= start_date)
+            total_players_query = select(func.count(PlayerStanding.id)).join(Tournament).where(Tournament.date >= start_date)
             res_players = session.exec(total_players_query).one_or_none()
             total_players = res_players if res_players else 0
     except Exception as e:

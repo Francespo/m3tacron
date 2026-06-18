@@ -6,7 +6,7 @@ Aggregates statistics (win rate, popularity, games) per ship per faction.
 from sqlmodel import Session, select
 import json
 from ..database import engine
-from ..models import PlayerResult, Tournament
+from ..models import PlayerStanding, Tournament
 from ..utils.xwing_data.pilots import load_all_pilots
 from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
@@ -26,8 +26,8 @@ def aggregate_ship_stats(
     Returns list of dicts matching ShipStats schema.
     """
     with Session(engine) as session:
-        query = select(PlayerResult, Tournament).where(
-            PlayerResult.tournament_id == Tournament.id
+        query = select(PlayerStanding, Tournament).where(
+            PlayerStanding.tournament_id == Tournament.id
         )
         query = filter_query(query, filters)
         rows = session.exec(query).all()
@@ -66,7 +66,7 @@ def aggregate_ship_stats(
 
         for result, tournament in rows:
             t_fmt_raw = tournament.format
-            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
+            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "unknown")
             
             if allowed_formats and t_fmt not in allowed_formats: continue
             if not apply_tournament_filters(tournament, filters): continue

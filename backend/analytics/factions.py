@@ -4,7 +4,7 @@ Faction Analytics - Aggregation Logic for Factions.
 from sqlmodel import Session, select, func
 import json
 from ..database import engine
-from ..models import PlayerResult, Tournament
+from ..models import PlayerStanding, Tournament
 from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
 from .filters import filter_query, get_active_formats, apply_tournament_filters
@@ -20,8 +20,8 @@ def aggregate_faction_stats(
     """
     with Session(engine) as session:
         # Load tournament results
-        query = select(PlayerResult, Tournament).where(
-            PlayerResult.tournament_id == Tournament.id
+        query = select(PlayerStanding, Tournament).where(
+            PlayerStanding.tournament_id == Tournament.id
         )
         query = filter_query(query, filters)
         rows = session.exec(query).all()
@@ -44,7 +44,7 @@ def aggregate_faction_stats(
 
         for result, tournament in rows:
             t_fmt_raw = tournament.format
-            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
+            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "unknown")
             
             if allowed_formats is not None and t_fmt not in allowed_formats:
                 continue
@@ -147,7 +147,7 @@ def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats:
     
     with Session(engine) as session:
         q_t = select(func.count(Tournament.id)).where(Tournament.date >= date_str)
-        q_p = select(func.count(PlayerResult.id)).join(Tournament).where(Tournament.date >= date_str)
+        q_p = select(func.count(PlayerStanding.id)).join(Tournament).where(Tournament.date >= date_str)
         # Apply format filters
         # Note: apply_tournament_filters is python side usually, but allowed_formats can be SQL if possible
         # For simple counts we can approx or rely on aggregates.

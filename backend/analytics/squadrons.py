@@ -3,7 +3,7 @@ Squadron Analytics - Aggregation Logic for Squadron (Ship Composition).
 """
 from sqlmodel import Session, select
 from ..database import engine
-from ..models import PlayerResult, Tournament
+from ..models import PlayerStanding, Tournament
 from ..data_structures.data_source import DataSource
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
 from .filters import filter_query, get_active_formats
@@ -19,8 +19,8 @@ def aggregate_squadron_stats(
     Aggregate statistics for squadrons (combinations of ship chassis).
     """
     with Session(engine) as session:
-        query = select(PlayerResult, Tournament).where(
-            PlayerResult.tournament_id == Tournament.id
+        query = select(PlayerStanding, Tournament).where(
+            PlayerStanding.tournament_id == Tournament.id
         )
         query = filter_query(query, filters)
         rows = session.exec(query).all()
@@ -30,7 +30,7 @@ def aggregate_squadron_stats(
         for result, tournament in rows:
             # Format filter
             t_fmt_raw = tournament.format
-            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "other")
+            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "unknown")
             
             allowed_formats = get_active_formats(filters.get("allowed_formats", None))
             if allowed_formats and t_fmt not in allowed_formats:
