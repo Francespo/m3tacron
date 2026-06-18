@@ -1,4 +1,51 @@
 services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: m3tacron
+      POSTGRES_PASSWORD: m3tacron
+      POSTGRES_DB: m3tacron
+    ports:
+      - "5435:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U m3tacron -d m3tacron"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  # One-shot service: waits for Postgres, drops the public schema, restores
+  # the dev dump from ./local-data/dumps/dev_latest.dump. Exits 0 and stays
+  # up as a no-op so the dependency graph stays satisfied.
+  db-seed:
+    image: postgres:17-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+      set -e;
+      echo '[db-seed] waiting for postgres...' ;
+      until pg_isready -h postgres -U m3tacron; do sleep 1; done;
+      echo '[db-seed] dropping + recreating public schema' ;
+      psql -h postgres -U m3tacron -d m3tacron -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO m3tacron;' ;
+      if [ -f /seed/dev_latest.dump ]; then
+        echo '[db-seed] restoring /seed/dev_latest.dump' ;
+        pg_restore -h postgres -U m3tacron -d m3tacron --no-owner --no-privileges /seed/dev_latest.dump || true ;
+        echo '[db-seed] restore done' ;
+      else
+        echo '[db-seed] WARN: no /seed/dev_latest.dump found, starting with empty DB' ;
+      fi ;
+      echo '[db-seed] done' ;
+      tail -f /dev/null
+      "
+    volumes:
+      - ./local-data/dumps:/seed:ro
+    restart: "no"
+
   backend:
     build:
       context: .
@@ -6,15 +53,29 @@ services:
       args:
         - INSTALL_PLAYWRIGHT_BROWSER=false
     ports:
-      - "8888:8888"
+      - "8890:8888"
     volumes:
       - ./backend:/app/backend
-      - ./test.db:/app/test.db
       - ${SSH_AUTH_SOCK:-/dev/null}:/ssh-agent
     environment:
-      - DATABASE_URL=sqlite:///test.db
+      - LOCAL_DB_HOST=postgres
+      - LOCAL_DB_PORT=5432
+      - LOCAL_DB_NAME=m3tacron
+      - LOCAL_DB_USER=m3tacron
+      - LOCAL_DB_PASSWORD=m3tacron
       - SSH_AUTH_SOCK=/ssh-agent
     command: uvicorn backend.main:app --reload --reload-dir backend --host 0.0.0.0 --port 8888
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-seed:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8888/', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   frontend:
@@ -22,21 +83,32 @@ services:
       context: .
       dockerfile: frontend/Dockerfile.dev
       args:
-        - VITE_API_BASE=http://localhost:8888/api
+        - VITE_API_BASE=http://localhost:8890/api
     ports:
-      - "3333:3333"
+      - "3335:3333"
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/static:/app/static
       - ./frontend/package.json:/app/package.json
-      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - ./frontend/vite.config.js:/app/vite.config.js
       - ./frontend/svelte.config.js:/app/svelte.config.js
       - ./frontend/tsconfig.json:/app/tsconfig.json
     environment:
-      - ORIGIN=http://localhost:3333
-      - VITE_API_BASE=http://localhost:8888/api
+      - NODE_OPTIONS=--max-old-space-size=4096
+      - ORIGIN=http://localhost:3335
+      - VITE_API_BASE=http://localhost:8890/api
       - VITE_PROXY_TARGET=http://backend:8888
-      - VITE_ALLOWED_HOSTS=localhost
+      - VITE_ALLOWED_HOSTS=localhost,127.0.0.1
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3333/', (r) => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1));"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     restart: unless-stopped
+
+volumes:
+  pgdata:
