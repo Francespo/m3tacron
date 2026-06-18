@@ -40,11 +40,9 @@ That's it. Output will look like:
   Frontend: http://localhost:3335
   Backend:  http://localhost:8890  (docs at /docs)
   Postgres: localhost:5435  (user: m3tacron / pass: m3tacron / db: m3tacron)
-  Dump age: 2026-06-18 21:27:00
+  Dump age: 2026-06-18 21:30:01
 ============================================================
 ```
-
-The backend runs with `--reload` watching `backend/`, and the frontend mounts `./frontend/src` and `./frontend/static` into the container, so **edits are hot-reloaded** — no rebuild needed.
 
 ## Helper commands
 
@@ -60,11 +58,12 @@ The backend runs with `--reload` watching `backend/`, and the frontend mounts `.
 
 ## Common workflows
 
-### I just changed a frontend component
+### I just changed a backend endpoint
 
 ```bash
 bash scripts/local_dev/up.sh   # only needed the first time
-# edit frontend/src/... — Vite HMR shows the change instantly
+# edit backend/... — uvicorn --reload picks up changes instantly
+curl -s http://localhost:8890/api/tournaments | jq '.total'
 ```
 
 ### I want fresh dev data
@@ -73,14 +72,6 @@ bash scripts/local_dev/up.sh   # only needed the first time
 bash scripts/local_dev/seed.sh     # pull latest
 docker compose -f docker-compose.local.yml restart db-seed
 # or just `reset && up` for a clean restart
-```
-
-### I changed a backend endpoint and want to profile it
-
-```bash
-bash scripts/local_dev/logs.sh backend
-# or hit it directly:
-curl -s http://localhost:8890/api/tournaments | jq '.[0]'
 ```
 
 ### I want a clean DB
@@ -94,12 +85,18 @@ bash scripts/local_dev/up.sh      # rebuilds with fresh dump
 
 | Service | Container name | Port (host) | What it does |
 |---|---|---|---|
-| `postgres` | `local-postgres` | 5435 | Local Postgres 17 (volume: `pgdata`) |
-| `db-seed` | `local-db-seed` | — | One-shot: `pg_restore` from bind-mounted dump |
-| `backend` | `local-backend` | 8890 | FastAPI + uvicorn `--reload`, watches `backend/` |
-| `frontend` | `local-frontend` | 3335 | SvelteKit dev server with Vite HMR |
+| `postgres` | `m3tacron-postgres-1` | 5435 | Local Postgres 17 (volume: `pgdata`) |
+| `db-seed` | `m3tacron-db-seed-1` | — | One-shot: `pg_restore` from bind-mounted dump |
+| `backend` | `m3tacron-backend-1` | 8890 | FastAPI + uvicorn `--reload`, watches `backend/` |
+| `frontend` | `m3tacron-frontend-1` | 3335 | SvelteKit SPA (adapter-static + `npx serve`) |
 
-DB connection inside the backend container goes through the `LOCAL_DB_*` env vars, which `backend/database.py:_build_database_url()` composes into a `postgresql://m3tacron:m3tacron@postgres:5432/m3tacron` URL.
+DB connection inside the backend container uses `DATABASE_URL=postgresql://m3tacron:m3tacron@postgres:5432/m3tacron` set directly in `docker-compose.local.yml`.
+
+## Frontend notes
+
+The frontend uses `frontend/Dockerfile.local` which builds a **static SPA** via `adapter-static`. This avoids the SvelteKit Node adapter's OOM issue on this machine. The tradeoff: pages render client-side only (no SSR). For local testing this is fine — the data all comes from the same API.
+
+To switch to the production Dockerfile (adapter-node + SSR), edit `docker-compose.local.yml` and change `frontend/Dockerfile.local` → `frontend/Dockerfile`. This requires ~4GB heap and may OOM.
 
 ## Pulling a fresh dump manually (without bringing up the stack)
 
@@ -150,6 +147,6 @@ LOCAL_DEV_DB_CONTAINER=rdvq2p6xwxho16pbcyd40w0d \
 
 - Cached dump: `local-data/dumps/dev_latest.dump` (gitignored)
 - Postgres volume: Docker named volume `pgdata` (persists across `down`/`up`)
-- Code: bind-mounted live (no rebuild on edit)
+- Backend code: bind-mounted live (no rebuild on edit)
 
 To nuke both and start clean: `bash scripts/local_dev/reset.sh`
