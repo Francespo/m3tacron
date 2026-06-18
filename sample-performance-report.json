@@ -1,0 +1,181 @@
+{
+  "schema_version": "1.0.0",
+  "metadata": {
+    "run_id": "sample-run-001",
+    "timestamp": "2026-01-01T00:00:00Z",
+    "environment": "local-docker",
+    "commit_sha": "0000000000000000000000000000000000000000",
+    "db_snapshot": {
+      "timestamp": "2026-01-01T00:00:00Z",
+      "source": "dev-server",
+      "row_counts": {
+        "tournament": 100,
+        "playerresult": 5000,
+        "match": 10000,
+        "supporter": 10,
+        "contribution": 50
+      },
+      "validation_status": "passed"
+    }
+  },
+  "database": {
+    "benchmarks": [
+      {
+        "name": "test_tournament_count",
+        "mean": 0.5,
+        "min": 0.3,
+        "max": 1.2,
+        "stddev": 0.2,
+        "rounds": 10,
+        "median": 0.45,
+        "iqr": 0.3,
+        "q1": 0.35,
+        "q3": 0.65
+      }
+    ],
+    "summary": {
+      "total_benchmarks": 1,
+      "avg_query_time_ms": 0.5,
+      "max_query_time_ms": 1.2
+    }
+  },
+  "backend": {
+    "http_metrics": [
+      {
+        "endpoint": "/",
+        "method": "GET",
+        "p50": 5.0,
+        "p95": 15.0,
+        "p99": 30.0,
+        "error_rate": 0.0,
+        "rps": 100.0,
+        "total_requests": 1000
+      },
+      {
+        "endpoint": "/api/meta-snapshot",
+        "method": "GET",
+        "p50": 20.0,
+        "p95": 50.0,
+        "p99": 100.0,
+        "error_rate": 0.0,
+        "rps": 50.0,
+        "total_requests": 500
+      }
+    ],
+    "summary": {
+      "total_endpoints": 2,
+      "overall_p95": 50.0,
+      "overall_error_rate": 0.0,
+      "total_requests": 1500
+    }
+  },
+  "frontend": {
+    "lighthouse": {
+      "routes": [
+        {
+          "route": "/",
+          "url": "http://localhost:3333/",
+          "performance_score": 0.9,
+          "accessibility_score": 0.85,
+          "lcp": 1200,
+          "cls": 0.05,
+          "report_path": "reports/lighthouse-home.json"
+        }
+      ],
+      "performance_score": 0.9
+    },
+    "web_vitals": {
+      "lcp": 1200,
+      "inp": 50,
+      "cls": 0.05,
+      "ttfb": 100
+    },
+    "summary": {
+      "avg_performance_score": 0.9,
+      "routes_tested": 1
+    }
+  },
+  "infrastructure": {
+    "docker_stats": [
+      {
+        "container": "backend",
+        "cpu_percent": 5.0,
+        "memory_mb": 128.0,
+        "memory_limit_mb": 512.0,
+        "net_in_mb": 1.0,
+        "net_out_mb": 0.5,
+        "block_in_mb": 0.1,
+        "block_out_mb": 0.05
+      },
+      {
+        "container": "frontend",
+        "cpu_percent": 3.0,
+        "memory_mb": 64.0,
+        "memory_limit_mb": 256.0,
+        "net_in_mb": 0.5,
+        "net_out_mb": 0.3,
+        "block_in_mb": 0.05,
+        "block_out_mb": 0.02
+      },
+      {
+        "container": "postgres",
+        "cpu_percent": 2.0,
+        "memory_mb": 96.0,
+        "memory_limit_mb": 512.0,
+        "net_in_mb": 0.3,
+        "net_out_mb": 0.2,
+        "block_in_mb": 0.2,
+        "block_out_mb": 0.1
+      }
+    ],
+    "summary": {
+      "total_containers": 3,
+      "total_snapshots": 6,
+      "peak_memory_mb": 128.0,
+      "avg_cpu_percent": 3.33
+    }
+  },
+  "slo": {
+    "overall": "pass",
+    "checks": [
+      {
+        "name": "backend_p95",
+        "status": "pass",
+        "threshold": 1000,
+        "actual": 50,
+        "unit": "ms"
+      },
+      {
+        "name": "backend_error_rate",
+        "status": "pass",
+        "threshold": 0.01,
+        "actual": 0.0,
+        "unit": "ratio"
+      },
+      {
+        "name": "frontend_performance",
+        "status": "pass",
+        "threshold": 0.8,
+        "actual": 0.9,
+        "unit": "score"
+      },
+      {
+        "name": "db_avg_query",
+        "status": "pass",
+        "threshold": 200,
+        "actual": 0.5,
+        "unit": "ms"
+      }
+    ]
+  },
+  "artifacts": {
+    "k6_smoke": "reports/k6-smoke.json",
+    "lighthouse": "reports/lighthouse/",
+    "pytest_benchmark": "reports/benchmark.json",
+    "docker_stats": "reports/stats_summary.json",
+    "db_validation": "reports/validation_manifest.json",
+    "validation_manifest": "reports/validation_manifest.json"
+  },
+  "status": "pass",
+  "details": []
+}
