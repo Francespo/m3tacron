@@ -4,11 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-DB_HOST="${LOCAL_DB_HOST:-localhost}"
-DB_PORT="${LOCAL_DB_PORT:-5433}"
-DB_NAME="${LOCAL_DB_NAME:-m3tacron_perf}"
-DB_USER="${LOCAL_DB_USER:-perf_user}"
-DB_PASSWORD="${LOCAL_DB_PASSWORD:-perf_password}"
+DB_URL=""
 EVIDENCE_DIR="$PROJECT_ROOT/.omo/evidence"
 MIN_TOURNAMENTS="${MIN_TOURNAMENTS:-10}"
 CI_MODE=false
@@ -17,21 +13,59 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [OPTIONS]
 
-Validate local dev database schema and row counts before performance runs.
+Validate local dev or live database schema and row counts before performance runs.
 
 Options:
-  --ci       Non-interactive mode for CI
-  -h, --help Show this help
+  --ci             Non-interactive mode for CI
+  --url URL        Use a PostgreSQL connection URL (e.g. postgres://user:pass@host:5432/db)
+                   When set, overrides LOCAL_DB_* and uses read-only connection.
+  --output-dir DIR Output directory for the manifest (default: .omo/evidence/)
+  -h, --help       Show this help
+
+Environment:
+  LOCAL_DB_HOST     PostgreSQL host (default: localhost)
+  LOCAL_DB_PORT     PostgreSQL port (default: 5433)
+  LOCAL_DB_NAME     PostgreSQL database (default: m3tacron_perf)
+  LOCAL_DB_USER     PostgreSQL user (default: perf_user)
+  LOCAL_DB_PASSWORD PostgreSQL password (default: perf_password)
+  DB_URL            Same as --url (overrides LOCAL_DB_*)
+  MIN_TOURNAMENTS   Minimum tournament count for smoke (default: 10)
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --ci) CI_MODE=true; shift ;;
+        --url) DB_URL="$2"; shift 2 ;;
+        --output-dir) EVIDENCE_DIR="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1"; usage; exit 1 ;;
     esac
 done
+
+DB_URL="${DB_URL:-}"
+
+if [ -n "$DB_URL" ]; then
+    if [[ "$DB_URL" =~ ^postgres(ql)?:// ]]; then
+        DB_HOST=$(echo "$DB_URL" | sed -E 's|^postgres(ql)?://([^:]+):[^@]+@([^:/]+):?([0-9]*)/[^?]+|\3|')
+        DB_PORT=$(echo "$DB_URL" | sed -E 's|^postgres(ql)?://([^:]+):[^@]+@([^:/]+):?([0-9]*)/[^?]+|\4|')
+        DB_NAME=$(echo "$DB_URL" | sed -E 's|^postgres(ql)?://[^/]+/([^?]+)(\?.*)?$|\2|')
+        DB_USER=$(echo "$DB_URL" | sed -E 's|^postgres(ql)?://([^:]+):[^@]+@.*$|\1|')
+        DB_PASSWORD=$(echo "$DB_URL" | sed -E 's|^postgres(ql)?://[^:]+:([^@]+)@.*$|\1|')
+        DB_PORT="${DB_PORT:-5432}"
+        DB_LABEL="live"
+    else
+        echo "ERROR: --url must be a postgres:// or postgresql:// URL"
+        exit 1
+    fi
+else
+    DB_HOST="${LOCAL_DB_HOST:-localhost}"
+    DB_PORT="${LOCAL_DB_PORT:-5433}"
+    DB_NAME="${LOCAL_DB_NAME:-m3tacron_perf}"
+    DB_USER="${LOCAL_DB_USER:-perf_user}"
+    DB_PASSWORD="${LOCAL_DB_PASSWORD:-perf_password}"
+    DB_LABEL="local"
+fi
 
 mkdir -p "$EVIDENCE_DIR"
 
@@ -61,7 +95,7 @@ record_check() {
     fi
 }
 
-log "Validating dev database ($DB_NAME on $DB_HOST:$DB_PORT)"
+log "Validating $DB_LABEL database ($DB_NAME on $DB_HOST:$DB_PORT)"
 
 REQUIRED_TABLES=("tournament" "playerresult" "match" "supporter" "contribution" "playerstanding" "teammatch" "teamstanding")
 CRITICAL_COLUMNS=(
@@ -119,6 +153,7 @@ cat > "$MANIFEST_FILE" <<EOF
   "timestamp": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
   "database": "$DB_NAME",
   "host": "$DB_HOST:$DB_PORT",
+  "source": "$DB_LABEL",
   "status": "$overall_status",
   "total_checks": $total_checks,
   "passed": $check_passed,

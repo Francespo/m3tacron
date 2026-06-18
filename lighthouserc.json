@@ -1,9 +1,14 @@
 {
   "ci": {
     "collect": {
+      "url": [
+        "http://localhost:3333/",
+        "http://localhost:3333/tournaments",
+        "http://localhost:3333/lists",
+        "http://localhost:3333/cards",
+        "http://localhost:3333/ships"
+      ],
       "numberOfRuns": 1,
-      "startServerReadyPattern": "VITE",
-      "startServerReadyTimeout": 30000,
       "settings": {
         "chromeFlags": "--no-sandbox --headless --disable-gpu"
       }
