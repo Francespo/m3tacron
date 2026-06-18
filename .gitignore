@@ -17,7 +17,6 @@ error.log
 *.db
 *.sqlite
 *.sqlite3
-# Ignore specific external data if dynamic
 assets/external/
 
 # --- IDEs / Editors ---
@@ -30,6 +29,24 @@ assets/external/
 # --- Secrets ---
 .env
 .env.local
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# --- Database dumps ---
+*.dump
+*.sql
+*.sql.gz
+*.backup
+dumps/
+
+# --- Performance reports and evidence ---
+reports/
+.omo/evidence/
+k6-*-summary.json
 
 # --- Agentic Workflows ---
 .agent/

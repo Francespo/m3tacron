@@ -1,0 +1,107 @@
+name: Performance Suite
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Performance mode to run'
+        required: false
+        default: 'smoke'
+        type: choice
+        options:
+          - smoke
+          - baseline
+          - all
+
+permissions:
+  contents: read
+
+jobs:
+  performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt pytest-benchmark
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D68
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update && sudo apt-get install -y k6
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli
+
+      - name: Install Playwright
+        run: |
+          cd frontend && npm install && npx playwright install --with-deps chromium
+          cd .. && npm install @playwright/test
+
+      - name: Start performance stack
+        run: docker compose -f docker-compose.perf.yml up -d --build --wait
+        env:
+          LOCAL_DB_PASSWORD: ${{ secrets.LOCAL_DB_PASSWORD || 'perf_password' }}
+
+      - name: Wait for services
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8888/ > /dev/null 2>&1; then
+              echo "Backend ready"
+              break
+            fi
+            echo "Waiting for backend... ($i/30)"
+            sleep 5
+          done
+
+      - name: Run k6 smoke
+        run: k6 run tests/performance/k6/smoke.js --out json=reports/k6-smoke.json
+        env:
+          TARGET_URL: http://localhost:8888
+        continue-on-error: true
+
+      - name: Run Lighthouse
+        run: npx lhci autorun --config=lighthouserc.json
+        env:
+          LIGHTHOUSE_URL: http://localhost:3333
+        continue-on-error: true
+
+      - name: Run pytest-benchmark
+        run: |
+          python -m pytest backend/tests/performance/test_db_queries.py \
+            --benchmark-only --benchmark-min-rounds=1 \
+            --benchmark-json=reports/benchmark.json -v
+        env:
+          DATABASE_URL: postgresql://perf_user:perf_password@localhost:5433/m3tacron_perf
+        continue-on-error: true
+
+      - name: Capture Docker stats
+        run: bash scripts/perf/capture_docker_stats.sh --duration 30 --output reports/stats
+        continue-on-error: true
+
+      - name: Generate report
+        run: bash scripts/perf/generate_report.sh --reports-dir reports --output reports/report.json
+        continue-on-error: true
+
+      - name: Upload performance artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report-${{ github.run_number }}
+          path: reports/
+          retention-days: 30
+
+      - name: Stop performance stack
+        if: always()
+        run: docker compose -f docker-compose.perf.yml down -v

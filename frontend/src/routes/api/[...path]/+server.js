@@ -1,3 +1,4 @@
+/** @param {*} raw */
 function normalizeBackendApiBase(raw) {
 	const trimmed = String(raw || '').trim().replace(/\/+$/, '');
 	return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
