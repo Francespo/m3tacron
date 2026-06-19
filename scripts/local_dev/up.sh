@@ -1,48 +1,86 @@
 #!/usr/bin/env bash
-# Bring the local m3tacron stack up.
-#   - Postgres (port 5435)
-#   - Backend API  (port 8890)
-#   - Frontend     (port 3335)
-# Auto-seeds the local DB from the most recent dev dump on the server
-# (skipped if local-data/dumps/dev_latest.dump is already present).
-
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DUMPS_DIR="$REPO_ROOT/local-data/dumps"
 DUMP_FILE="$DUMPS_DIR/dev_latest.dump"
+VITE_PID_FILE="/tmp/m3tacron-vite.pid"
+VITE_LOG="/tmp/m3tacron-vite.log"
 
 cd "$REPO_ROOT"
 
-if [[ ! -f "$DUMP_FILE" ]]; then
-  echo "==> No local dump found. Pulling fresh dev dump from server..."
-  bash "$SCRIPT_DIR/seed.sh" --from-server
+cleanup_vite() {
+  if [[ -f "$VITE_PID_FILE" ]]; then
+    local pid
+    pid=$(cat "$VITE_PID_FILE" 2>/dev/null || true)
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+      echo "==> Stopping frontend (Vite)..."
+      kill "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+    fi
+    rm -f "$VITE_PID_FILE"
+  fi
+}
+
+if [[ "${1:-}" == "--stop" ]]; then
+  cleanup_vite
+  docker compose -f docker-compose.local.yml down
+  echo "==> Local stack stopped."
+  exit 0
 fi
 
-echo "==> Bringing up local stack (postgres, backend, frontend)..."
-docker compose -f docker-compose.local.yml up -d --build
+if [[ ! -f "$DUMP_FILE" ]]; then
+  echo "==> No local dump found. Pulling fresh dev dump from server..."
+  bash "$SCRIPT_DIR/seed.sh"
+fi
+
+cleanup_vite
+
+echo "==> Bringing up backend stack (postgres + backend in Docker)..."
+docker compose -f docker-compose.local.yml up -d --build postgres db-seed backend
 
 echo "==> Waiting for backend healthcheck..."
 for i in {1..30}; do
-  if curl -fsS http://localhost:8890/ -o /dev/null; then
+  if curl -fsS http://localhost:8890/ -o /dev/null 2>/dev/null; then
     echo "==> Backend is up."
     break
   fi
   sleep 2
   if [[ $i -eq 30 ]]; then
-    echo "!! Backend failed to come up in 60s. Tail logs with: bash scripts/local_dev/logs.sh backend"
+    echo "!! Backend failed to come up in 60s. Run: bash scripts/local_dev/logs.sh backend"
     exit 1
   fi
 done
+
+echo "==> Starting frontend on host (Vite dev server with hot-reload)..."
+cd "$REPO_ROOT/frontend"
+nohup env \
+  NODE_OPTIONS="--max-old-space-size=4096" \
+  VITE_API_BASE=http://localhost:8890/api \
+  VITE_ALLOWED_HOSTS=localhost,127.0.0.1 \
+  ORIGIN=http://localhost:3335 \
+  npx vite dev --host 0.0.0.0 --port 3335 \
+  > "$VITE_LOG" 2>&1 &
+echo $! > "$VITE_PID_FILE"
+cd "$REPO_ROOT"
+
+sleep 3
+
+VITE_PORT=3335
+if ! curl -fsS -o /dev/null "http://localhost:$VITE_PORT/" 2>/dev/null; then
+  VITE_PORT=$(grep -oP 'Local:\s+http://localhost:\K[0-9]+' "$VITE_LOG" 2>/dev/null | tail -1 || echo "3335")
+fi
 
 cat <<EOF
 
 ============================================================
   m3tacron local stack is running
-  Frontend: http://localhost:3335
-  Backend:  http://localhost:8890  (docs at /docs)
-  Postgres: localhost:5435  (user: m3tacron / pass: m3tacron / db: m3tacron)
-  Dump age: $(stat -c %y "$DUMP_FILE" 2>/dev/null | cut -d. -f1)
+  Frontend: http://localhost:$VITE_PORT  (hot-reload via Vite)
+  Backend:  http://localhost:8890       (docs at /docs)
+  Postgres: localhost:5435              (m3tacron / m3tacron)
+  Dump age: $(stat -c %y "$DUMP_FILE" 2>/dev/null | cut -d. -f1 || echo "unknown")
 ============================================================
+  To stop: bash scripts/local_dev/up.sh --stop
+  Logs:    bash scripts/local_dev/logs.sh [backend|postgres]
 EOF
