@@ -55,12 +55,17 @@ done
 
 echo "==> Starting frontend on host (Vite dev server with hot-reload)..."
 cd "$REPO_ROOT/frontend"
+VITE_BIN="$REPO_ROOT/frontend/node_modules/.bin/vite"
+if [[ ! -x "$VITE_BIN" ]]; then
+  echo "!! vite not found. Running npm install in frontend/..."
+  (cd "$REPO_ROOT/frontend" && npm install --no-audit --no-fund)
+fi
 nohup env \
   NODE_OPTIONS="--max-old-space-size=4096" \
   VITE_API_BASE=http://localhost:8890/api \
   VITE_ALLOWED_HOSTS=localhost,127.0.0.1 \
   ORIGIN=http://localhost:3335 \
-  npx vite dev --host 0.0.0.0 --port 3335 \
+  "$VITE_BIN" dev --host 0.0.0.0 --port 3335 \
   > "$VITE_LOG" 2>&1 &
 echo $! > "$VITE_PID_FILE"
 cd "$REPO_ROOT"

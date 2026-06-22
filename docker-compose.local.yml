@@ -17,9 +17,6 @@ services:
       start_period: 5s
     restart: unless-stopped
 
-  # One-shot service: waits for Postgres, drops the public schema, restores
-  # the dev dump from ./local-data/dumps/dev_latest.dump. Exits 0 and stays
-  # up as a no-op so the dependency graph stays satisfied.
   db-seed:
     image: postgres:17-alpine
     depends_on:
@@ -58,10 +55,8 @@ services:
       - "8890:8888"
     volumes:
       - ./backend:/app/backend
-      - ${SSH_AUTH_SOCK:-/dev/null}:/ssh-agent
     environment:
       - DATABASE_URL=postgresql://m3tacron:m3tacron@postgres:5432/m3tacron
-      - SSH_AUTH_SOCK=/ssh-agent
     command: uvicorn backend.main:app --reload --reload-dir backend --host 0.0.0.0 --port 8888
     depends_on:
       postgres:
@@ -74,28 +69,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile.local
-      args:
-        - VITE_API_BASE=http://localhost:8890/api
-    ports:
-      - "3335:3333"
-    environment:
-      - ORIGIN=http://localhost:3335
-      - VITE_API_BASE=http://localhost:8890/api
-    depends_on:
-      backend:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3333/', (r) => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1));"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
     restart: unless-stopped
 
 volumes:
