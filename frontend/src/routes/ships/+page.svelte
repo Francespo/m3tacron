@@ -9,7 +9,7 @@
         getWinRateColor,
         ALL_FACTIONS,
     } from "$lib/data/factions";
-    import { goto } from "$app/navigation";
+    import { goto, invalidateAll } from "$app/navigation";
     import { page as currentPage } from "$app/state";
     import { filters } from "$lib/stores/filters.svelte";
     import { xwingData } from "$lib/stores/xwingData.svelte";
@@ -22,7 +22,11 @@
     let sortDirection = $state("desc");
     let selectedFactions = $state<string[]>([]);
     let factionOpen = $state(false);
+    let showEpic = $state(false);
     const size = 50;
+
+    // Merged ship data: all ships from xwingData + stats from API
+    let mergedShips = $state<any[]>([]);
 
     // Sync state FROM the URL so direct navigation (e.g. ?page=2) works.
     $effect(() => {
@@ -34,10 +38,58 @@
         if (urlDir) sortDirection = urlDir;
     });
 
-    // Track total from the latest promise resolution (for nextPage guard)
+    // Merge API data with xwingData when any dependency changes
     $effect(() => {
-        data.itemsPromise.then((resolved: any) => {
-            total = Number(resolved.total ?? 0);
+        // Read reactive values synchronously so $effect tracks them
+        const epic = showEpic;
+        const currentSortBy = sortBy;
+        const currentSortDir = sortDirection;
+
+        data.apiShipsPromise.then((apiShips: any[]) => {
+            const xwingShips = xwingData.data[xwingData.currentSource]?.ships;
+            if (!xwingShips) return; // xwingData not loaded yet
+
+            // Build lookup from API response
+            const apiMap = new Map<string, any>();
+            for (const s of apiShips) apiMap.set(s.xws, s);
+
+            // Start with ALL ships from xwingData
+            const merged: any[] = [];
+            for (const [xws, ship] of Object.entries(xwingShips)) {
+                // Skip epic-only (Huge) ships unless toggle is on
+                if (!epic && ship.size === "Huge") continue;
+
+                const apiData = apiMap.get(xws);
+                merged.push({
+                    xws,
+                    name: ship.name,
+                    factions: ship.factions ?? [],
+                    games_count: apiData?.games_count ?? 0,
+                    wins: apiData?.wins ?? 0,
+                    list_count: apiData?.list_count ?? 0,
+                    pilots_count: xwingData.getPilotCountByShip(xws),
+                });
+            }
+
+            // Sort
+            const reverse = currentSortDir === "desc";
+            if (currentSortBy === "Win Rate") {
+                merged.sort((a, b) => {
+                    const wrA = a.games_count > 0 ? a.wins / a.games_count : 0;
+                    const wrB = b.games_count > 0 ? b.wins / b.games_count : 0;
+                    return reverse ? wrB - wrA : wrA - wrB;
+                });
+            } else if (currentSortBy === "Name") {
+                merged.sort((a, b) => reverse ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name));
+            } else if (currentSortBy === "Games") {
+                merged.sort((a, b) => reverse ? b.games_count - a.games_count : a.games_count - b.games_count);
+            } else {
+                // Popularity = list_count
+                merged.sort((a, b) => reverse ? b.list_count - a.list_count : a.list_count - b.list_count);
+            }
+
+            mergedShips = merged;
+            total = merged.length;
         });
     });
 
@@ -166,6 +218,20 @@
             {/if}
         </div>
 
+        <!-- Epic Toggle -->
+        <div class="border-b border-border-dark mt-1">
+            <label class="flex items-center justify-between w-full py-2 cursor-pointer text-secondary hover:text-primary transition-colors">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-mono font-bold tracking-wider">Epic Ships</span>
+                </div>
+                <input
+                    type="checkbox"
+                    class="rounded border-border-dark bg-black w-4 h-4 accent-primary"
+                    bind:checked={showEpic}
+                />
+            </label>
+        </div>
+
         <ShipChassisFilter {selectedFactions} />
     </div>
 {/snippet}
@@ -189,9 +255,11 @@
                     <div class="animate-pulse bg-[#ffffff06] rounded-md h-64 border border-border-dark"></div>
                 {/each}
             </div>
-        {:then resolved}
-            {@const resolvedTotal = Number(resolved.total ?? 0)}
-            {@const shipItems = resolved.items ?? []}
+        {:then _resolved}
+            {@const resolvedTotal = mergedShips.length}
+            <!-- Client-side paginate mergedShips -->
+            {@const startIdx = (page - 1) * size}
+            {@const shipItems = mergedShips.slice(startIdx, startIdx + size)}
             <p class="text-secondary font-mono text-sm mb-6">
                 {resolvedTotal} Ships Found
             </p>
@@ -199,15 +267,14 @@
             <!-- Ships Heatmap Grid -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {#each shipItems as ship}
-                    {@const shipData = xwingData.getShip(ship.xws)}
                     {@const games = ship.games_count ?? 0}
                     {@const wins = ship.wins ?? 0}
                     {@const wr = games > 0 ? (wins / games) * 100 : 0}
                     {@const wrColor = getWinRateColor(wr)}
                     {@const lists = ship.list_count ?? 0}
-                    {@const factionKey = ship.faction_xws ?? "unknown"}
+                    {@const factionKey = ship.factions?.[0] ?? "unknown"}
                     {@const factionColor = getFactionColor(factionKey)}
-                    {@const pilotsCount = ship.pilots_count ?? xwingData.getPilotCountByShip(ship.xws)}
+                    {@const pilotsCount = ship.pilots_count ?? 0}
                     <!-- Glow intensity proportional to games (popularity) -->
                     {@const glowOpacity = Math.min(0.3, (games / 2000) * 0.3)}
 
@@ -238,7 +305,7 @@
                             <span
                                 class="text-xs font-sans font-bold text-primary text-center leading-tight"
                             >
-                                {shipData?.name || ship.xws || "Unknown Ship"}
+                                {ship.name || ship.xws || "Unknown Ship"}
                             </span>
 
                             <!-- Stats Grid (2x2) -->
