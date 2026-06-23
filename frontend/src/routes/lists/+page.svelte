@@ -9,6 +9,7 @@
         getFactionChar,
     } from "$lib/data/factions";
     import { goto } from "$app/navigation";
+    import { page as currentPage } from "$app/state";
     import { filters } from "$lib/stores/filters.svelte";
     import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
     import { xwingData } from "$lib/stores/xwingData.svelte";
@@ -24,6 +25,18 @@
 
     const size = 20;
     let total = $state(0);
+
+    // Sync state FROM the URL so direct navigation (e.g. ?page=2) works.
+    $effect(() => {
+        const urlPage = Number(currentPage.url.searchParams.get('page') ?? '0');
+        page = urlPage + 1; // URL is 0-indexed, state is 1-indexed
+        const urlSort = currentPage.url.searchParams.get('sort_metric');
+        if (urlSort) sortBy = urlSort;
+        const urlDir = currentPage.url.searchParams.get('sort_direction');
+        if (urlDir) sortDirection = urlDir;
+        const urlMinGames = currentPage.url.searchParams.get('min_games');
+        if (urlMinGames) minGames = Number(urlMinGames);
+    });
 
     // Track total from the latest promise resolution (for nextPage guard)
     $effect(() => {
@@ -57,10 +70,12 @@
         for (const c of filters.selectedCities) params.append("city", c);
         if (filters.dateStart) params.set("date_start", filters.dateStart);
         if (filters.dateEnd) params.set("date_end", filters.dateEnd);
-        goto(`?${params.toString()}`, {
+        // Skip if URL hasn't changed (prevents loop on mount)
+        const newUrl = `?${params.toString()}`;
+        if (newUrl === `?${currentPage.url.searchParams.toString()}`) return;
+        goto(newUrl, {
             keepFocus: true,
             noScroll: true,
-            replaceState: true,
         });
     });
 
