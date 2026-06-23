@@ -58,6 +58,7 @@ class UpgradeStats(BaseModel):
 class ShipStats(BaseModel):
     xws: str
     faction_xws: Faction
+    factions: list[str] = []
     games_count: int
     list_count: int
     different_lists_count: int

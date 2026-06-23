@@ -424,7 +424,7 @@ def aggregate_card_stats(
                     p
                 FROM playerstanding ps
                 JOIN tournament t ON t.id = ps.tournament_id
-                JOIN jsonb_array_elements(ps.list_json->'pilots') p ON true
+                JOIN jsonb_array_elements(ps.list_json::jsonb->'pilots') p ON true
                 WHERE {where_sql}
             ),
             upgrade_values AS (
@@ -500,9 +500,7 @@ def _finalize_results(
     """Finalize stats into a sorted list of result dicts."""
     results: list[dict] = []
     for xws_id, s_data in stats.items():
-        # Only include cards that actually appear in the aggregated data.
-        if s_data["list_count"] > 0:
-            results.append(s_data)
+        results.append(s_data)
 
     def sort_key(item):
         if sort_criteria == SortingCriteria.POPULARITY:

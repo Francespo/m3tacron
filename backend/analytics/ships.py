@@ -61,7 +61,7 @@ def aggregate_ship_stats(
     sql = text(f"""
         SELECT
             psm.ship_xws,
-            ps.list_json->>'faction' as faction,
+            array_remove(array_agg(DISTINCT ps.list_json->>'faction'), NULL) as factions,
             COUNT(DISTINCT ps.id) as list_count,
             SUM(COALESCE(ps.swiss_wins, 0) + COALESCE(ps.cut_wins, 0)) as wins,
             SUM(COALESCE(ps.swiss_wins, 0) + COALESCE(ps.swiss_losses, 0) + COALESCE(ps.swiss_draws, 0)
@@ -72,7 +72,7 @@ def aggregate_ship_stats(
         JOIN jsonb_array_elements(ps.list_json->'pilots') p ON true
         JOIN pilot_ship_mapping psm ON psm.pilot_xws = (p->>'id') AND psm.source = :source
         WHERE {where_sql}
-        GROUP BY psm.ship_xws, ps.list_json->>'faction'
+        GROUP BY psm.ship_xws
         ORDER BY games DESC
     """)
 
@@ -86,20 +86,23 @@ def aggregate_ship_stats(
     results = []
     for row in result:
         ship_xws = row[0]
-        faction = row[1] or "unknown"
+        factions = row[1] or ["unknown"]
         list_count = row[2] or 0
         wins = row[3] or 0
         games = row[4] or 0
         different_lists = row[5] or 0
 
+        # Use first faction for display, store all factions
+        primary_faction = factions[0] if factions else "unknown"
         try:
-            faction_enum = Faction.from_xws(faction)
+            faction_enum = Faction.from_xws(primary_faction)
         except (ValueError, AttributeError):
-            continue
+            faction_enum = Faction.UNKNOWN
 
         results.append({
             "xws": ship_xws,
             "faction_xws": faction_enum,
+            "factions": factions,
             "games_count": games,
             "list_count": list_count,
             "different_lists_count": different_lists,
