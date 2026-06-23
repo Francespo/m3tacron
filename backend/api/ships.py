@@ -4,6 +4,7 @@ from ..data_structures.sorting_order import SortingCriteria, SortDirection
 from ..data_structures.data_source import DataSource
 from .schemas import PaginatedShipsResponse
 from ..utils.xwing_data.ships import load_all_ships
+from ..cache import get_cached_or_compute
 
 router = APIRouter(prefix="/api/ships", tags=["Ships"])
 
@@ -17,7 +18,7 @@ def get_all_ships(data_source: str = Query("xwa")):
     results: list[dict] = []
     for xws, info in ships_data.items():
         factions_xws = [
-            f.lower().replace(" ", "") if f else "unknown" 
+            f.lower().replace(" ", "") if f else "unknown"
             for f in info.get("factions", [])
         ]
         results.append({
@@ -37,7 +38,7 @@ def get_ships(
     sort_metric: str = Query("Popularity"),
     sort_direction: str = Query("desc"),
     search: str | None = Query(None),
-    
+
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
     ships: list[str] | None = Query(None),
@@ -78,8 +79,20 @@ def get_ships(
         "player_count_max": player_count_max,
     }
 
-    data = aggregate_ship_stats(filters, criteria, s_dir, ds_enum)
+    cache_key = (
+        f"ships|{data_source}|{sort_metric}|{sort_direction}"
+        f"|{','.join(sorted(formats or []))}"
+        f"|{','.join(sorted(factions or []))}"
+        f"|{','.join(sorted(ships or []))}"
+        f"|{search or ''}"
+        f"|{page}|{size}"
+    )
+
+    def compute():
+        return aggregate_ship_stats(filters, criteria, s_dir, ds_enum)
+
+    data = get_cached_or_compute(cache_key, compute)
     total = len(data)
     items = data[page * size : (page + 1) * size]
-    
+
     return PaginatedShipsResponse(items=items, total=total, page=page, size=size)

@@ -10,7 +10,8 @@ Defines:
 import logging
 from sqlmodel import Field, Relationship, SQLModel
 from datetime import date, datetime
-from sqlalchemy import JSON, Column, String
+from sqlalchemy import JSON, Column, Computed, String
+from sqlalchemy.dialects.postgresql import JSONB
 
 from .data_structures.formats import Format
 from .data_structures.source import Source
@@ -87,7 +88,20 @@ class PlayerStanding(SQLModel, table=True):
     cut_draws: int | None = Field(default=None)
     cut_event_points: int | None = Field(default=None)
     cut_tie_breaker_points: int | None = Field(default=None)
-    list_json: dict = Field(default={}, sa_column=Column(JSON))
+    list_json: dict = Field(default={}, sa_column=Column(JSONB))
+    # Generated column: lower(replace(replace(list_json->>'faction', ' ', ''), '-', ''))
+    # Mirrors the SQL GENERATED ALWAYS AS expression. Marked nullable since list_json
+    # may lack a 'faction' key, in which case the column will be NULL.
+    faction_xws_normalized: str | None = Field(
+        default=None,
+        sa_column=Column(
+            String,
+            Computed(
+                "lower(replace(replace(list_json->>'faction', ' ', ''), '-', ''))",
+                persisted=True,
+            ),
+        ),
+    )
 
     tournament: Tournament | None = Relationship(back_populates="standings")
     team: TeamStanding | None = Relationship(
@@ -137,6 +151,18 @@ class TeamMatch(SQLModel, table=True):
 
     winner_id: int | None = Field(default=None)  # -1 if draw
     is_bye: bool = Field(default=False)
+
+
+class ScrapeMeta(SQLModel, table=True):
+    """
+    Key/value store for incremental scrape state (e.g. data_version).
+
+    Populated by `backend/scripts/migrate_performance.sql` for existing
+    databases. `SQLModel.metadata.create_all` (in `database.create_db_and_tables`)
+    will create it automatically for new installations.
+    """
+    key: str = Field(primary_key=True)
+    value: str
 
 
 class Supporter(SQLModel, table=True):

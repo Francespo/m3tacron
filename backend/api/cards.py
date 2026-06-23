@@ -3,6 +3,7 @@ from ..analytics.core import aggregate_card_stats
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
 from ..data_structures.data_source import DataSource
 from .schemas import PaginatedPilotsResponse, PaginatedUpgradesResponse
+from ..cache import get_cached_or_compute
 
 router = APIRouter(prefix="/api/cards", tags=["Cards"])
 
@@ -153,10 +154,38 @@ def get_pilots(
         player_count_min=player_count_min, player_count_max=player_count_max
     )
 
-    data = aggregate_card_stats(filters, criteria, s_dir, "pilots", ds_enum)
+    cache_key = (
+        f"cards_pilots|{data_source}|{sort_metric}|{sort_direction}"
+        f"|{','.join(sorted(formats or []))}"
+        f"|{','.join(sorted(factions or []))}"
+        f"|{','.join(sorted(ships or []))}"
+        f"|{','.join(sorted(str(i) for i in (initiatives or [])))}"
+        f"|{search_text or ''}"
+        f"|{points_min}|{points_max}"
+        f"|{loadout_min}|{loadout_max}"
+        f"|{hull_min}|{hull_max}"
+        f"|{shields_min}|{shields_max}"
+        f"|{agility_min}|{agility_max}"
+        f"|{attack_min}|{attack_max}"
+        f"|{init_min}|{init_max}"
+        f"|{is_unique}|{is_limited}|{is_not_limited}"
+        f"|{','.join(sorted(base_sizes or []))}"
+        f"|{','.join(sorted(platforms or []))}"
+        f"|{','.join(sorted(continent or []))}"
+        f"|{','.join(sorted(country or []))}"
+        f"|{','.join(sorted(city or []))}"
+        f"|{date_start or ''}|{date_end or ''}"
+        f"|{player_count_min}|{player_count_max}"
+        f"|{page}|{size}"
+    )
+
+    def compute():
+        return aggregate_card_stats(filters, criteria, s_dir, "pilots", ds_enum)
+
+    data = get_cached_or_compute(cache_key, compute)
     total = len(data)
     items = data[page * size : (page + 1) * size]
-    
+
     return PaginatedPilotsResponse(items=items, total=total, page=page, size=size)
 
 
@@ -206,8 +235,27 @@ def get_upgrades(
         player_count_min=player_count_min, player_count_max=player_count_max
     )
 
-    data = aggregate_card_stats(filters, criteria, s_dir, "upgrades", ds_enum)
+    cache_key = (
+        f"cards_upgrades|{data_source}|{sort_metric}|{sort_direction}"
+        f"|{','.join(sorted(formats or []))}"
+        f"|{','.join(sorted(factions or []))}"
+        f"|{','.join(sorted(upgrade_types or []))}"
+        f"|{search_text or ''}"
+        f"|{points_min}|{points_max}"
+        f"|{','.join(sorted(platforms or []))}"
+        f"|{','.join(sorted(continent or []))}"
+        f"|{','.join(sorted(country or []))}"
+        f"|{','.join(sorted(city or []))}"
+        f"|{date_start or ''}|{date_end or ''}"
+        f"|{player_count_min}|{player_count_max}"
+        f"|{page}|{size}"
+    )
+
+    def compute():
+        return aggregate_card_stats(filters, criteria, s_dir, "upgrades", ds_enum)
+
+    data = get_cached_or_compute(cache_key, compute)
     total = len(data)
     items = data[page * size : (page + 1) * size]
-    
+
     return PaginatedUpgradesResponse(items=items, total=total, page=page, size=size)

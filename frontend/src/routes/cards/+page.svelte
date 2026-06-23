@@ -26,11 +26,17 @@
     let factionOpen = $state(false);
     const size = 20;
 
-    let items = $derived(data.items ?? []);
-    let total = $derived(data.total ?? 0);
+    let total = $state(0);
     let isXwa = $derived(filters.dataSource === "xwa");
 
     let isAdvanced = $state(false);
+
+    // Track total from the latest promise resolution (for nextPage guard)
+    $effect(() => {
+        data.itemsPromise.then((resolved: any) => {
+            total = Number(resolved.total ?? 0);
+        });
+    });
 
     // Let URL load logic handle the tab, we will drive updates
     $effect(() => {
@@ -282,41 +288,57 @@
         </div>
 
         <!-- Card Grid -->
-        <div
-            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6"
-        >
-            {#each items as card}
-                <a
-                    href={`/${data.tab === "pilots" ? "pilot" : "upgrade"}/${card.xws}`}
-                    class="block h-full group"
-                >
-                    {#if data.tab === "pilots"}
-                        <PilotCard pilot={card} />
-                    {:else}
-                        <UpgradeCard upgrade={card} />
-                    {/if}
-                </a>
-            {/each}
-        </div>
-
-        <!-- Pagination -->
-        {#if total > size}
+        {#await data.itemsPromise}
             <div
-                class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
+                class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6"
             >
-                <button
-                    class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
-                    onclick={prevPage}
-                    disabled={page <= 1}>← Prev</button
-                >
-                <span class="text-xs font-mono text-secondary">Page {page}</span
-                >
-                <button
-                    class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
-                    onclick={nextPage}
-                    disabled={page * size >= total}>Next →</button
-                >
+                {#each Array(6) as _}
+                    <div class="animate-pulse bg-[#ffffff06] rounded-md h-48 border border-border-dark"></div>
+                {/each}
             </div>
-        {/if}
+        {:then resolved}
+            {@const resolvedTotal = Number(resolved.total ?? 0)}
+            {@const cardItems = resolved.items ?? []}
+            <div
+                class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6"
+            >
+                {#each cardItems as card}
+                    <a
+                        href={`/${data.tab === "pilots" ? "pilot" : "upgrade"}/${card.xws}`}
+                        class="block h-full group"
+                    >
+                        {#if data.tab === "pilots"}
+                            <PilotCard pilot={card} />
+                        {:else}
+                            <UpgradeCard upgrade={card} />
+                        {/if}
+                    </a>
+                {/each}
+            </div>
+
+            <!-- Pagination -->
+            {#if resolvedTotal > size}
+                <div
+                    class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
+                >
+                    <button
+                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                        onclick={prevPage}
+                        disabled={page <= 1}>← Prev</button
+                    >
+                    <span class="text-xs font-mono text-secondary">Page {page}</span
+                    >
+                    <button
+                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                        onclick={nextPage}
+                        disabled={page * size >= resolvedTotal}>Next →</button
+                    >
+                </div>
+            {/if}
+        {:catch error}
+            <p class="text-red-400 font-mono text-sm">
+                Failed to load cards: {error.message}
+            </p>
+        {/await}
     </main>
 </div>

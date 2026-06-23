@@ -9,6 +9,24 @@ services:
       - "5435:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    command: >
+      postgres
+        -c shared_buffers=256MB
+        -c effective_cache_size=2GB
+        -c work_mem=4MB
+        -c maintenance_work_mem=128MB
+        -c max_connections=20
+        -c statement_timeout=60000
+        -c log_min_duration_statement=2000
+        -c log_temp_files=0
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
+          pids: 128
+        reservations:
+          memory: 256M
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U m3tacron -d m3tacron"]
       interval: 5s
@@ -38,11 +56,22 @@ services:
       else
         echo '[db-seed] WARN: no /seed/dev_latest.dump found, starting with empty DB' ;
       fi ;
+      echo '[db-seed] applying performance migration...' ;
+      psql -h postgres -U m3tacron -d m3tacron -f /migrations/migrate_performance.sql || echo '[db-seed] migration script not found or failed (non-fatal)' ;
       echo '[db-seed] done' ;
       tail -f /dev/null
       "
     volumes:
       - ./local-data/dumps:/seed:ro
+      - ./backend/scripts/migrate_performance.sql:/migrations/migrate_performance.sql:ro
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+          pids: 64
+        reservations:
+          memory: 64M
     restart: "no"
 
   backend:
@@ -55,9 +84,24 @@ services:
       - "8890:8888"
     volumes:
       - ./backend:/app/backend
+      - ./external_data:/app/external_data:ro
     environment:
       - DATABASE_URL=postgresql://m3tacron:m3tacron@postgres:5432/m3tacron
-    command: uvicorn backend.main:app --reload --reload-dir backend --host 0.0.0.0 --port 8888
+    command: >
+      uvicorn backend.main:app
+        --workers 1
+        --host 0.0.0.0
+        --port 8888
+        --timeout-keep-alive 120
+        --backlog 2048
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+          pids: 128
+        reservations:
+          memory: 128M
     depends_on:
       postgres:
         condition: service_healthy

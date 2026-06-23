@@ -15,14 +15,20 @@
 
     let { data } = $props();
 
-    let items = $derived(data.items ?? []);
-    let total = $derived(data.total ?? 0);
+    let total = $state(0);
     let page = $state(1);
     let sortBy = $state("Popularity");
     let sortDirection = $state("desc");
     let selectedFactions = $state<string[]>([]);
     let factionOpen = $state(false);
     const size = 50;
+
+    // Track total from the latest promise resolution (for nextPage guard)
+    $effect(() => {
+        data.itemsPromise.then((resolved: any) => {
+            total = Number(resolved.total ?? 0);
+        });
+    });
 
     // Trigger URL updates on filter changes
     $effect(() => {
@@ -159,131 +165,151 @@
 
     <main class="flex-1 p-6 md:p-8">
         <h1 class="text-2xl font-sans font-bold text-primary mb-1">Ships</h1>
-        <p class="text-secondary font-mono text-sm mb-6">{total} Ships Found</p>
 
-        <!-- Ships Heatmap Grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {#each items as ship}
-                {@const shipData = xwingData.getShip(ship.xws)}
-                {@const games = ship.games_count ?? 0}
-                {@const wins = ship.wins ?? 0}
-                {@const wr = games > 0 ? (wins / games) * 100 : 0}
-                {@const wrColor = getWinRateColor(wr)}
-                {@const lists = ship.list_count ?? 0}
-                {@const factionKey = ship.faction_xws ?? "unknown"}
-                {@const factionColor = getFactionColor(factionKey)}
-                {@const pilotsCount = ship.pilots_count ?? xwingData.getPilotCountByShip(ship.xws)}
-                <!-- Glow intensity proportional to games (popularity) -->
-                {@const glowOpacity = Math.min(0.3, (games / 2000) * 0.3)}
+        {#await data.itemsPromise}
+            <p class="text-secondary font-mono text-sm mb-6">Loading...</p>
 
-                <a href="/ship/{ship.xws}" class="block group">
-                    <div
-                        class="relative bg-terminal-panel border border-border-dark rounded-md p-4 flex flex-col items-center gap-2 hover:border-secondary/50 group-hover:scale-[1.03] group-hover:-translate-y-1 transition-all duration-200"
-                        style="box-shadow: 0 0 20px {factionColor}{Math.round(
-                            glowOpacity * 255,
-                        )
-                            .toString(16)
-                            .padStart(2, '0')}; border-color: {factionColor}30;"
-                    >
-                        <!-- Faction icon (small, top-right) -->
-                        <span
-                            class="absolute top-2 right-2 font-xwing text-sm opacity-50"
-                            style="color: {factionColor};"
+            <!-- Loading Skeleton -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {#each Array(6) as _}
+                    <div class="animate-pulse bg-[#ffffff06] rounded-md h-64 border border-border-dark"></div>
+                {/each}
+            </div>
+        {:then resolved}
+            {@const resolvedTotal = Number(resolved.total ?? 0)}
+            {@const shipItems = resolved.items ?? []}
+            <p class="text-secondary font-mono text-sm mb-6">
+                {resolvedTotal} Ships Found
+            </p>
+
+            <!-- Ships Heatmap Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {#each shipItems as ship}
+                    {@const shipData = xwingData.getShip(ship.xws)}
+                    {@const games = ship.games_count ?? 0}
+                    {@const wins = ship.wins ?? 0}
+                    {@const wr = games > 0 ? (wins / games) * 100 : 0}
+                    {@const wrColor = getWinRateColor(wr)}
+                    {@const lists = ship.list_count ?? 0}
+                    {@const factionKey = ship.faction_xws ?? "unknown"}
+                    {@const factionColor = getFactionColor(factionKey)}
+                    {@const pilotsCount = ship.pilots_count ?? xwingData.getPilotCountByShip(ship.xws)}
+                    <!-- Glow intensity proportional to games (popularity) -->
+                    {@const glowOpacity = Math.min(0.3, (games / 2000) * 0.3)}
+
+                    <a href="/ship/{ship.xws}" class="block group">
+                        <div
+                            class="relative bg-terminal-panel border border-border-dark rounded-md p-4 flex flex-col items-center gap-2 hover:border-secondary/50 group-hover:scale-[1.03] group-hover:-translate-y-1 transition-all duration-200"
+                            style="box-shadow: 0 0 20px {factionColor}{Math.round(
+                                glowOpacity * 255,
+                            )
+                                .toString(16)
+                                .padStart(2, '0')}; border-color: {factionColor}30;"
                         >
-                            {getFactionChar(factionKey)}
-                        </span>
+                            <!-- Faction icon (small, top-right) -->
+                            <span
+                                class="absolute top-2 right-2 font-xwing text-sm opacity-50"
+                                style="color: {factionColor};"
+                            >
+                                {getFactionChar(factionKey)}
+                            </span>
 
-                        <!-- Ship Icon (from X-Wing ship font via CSS pseudo-element) -->
-                        <i
-                            class="xwing-miniatures-ship xwing-miniatures-ship-{ship.xws ? ship.xws.replace(/[^a-z0-9]/g, '') : ''} transition-transform"
-                            style="color: {factionColor}; opacity: 0.9; font-size: 10rem; line-height: 1;"
-                        ></i>
+                            <!-- Ship Icon (from X-Wing ship font via CSS pseudo-element) -->
+                            <i
+                                class="xwing-miniatures-ship xwing-miniatures-ship-{ship.xws ? ship.xws.replace(/[^a-z0-9]/g, '') : ''} transition-transform"
+                                style="color: {factionColor}; opacity: 0.9; font-size: 10rem; line-height: 1;"
+                            ></i>
 
-                        <!-- Ship Name -->
-                        <span
-                            class="text-xs font-sans font-bold text-primary text-center leading-tight"
-                        >
-                            {shipData?.name || ship.xws || "Unknown Ship"}
-                        </span>
+                            <!-- Ship Name -->
+                            <span
+                                class="text-xs font-sans font-bold text-primary text-center leading-tight"
+                            >
+                                {shipData?.name || ship.xws || "Unknown Ship"}
+                            </span>
 
-                        <!-- Stats Grid (2x2) -->
-                        <div class="grid grid-cols-2 gap-1 w-full">
-                            <div
-                                class="text-center bg-[#ffffff05] rounded px-1 py-0.5"
-                            >
-                                <span
-                                    class="text-xs font-mono font-bold"
-                                    style="color: {wrColor};"
-                                    >{games === 0
-                                        ? "NA"
-                                        : Number(wr).toFixed(1) + "%"}</span
+                            <!-- Stats Grid (2x2) -->
+                            <div class="grid grid-cols-2 gap-1 w-full">
+                                <div
+                                    class="text-center bg-[#ffffff05] rounded px-1 py-0.5"
                                 >
-                                <span
-                                    class="text-[9px] font-mono text-secondary block"
-                                    >WR</span
+                                    <span
+                                        class="text-xs font-mono font-bold"
+                                        style="color: {wrColor};"
+                                        >{games === 0
+                                            ? "NA"
+                                            : Number(wr).toFixed(1) + "%"}</span
+                                    >
+                                    <span
+                                        class="text-[9px] font-mono text-secondary block"
+                                        >WR</span
+                                    >
+                                </div>
+                                <div
+                                    class="text-center bg-[#ffffff05] rounded px-1 py-0.5"
                                 >
-                            </div>
-                            <div
-                                class="text-center bg-[#ffffff05] rounded px-1 py-0.5"
-                            >
-                                <span class="text-xs font-mono text-primary"
-                                    >{games}</span
+                                    <span class="text-xs font-mono text-primary"
+                                        >{games}</span
+                                    >
+                                    <span
+                                        class="text-[9px] font-mono text-secondary block"
+                                        >Games</span
+                                    >
+                                </div>
+                                <div
+                                    class="text-center bg-[#ffffff05] rounded px-1 py-0.5"
                                 >
-                                <span
-                                    class="text-[9px] font-mono text-secondary block"
-                                    >Games</span
+                                    <span class="text-xs font-mono text-primary"
+                                        >{lists}</span
+                                    >
+                                    <span
+                                        class="text-[9px] font-mono text-secondary block"
+                                        >Lists</span
+                                    >
+                                </div>
+                                <div
+                                    class="text-center bg-[#ffffff05] rounded px-1 py-0.5"
                                 >
-                            </div>
-                            <div
-                                class="text-center bg-[#ffffff05] rounded px-1 py-0.5"
-                            >
-                                <span class="text-xs font-mono text-primary"
-                                    >{lists}</span
-                                >
-                                <span
-                                    class="text-[9px] font-mono text-secondary block"
-                                    >Lists</span
-                                >
-                            </div>
-                            <div
-                                class="text-center bg-[#ffffff05] rounded px-1 py-0.5"
-                            >
-                                <span class="text-xs font-mono text-primary"
-                                    >{pilotsCount}</span
-                                >
-                                <span
-                                    class="text-[9px] font-mono text-secondary block"
-                                    >Pilots</span
-                                >
+                                    <span class="text-xs font-mono text-primary"
+                                        >{pilotsCount}</span
+                                    >
+                                    <span
+                                        class="text-[9px] font-mono text-secondary block"
+                                        >Pilots</span
+                                    >
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </a>
-            {/each}
-        </div>
-
-        <!-- Pagination -->
-        {#if total > size}
-            <div
-                class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
-            >
-                <button
-                    class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
-                    onclick={prevPage}
-                    disabled={page <= 1}
-                >
-                    ← Prev
-                </button>
-                <span class="text-xs font-mono text-secondary">Page {page}</span
-                >
-                <button
-                    class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
-                    onclick={nextPage}
-                    disabled={page * size >= total}
-                >
-                    Next →
-                </button>
+                    </a>
+                {/each}
             </div>
-        {/if}
+
+            <!-- Pagination -->
+            {#if resolvedTotal > size}
+                <div
+                    class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
+                >
+                    <button
+                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                        onclick={prevPage}
+                        disabled={page <= 1}
+                    >
+                        ← Prev
+                    </button>
+                    <span class="text-xs font-mono text-secondary">Page {page}</span
+                    >
+                    <button
+                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                        onclick={nextPage}
+                        disabled={page * size >= resolvedTotal}
+                    >
+                        Next →
+                    </button>
+                </div>
+            {/if}
+        {:catch error}
+            <p class="text-red-400 font-mono text-sm mb-6">
+                Failed to load ships: {error.message}
+            </p>
+        {/await}
     </main>
 </div>

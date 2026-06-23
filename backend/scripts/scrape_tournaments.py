@@ -38,7 +38,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
 from urllib.parse import urlparse
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlmodel import Session, create_engine, select
 
 from ..database import engine, create_db_and_tables
@@ -1032,6 +1032,14 @@ def main() -> int:
             logger.error(f"Failed to write SQLite artifact: {exc}")
     elif args.sqlite_output and not all_saved_items:
         logger.info("No new tournaments saved; skipping SQLite artifact.")
+
+    # Bump data_version to invalidate API cache
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("UPDATE scrape_meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'data_version'"))
+        print("[cache] data_version bumped — API cache will invalidate on next check")
+    except Exception as e:
+        print(f"[cache] WARNING: Could not bump data_version: {e}")
 
     return 0
 

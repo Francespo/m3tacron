@@ -22,8 +22,14 @@
     let factionOpen = $state(false);
 
     const size = 20;
-    let items = $derived(data.items ?? []);
-    let total = $derived(data.total ?? 0);
+    let total = $state(0);
+
+    // Track total from the latest promise resolution (for nextPage guard)
+    $effect(() => {
+        data.itemsPromise.then((resolved: any) => {
+            total = Number(resolved.total ?? 0);
+        });
+    });
 
     // Re-fetch when filters change (URL synchronization)
     $effect(() => {
@@ -152,39 +158,57 @@
         <h1 class="text-[32px] font-sans font-bold text-primary mb-1">
             Squadrons
         </h1>
-        <p class="text-secondary font-mono text-sm mb-6">
-            {total} UNIQUE SQUADRONS
-        </p>
 
-        <!-- Squadron Cards -->
-        <div class="space-y-3">
-            {#each items as list}
-                <SquadronRowCard {list} />
-            {/each}
-        </div>
+        {#await data.itemsPromise}
+            <p class="text-secondary font-mono text-sm mb-6">Loading...</p>
 
-        <!-- Pagination -->
-        {#if total > size}
-            <div
-                class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
-            >
-                <button
-                    class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
-                    onclick={prevPage}
-                    disabled={page <= 1}
-                >
-                    ← Prev
-                </button>
-                <span class="text-xs font-mono text-secondary">Page {page}</span
-                >
-                <button
-                    class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
-                    onclick={nextPage}
-                    disabled={page * size >= total}
-                >
-                    Next →
-                </button>
+            <!-- Loading Skeleton -->
+            <div class="space-y-3">
+                {#each Array(5) as _}
+                    <div class="animate-pulse bg-[#ffffff06] rounded-lg h-24 border border-border-dark"></div>
+                {/each}
             </div>
-        {/if}
+        {:then resolved}
+            {@const resolvedTotal = Number(resolved.total ?? 0)}
+            {@const squadronItems = resolved.items ?? []}
+            <p class="text-secondary font-mono text-sm mb-6">
+                {resolvedTotal} UNIQUE SQUADRONS
+            </p>
+
+            <!-- Squadron Cards -->
+            <div class="space-y-3">
+                {#each squadronItems as list}
+                    <SquadronRowCard {list} />
+                {/each}
+            </div>
+
+            <!-- Pagination -->
+            {#if resolvedTotal > size}
+                <div
+                    class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
+                >
+                    <button
+                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                        onclick={prevPage}
+                        disabled={page <= 1}
+                    >
+                        ← Prev
+                    </button>
+                    <span class="text-xs font-mono text-secondary">Page {page}</span
+                    >
+                    <button
+                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                        onclick={nextPage}
+                        disabled={page * size >= resolvedTotal}
+                    >
+                        Next →
+                    </button>
+                </div>
+            {/if}
+        {:catch error}
+            <p class="text-red-400 font-mono text-sm mb-6">
+                Failed to load squadrons: {error.message}
+            </p>
+        {/await}
     </main>
 </div>

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Query
 from ..analytics.lists import aggregate_list_stats
+from ..cache import get_cached_or_compute
 from ..data_structures.data_source import DataSource
 from ..data_structures.factions import Faction
 from .schemas import PaginatedListsResponse
@@ -53,44 +54,68 @@ def get_lists(
         "player_count_min": player_count_min,
         "player_count_max": player_count_max,
         "ships": ships,
+        "factions": factions,
     }
     if formats:
         filters["allowed_formats"] = formats
-        
-    # Get raw data (already ListData compatible dicts)
-    raw_data = aggregate_list_stats(filters, limit=2000, data_source=ds_enum)
-    
-    filtered_data = []
-    for row in raw_data:
-        points = row.get("points") or 0
 
-        # Faction check
-        if factions and not _match_faction(row["faction_xws"], factions):
-            continue
-            
-        if row["games"] < min_games:
-            continue
-        if points < points_min or points > points_max:
-            continue
+    # Build a cache key from all filter params + sort/pagination.
+    # The expensive part is aggregate_list_stats + the Python post-filter;
+    # caching the result of both means most requests are O(<50ms).
+    cache_key = (
+        f"lists|{data_source}|"
+        f"f={','.join(sorted(formats or []))}|"
+        f"fa={','.join(sorted(factions or []))}|"
+        f"s={','.join(sorted(ships or []))}|"
+        f"p={','.join(sorted(platforms or []))}|"
+        f"co={','.join(sorted(continent or []))}|"
+        f"cn={','.join(sorted(country or []))}|"
+        f"ci={','.join(sorted(city or []))}|"
+        f"ds={date_start}|de={date_end}|"
+        f"pcmin={player_count_min}|pcmax={player_count_max}|"
+        f"mg={min_games}|pmin={points_min}|pmax={points_max}|"
+        f"sm={sort_metric}|sd={sort_direction}|"
+        f"pg={page}|sz={size}"
+    )
 
-        row["points"] = points
-        filtered_data.append(row)
-        
-    reverse = sort_direction == "desc"
-    
-    def get_win_rate(r):
-        return r["wins"] / r["games"] if r["games"] > 0 else 0.0
+    def compute():
+        # Get raw aggregated data (SQL GROUP BY -> ~2K rows max).
+        raw_data = aggregate_list_stats(filters, limit=2000, data_source=ds_enum)
 
-    if sort_metric == "Win Rate":
-        filtered_data.sort(key=get_win_rate, reverse=reverse)
-    elif sort_metric == "Points Cost":
-        filtered_data.sort(key=lambda x: x["points"], reverse=reverse)
-    else: 
-        filtered_data.sort(key=lambda x: x["games"], reverse=reverse)
-        
+        filtered_data: list[dict] = []
+        for row in raw_data:
+            points = row.get("points") or 0
+
+            # Faction check
+            if factions and not _match_faction(row["faction_xws"], factions):
+                continue
+
+            if row["games"] < min_games:
+                continue
+            if points < points_min or points > points_max:
+                continue
+
+            row["points"] = points
+            filtered_data.append(row)
+
+        reverse = sort_direction == "desc"
+
+        def get_win_rate(r):
+            return r["wins"] / r["games"] if r["games"] > 0 else 0.0
+
+        if sort_metric == "Win Rate":
+            filtered_data.sort(key=get_win_rate, reverse=reverse)
+        elif sort_metric == "Points Cost":
+            filtered_data.sort(key=lambda x: x["points"], reverse=reverse)
+        else:
+            filtered_data.sort(key=lambda x: x["games"], reverse=reverse)
+
+        return filtered_data
+
+    filtered_data = get_cached_or_compute(cache_key, compute)
     total = len(filtered_data)
     items = filtered_data[page * size : (page + 1) * size]
-    
+
     # Enrichment removed as ListData is structural-data only, and stats are populated.
-    
+
     return PaginatedListsResponse(items=items, total=total, page=page, size=size)
