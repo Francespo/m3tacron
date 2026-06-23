@@ -68,6 +68,23 @@ class TeamStanding(SQLModel, table=True):
         back_populates="team_standings")
 
 
+class List(SQLModel, table=True):
+    """
+    Deduplicated squad list. One row per unique canonical signature.
+    Referenced by PlayerStanding.list_id.
+    """
+    id: int | None = Field(default=None, primary_key=True)
+    canonical_signature: str = Field(unique=True, index=False)  # UNIQUE creates implicit index
+    faction: str
+    faction_xws_normalized: str  # denormalized for fast WHERE filtering
+    name: str | None = None
+    points: int | None = None
+    pilot_count: int | None = None
+    ship_list: str  # sorted comma-joined: "btla4ywing,t65xwing,t65xwing"
+    list_json: dict = Field(sa_column=Column(JSONB))
+    created_at: datetime | None = Field(default=None)
+
+
 class PlayerStanding(SQLModel, table=True):
     """
     A player's performance in a tournament.
@@ -89,6 +106,7 @@ class PlayerStanding(SQLModel, table=True):
     cut_event_points: int | None = Field(default=None)
     cut_tie_breaker_points: int | None = Field(default=None)
     list_json: dict = Field(default={}, sa_column=Column(JSONB))
+    list_id: int | None = Field(default=None, foreign_key="list.id", index=True)
     # Generated column: lower(replace(replace(list_json->>'faction', ' ', ''), '-', ''))
     # Mirrors the SQL GENERATED ALWAYS AS expression. Marked nullable since list_json
     # may lack a 'faction' key, in which case the column will be NULL.

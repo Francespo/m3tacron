@@ -1,5 +1,9 @@
 """
 Squadron Analytics - Aggregation Logic for Squadron (Ship Composition).
+
+Uses the normalized `list` table for fast ship-composition grouping.
+GROUP BY list.ship_list (sorted comma-joined ship names) replaces the
+old Python re-grouping that iterated every list_json.
 """
 from sqlmodel import Session
 from sqlalchemy import text
@@ -7,7 +11,6 @@ from sqlalchemy import text
 from ..database import engine
 from ..data_structures.data_source import DataSource
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
-from ..utils.xwing_data.pilots import load_all_pilots
 
 
 def aggregate_squadron_stats(
@@ -19,12 +22,9 @@ def aggregate_squadron_stats(
     """
     Aggregate statistics for squadrons (combinations of ship chassis).
 
-    Uses SQL GROUP BY over the full list_json to avoid loading all
-    PlayerStanding rows into Python. Ship resolution happens in Python
-    on the much smaller grouped result set, since the squadron signature
-    is just the sorted ship list.
+    Joins on the normalized list table — ship composition is already
+    pre-computed as list.ship_list, so no Python re-grouping is needed.
     """
-    # Build WHERE clauses
     where_clauses = []
     params: dict = {}
 
@@ -55,106 +55,77 @@ def aggregate_squadron_stats(
     facs = filters.get("factions")
     if facs:
         normalized = [f.lower().replace(" ", "").replace("-", "") for f in facs]
-        where_clauses.append("ps.faction_xws_normalized = ANY(:factions)")
+        where_clauses.append("l.faction_xws_normalized = ANY(:factions)")
         params["factions"] = normalized
 
+    # Ship filter — use list.ship_list (comma-joined) for fast filter
     if filters.get("ships"):
-        where_clauses.append(
-            "EXISTS (SELECT 1 FROM jsonb_array_elements(ps.list_json->'pilots') p "
-            "WHERE p->>'ship' = ANY(:ships))"
-        )
-        params["ships"] = list(filters["ships"])
+        ships = list(filters["ships"])
+        # Filter lists that contain any of the specified ships.
+        # ship_list is comma-joined sorted, so we need an OR over each ship.
+        ship_or_parts = []
+        for s in ships:
+            # Match ship at start, middle, or end of the comma-joined list
+            ship_or_parts.append(
+                "(l.ship_list = :ship_" + s.replace('-', '_') +
+                " OR l.ship_list LIKE :ship_" + s.replace('-', '_') + "_start"
+                " OR l.ship_list LIKE :ship_" + s.replace('-', '_') + "_mid"
+                " OR l.ship_list LIKE :ship_" + s.replace('-', '_') + "_end)"
+            )
+            params[f"ship_{s.replace('-', '_')}"] = s
+            params[f"ship_{s.replace('-', '_')}_start"] = f"{s},%"
+            params[f"ship_{s.replace('-', '_')}_mid"] = f"%,{s},%"
+            params[f"ship_{s.replace('-', '_')}_end"] = f"%,{s}"
+        where_clauses.append("(" + " OR ".join(ship_or_parts) + ")")
 
     where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
+    # GROUP BY ship_list — no Python post-processing needed
     sql = text(
         f"""
         SELECT
-            ps.list_json->>'faction' as faction,
-            md5(ps.list_json::text) as list_hash,
+            l.faction as faction,
+            l.ship_list as ship_list,
             COUNT(*) as games,
             SUM(COALESCE(ps.swiss_wins, 0) + COALESCE(ps.cut_wins, 0)) as wins,
-            (array_agg(ps.list_json))[1] as sample_list
+            COUNT(DISTINCT ps.id) as popularity
         FROM playerstanding ps
         JOIN tournament t ON t.id = ps.tournament_id
+        JOIN list l ON l.id = ps.list_id
         WHERE {where_sql}
-        GROUP BY ps.list_json->>'faction', list_hash
-        ORDER BY games DESC
+        GROUP BY l.faction, l.ship_list
         """
     )
 
     with Session(engine) as session:
-        result = session.execute(sql, params).fetchall()
+        rows = session.execute(sql, params).fetchall()
 
-    # Pre-load pilot data for ship resolution. lru_cached, so this is cheap.
-    all_pilots = load_all_pilots(data_source)
-
-    # Phase 2: Extract ship compositions and aggregate into squadron buckets.
-    # Note: we have to re-derive "games" here (the SQL query counts *rows*,
-    # not actual games played by the player), so the original semantics from
-    # the Python implementation are preserved.
-    squadron_stats: dict[str, dict] = {}
-
-    for row in result:
-        faction = row[0] or "unknown"
-        games_count = row[2] or 0
-        wins_count = row[3] or 0
-        xws = row[4]
-
-        if not xws or not isinstance(xws, dict):
-            continue
-
-        pilots = xws.get("pilots", [])
-        if not pilots:
-            continue
-
-        # Resolve ships from pilot ids.
-        ships = []
-        for p in pilots:
-            pid = p.get("id") or p.get("name")
-            if pid and pid in all_pilots:
-                s_xws = all_pilots[pid].get("ship_xws") or "unknown"
-            else:
-                # Fall back to the ship key on the pilot if the pilot is unknown.
-                s_xws = p.get("ship") or "unknown"
-            ships.append(s_xws)
-
-        ships.sort()
-        signature = ", ".join(ships)
-
-        if signature in squadron_stats:
-            s = squadron_stats[signature]
-            s["wins"] += wins_count
-            s["games"] += games_count
-            s["count"] += 1
-        else:
-            squadron_stats[signature] = {
-                "faction": faction,
-                "signature": signature,
-                "wins": wins_count,
-                "games": games_count,
-                "count": 1,
-                "ships": ships,
-            }
-
+    # Build result list directly from SQL — no Python re-grouping
     results = []
-    for data in squadron_stats.values():
-        win_rate = (
-            round((data["wins"] / data["games"]) * 100, 1) if data["games"] > 0 else 0.0
-        )
-        results.append(
-            {
-                "signature": data["signature"],
-                "faction": data["faction"],
-                "win_rate": win_rate,
-                "popularity": data["count"],
-                "games": data["games"],
-                "wins": data["wins"],
-                "count": data["count"],
-                "ships": data["ships"],
-            }
-        )
+    for row in rows:
+        faction = row[0] or "unknown"
+        ship_list_str = row[1] or ""
+        games_count = int(row[2] or 0)
+        wins_count = int(row[3] or 0)
+        popularity = int(row[4] or 0)
+        ships = ship_list_str.split(",") if ship_list_str else []
+        win_rate = round((wins_count / games_count) * 100, 1) if games_count > 0 else 0.0
+        results.append({
+            "signature": ", ".join(ships),
+            "faction": faction,
+            "win_rate": win_rate,
+            "popularity": popularity,
+            "games": games_count,
+            "wins": wins_count,
+            "count": popularity,
+            "ships": ships,
+        })
 
-    # Defaults to sorting by games desc (matches previous behavior).
-    results.sort(key=lambda x: x["games"], reverse=True)
+    # Sort (default: games desc)
+    reverse = sort_direction == SortDirection.DESCENDING
+    if sort_metric == SortingCriteria.WINRATE:
+        results.sort(key=lambda x: x["win_rate"], reverse=reverse)
+    else:
+        results.sort(key=lambda x: x["games"], reverse=reverse)
+
     return results

@@ -61,15 +61,16 @@ def aggregate_ship_stats(
     sql = text(f"""
         SELECT
             psm.ship_xws,
-            array_remove(array_agg(DISTINCT ps.list_json->>'faction'), NULL) as factions,
+            array_remove(array_agg(DISTINCT l.faction), NULL) as factions,
             COUNT(DISTINCT ps.id) as list_count,
             SUM(COALESCE(ps.swiss_wins, 0) + COALESCE(ps.cut_wins, 0)) as wins,
             SUM(COALESCE(ps.swiss_wins, 0) + COALESCE(ps.swiss_losses, 0) + COALESCE(ps.swiss_draws, 0)
                 + COALESCE(ps.cut_wins, 0) + COALESCE(ps.cut_losses, 0) + COALESCE(ps.cut_draws, 0)) as games,
-            COUNT(DISTINCT md5(ps.list_json::text)) as different_lists_count
+            COUNT(DISTINCT ps.list_id) as different_lists_count
         FROM playerstanding ps
         JOIN tournament t ON t.id = ps.tournament_id
-        JOIN jsonb_array_elements(ps.list_json->'pilots') p ON true
+        JOIN list l ON l.id = ps.list_id
+        JOIN jsonb_array_elements(l.list_json::jsonb->'pilots') p ON true
         JOIN pilot_ship_mapping psm ON psm.pilot_xws = (p->>'id') AND psm.source = :source
         WHERE {where_sql}
         GROUP BY psm.ship_xws

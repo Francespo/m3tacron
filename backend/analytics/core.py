@@ -403,10 +403,11 @@ def aggregate_card_stats(
                     COALESCE(ps.swiss_wins, 0) + COALESCE(ps.swiss_losses, 0) + COALESCE(ps.swiss_draws, 0)
                     + COALESCE(ps.cut_wins, 0) + COALESCE(ps.cut_losses, 0) + COALESCE(ps.cut_draws, 0)
                 ) as games,
-                COUNT(DISTINCT md5(ps.list_json::text)) as different_lists_count
+                COUNT(DISTINCT ps.list_id) as different_lists_count
             FROM playerstanding ps
             JOIN tournament t ON t.id = ps.tournament_id
-            JOIN jsonb_array_elements(ps.list_json->'pilots') p ON true
+            JOIN list l ON l.id = ps.list_id
+            JOIN jsonb_array_elements(l.list_json::jsonb->'pilots') p ON true
             WHERE {where_sql}
             GROUP BY p->>'id'
         """)
@@ -418,18 +419,20 @@ def aggregate_card_stats(
             WITH pilot_data AS (
                 SELECT
                     ps.id as ps_id,
-                    ps.list_json,
+                    ps.list_id,
+                    l.list_json,
                     ps.swiss_wins, ps.swiss_losses, ps.swiss_draws,
                     ps.cut_wins, ps.cut_losses, ps.cut_draws,
                     p
                 FROM playerstanding ps
                 JOIN tournament t ON t.id = ps.tournament_id
-                JOIN jsonb_array_elements(ps.list_json::jsonb->'pilots') p ON true
+                JOIN list l ON l.id = ps.list_id
+                JOIN jsonb_array_elements(l.list_json::jsonb->'pilots') p ON true
                 WHERE {where_sql}
             ),
             upgrade_values AS (
                 SELECT
-                    ps_id, list_json,
+                    ps_id, list_id,
                     swiss_wins, swiss_losses, swiss_draws,
                     cut_wins, cut_losses, cut_draws,
                     CASE
@@ -454,7 +457,7 @@ def aggregate_card_stats(
                     COALESCE(swiss_wins, 0) + COALESCE(swiss_losses, 0) + COALESCE(swiss_draws, 0)
                     + COALESCE(cut_wins, 0) + COALESCE(cut_losses, 0) + COALESCE(cut_draws, 0)
                 ) as games,
-                COUNT(DISTINCT md5(list_json::text)) as different_lists_count
+                COUNT(DISTINCT list_id) as different_lists_count
             FROM upgrade_values, jsonb_array_elements_text(upgrades_json) u_elem
             WHERE u_elem IS NOT NULL
             GROUP BY u_elem

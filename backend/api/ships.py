@@ -60,7 +60,7 @@ def get_all_ships(data_source: str = Query("xwa")):
 @router.get("", response_model=PaginatedShipsResponse)
 def get_ships(
     page: int = Query(0, ge=0),
-    size: int = Query(20, ge=1, le=100),
+    size: int = Query(20, ge=1, le=200),
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Popularity"),
     sort_direction: str = Query("desc"),
