@@ -93,13 +93,13 @@ def get_ships(
         "player_count_max": player_count_max,
     }
 
+    # page/size excluded — pagination is done AFTER caching.
     cache_key = (
         f"ships|{data_source}|{sort_metric}|{sort_direction}"
         f"|{','.join(sorted(formats or []))}"
         f"|{','.join(sorted(factions or []))}"
         f"|{','.join(sorted(ships or []))}"
         f"|{search or ''}"
-        f"|{page}|{size}"
     )
 
     def compute():

@@ -193,7 +193,6 @@ def get_pilots(
         f"|{','.join(sorted(city or []))}"
         f"|{date_start or ''}|{date_end or ''}"
         f"|{player_count_min}|{player_count_max}"
-        f"|{page}|{size}"
     )
 
     def compute():
@@ -250,7 +249,6 @@ def get_upgrades(
         f"|{','.join(sorted(city or []))}"
         f"|{date_start or ''}|{date_end or ''}"
         f"|{player_count_min}|{player_count_max}"
-        f"|{page}|{size}"
     )
 
     def compute():

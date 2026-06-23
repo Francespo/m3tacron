@@ -36,8 +36,7 @@ def _build_cache_key(
         f"ds={date_start}|de={date_end}|"
         f"pcmin={player_count_min}|pcmax={player_count_max}|"
         f"mg={min_games}|pmin={points_min}|pmax={points_max}|"
-        f"sm={sort_metric}|sd={sort_direction}|"
-        f"pg={page}|sz={size}"
+        f"sm={sort_metric}|sd={sort_direction}"
     )
 
 

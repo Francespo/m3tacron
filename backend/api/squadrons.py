@@ -16,9 +16,10 @@ def _compute_squadrons(
     sort_direction: str,
     filters: dict,
 ) -> dict:
-    """Run the expensive aggregation + post-filter + sort + ship enrichment.
+    """Run the expensive aggregation + post-filter + sort.
 
-    Returns {"items": [...], "total": int, "page": int, "size": int}.
+    Returns a dict with `filtered` (full sorted list), `total`, and
+    `page`/`size` for the caller to paginate and enrich.
     """
     try:
         ds_enum = DataSource(data_source)
@@ -50,35 +51,8 @@ def _compute_squadrons(
         filtered_data.sort(key=lambda x: x["games"], reverse=reverse)
 
     total = len(filtered_data)
-    items_raw = filtered_data[page * size : (page + 1) * size]
 
-    # Hoist load_all_ships OUTSIDE the per-item loop.
-    all_ships = load_all_ships(ds_enum)
-
-    items = []
-    for s in items_raw:
-        pilots = []
-        for ship_xws in s["ships"]:
-            s_info = all_ships.get(ship_xws, {})
-            pilots.append(
-                {
-                    "ship_name": s_info.get("name", ship_xws),
-                    "ship_icon": ship_xws,
-                }
-            )
-        items.append(
-            {
-                "signature": s["signature"],
-                "faction": s["faction"],
-                "faction_key": s["faction"],
-                "games": s["games"],
-                "win_rate": s["win_rate"],
-                "count": s["popularity"],
-                "pilots": pilots,
-            }
-        )
-
-    return {"items": items, "total": total, "page": page, "size": size}
+    return {"filtered": filtered_data, "total": total, "page": page, "size": size}
 
 
 @router.get("")
@@ -104,12 +78,13 @@ def get_squadrons(
     filters["min_games"] = min_games
 
     # Build a stable cache key from all inputs that affect the response.
+    # page/size excluded — pagination is done AFTER caching.
     cache_key = (
         f"squadrons|{data_source}|"
         f"{','.join(sorted(formats or []))}|"
         f"{','.join(sorted(factions or []))}|"
         f"{','.join(sorted(ships or []))}|"
-        f"{min_games}|{page}|{size}|{sort_metric}|{sort_direction}"
+        f"{min_games}|{sort_metric}|{sort_direction}"
     )
 
     def compute():
@@ -119,4 +94,31 @@ def get_squadrons(
             filters=filters,
         )
 
-    return get_cached_or_compute(cache_key, compute)
+    cached = get_cached_or_compute(cache_key, compute)
+
+    # Paginate + enrich AFTER cache (only enriches the current page slice)
+    filtered = cached["filtered"]
+    total = cached["total"]
+    items_raw = filtered[page * size : (page + 1) * size]
+
+    all_ships = load_all_ships(DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA)
+    items = []
+    for s in items_raw:
+        pilots = []
+        for ship_xws in s["ships"]:
+            s_info = all_ships.get(ship_xws, {})
+            pilots.append({
+                "ship_name": s_info.get("name", ship_xws),
+                "ship_icon": ship_xws,
+            })
+        items.append({
+            "signature": s["signature"],
+            "faction": s["faction"],
+            "faction_key": s["faction"],
+            "games": s["games"],
+            "win_rate": s["win_rate"],
+            "count": s["popularity"],
+            "pilots": pilots,
+        })
+
+    return {"items": items, "total": total, "page": page, "size": size}
