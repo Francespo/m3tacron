@@ -110,6 +110,9 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
     try: win_rate = float(stats.get("win_rate", 0.0))
     except (ValueError, TypeError): win_rate = 0.0
 
+    try: wins = int(stats.get("wins", 0))
+    except (ValueError, TypeError): wins = 0
+
     return ListData(
         signature=stats.get("signature", "Unknown Signature") or "Unknown Signature",
         name=stats.get("name", "Unknown List") or "Unknown List",
@@ -121,6 +124,7 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
         original_points=points,
         count=count,
         games=games,
+        wins=wins,
         win_rate=win_rate,
         total_loadout=total_loadout,
         pilots=rich_pilots
