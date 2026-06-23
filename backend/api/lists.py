@@ -70,7 +70,7 @@ def _compute_lists(
     points_max = filters.get("points_max", 200)
 
     # Get raw aggregated data (SQL GROUP BY -> ~2K rows max).
-    raw_data = aggregate_list_stats(filters, limit=2000, data_source=ds_enum)
+    raw_data = aggregate_list_stats(filters, data_source=ds_enum)
 
     filtered_data: list[dict] = []
     for row in raw_data:

@@ -11,7 +11,6 @@ from ..data_structures.data_source import DataSource
 
 def aggregate_list_stats(
     filters: dict,
-    limit: int = 10,
     data_source: DataSource = DataSource.XWA
 ) -> list[dict]:
     """
@@ -20,11 +19,12 @@ def aggregate_list_stats(
     Strategy:
       - SQL filters by format/faction/date/source/ship, then groups by
         (faction, md5(list_json::text)) to dramatically reduce the row count
-        from ~96K to ~2K aggregated rows.
+        from ~96K to ~60K aggregated rows.
       - Python iterates only the aggregated rows to compute the canonical
         signature from a sample list_json per group and accumulates stats.
 
-    Returns list of dicts matching ListData schema.
+    Returns list of dicts matching ListData schema. All unique lists are
+    returned — pagination is handled by the API layer after caching.
     """
     # Build dynamic WHERE clauses against the joined playerstanding/tournament
     # view. We use raw SQL (not SQLAlchemy ORM) so we can use PostgreSQL
@@ -117,10 +117,8 @@ def aggregate_list_stats(
             WHERE {where_sql}
             GROUP BY ps.list_json->>'faction', {hash_expr}
             ORDER BY games DESC
-            LIMIT :limit_val
             """
         )
-        params["limit_val"] = max(limit * 5, 2000)  # pull a generous superset
 
         result = session.execute(sql, params).fetchall()
 
@@ -215,7 +213,7 @@ def aggregate_list_stats(
 
     final_list = list(list_stats.values())
     final_list.sort(key=lambda x: x["games"], reverse=True)
-    return final_list[:limit]
+    return final_list
 
 
 def _build_location_filter(session: Session, aggregated_rows, filters: dict):

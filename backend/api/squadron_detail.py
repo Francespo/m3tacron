@@ -183,7 +183,7 @@ def get_squadron_lists(
     except: ds_enum = DataSource.XWA
     
     filters = {"allowed_formats": allowed_formats}
-    all_lists = aggregate_list_stats(filters=filters, limit=1000)
+    all_lists = aggregate_list_stats(filters=filters)
     
     squadron_lists = []
     for l in all_lists:
