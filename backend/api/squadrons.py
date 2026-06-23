@@ -8,6 +8,79 @@ from ..utils.xwing_data.ships import load_all_ships
 router = APIRouter(prefix="/api/squadrons", tags=["Squadrons"])
 
 
+def _compute_squadrons(
+    page: int,
+    size: int,
+    data_source: str,
+    sort_metric: str,
+    sort_direction: str,
+    filters: dict,
+) -> dict:
+    """Run the expensive aggregation + post-filter + sort + ship enrichment.
+
+    Returns {"items": [...], "total": int, "page": int, "size": int}.
+    """
+    try:
+        ds_enum = DataSource(data_source)
+    except ValueError:
+        ds_enum = DataSource.XWA
+
+    factions = filters.get("factions")
+    min_games = filters.get("min_games", 0)
+
+    raw_data = aggregate_squadron_stats(
+        filters,
+        sort_metric=SortingCriteria.GAMES,
+        sort_direction=SortDirection.DESCENDING,
+        data_source=ds_enum,
+    )
+
+    filtered_data = []
+    for row in raw_data:
+        if factions and row["faction"] not in factions:
+            continue
+        if row["games"] < min_games:
+            continue
+        filtered_data.append(row)
+
+    reverse = sort_direction == "desc"
+    if sort_metric == "Win Rate":
+        filtered_data.sort(key=lambda x: x["win_rate"], reverse=reverse)
+    else:
+        filtered_data.sort(key=lambda x: x["games"], reverse=reverse)
+
+    total = len(filtered_data)
+    items_raw = filtered_data[page * size : (page + 1) * size]
+
+    # Hoist load_all_ships OUTSIDE the per-item loop.
+    all_ships = load_all_ships(ds_enum)
+
+    items = []
+    for s in items_raw:
+        pilots = []
+        for ship_xws in s["ships"]:
+            s_info = all_ships.get(ship_xws, {})
+            pilots.append(
+                {
+                    "ship_name": s_info.get("name", ship_xws),
+                    "ship_icon": ship_xws,
+                }
+            )
+        items.append(
+            {
+                "signature": s["signature"],
+                "faction": s["faction"],
+                "faction_key": s["faction"],
+                "games": s["games"],
+                "win_rate": s["win_rate"],
+                "count": s["popularity"],
+                "pilots": pilots,
+            }
+        )
+
+    return {"items": items, "total": total, "page": page, "size": size}
+
+
 @router.get("")
 def get_squadrons(
     page: int = Query(0, ge=0),
@@ -21,11 +94,6 @@ def get_squadrons(
     ships: list[str] | None = Query(None),
     min_games: int = Query(0, ge=0),
 ):
-    try:
-        ds_enum = DataSource(data_source)
-    except ValueError:
-        ds_enum = DataSource.XWA
-
     filters: dict = {}
     if formats:
         filters["allowed_formats"] = formats
@@ -33,6 +101,7 @@ def get_squadrons(
         filters["factions"] = factions
     if ships:
         filters["ships"] = ships
+    filters["min_games"] = min_games
 
     # Build a stable cache key from all inputs that affect the response.
     cache_key = (
@@ -44,56 +113,10 @@ def get_squadrons(
     )
 
     def compute():
-        raw_data = aggregate_squadron_stats(
-            filters,
-            sort_metric=SortingCriteria.GAMES,
-            sort_direction=SortDirection.DESCENDING,
-            data_source=ds_enum,
+        return _compute_squadrons(
+            page=page, size=size, data_source=data_source,
+            sort_metric=sort_metric, sort_direction=sort_direction,
+            filters=filters,
         )
-
-        filtered_data = []
-        for row in raw_data:
-            if factions and row["faction"] not in factions:
-                continue
-            if row["games"] < min_games:
-                continue
-            filtered_data.append(row)
-
-        reverse = sort_direction == "desc"
-        if sort_metric == "Win Rate":
-            filtered_data.sort(key=lambda x: x["win_rate"], reverse=reverse)
-        else:
-            filtered_data.sort(key=lambda x: x["games"], reverse=reverse)
-
-        total = len(filtered_data)
-        items_raw = filtered_data[page * size : (page + 1) * size]
-
-        # Hoist load_all_ships OUTSIDE the per-item loop.
-        all_ships = load_all_ships(ds_enum)
-
-        items = []
-        for s in items_raw:
-            pilots = []
-            for ship_xws in s["ships"]:
-                s_info = all_ships.get(ship_xws, {})
-                pilots.append(
-                    {
-                        "ship_name": s_info.get("name", ship_xws),
-                        "ship_icon": ship_xws,
-                    }
-                )
-            items.append(
-                {
-                    "signature": s["signature"],
-                    "faction": s["faction"],
-                    "faction_key": s["faction"],
-                    "games": s["games"],
-                    "win_rate": s["win_rate"],
-                    "count": s["popularity"],
-                    "pilots": pilots,
-                }
-            )
-
-        return {"items": items, "total": total, "page": page, "size": size}
 
     return get_cached_or_compute(cache_key, compute)

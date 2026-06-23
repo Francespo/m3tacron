@@ -16,7 +16,7 @@ services:
         -c work_mem=4MB
         -c maintenance_work_mem=128MB
         -c max_connections=20
-        -c statement_timeout=60000
+        -c statement_timeout=120000
         -c log_min_duration_statement=2000
         -c log_temp_files=0
     deploy:

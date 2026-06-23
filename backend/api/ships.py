@@ -8,6 +8,32 @@ from ..cache import get_cached_or_compute
 
 router = APIRouter(prefix="/api/ships", tags=["Ships"])
 
+
+def _compute_ships(
+    page: int,
+    size: int,
+    data_source: str,
+    sort_metric: str,
+    sort_direction: str,
+    filters: dict,
+) -> list[dict]:
+    """Run the expensive ship aggregation. Returns the full sorted list (caller paginates)."""
+    try:
+        ds_enum = DataSource(data_source)
+    except ValueError:
+        ds_enum = DataSource.XWA
+
+    criteria_map = {
+        "Games": SortingCriteria.GAMES,
+        "Popularity": SortingCriteria.POPULARITY,
+        "Win Rate": SortingCriteria.WINRATE,
+    }
+    criteria = criteria_map.get(sort_metric, SortingCriteria.POPULARITY)
+    s_dir = SortDirection.DESCENDING if sort_direction == "desc" else SortDirection.ASCENDING
+
+    return aggregate_ship_stats(filters, criteria, s_dir, ds_enum)
+
+
 @router.get("/all")
 def get_all_ships(data_source: str = Query("xwa")):
     """Return every chassis once, with all playable factions merged."""
@@ -30,6 +56,7 @@ def get_all_ships(data_source: str = Query("xwa")):
     results = sorted(results, key=lambda x: x["name"])
     return results
 
+
 @router.get("", response_model=PaginatedShipsResponse)
 def get_ships(
     page: int = Query(0, ge=0),
@@ -51,19 +78,6 @@ def get_ships(
     player_count_min: int | None = Query(None),
     player_count_max: int | None = Query(None),
 ):
-    try:
-        ds_enum = DataSource(data_source)
-    except ValueError:
-        ds_enum = DataSource.XWA
-
-    criteria_map = {
-        "Games": SortingCriteria.GAMES,
-        "Popularity": SortingCriteria.POPULARITY,
-        "Win Rate": SortingCriteria.WINRATE,
-    }
-    criteria = criteria_map.get(sort_metric, SortingCriteria.POPULARITY)
-    s_dir = SortDirection.DESCENDING if sort_direction == "desc" else SortDirection.ASCENDING
-
     filters = {
         "allowed_formats": formats,
         "faction": factions,
@@ -89,10 +103,14 @@ def get_ships(
     )
 
     def compute():
-        return aggregate_ship_stats(filters, criteria, s_dir, ds_enum)
+        return _compute_ships(
+            page=page, size=size, data_source=data_source,
+            sort_metric=sort_metric, sort_direction=sort_direction,
+            filters=filters,
+        )
 
     data = get_cached_or_compute(cache_key, compute)
     total = len(data)
     items = data[page * size : (page + 1) * size]
 
-    return PaginatedShipsResponse(items=items, total=total, page=page, size=size)
+    return PaginatedShipsResponse(items=list(items), total=total, page=page, size=size)

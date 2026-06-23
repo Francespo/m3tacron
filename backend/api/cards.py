@@ -7,6 +7,39 @@ from ..cache import get_cached_or_compute
 
 router = APIRouter(prefix="/api/cards", tags=["Cards"])
 
+
+def _compute_cards(
+    page: int,
+    size: int,
+    data_source: str,
+    sort_metric: str,
+    sort_direction: str,
+    mode: str,
+    filters: dict,
+) -> list[dict]:
+    """Run the expensive card aggregation for pilots or upgrades mode.
+
+    Returns the full sorted list (caller paginates).
+    """
+    try:
+        ds_enum = DataSource(data_source)
+    except ValueError:
+        ds_enum = DataSource.XWA
+
+    criteria_map = {
+        "Cost": SortingCriteria.COST,
+        "Games": SortingCriteria.GAMES,
+        "Name": SortingCriteria.NAME,
+        "Popularity": SortingCriteria.POPULARITY,
+        "Win Rate": SortingCriteria.WINRATE,
+        "Loadout": SortingCriteria.LOADOUT,
+    }
+    criteria = criteria_map.get(sort_metric, SortingCriteria.POPULARITY)
+    s_dir = SortDirection.DESCENDING if sort_direction == "desc" else SortDirection.ASCENDING
+
+    return aggregate_card_stats(filters, criteria, s_dir, mode, ds_enum)
+
+
 def _build_filters(
     formats: list[str] | None = None,
     factions: list[str] | None = None,
@@ -125,22 +158,6 @@ def get_pilots(
     player_count_min: int | None = Query(None),
     player_count_max: int | None = Query(None),
 ):
-    try:
-        ds_enum = DataSource(data_source)
-    except ValueError:
-        ds_enum = DataSource.XWA
-
-    criteria_map = {
-        "Cost": SortingCriteria.COST,
-        "Games": SortingCriteria.GAMES,
-        "Name": SortingCriteria.NAME,
-        "Popularity": SortingCriteria.POPULARITY,
-        "Win Rate": SortingCriteria.WINRATE,
-        "Loadout": SortingCriteria.LOADOUT
-    }
-    criteria = criteria_map.get(sort_metric, SortingCriteria.POPULARITY)
-    s_dir = SortDirection.DESCENDING if sort_direction == "desc" else SortDirection.ASCENDING
-
     filters = _build_filters(
         formats=formats, factions=factions, ships=ships, initiatives=initiatives,
         search_text=search_text, points_min=points_min, points_max=points_max,
@@ -180,7 +197,7 @@ def get_pilots(
     )
 
     def compute():
-        return aggregate_card_stats(filters, criteria, s_dir, "pilots", ds_enum)
+        return _compute_cards(page, size, data_source, sort_metric, sort_direction, "pilots", filters)
 
     data = get_cached_or_compute(cache_key, compute)
     total = len(data)
@@ -196,7 +213,7 @@ def get_upgrades(
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Popularity"),
     sort_direction: str = Query("desc"),
-    
+
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
     upgrade_types: list[str] | None = Query(None),
@@ -212,21 +229,6 @@ def get_upgrades(
     player_count_min: int | None = Query(None),
     player_count_max: int | None = Query(None),
 ):
-    try:
-        ds_enum = DataSource(data_source)
-    except ValueError:
-        ds_enum = DataSource.XWA
-
-    criteria_map = {
-        "Cost": SortingCriteria.COST,
-        "Games": SortingCriteria.GAMES,
-        "Name": SortingCriteria.NAME,
-        "Popularity": SortingCriteria.POPULARITY,
-        "Win Rate": SortingCriteria.WINRATE,
-    }
-    criteria = criteria_map.get(sort_metric, SortingCriteria.POPULARITY)
-    s_dir = SortDirection.DESCENDING if sort_direction == "desc" else SortDirection.ASCENDING
-
     filters = _build_filters(
         formats=formats, factions=factions, upgrade_types=upgrade_types,
         search_text=search_text, points_min=points_min, points_max=points_max,
@@ -252,7 +254,7 @@ def get_upgrades(
     )
 
     def compute():
-        return aggregate_card_stats(filters, criteria, s_dir, "upgrades", ds_enum)
+        return _compute_cards(page, size, data_source, sort_metric, sort_direction, "upgrades", filters)
 
     data = get_cached_or_compute(cache_key, compute)
     total = len(data)
