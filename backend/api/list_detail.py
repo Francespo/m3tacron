@@ -3,7 +3,8 @@ from sqlmodel import Session, select, or_
 from sqlalchemy import text
 from ..database import engine
 from ..models import List
-from ..data_structures.data_source import DataSource
+from ..data_structures.data_source import parse_data_source
+from ..analytics.filter_helpers import format_filter_clause
 from .formatters import enrich_list_data
 
 router = APIRouter(prefix="/api/list", tags=["List Detail"])
@@ -32,8 +33,7 @@ def get_list_stats(
 
         if not list_row:
             # Match old behavior: return zero-stats response with placeholders
-            try: ds_enum = DataSource(data_source)
-            except: ds_enum = DataSource.XWA
+            ds_enum = parse_data_source(data_source)
             return enrich_list_data({
                 "signature": list_id,
                 "name": "Unknown List",
@@ -53,10 +53,7 @@ def get_list_stats(
         # it would either return ORM rows (slow, no aggregation) or require
         # a JOIN we'd then throw away.
         params: dict = {"list_id": list_row.id}
-        fmt_clause = ""
-        if allowed_formats:
-            params["formats"] = list(allowed_formats)
-            fmt_clause = " AND t.format = ANY(:formats)"
+        fmt_clause = format_filter_clause(allowed_formats, params)
 
         stats = session.execute(text(f"""
             SELECT
@@ -90,7 +87,5 @@ def get_list_stats(
             "pilots": pilots
         }
 
-        try: ds_enum = DataSource(data_source)
-        except: ds_enum = DataSource.XWA
-
+        ds_enum = parse_data_source(data_source)
         return enrich_list_data(raw_stats, source=ds_enum)

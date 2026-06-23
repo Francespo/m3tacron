@@ -6,6 +6,38 @@ from ..data_structures.factions import Faction
 
 from ..data_structures.data_source import DataSource
 
+
+def _reformat_pilots(raw_pilots: list[dict]) -> list[dict]:
+    """
+    Transform raw list_json pilots to the {xws, upgrades: [{xws}]} format
+    used by the Pydantic PilotData schema.
+
+    `raw_pilots` come straight from list_json; the `upgrades` field may be:
+    - dict: slot -> list of upgrade ids (XWS)
+    - list: flat list of upgrade ids (no slot info)
+
+    Output is suitable for the analytics pre-transform that feeds
+    `enrich_list_data`.
+    """
+    out: list[dict] = []
+    for p in raw_pilots:
+        pid = p.get("id") or p.get("name") or ""
+        upgrades_list: list[dict] = []
+        raw_up = p.get("upgrades", {})
+        if isinstance(raw_up, dict):
+            for items in raw_up.values():
+                if isinstance(items, list):
+                    for item in items:
+                        upgrades_list.append({"xws": str(item)})
+                else:
+                    upgrades_list.append({"xws": str(items)})
+        elif isinstance(raw_up, list):
+            for item in raw_up:
+                upgrades_list.append({"xws": str(item)})
+        out.append({"xws": pid, "upgrades": upgrades_list})
+    return out
+
+
 def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListData:
     pilots = stats.get("pilots", [])
     rich_pilots = []

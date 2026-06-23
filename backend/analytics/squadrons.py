@@ -11,6 +11,7 @@ from sqlalchemy import text
 from ..database import engine
 from ..data_structures.data_source import DataSource
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
+from .filter_helpers import format_filter_clause, ship_list_filter_clause
 
 
 def aggregate_squadron_stats(
@@ -47,10 +48,9 @@ def aggregate_squadron_stats(
         where_clauses.append("t.player_count <= :pc_max")
         params["pc_max"] = int(filters["player_count_max"])
 
-    fmts = filters.get("allowed_formats")
-    if fmts:
-        where_clauses.append("t.format = ANY(:formats)")
-        params["formats"] = list(fmts)
+    fmt_clause = format_filter_clause(filters.get("allowed_formats"), params, leading_and=False)
+    if fmt_clause:
+        where_clauses.append(fmt_clause)
 
     facs = filters.get("factions")
     if facs:
@@ -59,24 +59,9 @@ def aggregate_squadron_stats(
         params["factions"] = normalized
 
     # Ship filter — use list.ship_list (comma-joined) for fast filter
-    if filters.get("ships"):
-        ships = list(filters["ships"])
-        # Filter lists that contain any of the specified ships.
-        # ship_list is comma-joined sorted, so we need an OR over each ship.
-        ship_or_parts = []
-        for s in ships:
-            # Match ship at start, middle, or end of the comma-joined list
-            ship_or_parts.append(
-                "(l.ship_list = :ship_" + s.replace('-', '_') +
-                " OR l.ship_list LIKE :ship_" + s.replace('-', '_') + "_start"
-                " OR l.ship_list LIKE :ship_" + s.replace('-', '_') + "_mid"
-                " OR l.ship_list LIKE :ship_" + s.replace('-', '_') + "_end)"
-            )
-            params[f"ship_{s.replace('-', '_')}"] = s
-            params[f"ship_{s.replace('-', '_')}_start"] = f"{s},%"
-            params[f"ship_{s.replace('-', '_')}_mid"] = f"%,{s},%"
-            params[f"ship_{s.replace('-', '_')}_end"] = f"%,{s}"
-        where_clauses.append("(" + " OR ".join(ship_or_parts) + ")")
+    ship_clause = ship_list_filter_clause(filters.get("ships"), params)
+    if ship_clause:
+        where_clauses.append(ship_clause)
 
     where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 

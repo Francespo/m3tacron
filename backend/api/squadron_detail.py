@@ -3,7 +3,8 @@ from sqlmodel import Session
 from sqlalchemy import text
 
 from ..database import engine
-from ..data_structures.data_source import DataSource
+from ..data_structures.data_source import parse_data_source
+from ..analytics.filter_helpers import format_filter_clause
 from .formatters import enrich_list_data
 
 router = APIRouter(prefix="/api/squadron", tags=["Squadron Detail"])
@@ -19,15 +20,6 @@ def _normalize_ship_signature(signature: str) -> str:
     return signature.replace(" ", "")
 
 
-def _add_format_clause(filters: dict, params: dict) -> str:
-    """Return an extra SQL fragment for format filter, mutating params."""
-    fmts = filters.get("allowed_formats")
-    if isinstance(fmts, (list, set)) and fmts:
-        params["formats"] = list(fmts)
-        return " AND t.format = ANY(:formats)"
-    return ""
-
-
 @router.get("/{signature:path}/stats")
 def get_squadron_stats(
     signature: str,
@@ -40,7 +32,6 @@ def get_squadron_stats(
     Uses the normalized `list.ship_list` field for a SQL-side filter,
     so we only process rows that match the requested squadron.
     """
-    filters = {"allowed_formats": allowed_formats}
     ship_sig = _normalize_ship_signature(signature)
 
     with Session(engine) as session:
@@ -52,7 +43,7 @@ def get_squadron_stats(
         faction = list_row[0] if list_row and list_row[0] else "Unknown"
 
         params: dict = {"ship_sig": ship_sig}
-        fmt_clause = _add_format_clause(filters, params)
+        fmt_clause = format_filter_clause(allowed_formats, params)
 
         sql = text(
             f"""
@@ -101,12 +92,11 @@ def get_squadron_pilots(
     the requested ship composition, and reads pilots directly from
     list.list_json (one row per signature, not N rows in playerstanding).
     """
-    filters = {"allowed_formats": allowed_formats}
     ship_sig = _normalize_ship_signature(signature)
 
     with Session(engine) as session:
         params: dict = {"ship_sig": ship_sig}
-        fmt_clause = _add_format_clause(filters, params)
+        fmt_clause = format_filter_clause(allowed_formats, params)
 
         # GROUP BY list_id so we de-duplicate the JSON work; aggregate stats
         # from playerstanding in SQL.
@@ -191,15 +181,13 @@ def get_squadron_lists(
     Filters the list table by ship_list at the SQL level instead of
     fetching all lists and re-computing ship signatures in Python.
     """
-    try: ds_enum = DataSource(data_source)
-    except: ds_enum = DataSource.XWA
+    ds_enum = parse_data_source(data_source)
 
-    filters = {"allowed_formats": allowed_formats}
     ship_sig = _normalize_ship_signature(signature)
 
     with Session(engine) as session:
         params: dict = {"ship_sig": ship_sig}
-        fmt_clause = _add_format_clause(filters, params)
+        fmt_clause = format_filter_clause(allowed_formats, params)
 
         sql = text(
             f"""

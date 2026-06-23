@@ -1,15 +1,62 @@
 """
 List Analytics - Aggregation Logic for Squad Lists.
 
-Uses the normalized `list` table for fast list-level aggregation.
-GROUP BY list.canonical_signature replaces the old md5() computation
-and the Python canonicalization step.
+=============================================================================
+NAVIGATION MAP
+=============================================================================
+This file is part of the analytics layer that powers the 4 "heavy" pages:
+
+    /lists     → aggregate_list_stats (this file)
+    /squadrons → aggregate_squadron_stats (analytics/squadrons.py)
+    /ships     → aggregate_ship_stats (analytics/ships.py)
+    /cards/*   → aggregate_card_stats (analytics/core.py)
+
+=============================================================================
+DATA MODEL
+=============================================================================
+Lists live in a normalized `list` table (see backend/models.py) with one row
+per unique squad list. The key columns used here are:
+
+    canonical_signature  — md5(list_json::text) hash, UNIQUE, used for GROUP BY
+    faction              — XWS faction string ('rebelalliance', etc.)
+    faction_xws_normalized — lower(replace(replace(faction, ' ', ''), '-', ''))
+                             matches the legacy generated column on playerstanding
+    list_json            — the full XWS list as JSONB (read for pilot data)
+    points, name, pilot_count, ship_list — pre-extracted metadata
+
+`playerstanding.list_id` is the FK back to this table. Every analytics query
+here JOINs `playerstanding ps` → `list l` to aggregate stats per unique list.
+
+=============================================================================
+HOW THIS WORKS
+=============================================================================
+1. `aggregate_list_stats` receives a `filters` dict from the API layer.
+2. It builds a dynamic WHERE clause (with shared helpers in filter_helpers.py)
+   that pushes filtering to SQL.
+3. A single GROUP BY query aggregates games/wins across all matching
+   playerstanding rows per list.
+4. Python only re-shapes pilots from raw JSON to the Pydantic PilotData schema
+   (via _reformat_pilots in api/formatters.py) and computes faction enums.
+   No canonicalization, no JSON parsing in the hot path.
+
+=============================================================================
+PERFORMANCE
+=============================================================================
+Pre-normalization, this query was O(96K playerstanding rows) with Python
+iteration for canonicalization (~10-15s cold). Post-normalization, the GROUP
+BY runs on the ~63K list table rows. With caching (see backend/cache.py), the
+second request for the same filter set is instant.
+
+For lazy pagination, add LIMIT/OFFSET to the SQL below — the data is already
+fully filtered and aggregated.
 """
 from sqlmodel import Session
 from sqlalchemy import text
 from ..database import engine
 from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
+from ..api.formatters import _reformat_pilots
+from .filter_helpers import format_filter_clause, ship_list_filter_clause
 
 
 def aggregate_list_stats(
@@ -43,11 +90,11 @@ def aggregate_list_stats(
     if filters.get("player_count_max") is not None:
         where_clauses.append("t.player_count <= :pc_max")
         params["pc_max"] = int(filters["player_count_max"])
-    if filters.get("allowed_formats"):
-        fmts = filters["allowed_formats"]
-        if isinstance(fmts, (list, set)) and fmts:
-            where_clauses.append("t.format = ANY(:formats)")
-            params["formats"] = list(fmts)
+
+    fmt_clause = format_filter_clause(filters.get("allowed_formats"), params, leading_and=False)
+    if fmt_clause:
+        where_clauses.append(fmt_clause)
+
     if filters.get("factions"):
         facs = filters["factions"]
         if isinstance(facs, (list, set)) and facs:
@@ -56,22 +103,10 @@ def aggregate_list_stats(
             ]
             where_clauses.append("l.faction_xws_normalized = ANY(:factions)")
             params["factions"] = normalized
-    if filters.get("ships"):
-        ships = list(filters["ships"])
-        ship_or_parts = []
-        for s in ships:
-            key = s.replace('-', '_')
-            ship_or_parts.append(
-                "(l.ship_list = :ship_" + key +
-                " OR l.ship_list LIKE :ship_" + key + "_start"
-                " OR l.ship_list LIKE :ship_" + key + "_mid"
-                " OR l.ship_list LIKE :ship_" + key + "_end)"
-            )
-            params[f"ship_{key}"] = s
-            params[f"ship_{key}_start"] = f"{s},%"
-            params[f"ship_{key}_mid"] = f"%,{s},%"
-            params[f"ship_{key}_end"] = f"%,{s}"
-        where_clauses.append("(" + " OR ".join(ship_or_parts) + ")")
+
+    ship_clause = ship_list_filter_clause(filters.get("ships"), params)
+    if ship_clause:
+        where_clauses.append(ship_clause)
 
     where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
@@ -104,6 +139,10 @@ def aggregate_list_stats(
 
     # Build result list — no Python canonicalization, but transform pilots
     # to match the expected Pydantic schema (xws, upgrades as list of {xws}).
+    #
+    # Row tuple column order:
+    #   0 canonical_signature, 1 faction, 2 faction_xws_normalized,
+    #   3 name, 4 points, 5 list_json, 6 games, 7 total_games, 8 wins
     final_list = []
     for row in result:
         faction = row[1] or "unknown"
@@ -114,24 +153,7 @@ def aggregate_list_stats(
             f_enum = Faction.from_xws(faction)
         except (ValueError, AttributeError):
             f_enum = Faction.UNKNOWN
-        # Transform pilots to match Pydantic schema
-        raw_pilots = list_json.get("pilots", [])
-        pilots_out = []
-        for p in raw_pilots:
-            pid = p.get("id") or p.get("name") or ""
-            upgrades_list = []
-            raw_up = p.get("upgrades", {})
-            if isinstance(raw_up, dict):
-                for slot, items in raw_up.items():
-                    if isinstance(items, list):
-                        for item in items:
-                            upgrades_list.append({"xws": str(item)})
-                    else:
-                        upgrades_list.append({"xws": str(items)})
-            elif isinstance(raw_up, list):
-                for item in raw_up:
-                    upgrades_list.append({"xws": str(item)})
-            pilots_out.append({"xws": pid, "upgrades": upgrades_list})
+        pilots_out = _reformat_pilots(list_json.get("pilots", []))
         final_list.append({
             "signature": row[0],
             "name": row[3] or "",
