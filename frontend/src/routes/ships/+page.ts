@@ -9,7 +9,7 @@ export const load: PageLoad = async ({ fetch, url }) => {
         apiUrl.searchParams.append(key, value);
     }
     if (!apiUrl.searchParams.has('page')) apiUrl.searchParams.set('page', '0');
-    if (!apiUrl.searchParams.has('size')) apiUrl.searchParams.set('size', '50');
+    if (!apiUrl.searchParams.has('size')) apiUrl.searchParams.set('size', '200');
 
     const sort_metric = url.searchParams.get('sort_metric') || 'Popularity';
     const sort_direction = url.searchParams.get('sort_direction') || 'desc';
@@ -36,5 +36,8 @@ export const load: PageLoad = async ({ fetch, url }) => {
             return { items: [], total: 0, page: 0, size: 50, sort_metric, sort_direction };
         });
 
-    return { itemsPromise, sort_metric, sort_direction };
+    // Raw API ships list for client-side merging with xwingData
+    const apiShipsPromise = itemsPromise.then(r => r.items);
+
+    return { itemsPromise, apiShipsPromise, sort_metric, sort_direction };
 };
