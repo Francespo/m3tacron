@@ -4,6 +4,11 @@ import { defineConfig } from 'vite';
 
 const shouldLogConfig = process.env.VITE_LOG_CONFIG === 'true';
 
+/**
+ * Log a labeled config value to the console when VITE_LOG_CONFIG is true.
+ * @param {string} label
+ * @param {unknown} value
+ */
 function logConfig(label, value) {
 	if (!shouldLogConfig) return;
 	console.log(`[vite-config] ${label}`, value);
@@ -16,6 +21,7 @@ function logEnvSnapshot() {
 		.filter((key) => /^(VITE_|COOLIFY_|SERVICE_|ORIGIN$|ALLOWED_ORIGINS$|NODE_ENV$|ENV_VAR_SOURCE$)/.test(key))
 		.sort();
 
+	/** @type {Record<string, string | undefined>} */
 	const envSummary = {};
 	for (const key of visibleKeys) {
 		envSummary[key] = process.env[key];
@@ -43,7 +49,7 @@ function resolveAllowedHosts() {
 
 	const resolved = raw
 		.split(',')
-		.map((host) => host.trim())
+		.map((/** @type {string} */ host) => host.trim())
 		.filter(Boolean);
 
 	logConfig('VITE_ALLOWED_HOSTS_RAW', raw);
