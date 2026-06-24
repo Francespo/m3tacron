@@ -58,12 +58,15 @@ services:
       fi ;
       echo '[db-seed] applying performance migration...' ;
       psql -h postgres -U m3tacron -d m3tacron -f /migrations/migrate_performance.sql || echo '[db-seed] migration script not found or failed (non-fatal)' ;
+      echo '[db-seed] applying normalize list migration...' ;
+      psql -h postgres -U m3tacron -d m3tacron -f /migrations/migrate_normalize_list.sql || echo '[db-seed] migration script not found or failed (non-fatal)' ;
       echo '[db-seed] done' ;
       tail -f /dev/null
       "
     volumes:
       - ./local-data/dumps:/seed:ro
       - ./backend/scripts/migrate_performance.sql:/migrations/migrate_performance.sql:ro
+      - ./backend/scripts/migrate_normalize_list.sql:/migrations/migrate_normalize_list.sql:ro
     deploy:
       resources:
         limits:
