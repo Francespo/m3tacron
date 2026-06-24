@@ -9,6 +9,7 @@
         getFactionChar,
     } from "$lib/data/factions";
     import { goto } from "$app/navigation";
+    import { page as currentPage } from "$app/state";
     import { filters } from "$lib/stores/filters.svelte";
     import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
     import { xwingData } from "$lib/stores/xwingData.svelte";
@@ -23,8 +24,26 @@
     let minGames = $state(3);
 
     const size = 20;
-    let items = $derived(data.items ?? []);
-    let total = $derived(data.total ?? 0);
+    let total = $state(0);
+
+    // Sync state FROM the URL so direct navigation (e.g. ?page=2) works.
+    $effect(() => {
+        const urlPage = Number(currentPage.url.searchParams.get('page') ?? '0');
+        page = urlPage + 1; // URL is 0-indexed, state is 1-indexed
+        const urlSort = currentPage.url.searchParams.get('sort_metric');
+        if (urlSort) sortBy = urlSort;
+        const urlDir = currentPage.url.searchParams.get('sort_direction');
+        if (urlDir) sortDirection = urlDir;
+        const urlMinGames = currentPage.url.searchParams.get('min_games');
+        if (urlMinGames) minGames = Number(urlMinGames);
+    });
+
+    // Track total from the latest promise resolution (for nextPage guard)
+    $effect(() => {
+        data.itemsPromise.then((resolved: any) => {
+            total = Number(resolved.total ?? 0);
+        });
+    });
 
     // Re-fetch when local filters change
     $effect(() => {
@@ -51,10 +70,12 @@
         for (const c of filters.selectedCities) params.append("city", c);
         if (filters.dateStart) params.set("date_start", filters.dateStart);
         if (filters.dateEnd) params.set("date_end", filters.dateEnd);
-        goto(`?${params.toString()}`, {
+        // Skip if URL hasn't changed (prevents loop on mount)
+        const newUrl = `?${params.toString()}`;
+        if (newUrl === `?${currentPage.url.searchParams.toString()}`) return;
+        goto(newUrl, {
             keepFocus: true,
             noScroll: true,
-            replaceState: true,
         });
     });
 
@@ -178,37 +199,57 @@
         <h1 class="text-2xl font-sans font-bold text-primary mb-1">
             List Browser
         </h1>
-        <p class="text-secondary font-mono text-sm mb-6">{total} Lists Found</p>
 
-        <!-- List Cards -->
-        <div class="space-y-3">
-            {#each items as list}
-                <ListRowCard {list} />
-            {/each}
-        </div>
+        {#await data.itemsPromise}
+            <p class="text-secondary font-mono text-sm mb-6">Loading...</p>
 
-        <!-- Pagination -->
-        {#if total > size}
-            <div
-                class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
-            >
-                <button
-                    class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
-                    onclick={prevPage}
-                    disabled={page <= 1}
-                >
-                    ← Prev
-                </button>
-                <span class="text-xs font-mono text-secondary">Page {page}</span
-                >
-                <button
-                    class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
-                    onclick={nextPage}
-                    disabled={page * size >= total}
-                >
-                    Next →
-                </button>
+            <!-- Loading Skeleton -->
+            <div class="space-y-3">
+                {#each Array(5) as _}
+                    <div class="animate-pulse bg-[#ffffff06] rounded-lg h-24 border border-border-dark"></div>
+                {/each}
             </div>
-        {/if}
+        {:then resolved}
+            {@const resolvedTotal = Number(resolved.total ?? 0)}
+            {@const listItems = resolved.items ?? []}
+            <p class="text-secondary font-mono text-sm mb-6">
+                {resolvedTotal} Lists Found
+            </p>
+
+            <!-- List Cards -->
+            <div class="space-y-3">
+                {#each listItems as list}
+                    <ListRowCard {list} />
+                {/each}
+            </div>
+
+            <!-- Pagination -->
+            {#if resolvedTotal > size}
+                <div
+                    class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
+                >
+                    <button
+                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                        onclick={prevPage}
+                        disabled={page <= 1}
+                    >
+                        ← Prev
+                    </button>
+                    <span class="text-xs font-mono text-secondary">Page {page}</span
+                    >
+                    <button
+                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                        onclick={nextPage}
+                        disabled={page * size >= resolvedTotal}
+                    >
+                        Next →
+                    </button>
+                </div>
+            {/if}
+        {:catch error}
+            <p class="text-red-400 font-mono text-sm mb-6">
+                Failed to load lists: {error.message}
+            </p>
+        {/await}
     </main>
 </div>

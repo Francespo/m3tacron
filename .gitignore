@@ -64,3 +64,6 @@ local-data/
 issues.json
 temp_*.txt
 *-issue-*
+.slim/deepwork/
+playwright-images/
+.playwright-mcp/

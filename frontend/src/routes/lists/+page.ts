@@ -23,29 +23,32 @@ export const load: PageLoad = async ({ fetch, url }) => {
         sort_direction,
     });
 
-    try {
-        const response = await fetch(apiUrl.toString());
-        if (!response.ok) throw new Error(`Failed to fetch lists: ${response.status}`);
-        const data = await response.json();
-        return parsePayload(data);
-    } catch (e) {
-        console.error('Primary lists fetch failed, retrying same-origin /api:', e);
-
-        try {
-            const fallbackUrl = new URL('/api/lists', url.origin);
-            for (const [key, value] of url.searchParams.entries()) {
-                fallbackUrl.searchParams.append(key, value);
+    // Return a promise so SvelteKit navigates immediately and streams data in.
+    // This prevents navigation from blocking on slow API responses.
+    const itemsPromise = fetch(apiUrl.toString())
+        .then(async (response) => {
+            if (!response.ok) throw new Error(`Failed to fetch lists: ${response.status}`);
+            const data = await response.json();
+            return parsePayload(data);
+        })
+        .catch(async (e) => {
+            console.error('Primary lists fetch failed, retrying same-origin /api:', e);
+            try {
+                const fallbackUrl = new URL('/api/lists', url.origin);
+                for (const [key, value] of url.searchParams.entries()) {
+                    fallbackUrl.searchParams.append(key, value);
+                }
+                if (!fallbackUrl.searchParams.has('page')) fallbackUrl.searchParams.set('page', '0');
+                if (!fallbackUrl.searchParams.has('size')) fallbackUrl.searchParams.set('size', '20');
+                const fallbackResponse = await fetch(fallbackUrl.toString());
+                if (!fallbackResponse.ok) throw new Error(`Fallback failed: ${fallbackResponse.status}`);
+                const fallbackData = await fallbackResponse.json();
+                return parsePayload(fallbackData);
+            } catch (fallbackError) {
+                console.error('Fallback lists fetch failed:', fallbackError);
+                return { items: [], total: 0, page: 0, size: 20, sort_metric, sort_direction };
             }
-            if (!fallbackUrl.searchParams.has('page')) fallbackUrl.searchParams.set('page', '0');
-            if (!fallbackUrl.searchParams.has('size')) fallbackUrl.searchParams.set('size', '20');
+        });
 
-            const fallbackResponse = await fetch(fallbackUrl.toString());
-            if (!fallbackResponse.ok) throw new Error(`Fallback failed: ${fallbackResponse.status}`);
-            const fallbackData = await fallbackResponse.json();
-            return parsePayload(fallbackData);
-        } catch (fallbackError) {
-            console.error('Fallback lists fetch failed:', fallbackError);
-            return { items: [], total: 0, page: 0, size: 20, sort_metric, sort_direction };
-        }
-    }
+    return { itemsPromise, sort_metric, sort_direction };
 };

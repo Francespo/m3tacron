@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Query, HTTPException
 from sqlmodel import Session, select, func
+from sqlalchemy import text
 from ..database import engine
 from ..models import Tournament, PlayerStanding, Match
 from ..data_structures.formats import Format
@@ -212,21 +213,43 @@ def get_tournament_detail(tournament_id: int):
 
         query_p = select(PlayerStanding).where(PlayerStanding.tournament_id == tournament_id).order_by(PlayerStanding.swiss_rank)
         all_results = session.exec(query_p).all()
-        
+
+        # Pre-fetch faction from the joined list table for each row.
+        # list_id is set for the bulk of modern rows; legacy rows may be null
+        # and fall back to the original list_json read.
+        list_ids = [p.list_id for p in all_results if p.list_id is not None]
+        faction_by_list_id: dict[int, str] = {}
+        if list_ids:
+            faction_rows = session.execute(
+                text("SELECT id, faction FROM list WHERE id = ANY(:ids)"),
+                {"ids": list_ids},
+            ).fetchall()
+            faction_by_list_id = {r[0]: r[1] for r in faction_rows if r[1] is not None}
+
         players_swiss = []
         players_cut = []
-        
+
         for p in all_results:
-            raw_faction = p.list_json.get("faction", "Unknown") if p.list_json and isinstance(p.list_json, dict) else "Unknown"
-            f_xws = normalize_faction(raw_faction)
-            
+            # Read pre-computed faction from the list table when available.
+            list_faction = faction_by_list_id.get(p.list_id) if p.list_id is not None else None
+            if list_faction:
+                f_xws = normalize_faction(list_faction)
+            else:
+                # Fallback: parse faction from the legacy list_json.
+                raw_faction = (
+                    p.list_json.get("faction", "Unknown")
+                    if p.list_json and isinstance(p.list_json, dict)
+                    else "Unknown"
+                )
+                f_xws = normalize_faction(raw_faction)
+
             try:
                 faction_enum = Faction(f_xws)
             except ValueError:
                 faction_enum = Faction.UNKNOWN
-            
+
             has_list = bool(p.list_json and isinstance(p.list_json, dict) and p.list_json.get("pilots"))
-            
+
             p_res = PlayerStandingData(
                 id=p.id,
                 name=p.player_name,
@@ -238,7 +261,7 @@ def get_tournament_detail(tournament_id: int):
                 faction=faction_enum,
                 list_json=p.list_json if has_list else None
             )
-            
+
             players_swiss.append(p_res)
             if p.cut_rank is not None:
                 p_cut = p_res.copy()

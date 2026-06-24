@@ -127,3 +127,45 @@ LOCAL_DEV_DB_CONTAINER=rdvq2p6xwxho16pbcyd40w0d bash scripts/local_dev/seed.sh
 - Frontend code: runs natively (Vite watches for changes)
 
 To nuke everything: `bash scripts/local_dev/reset.sh`
+
+## Container Resource Limits (Memory Safety)
+
+The VPS has **10 GB RAM and 2 cores**. Without limits, a single heavy query can OOM-kill the host and force a reboot. The `docker-compose.local.yml` enforces strict memory ceilings:
+
+| Container | Memory Limit | CPU Limit | PID Limit | Why |
+|---|---|---|---|---|
+| `postgres` | **2 GB** | 1.0 CPU | 128 | Holds shared_buffers (256MB) + work_mem per query. Prevents runaway query memory from starving the host. |
+| `backend` | **1 GB** | 1.0 CPU | 128 | uvicorn + Python analytics. Prevents a single API call from loading unbounded JSON into memory. |
+| `db-seed` | **512 MB** | 0.5 CPU | 64 | pg_restore can spike during large dump loads. Ephemeral container, exits after seeding. |
+
+**Total reserved: 3.5 GB out of 10 GB.** Leaves 6.5 GB for the host, Vite dev server, and other processes.
+
+### PostgreSQL memory tuning (applied via `postgres -c` command in docker-compose)
+
+| Setting | Value | Rationale |
+|---|---|---|
+| `shared_buffers` | 256 MB | 2-3% of total RAM. PostgreSQL's shared memory cache. |
+| `effective_cache_size` | 2 GB | Tells the planner how much OS cache is expected (shared_buffers + OS page cache). |
+| `work_mem` | 4 MB | Per-operation memory for sorts, hashes, merges. Too high = OOM with concurrent queries. |
+| `maintenance_work_mem` | 128 MB | For VACUUM, CREATE INDEX, ALTER TABLE. |
+| `max_connections` | 20 | Each connection costs ~10 MB. Low concurrency for local dev. |
+| `statement_timeout` | 60000 (60s) | Kills any query running longer than 60 seconds. Prevents runaway queries from hanging forever. |
+
+### Crash prevention measures
+
+1. **Container memory limits** — If a container exceeds its limit, Docker kills it (not the host). The host survives.
+2. **`statement_timeout=60s`** — PostgreSQL auto-kills queries that run longer than 60 seconds. No query can hang indefinitely.
+3. **Low `work_mem=4MB`** — Prevents a single sort/hash operation from consuming hundreds of MB.
+4. **PID limits** — Prevents fork bombs or runaway process creation inside containers.
+5. **Migration auto-applied on seed** — The db-seed container runs `migrate_performance.sql` after restoring the dump, so the jsonb conversion and indexes are always present.
+
+### If a container gets OOM-killed
+
+```bash
+# Check which container died
+docker ps -a | grep -v Up
+# Check if it was OOM
+docker inspect <container> --format '{{.State.OOMKilled}}'
+# Restart the stack
+bash scripts/local_dev/up.sh
+```
