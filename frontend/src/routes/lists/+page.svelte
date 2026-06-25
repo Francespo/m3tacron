@@ -1,5 +1,7 @@
 <script lang="ts">
     import FilterPanel from "$lib/components/FilterPanel.svelte";
+    import MobileFilterDrawer from "$lib/components/MobileFilterDrawer.svelte";
+    import MobileFilterTrigger from "$lib/components/MobileFilterTrigger.svelte";
     import SortSelector from "$lib/components/SortSelector.svelte";
     import ListRowCard from "$lib/components/ListRowCard.svelte";
     import {
@@ -8,32 +10,28 @@
         getFactionColor,
         getFactionChar,
     } from "$lib/data/factions";
-    import { goto } from "$app/navigation";
     import { page as currentPage } from "$app/state";
     import { filters } from "$lib/stores/filters.svelte";
+    import { scheduleSync } from "$lib/sync/urlSync.svelte";
     import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
     import { xwingData } from "$lib/stores/xwingData.svelte";
 
     let { data } = $props();
 
+    let filterOpen = $state(false);
     let page = $state(1);
-    let sortBy = $state("Games");
-    let sortDirection = $state("desc");
-    let selectedFactions = $state<string[]>([]);
     let factionOpen = $state(false);
     let minGames = $state(3);
 
     const size = 20;
     let total = $state(0);
 
-    // Sync state FROM the URL so direct navigation (e.g. ?page=2) works.
+    // Sync route-local state FROM the URL so direct navigation (e.g. ?page=2)
+    // works. Filter store fields (sortBy, sortDirection, selectedFactions)
+    // are hydrated by the layout via filters.applyFromSearchParams.
     $effect(() => {
         const urlPage = Number(currentPage.url.searchParams.get('page') ?? '0');
         page = urlPage + 1; // URL is 0-indexed, state is 1-indexed
-        const urlSort = currentPage.url.searchParams.get('sort_metric');
-        if (urlSort) sortBy = urlSort;
-        const urlDir = currentPage.url.searchParams.get('sort_direction');
-        if (urlDir) sortDirection = urlDir;
         const urlMinGames = currentPage.url.searchParams.get('min_games');
         if (urlMinGames) minGames = Number(urlMinGames);
     });
@@ -50,33 +48,11 @@
         // Ensure data is active
         xwingData.setSource(filters.dataSource as any);
 
-        const params = new URLSearchParams();
-        params.set("page", String(page - 1));
-        params.set("size", String(size));
-        params.set("sort_metric", sortBy);
-        params.set("sort_direction", sortDirection);
-        params.set("min_games", String(minGames));
-        params.set("data_source", filters.dataSource);
-
-        for (const f of selectedFactions) params.append("factions", f);
-        for (const s of filters.selectedShips) params.append("ships", s);
-        for (const format of filters.selectedFormats)
-            params.append("formats", format);
-        for (const p of filters.selectedSources)
-            params.append("sources", p);
-        for (const c of filters.selectedContinents)
-            params.append("continent", c);
-        for (const c of filters.selectedCountries) params.append("country", c);
-        for (const c of filters.selectedCities) params.append("city", c);
-        if (filters.dateStart) params.set("date_start", filters.dateStart);
-        if (filters.dateEnd) params.set("date_end", filters.dateEnd);
-        // Skip if URL hasn't changed (prevents loop on mount)
-        const newUrl = `?${params.toString()}`;
-        if (newUrl === `?${currentPage.url.searchParams.toString()}`) return;
-        goto(newUrl, {
-            keepFocus: true,
-            noScroll: true,
-        });
+        const params = filters.toSearchParams('lists');
+        params.set('page', String(page - 1));
+        params.set('size', String(size));
+        params.set('min_games', String(minGames));
+        scheduleSync(0, params);
     });
 
     function prevPage() {
@@ -87,23 +63,25 @@
     }
 
     function toggleFaction(f: string) {
-        if (selectedFactions.includes(f)) {
-            selectedFactions = selectedFactions.filter((x) => x !== f);
+        if (filters.selectedFactions.includes(f)) {
+            filters.selectedFactions = filters.selectedFactions.filter(
+                (x) => x !== f,
+            );
         } else {
-            selectedFactions = [...selectedFactions, f];
+            filters.selectedFactions = [...filters.selectedFactions, f];
         }
     }
 </script>
 
-{#snippet listFilters()}
+{#snippet filterBody()}
     <div class="space-y-3">
         <span class="text-xs font-bold tracking-widest text-primary font-mono">
             LIST FILTERS
         </span>
 
         <SortSelector
-            bind:sortBy
-            bind:sortDirection
+            bind:sortBy={filters.sortBy}
+            bind:sortDirection={filters.sortDirection}
             options={[
                 { value: "Games", label: "Popularity (Games)" },
                 { value: "Win Rate", label: "Win Rate" },
@@ -135,11 +113,11 @@
                     <span class="text-xs font-mono font-bold tracking-wider">
                         Faction
                     </span>
-                    {#if selectedFactions.length > 0}
+                    {#if filters.selectedFactions.length > 0}
                         <span
                             class="text-[10px] bg-white/10 text-secondary px-1.5 rounded-full font-mono"
                         >
-                            {selectedFactions.length}
+                            {filters.selectedFactions.length}
                         </span>
                     {/if}
                 </div>
@@ -168,7 +146,7 @@
                             <input
                                 type="checkbox"
                                 class="rounded border-border-dark bg-black w-3 h-3"
-                                checked={selectedFactions.includes(f)}
+                                checked={filters.selectedFactions.includes(f)}
                                 onchange={() => toggleFaction(f)}
                             />
                             <span
@@ -184,7 +162,7 @@
             {/if}
         </div>
 
-        <ShipChassisFilter {selectedFactions} />
+        <ShipChassisFilter selectedFactions={filters.selectedFactions} />
     </div>
 {/snippet}
 
@@ -193,9 +171,24 @@
 </svelte:head>
 
 <div class="flex min-h-screen">
-    <FilterPanel extra={listFilters} />
+    <FilterPanel>
+        {@render filterBody()}
+    </FilterPanel>
 
-    <main class="flex-1 p-6 md:p-8">
+    <MobileFilterTrigger
+        activeCount={filters.activeChips.length}
+        onClick={() => (filterOpen = true)}
+    />
+    <MobileFilterDrawer
+        open={filterOpen}
+        onClose={() => (filterOpen = false)}
+        title="Filters"
+        activeCount={filters.activeChips.length}
+    >
+        {@render filterBody()}
+    </MobileFilterDrawer>
+
+    <main class="flex-1 p-6 md:p-8 pb-20 lg:pb-8">
         <h1 class="text-2xl font-sans font-bold text-primary mb-1">
             List Browser
         </h1>

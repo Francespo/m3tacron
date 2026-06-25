@@ -1,47 +1,32 @@
 <script lang="ts">
     import FilterPanel from "$lib/components/FilterPanel.svelte";
+    import MobileFilterDrawer from "$lib/components/MobileFilterDrawer.svelte";
+    import MobileFilterTrigger from "$lib/components/MobileFilterTrigger.svelte";
     import SortSelector from "$lib/components/SortSelector.svelte";
     import { filters } from "$lib/stores/filters.svelte";
-    import { goto } from "$app/navigation";
+    import { scheduleSync } from "$lib/sync/urlSync.svelte";
     import { getFormatLabel, getFormatColor } from "$lib/data/formats";
 
     let { data } = $props();
 
+    let filterOpen = $state(false);
     let page = $state(1);
-    let sortBy = $state("Date");
-    let sortDirection = $state("desc");
     const size = 20;
 
     // Derive filtered items from data + global filters
     let items = $derived(data.items ?? []);
     let total = $derived(data.total ?? 0);
 
+    // Push the store + route-local overlay (page, size) to the URL.
+    // Filter store fields (sortBy, sortDirection, search, etc.) are written
+    // centrally via `filters.toSearchParams`; route-local fields are overlaid
+    // on top. URL hydration on direct nav is handled by the layout via
+    // `filters.applyFromSearchParams`.
     $effect(() => {
-        const params = new URLSearchParams();
-        params.set("page", String(page - 1));
-        params.set("size", String(size));
-        params.set("data_source", filters.dataSource);
-        for (const format of filters.selectedFormats)
-            params.append("formats", format);
-        // Date filters
-        if (filters.dateStart) params.set("date_start", filters.dateStart);
-        if (filters.dateEnd) params.set("date_end", filters.dateEnd);
-        // Location filters
-        for (const c of filters.selectedContinents)
-            params.append("continent", c);
-        for (const c of filters.selectedCountries) params.append("country", c);
-        for (const c of filters.selectedCities) params.append("city", c);
-        for (const p of filters.selectedSources)
-            params.append("sources", p);
-
-        params.set("sort_metric", sortBy);
-        params.set("sort_direction", sortDirection);
-
-        goto(`?${params.toString()}`, {
-            keepFocus: true,
-            noScroll: true,
-            replaceState: true,
-        });
+        const params = filters.toSearchParams('tournaments');
+        params.set('page', String(page - 1));
+        params.set('size', String(size));
+        scheduleSync(0, params);
     });
 
     function prevPage() {
@@ -52,10 +37,10 @@
     }
 </script>
 
-{#snippet tournamentSorting()}
+{#snippet filterBody()}
     <SortSelector
-        bind:sortBy
-        bind:sortDirection
+        bind:sortBy={filters.sortBy}
+        bind:sortDirection={filters.sortDirection}
         options={[
             { value: "Date", label: "Date" },
             { value: "Players", label: "Players" },
@@ -70,10 +55,25 @@
 
 <div class="flex min-h-screen">
     <!-- Filter Panel (2nd column) -->
-    <FilterPanel extra={tournamentSorting} />
+    <FilterPanel>
+        {@render filterBody()}
+    </FilterPanel>
+
+    <MobileFilterTrigger
+        activeCount={filters.activeChips.length}
+        onClick={() => (filterOpen = true)}
+    />
+    <MobileFilterDrawer
+        open={filterOpen}
+        onClose={() => (filterOpen = false)}
+        title="Filters"
+        activeCount={filters.activeChips.length}
+    >
+        {@render filterBody()}
+    </MobileFilterDrawer>
 
     <!-- Main Content (3rd column) -->
-    <main class="flex-1 p-6 md:p-8">
+    <main class="flex-1 p-6 md:p-8 pb-20 lg:pb-8">
         <h1 class="text-2xl font-sans font-bold text-primary mb-1">
             Tournaments
         </h1>

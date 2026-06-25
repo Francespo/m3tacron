@@ -149,13 +149,13 @@
                 class="bg-terminal-panel border border-border-dark rounded-xl overflow-hidden"
             >
                 <div
-                    class="grid grid-cols-[3fr_1fr_1fr_1fr_1.5fr_1fr] md:grid-cols-[4fr_1fr_1fr_1fr_2fr_1fr] gap-4 p-4 border-b border-border-dark bg-[#ffffff03] text-xs font-mono text-secondary uppercase tracking-wider"
+                    class="grid grid-cols-1 sm:grid-cols-[3fr_1fr_1fr_1fr_1.5fr_1fr] md:grid-cols-[4fr_1fr_1fr_1fr_2fr_1fr] gap-4 p-4 border-b border-border-dark bg-[#ffffff03] text-xs font-mono text-secondary uppercase tracking-wider"
                 >
                     <div>Pilot</div>
                     <div class="text-center hidden sm:block">Ship</div>
-                    <div class="text-right">Cost</div>
-                    <div class="text-right">Games</div>
-                    <div class="text-center">% of Squadron</div>
+                    <div class="text-right hidden sm:block">Cost</div>
+                    <div class="text-right hidden sm:block">Games</div>
+                    <div class="text-center hidden sm:block">% of Squadron</div>
                     <div class="text-right">Win Rate</div>
                 </div>
 
@@ -163,7 +163,7 @@
                     {#each pilots as p}
                         <a
                             href="/pilot/{p.pilot_xws}"
-                            class="grid grid-cols-[3fr_1fr_1fr_1fr_1.5fr_1fr] md:grid-cols-[4fr_1fr_1fr_1fr_2fr_1fr] gap-4 p-4 hover:bg-[#ffffff05] transition-colors items-center cursor-pointer group"
+                            class="grid grid-cols-1 sm:grid-cols-[3fr_1fr_1fr_1fr_1.5fr_1fr] md:grid-cols-[4fr_1fr_1fr_1fr_2fr_1fr] gap-4 p-4 border-b border-border-dark pb-2 sm:border-none sm:pb-0 hover:bg-[#ffffff05] transition-colors items-center cursor-pointer group"
                         >
                             <!-- Name -->
                             <div
@@ -179,18 +179,18 @@
                             </div>
                             <!-- Cost -->
                             <div
-                                class="text-right font-mono text-xs text-green-400"
+                                class="text-right font-mono text-xs text-green-400 hidden sm:block"
                             >
                                 {p.cost} PT
                             </div>
                             <!-- Games -->
                             <div
-                                class="text-right font-mono text-xs text-secondary"
+                                class="text-right font-mono text-xs text-secondary hidden sm:block"
                             >
                                 {p.games}
                             </div>
                             <!-- Percent Bar -->
-                            <div class="flex items-center gap-2 justify-end">
+                            <div class="flex items-center gap-2 justify-end hidden sm:flex">
                                 <span class="font-mono text-xs text-secondary"
                                     >{p.percent_of_squadron.toFixed(1)}%</span
                                 >

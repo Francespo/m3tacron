@@ -145,8 +145,9 @@
         <div
             class="bg-[#0a0a0a] border border-border-dark rounded-lg overflow-hidden shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
         >
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
+            <div class="relative">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
                     <thead>
                         <tr class="border-b border-border-dark bg-[#111]">
                             <th
@@ -271,6 +272,12 @@
                         {/each}
                     </tbody>
                 </table>
+                </div>
+                <!-- Right-edge fade to hint at horizontal scroll on narrow screens. -->
+                <div
+                    class="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-terminal-bg to-transparent sm:hidden"
+                    aria-hidden="true"
+                ></div>
             </div>
         </div>
     </section>

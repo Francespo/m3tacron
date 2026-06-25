@@ -1,5 +1,7 @@
 <script lang="ts">
     import FilterPanel from "$lib/components/FilterPanel.svelte";
+    import MobileFilterDrawer from "$lib/components/MobileFilterDrawer.svelte";
+    import MobileFilterTrigger from "$lib/components/MobileFilterTrigger.svelte";
     import SortSelector from "$lib/components/SortSelector.svelte";
     import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
     import {
@@ -9,18 +11,16 @@
         getWinRateColor,
         ALL_FACTIONS,
     } from "$lib/data/factions";
-    import { goto, invalidateAll } from "$app/navigation";
-    import { page as currentPage } from "$app/state";
+    import { invalidateAll } from "$app/navigation";
     import { filters } from "$lib/stores/filters.svelte";
+    import { scheduleSync } from "$lib/sync/urlSync.svelte";
     import { xwingData } from "$lib/stores/xwingData.svelte";
 
     let { data } = $props();
 
+    let filterOpen = $state(false);
     let total = $state(0);
     let page = $state(1);
-    let sortBy = $state("Popularity");
-    let sortDirection = $state("desc");
-    let selectedFactions = $state<string[]>([]);
     let factionOpen = $state(false);
     let showEpic = $state(false);
     const size = 50;
@@ -29,21 +29,16 @@
     let mergedShips = $state<any[]>([]);
 
     // Sync state FROM the URL so direct navigation (e.g. ?page=2) works.
-    $effect(() => {
-        const urlPage = Number(currentPage.url.searchParams.get('page') ?? '0');
-        page = urlPage + 1; // URL is 0-indexed, state is 1-indexed
-        const urlSort = currentPage.url.searchParams.get('sort_metric');
-        if (urlSort) sortBy = urlSort;
-        const urlDir = currentPage.url.searchParams.get('sort_direction');
-        if (urlDir) sortDirection = urlDir;
-    });
+    // URL hydration is now handled centrally by the layout via
+    // `filters.applyFromSearchParams` + `clearPendingSync`; routes only need
+    // the round-trip write effect below.
 
     // Merge API data with xwingData when any dependency changes
     $effect(() => {
         // Read reactive values synchronously so $effect tracks them
         const epic = showEpic;
-        const currentSortBy = sortBy;
-        const currentSortDir = sortDirection;
+        const currentSortBy = filters.sortBy;
+        const currentSortDir = filters.sortDirection;
 
         data.apiShipsPromise.then((apiShips: any[]) => {
             const xwingShips = xwingData.data[xwingData.currentSource]?.ships;
@@ -98,33 +93,10 @@
         // Ensure data is active
         xwingData.setSource(filters.dataSource as any);
 
-        const params = new URLSearchParams();
-        params.set("page", String(page - 1));
-        params.set("size", String(size));
-        params.set("data_source", filters.dataSource);
-        params.set("sort_metric", sortBy);
-        params.set("sort_direction", sortDirection);
-        for (const format of filters.selectedFormats)
-            params.append("formats", format);
-        for (const f of selectedFactions) params.append("factions", f);
-        for (const s of filters.selectedShips) params.append("ships", s);
-        for (const p of filters.selectedSources)
-            params.append("sources", p);
-        for (const c of filters.selectedContinents)
-            params.append("continent", c);
-        for (const c of filters.selectedCountries) params.append("country", c);
-        for (const c of filters.selectedCities) params.append("city", c);
-        if (filters.dateStart) params.set("date_start", filters.dateStart);
-        if (filters.dateEnd) params.set("date_end", filters.dateEnd);
-
-        // Skip if URL hasn't changed (prevents loop on mount)
-        const newUrl = `?${params.toString()}`;
-        if (newUrl === `?${currentPage.url.searchParams.toString()}`) return;
-
-        goto(newUrl, {
-            keepFocus: true,
-            noScroll: true,
-        });
+        const params = filters.toSearchParams('ships');
+        params.set('page', String(page - 1));
+        params.set('size', String(size));
+        scheduleSync(0, params);
     });
 
     function prevPage() {
@@ -135,23 +107,23 @@
     }
 
     function toggleFaction(f: string) {
-        if (selectedFactions.includes(f)) {
-            selectedFactions = selectedFactions.filter((x) => x !== f);
+        if (filters.selectedFactions.includes(f)) {
+            filters.selectedFactions = filters.selectedFactions.filter((x: string) => x !== f);
         } else {
-            selectedFactions = [...selectedFactions, f];
+            filters.selectedFactions = [...filters.selectedFactions, f];
         }
     }
 </script>
 
-{#snippet shipFilters()}
+{#snippet filterBody()}
     <div class="space-y-3">
         <span class="text-xs font-bold tracking-widest text-primary font-mono">
             SHIP FILTERS
         </span>
 
         <SortSelector
-            bind:sortBy
-            bind:sortDirection
+            bind:sortBy={filters.sortBy}
+            bind:sortDirection={filters.sortDirection}
             options={[
                 { value: "Popularity", label: "Popularity (Lists)" },
                 { value: "Win Rate", label: "Win Rate" },
@@ -170,11 +142,11 @@
                     <span class="text-xs font-mono font-bold tracking-wider">
                         Faction
                     </span>
-                    {#if selectedFactions.length > 0}
+                    {#if filters.selectedFactions.length > 0}
                         <span
                             class="text-[10px] bg-white/10 text-secondary px-1.5 rounded-full font-mono"
                         >
-                            {selectedFactions.length}
+                            {filters.selectedFactions.length}
                         </span>
                     {/if}
                 </div>
@@ -203,7 +175,7 @@
                             <input
                                 type="checkbox"
                                 class="rounded border-border-dark bg-black w-3 h-3"
-                                checked={selectedFactions.includes(f)}
+                                checked={filters.selectedFactions.includes(f)}
                                 onchange={() => toggleFaction(f)}
                             />
                             <span
@@ -232,7 +204,7 @@
             </label>
         </div>
 
-        <ShipChassisFilter {selectedFactions} />
+        <ShipChassisFilter selectedFactions={filters.selectedFactions} />
     </div>
 {/snippet}
 
@@ -241,9 +213,24 @@
 </svelte:head>
 
 <div class="flex min-h-screen">
-    <FilterPanel extra={shipFilters} />
+    <FilterPanel>
+        {@render filterBody()}
+    </FilterPanel>
 
-    <main class="flex-1 p-6 md:p-8">
+    <MobileFilterTrigger
+        activeCount={filters.activeChips.length}
+        onClick={() => (filterOpen = true)}
+    />
+    <MobileFilterDrawer
+        open={filterOpen}
+        onClose={() => (filterOpen = false)}
+        title="Filters"
+        activeCount={filters.activeChips.length}
+    >
+        {@render filterBody()}
+    </MobileFilterDrawer>
+
+    <main class="flex-1 p-6 md:p-8 pb-20 lg:pb-8">
         <h1 class="text-2xl font-sans font-bold text-primary mb-1">Ships</h1>
 
         {#await data.itemsPromise}
@@ -280,25 +267,19 @@
 
                     <a href="/ship/{ship.xws}" class="block group">
                         <div
-                            class="relative bg-terminal-panel border border-border-dark rounded-md p-4 flex flex-col items-center gap-2 hover:border-secondary/50 group-hover:scale-[1.03] group-hover:-translate-y-1 transition-all duration-200"
-                            style="box-shadow: 0 0 20px {factionColor}{Math.round(
-                                glowOpacity * 255,
-                            )
-                                .toString(16)
-                                .padStart(2, '0')}; border-color: {factionColor}30;"
+                            class="ship-card relative bg-terminal-panel border border-border-dark rounded-md p-4 flex flex-col items-center gap-2 hover:border-secondary/50 group-hover:scale-[1.03] group-hover:-translate-y-1 transition-all duration-200"
+                            style="--faction: {factionColor}; --wr: {wrColor}; --glow-alpha: {glowOpacity};"
                         >
                             <!-- Faction icon (small, top-right) -->
                             <span
-                                class="absolute top-2 right-2 font-xwing text-sm opacity-50"
-                                style="color: {factionColor};"
+                                class="faction-text absolute top-2 right-2 font-xwing text-sm opacity-50"
                             >
                                 {getFactionChar(factionKey)}
                             </span>
 
                             <!-- Ship Icon (from X-Wing ship font via CSS pseudo-element) -->
                             <i
-                                class="xwing-miniatures-ship xwing-miniatures-ship-{ship.xws ? ship.xws.replace(/[^a-z0-9]/g, '') : ''} transition-transform"
-                                style="color: {factionColor}; opacity: 0.9; font-size: 10rem; line-height: 1;"
+                                class="ship-icon xwing-miniatures-ship xwing-miniatures-ship-{ship.xws ? ship.xws.replace(/[^a-z0-9]/g, '') : ''} transition-transform"
                             ></i>
 
                             <!-- Ship Name -->
@@ -314,8 +295,7 @@
                                     class="text-center bg-[#ffffff05] rounded px-1 py-0.5"
                                 >
                                     <span
-                                        class="text-xs font-mono font-bold"
-                                        style="color: {wrColor};"
+                                        class="wr-text text-xs font-mono font-bold"
                                         >{games === 0
                                             ? "NA"
                                             : Number(wr).toFixed(1) + "%"}</span
@@ -394,3 +374,25 @@
         {/await}
     </main>
 </div>
+
+<style>
+    .ship-card {
+        --faction: #888;
+        --wr: #888;
+        --glow-alpha: 0;
+        box-shadow: 0 0 20px color-mix(in srgb, var(--faction) calc(var(--glow-alpha) * 100%), transparent);
+        border-color: color-mix(in srgb, var(--faction) 30%, transparent);
+    }
+    .ship-icon {
+        color: var(--faction);
+        opacity: 0.9;
+        font-size: clamp(3rem, 18vw, 8rem);
+        line-height: 1;
+    }
+    .faction-text {
+        color: var(--faction);
+    }
+    .wr-text {
+        color: var(--wr);
+    }
+</style>

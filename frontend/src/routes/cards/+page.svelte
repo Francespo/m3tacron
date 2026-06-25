@@ -1,5 +1,7 @@
 <script lang="ts">
     import FilterPanel from "$lib/components/FilterPanel.svelte";
+    import MobileFilterDrawer from "$lib/components/MobileFilterDrawer.svelte";
+    import MobileFilterTrigger from "$lib/components/MobileFilterTrigger.svelte";
     import SortSelector from "$lib/components/SortSelector.svelte";
     import AdvancedFilters from "$lib/components/AdvancedFilters.svelte";
     import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
@@ -13,17 +15,15 @@
         getFactionLabel,
     } from "$lib/data/factions";
     import { filters } from "$lib/stores/filters.svelte";
-    import { goto } from "$app/navigation";
-    import { page as currentPage } from "$app/state";
+    import { scheduleSync } from "$lib/sync/urlSync.svelte";
+    import DebouncedTextInput from "$lib/components/DebouncedTextInput.svelte";
     import { xwingData } from "$lib/stores/xwingData.svelte";
+    import { goto } from "$app/navigation";
 
     let { data } = $props();
 
+    let filterOpen = $state(false);
     let page = $state(1);
-    let sortBy = $state("Popularity");
-    let sortDirection = $state("desc");
-    let textSearch = $state("");
-    let selectedFactions = $state<string[]>([]);
     let factionOpen = $state(false);
     const size = 20;
 
@@ -32,16 +32,6 @@
 
     let isAdvanced = $state(false);
 
-    // Sync state FROM the URL so direct navigation (e.g. ?page=2) works.
-    $effect(() => {
-        const urlPage = Number(currentPage.url.searchParams.get('page') ?? '0');
-        page = urlPage + 1; // URL is 0-indexed, state is 1-indexed
-        const urlSort = currentPage.url.searchParams.get('sort_metric');
-        if (urlSort) sortBy = urlSort;
-        const urlDir = currentPage.url.searchParams.get('sort_direction');
-        if (urlDir) sortDirection = urlDir;
-    });
-
     // Track total from the latest promise resolution (for nextPage guard)
     $effect(() => {
         data.itemsPromise.then((resolved: any) => {
@@ -49,70 +39,18 @@
         });
     });
 
-    // Let URL load logic handle the tab, we will drive updates
+    // Ensure data is loaded for the current data source, then push the
+    // store + route-local overlay (page, size, tab) to the URL.
     $effect(() => {
-        // Ensure data is loaded
         xwingData.setSource(filters.dataSource as any);
 
-        const params = new URLSearchParams();
-        params.set("tab", data.tab);
-        params.set("page", String(page - 1));
-        params.set("size", String(size));
-        params.set("data_source", filters.dataSource);
-        params.set("sort_metric", sortBy);
-        params.set("sort_direction", sortDirection);
-        if (textSearch) params.set("search", textSearch);
-        for (const format of filters.selectedFormats)
-            params.append("formats", format);
-        for (const f of selectedFactions) params.append("factions", f);
-        for (const s of filters.selectedShips) params.append("ships", s);
-        for (const p of filters.selectedSources)
-            params.append("sources", p);
-        for (const c of filters.selectedContinents)
-            params.append("continent", c);
-        for (const c of filters.selectedCountries) params.append("country", c);
-        for (const c of filters.selectedCities) params.append("city", c);
-        if (filters.dateStart) params.set("date_start", filters.dateStart);
-        if (filters.dateEnd) params.set("date_end", filters.dateEnd);
-
-        // Advanced Filters
-        if (filters.pointsMin) params.set("points_min", filters.pointsMin);
-        if (filters.pointsMax) params.set("points_max", filters.pointsMax);
-        if (filters.loadoutMin && filters.dataSource === "xwa")
-            params.set("loadout_min", filters.loadoutMin);
-        if (filters.loadoutMax && filters.dataSource === "xwa")
-            params.set("loadout_max", filters.loadoutMax);
-        if (filters.isUnique) params.set("is_unique", "true");
-        if (filters.isLimited) params.set("is_limited", "true");
-        if (filters.isGeneric) params.set("is_not_limited", "true");
-        for (const b of filters.selectedBaseSizes)
-            params.append("base_sizes", b);
-
-        if (data.tab === "pilots") {
-            if (filters.initMin) params.set("init_min", filters.initMin);
-            if (filters.initMax) params.set("init_max", filters.initMax);
-            if (filters.hullMin) params.set("hull_min", filters.hullMin);
-            if (filters.hullMax) params.set("hull_max", filters.hullMax);
-            if (filters.shieldsMin)
-                params.set("shields_min", filters.shieldsMin);
-            if (filters.shieldsMax)
-                params.set("shields_max", filters.shieldsMax);
-            if (filters.agilityMin)
-                params.set("agility_min", filters.agilityMin);
-            if (filters.agilityMax)
-                params.set("agility_max", filters.agilityMax);
-            if (filters.attackMin) params.set("attack_min", filters.attackMin);
-            if (filters.attackMax) params.set("attack_max", filters.attackMax);
-        }
-        // Skip if URL hasn't changed (prevents loop on mount)
-        const newUrl = `?${params.toString()}`;
-        if (newUrl === `?${currentPage.url.searchParams.toString()}`) return;
-
-            goto(newUrl, {
-                keepFocus: true,
-                noScroll: true,
-                replaceState: false,
-            });
+        const params = filters.toSearchParams('cards');
+        // Overlay route-local URL state (page is 0-indexed in the URL,
+        // 1-indexed in the UI; tab/size are route-local concerns).
+        params.set('page', String(page - 1));
+        params.set('size', String(size));
+        if (data.tab) params.set('tab', data.tab);
+        scheduleSync(0, params);
     });
 
     function prevPage() {
@@ -123,15 +61,17 @@
     }
 
     function toggleFaction(f: string) {
-        if (selectedFactions.includes(f)) {
-            selectedFactions = selectedFactions.filter((x) => x !== f);
+        if (filters.selectedFactions.includes(f)) {
+            filters.selectedFactions = filters.selectedFactions.filter(
+                (x) => x !== f,
+            );
         } else {
-            selectedFactions = [...selectedFactions, f];
+            filters.selectedFactions = [...filters.selectedFactions, f];
         }
     }
 </script>
 
-{#snippet cardFilters()}
+{#snippet filterBody()}
     <div class="space-y-3">
         <div class="flex items-center gap-2">
             <span
@@ -164,8 +104,8 @@
         {/if}
 
         <SortSelector
-            bind:sortBy
-            bind:sortDirection
+            bind:sortBy={filters.sortBy}
+            bind:sortDirection={filters.sortDirection}
             options={[
                 { value: "Popularity", label: "Popularity (Lists)" },
                 { value: "Win Rate", label: "Win Rate" },
@@ -184,11 +124,14 @@
                 class="text-xs font-mono font-bold tracking-wider text-secondary"
                 >Text Search</span
             >
-            <input
-                type="text"
+            <DebouncedTextInput
+                value={filters.searchName}
+                onDebouncedChange={(v) => {
+                    filters.searchName = v;
+                    scheduleSync(250);
+                }}
                 placeholder="Search card text"
-                class="w-full bg-black border border-border-dark rounded px-2 py-1.5 text-xs font-mono text-primary placeholder:text-[#555] focus:border-primary focus:outline-none"
-                bind:value={textSearch}
+                ariaLabel="Search card text"
             />
         </div>
 
@@ -202,11 +145,11 @@
                     <span class="text-xs font-mono font-bold tracking-wider">
                         Faction
                     </span>
-                    {#if selectedFactions.length > 0}
+                    {#if filters.selectedFactions.length > 0}
                         <span
                             class="text-[10px] bg-white/10 text-secondary px-1.5 rounded-full font-mono"
                         >
-                            {selectedFactions.length}
+                            {filters.selectedFactions.length}
                         </span>
                     {/if}
                 </div>
@@ -235,7 +178,7 @@
                             <input
                                 type="checkbox"
                                 class="rounded border-border-dark bg-black w-3 h-3"
-                                checked={selectedFactions.includes(f)}
+                                checked={filters.selectedFactions.includes(f)}
                                 onchange={() => toggleFaction(f)}
                             />
                             <span
@@ -251,7 +194,7 @@
         </div>
 
         {#if data.tab === "pilots"}
-            <ShipChassisFilter {selectedFactions} />
+            <ShipChassisFilter selectedFactions={filters.selectedFactions} />
         {/if}
     </div>
 {/snippet}
@@ -261,9 +204,24 @@
 </svelte:head>
 
 <div class="flex min-h-screen">
-    <FilterPanel extra={cardFilters} />
+    <FilterPanel>
+        {@render filterBody()}
+    </FilterPanel>
 
-    <main class="flex-1 p-6 md:p-8">
+    <MobileFilterTrigger
+        activeCount={filters.activeChips.length}
+        onClick={() => (filterOpen = true)}
+    />
+    <MobileFilterDrawer
+        open={filterOpen}
+        onClose={() => (filterOpen = false)}
+        title="Filters"
+        activeCount={filters.activeChips.length}
+    >
+        {@render filterBody()}
+    </MobileFilterDrawer>
+
+    <main class="flex-1 p-6 md:p-8 pb-20 lg:pb-8">
         <!-- Tabs: Pilots / Upgrades -->
         <div class="flex items-center gap-6 mb-6">
             <button
@@ -272,13 +230,11 @@
                     ? 'text-primary'
                     : 'text-secondary hover:text-primary'}"
                 onclick={() => {
-                    import("$app/navigation").then(({ goto }) =>
-                        goto("?tab=pilots&page=0", {
-                            keepFocus: true,
-                            noScroll: true,
-                            replaceState: true,
-                        }),
-                    );
+                    goto("?tab=pilots&page=0", {
+                        keepFocus: true,
+                        noScroll: true,
+                        replaceState: true,
+                    });
                 }}
             >
                 Pilots
@@ -289,13 +245,11 @@
                     ? 'text-primary'
                     : 'text-secondary hover:text-primary'}"
                 onclick={() => {
-                    import("$app/navigation").then(({ goto }) =>
-                        goto("?tab=upgrades&page=0", {
-                            keepFocus: true,
-                            noScroll: true,
-                            replaceState: true,
-                        }),
-                    );
+                    goto("?tab=upgrades&page=0", {
+                        keepFocus: true,
+                        noScroll: true,
+                        replaceState: true,
+                    });
                 }}
             >
                 Upgrades
