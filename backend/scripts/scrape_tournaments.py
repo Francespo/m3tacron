@@ -35,6 +35,7 @@ import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
+from typing import Any, cast
 from urllib.parse import urlparse
 
 from sqlalchemy import func, text
@@ -42,7 +43,9 @@ from sqlmodel import Session, create_engine, select
 
 from ..database import engine, create_db_and_tables
 from ..data_structures.round_types import RoundType
+from ..data_structures.source import Source
 from ..models import Match, PlayerStanding, Tournament, TeamStanding, TeamMatch
+from ..scrapers.base import BaseScraper
 from ..scrapers.listfortress_scraper import ListFortressScraper
 from ..scrapers.longshanks_scraper import LongshanksScraper
 from ..scrapers.rollbetter_scraper import RollbetterScraper
@@ -193,16 +196,20 @@ def _delete_existing_tournament(session: Session, url: str) -> None:
 
     existing = session.exec(select(Tournament).where(
         Tournament.url == url)).first()
-    if existing:
+    if existing is not None:
+        eid = existing.id
+        assert eid is not None
         logger.info(f"Deleting existing tournament data for {url}")
         session.exec(delete(TeamMatch).where(
-            TeamMatch.tournament_id == existing.id))
-        session.exec(delete(Match).where(Match.tournament_id == existing.id))
+            cast(Any, TeamMatch.tournament_id) == eid))
+        session.exec(delete(Match).where(
+            cast(Any, Match.tournament_id) == eid))
         session.exec(delete(PlayerStanding).where(
-            PlayerStanding.tournament_id == existing.id))
+            cast(Any, PlayerStanding.tournament_id) == eid))
         session.exec(delete(TeamStanding).where(
-            TeamStanding.tournament_id == existing.id))
-        session.exec(delete(Tournament).where(Tournament.id == existing.id))
+            cast(Any, TeamStanding.tournament_id) == eid))
+        session.exec(delete(Tournament).where(
+            cast(Any, Tournament.id) == eid))
         session.commit()
 
 
@@ -362,10 +369,12 @@ def save_tournament_data(
     # Also include any team names that appear in team matches
     for m in matches:
         if isinstance(m, dict) and m.get("is_team_match"):
-            if m.get("p1_name_temp"):
-                team_names.add(m.get("p1_name_temp").strip())
-            if m.get("p2_name_temp"):
-                team_names.add(m.get("p2_name_temp").strip())
+            p1n = m.get("p1_name_temp")
+            if isinstance(p1n, str):
+                team_names.add(p1n.strip())
+            p2n = m.get("p2_name_temp")
+            if isinstance(p2n, str):
+                team_names.add(p2n.strip())
 
     team_id_map: dict[str, int] = {}
     if team_names:
@@ -378,7 +387,8 @@ def save_tournament_data(
                 team_name=tname,
             )
             session.add(ts)
-            team_id_map[tname.lower().strip()] = ts.id
+            if ts.id is not None:
+                team_id_map[tname.lower().strip()] = ts.id
         session.flush()
 
     # Assign player IDs from current max + offset so they are unique.
@@ -456,6 +466,7 @@ def save_tournament_data(
                 winner_name = (match_raw.get("winner_name_temp")
                                or "").lower().strip()
                 match = Match(
+                    tournament_id=tournament.id,
                     round_number=match_raw["round_number"],
                     round_type=match_raw.get("round_type", RoundType.SWISS),
                     scenario=match_raw.get("scenario"),
@@ -774,6 +785,7 @@ def _write_sqlite(sqlite_path: str, saved_items: list) -> None:
             )
             p_copies = [
                 PlayerStanding(
+                    tournament_id=tournament.id,
                     player_name=p.player_name,
                     team_id=getattr(p, "team_id", None),
                     swiss_rank=p.swiss_rank,
@@ -809,7 +821,7 @@ def _write_sqlite(sqlite_path: str, saved_items: list) -> None:
 
 def build_scrapers(
     platform: str, include_listfortress: bool
-) -> list[tuple[str, object]]:
+) -> list[tuple[str, BaseScraper]]:
     """Build the list of (name, scraper) pairs to run.
 
     Longshanks is split into two instances (2.5 and Legacy 2.0 subdomains).
@@ -825,7 +837,7 @@ def build_scrapers(
         - 'listfortress': ListFortress only.
         - 'all': All three platforms (Longshanks + RollBetter + ListFortress).
     """
-    scrapers: list[tuple[str, object]] = []
+    scrapers: list[tuple[str, BaseScraper]] = []
 
     if platform in ("all", "longshanks+rollbetter", "longshanks"):
         scrapers.append(
@@ -848,8 +860,8 @@ def build_scrapers(
 
 
 def _split_scrapers(
-    scrapers: list[tuple[str, object]],
-) -> tuple[list[tuple[str, object]], list[tuple[str, object]]]:
+    scrapers: list[tuple[str, BaseScraper]],
+) -> tuple[list[tuple[str, BaseScraper]], list[tuple[str, BaseScraper]]]:
     """Split scrapers into independent and dependent groups.
 
     Independent scrapers (Longshanks, Rollbetter) can run in parallel
@@ -862,8 +874,8 @@ def _split_scrapers(
     Returns:
         Tuple of (independent_scrapers, dependent_scrapers).
     """
-    independent: list[tuple[str, object]] = []
-    dependent: list[tuple[str, object]] = []
+    independent: list[tuple[str, BaseScraper]] = []
+    dependent: list[tuple[str, BaseScraper]] = []
 
     for name, scraper in scrapers:
         if "listfortress" in name:
@@ -960,6 +972,12 @@ def main() -> int:
         except argparse.ArgumentTypeError as exc:
             logger.error(str(exc))
             return 1
+
+    if date_from is None or date_to is None:
+        # Should not happen: this branch is only reached when
+        # tournament_urls is empty and parse_time_range succeeded.
+        logger.error("Internal error: date range not set.")
+        return 1
 
     logger.info(
         f"Date range: {date_from} -> {date_to} | "

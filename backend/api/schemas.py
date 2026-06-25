@@ -11,10 +11,13 @@ from backend.data_structures.source import Source
 
 class UpgradeData(BaseModel):
     xws: str
+    slot_xws: str = ""
 
 
 class PilotData(BaseModel):
     xws: str
+    ship_xws: str = ""
+    faction_xws: str = ""
     upgrades: list[UpgradeData] = []
 
 
@@ -23,7 +26,13 @@ class ListData(BaseModel):
     signature: str
     points: int
     original_points: int
-    faction_xws: Faction
+    faction_xws: str = ""
+    faction: str = ""
+    faction_key: str = ""
+    icon_char: str = ""
+    count: int = 0
+    win_rate: float = 0.0
+    total_loadout: int = 0
     pilots: list[PilotData]
     wins: int
     games: int
