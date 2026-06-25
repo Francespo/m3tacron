@@ -1,8 +1,10 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { filters } from "$lib/stores/filters.svelte";
+    import { scheduleSync } from "$lib/sync/urlSync.svelte";
     import { API_BASE } from "$lib/api";
     import { getFormatFullLabel } from "$lib/data/formats";
+    import DebouncedTextInput from "./DebouncedTextInput.svelte";
 
     let dateOpen = $state(false);
     let locationOpen = $state(false);
@@ -27,7 +29,7 @@
 
     let availableContinents = $derived(Object.keys(locationHierarchy).sort());
 
-    let availableCountries = $derived(() => {
+    let availableCountries = $derived.by(() => {
         let countries = new Set<string>();
         let conts =
             filters.selectedContinents.length > 0
@@ -43,7 +45,7 @@
         return Array.from(countries).sort();
     });
 
-    let availableCities = $derived(() => {
+    let availableCities = $derived.by(() => {
         let cities = new Set<string>();
         let conts =
             filters.selectedContinents.length > 0
@@ -71,12 +73,12 @@
         ),
     );
     let filteredCountries = $derived(
-        availableCountries().filter((c) =>
+        availableCountries.filter((c) =>
             c.toLowerCase().includes(locationSearch.toLowerCase()),
         ),
     );
     let filteredCities = $derived(
-        availableCities().filter((c) =>
+        availableCities.filter((c) =>
             c.toLowerCase().includes(locationSearch.toLowerCase()),
         ),
     );
@@ -433,11 +435,14 @@
         <span class="text-xs font-mono font-bold tracking-wider text-secondary"
             >Search Name</span
         >
-        <input
-            type="text"
+        <DebouncedTextInput
+            value={filters.searchName}
+            onDebouncedChange={(v) => {
+                filters.searchName = v;
+                scheduleSync(250);
+            }}
             placeholder="Search name..."
-            class="w-full bg-black border border-border-dark rounded px-2 py-1.5 text-xs font-mono text-primary placeholder:text-[#555] focus:border-primary focus:outline-none"
-            bind:value={filters.searchName}
+            ariaLabel="Search tournament name"
         />
     </div>
 </div>

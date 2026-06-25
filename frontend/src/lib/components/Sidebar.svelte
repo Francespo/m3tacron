@@ -1,44 +1,70 @@
-<script lang="ts">
-	import { page } from "$app/stores";
+<script context="module" lang="ts">
+	/**
+	 * Single source of truth for primary navigation entries.
+	 *
+	 * Consumed by:
+	 *  - `Sidebar.svelte` (this file) for the desktop sidebar.
+	 *  - The mobile nav drawer (mounted in `+layout.svelte`) for <md viewports.
+	 *
+	 * MUST stay a static array — no reactive values, no runtime computation —
+	 * so both the desktop sidebar and the mobile nav drawer can render the same
+	 * links from a module-level export without depending on component state.
+	 *
+	 * Field names use the spec from the FilterPanel/Sidebar refactor:
+	 * `{ href, label, icon? }`. The instance script below aliases `links` from
+	 * `NAV_LINKS` so the template can read fields directly.
+	 */
+	export type NavLink = {
+		href: string;
+		label: string;
+		icon?: string;
+	};
 
-	// Sidebar Links
-	const links = [
+	export const NAV_LINKS: NavLink[] = [
 		{
-			text: "DASHBOARD",
+			label: "DASHBOARD",
 			href: "/",
 			icon: "M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16",
 		},
 		{
-			text: "TOURNAMENTS",
+			label: "TOURNAMENTS",
 			href: "/tournaments",
 			icon: "M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2Z",
 		},
 		{
-			text: "SQUADRONS",
+			label: "SQUADRONS",
 			href: "/squadrons",
 			icon: "M14.5 4h5v5M19.5 4l-5 5M4.5 20h5v-5M9.5 15l-5 5M14.5 20h5v-5M19.5 20l-5-5M4.5 4h5v5M9.5 9l-5-5",
 		},
 		{
-			text: "LISTS",
+			label: "LISTS",
 			href: "/lists",
 			icon: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01",
 		},
 		{
-			text: "SHIPS",
+			label: "SHIPS",
 			href: "/ships",
 			icon: "M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09zM12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2zM9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5",
 		},
 		{
-			text: "CARDS",
+			label: "CARDS",
 			href: "/cards",
 			icon: "M19 17V5a2 2 0 0 0-2-2H4M8 21h12a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h2M8 21a2 2 0 0 1-2-2v-3h4v3a2 2 0 0 1-2 2Z",
 		},
 		{
-			text: "SUPPORT & DEVELOPMENT",
+			label: "SUPPORT & DEVELOPMENT",
 			href: "/support",
 			icon: "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z",
 		},
 	];
+</script>
+
+<script lang="ts">
+	import { page } from "$app/stores";
+
+	// Sidebar Links — derived from the module-level NAV_LINKS so the desktop
+	// sidebar and the mobile nav drawer render the same set of routes.
+	const links = NAV_LINKS;
 
 	let collapsed = false; // Hardcode for now, can be toggled later
 </script>
@@ -93,7 +119,7 @@
 
 				{#if !collapsed}
 					<span class="ml-3 text-sm font-medium font-sans truncate"
-						>{link.text}</span
+						>{link.label}</span
 					>
 					{#if $page.url.pathname === link.href}
 						<span class="ml-auto text-primary font-mono">&lt;</span>

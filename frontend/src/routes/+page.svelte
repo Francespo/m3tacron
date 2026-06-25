@@ -8,6 +8,7 @@
         getFactionLabel,
     } from "$lib/data/factions";
     import { xwingData } from "$lib/stores/xwingData.svelte";
+    import Chart from "chart.js/auto";
 
     let meta = $state<any>(null);
     let loading = $state(true);
@@ -199,29 +200,17 @@
         };
     }
 
-    function chartAction(node: HTMLCanvasElement, config: any) {
-        let chart: any;
+    Chart.defaults.color = "#AAAAAA";
 
-        if (browser) {
-            import("chart.js/auto").then((m) => {
-                const ChartJS = m.default;
-                ChartJS.defaults.color = "#AAAAAA";
-                chart = new ChartJS(node, config);
-            });
-        }
+    function chartAction(node: HTMLCanvasElement, config: any) {
+        const chart = new Chart(node, config);
 
         return {
             update(newConfig: any) {
-                if (chart) {
-                    chart.destroy();
-                    import("chart.js/auto").then((m) => {
-                        const ChartJS = m.default;
-                        chart = new ChartJS(node, newConfig);
-                    });
-                }
+                chart.update(newConfig);
             },
             destroy() {
-                if (chart) chart.destroy();
+                chart.destroy();
             },
         };
     }
