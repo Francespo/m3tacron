@@ -1,3 +1,4 @@
+from datetime import date
 from fastapi import APIRouter, Query, HTTPException
 from sqlmodel import Session, select, func
 from sqlalchemy import text
@@ -37,9 +38,9 @@ def get_locations():
     Get all unique available locations structured as Continent -> Country -> list of Cities.
     """
     with Session(engine) as session:
-        continent_col = Tournament.location["continent"].as_string()
-        country_col = Tournament.location["country"].as_string()
-        city_col = Tournament.location["city"].as_string()
+        continent_col = Tournament.location["continent"].as_string()  # pyright: ignore[reportIndexIssue,reportOptionalSubscript]
+        country_col = Tournament.location["country"].as_string()  # pyright: ignore[reportIndexIssue,reportOptionalSubscript]
+        city_col = Tournament.location["city"].as_string()  # pyright: ignore[reportIndexIssue,reportOptionalSubscript]
 
         stmt = select(
             continent_col.label('continent'),
@@ -51,9 +52,9 @@ def get_locations():
         
         locations = {}
         for row in rows:
-            continent = row.continent or 'Unknown'
-            country = row.country or 'Unknown'
-            city = row.city or 'Unknown'
+            continent = row.continent or 'Unknown'  # pyright: ignore[reportAttributeAccessIssue]
+            country = row.country or 'Unknown'  # pyright: ignore[reportAttributeAccessIssue]
+            city = row.city or 'Unknown'  # pyright: ignore[reportAttributeAccessIssue]
             
             if continent == 'Unknown' and country == 'Unknown' and city == 'Unknown':
                 continue
@@ -95,21 +96,31 @@ def get_tournaments(
         query = select(Tournament)
         
         if search:
-            query = query.where(Tournament.name.ilike(f"%{search}%"))
+            query = query.where(Tournament.name.ilike(f"%{search}%"))  # pyright: ignore[reportAttributeAccessIssue,reportOptionalMemberAccess]
         if formats:
-            query = query.where(Tournament.format.in_(formats))
+            query = query.where(Tournament.format.in_(formats))  # pyright: ignore[reportAttributeAccessIssue,reportOptionalMemberAccess]
         if sources:
-            query = query.where(Tournament.source.in_(sources))
+            query = query.where(Tournament.source.in_(sources))  # pyright: ignore[reportAttributeAccessIssue,reportOptionalMemberAccess]
         if continent:
-            query = query.where(Tournament.location["continent"].as_string().in_(continent))
+            query = query.where(Tournament.location["continent"].as_string().in_(continent))  # pyright: ignore[reportIndexIssue,reportOptionalSubscript]
         if country:
-            query = query.where(Tournament.location["country"].as_string().in_(country))
+            query = query.where(Tournament.location["country"].as_string().in_(country))  # pyright: ignore[reportIndexIssue,reportOptionalSubscript]
         if city:
-            query = query.where(Tournament.location["city"].as_string().in_(city))
+            query = query.where(Tournament.location["city"].as_string().in_(city))  # pyright: ignore[reportIndexIssue,reportOptionalSubscript]
         if date_start:
-            query = query.where(Tournament.date >= date_start)
+            try:
+                ds = date.fromisoformat(date_start)
+            except ValueError:
+                ds = None
+            if ds is not None:
+                query = query.where(Tournament.date >= ds)
         if date_end:
-            query = query.where(Tournament.date <= date_end)
+            try:
+                de = date.fromisoformat(date_end)
+            except ValueError:
+                de = None
+            if de is not None:
+                query = query.where(Tournament.date <= de)
         if player_count_min is not None:
             query = query.where(Tournament.player_count >= player_count_min)
         if player_count_max is not None:
@@ -124,9 +135,9 @@ def get_tournaments(
             sort_attr = Tournament.date
             
         if sort_direction == "asc":
-            query = query.order_by(sort_attr.asc())
+            query = query.order_by(sort_attr.asc())  # pyright: ignore[reportAttributeAccessIssue]
         else:
-            query = query.order_by(sort_attr.desc())
+            query = query.order_by(sort_attr.desc())  # pyright: ignore[reportAttributeAccessIssue]
             
         # Count total
         count_query = select(func.count()).select_from(query.subquery())
@@ -140,7 +151,7 @@ def get_tournaments(
             player_count = t.player_count
             if player_count == 0:
                 player_count = session.exec(
-                    select(func.count(PlayerStanding.id)).where(
+                    select(func.count(PlayerStanding.id)).where(  # pyright: ignore[reportArgumentType,reportAttributeAccessIssue]
                         PlayerStanding.tournament_id == t.id
                     )
                 ).one_or_none() or 0
@@ -164,7 +175,7 @@ def get_tournaments(
                 src = Source.UNKNOWN
 
             items.append(TournamentData(
-                id=t.id,
+                id=t.id,  # pyright: ignore[reportArgumentType,reportAttributeAccessIssue]
                 name=t.name,
                 date=t.date.strftime("%Y-%m-%d") if t.date else "Unknown",
                 players=player_count,
@@ -185,7 +196,7 @@ def get_tournament_detail(tournament_id: int):
         if not t:
             raise HTTPException(status_code=404, detail="Tournament not found")
             
-        player_count = session.exec(select(func.count(PlayerStanding.id)).where(PlayerStanding.tournament_id == t.id)).one_or_none() or 0
+        player_count = session.exec(select(func.count(PlayerStanding.id)).where(PlayerStanding.tournament_id == t.id)).one_or_none() or 0  # pyright: ignore[reportArgumentType,reportAttributeAccessIssue]
         loc_str = _get_location_string(t.location)
         
         fmt_str = t.format.lower() if t.format else "unknown"
@@ -201,7 +212,7 @@ def get_tournament_detail(tournament_id: int):
             src = Source.UNKNOWN
 
         t_data = TournamentData(
-            id=t.id, 
+            id=t.id,  # pyright: ignore[reportArgumentType,reportAttributeAccessIssue]
             name=t.name, 
             date=t.date.strftime("%Y-%m-%d") if t.date else "Unknown",
             players=player_count, 
@@ -211,7 +222,7 @@ def get_tournament_detail(tournament_id: int):
             url=t.url or ""
         )
 
-        query_p = select(PlayerStanding).where(PlayerStanding.tournament_id == tournament_id).order_by(PlayerStanding.swiss_rank)
+        query_p = select(PlayerStanding).where(PlayerStanding.tournament_id == tournament_id).order_by(PlayerStanding.swiss_rank)  # pyright: ignore[reportArgumentType,reportAttributeAccessIssue]
         all_results = session.exec(query_p).all()
 
         # Pre-fetch faction from the joined list table for each row.
@@ -251,7 +262,7 @@ def get_tournament_detail(tournament_id: int):
             has_list = bool(p.list_json and isinstance(p.list_json, dict) and p.list_json.get("pilots"))
 
             p_res = PlayerStandingData(
-                id=p.id,
+                id=p.id,  # pyright: ignore[reportArgumentType,reportAttributeAccessIssue]
                 name=p.player_name,
                 rank=p.swiss_rank if p.swiss_rank is not None else 0,
                 swiss_rank=p.swiss_rank if p.swiss_rank is not None else 0,
@@ -271,7 +282,7 @@ def get_tournament_detail(tournament_id: int):
         players_swiss.sort(key=lambda x: x.swiss_rank)
         players_cut.sort(key=lambda x: x.cut_rank)
         
-        matches_db = session.exec(select(Match).where(Match.tournament_id == tournament_id).order_by(Match.round_number)).all()
+        matches_db = session.exec(select(Match).where(Match.tournament_id == tournament_id).order_by(Match.round_number)).all()  # pyright: ignore[reportArgumentType,reportAttributeAccessIssue]
         player_map = {p.id: p.player_name for p in all_results}
         
         matches = [MatchData(
