@@ -7,6 +7,8 @@ DUMPS_DIR="$REPO_ROOT/local-data/dumps"
 DUMP_FILE="$DUMPS_DIR/dev_latest.dump"
 VITE_PID_FILE="/tmp/m3tacron-vite.pid"
 VITE_LOG="/tmp/m3tacron-vite.log"
+DEFAULT_PORT=3333
+VITE_PORT="$DEFAULT_PORT"
 
 cd "$REPO_ROOT"
 
@@ -23,12 +25,61 @@ cleanup_vite() {
   fi
 }
 
-if [[ "${1:-}" == "--stop" ]]; then
-  cleanup_vite
-  docker compose -f docker-compose.local.yml down
-  echo "==> Local stack stopped."
-  exit 0
-fi
+usage() {
+  cat <<USAGE
+Usage: bash scripts/local_dev/up.sh [OPTIONS]
+
+Options:
+  --port <PORT>   Port for the Vite dev server (default: $DEFAULT_PORT).
+                  Must be between 1 and 65535.
+  --stop          Stop the local stack (postgres + backend + Vite).
+  -h, --help      Show this help.
+
+With no options, starts the full local stack.
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --port)
+      if [[ $# -lt 2 ]]; then
+        echo "!! --port requires a value"
+        usage
+        exit 1
+      fi
+      if ! [[ "$2" =~ ^[0-9]+$ ]] || [[ "$2" -lt 1 ]] || [[ "$2" -gt 65535 ]]; then
+        echo "!! --port must be a number between 1 and 65535 (got: $2)"
+        exit 1
+      fi
+      VITE_PORT="$2"
+      shift 2
+      ;;
+    --port=*)
+      local_port="${1#--port=}"
+      if ! [[ "$local_port" =~ ^[0-9]+$ ]] || [[ "$local_port" -lt 1 ]] || [[ "$local_port" -gt 65535 ]]; then
+        echo "!! --port must be a number between 1 and 65535 (got: $local_port)"
+        exit 1
+      fi
+      VITE_PORT="$local_port"
+      shift
+      ;;
+    --stop)
+      cleanup_vite
+      docker compose -f docker-compose.local.yml down
+      echo "==> Local stack stopped."
+      exit 0
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "!! Unknown argument: $1"
+      usage
+      exit 1
+      ;;
+  esac
+done
 
 if [[ ! -f "$DUMP_FILE" ]]; then
   echo "==> No local dump found. Pulling fresh dev dump from server..."
@@ -64,17 +115,17 @@ nohup env \
   NODE_OPTIONS="--max-old-space-size=4096" \
   VITE_API_BASE=http://localhost:8890/api \
   VITE_ALLOWED_HOSTS=localhost,127.0.0.1 \
-  ORIGIN=http://localhost:3333 \
-  "$VITE_BIN" dev --host 0.0.0.0 --port 3333 \
+  ORIGIN=http://localhost:$VITE_PORT \
+  "$VITE_BIN" dev --host 0.0.0.0 --port "$VITE_PORT" \
   > "$VITE_LOG" 2>&1 &
 echo $! > "$VITE_PID_FILE"
 cd "$REPO_ROOT"
 
 sleep 3
 
-VITE_PORT=3333
+VITE_PORT=$VITE_PORT
 if ! curl -fsS -o /dev/null "http://localhost:$VITE_PORT/" 2>/dev/null; then
-  VITE_PORT=$(grep -oP 'Local:\s+http://localhost:\K[0-9]+' "$VITE_LOG" 2>/dev/null | tail -1 || echo "3333")
+  VITE_PORT=$(grep -oP 'Local:\s+http://localhost:\K[0-9]+' "$VITE_LOG" 2>/dev/null | tail -1 || echo "$DEFAULT_PORT")
 fi
 
 cat <<EOF
