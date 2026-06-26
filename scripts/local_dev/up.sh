@@ -64,17 +64,17 @@ nohup env \
   NODE_OPTIONS="--max-old-space-size=4096" \
   VITE_API_BASE=http://localhost:8890/api \
   VITE_ALLOWED_HOSTS=localhost,127.0.0.1 \
-  ORIGIN=http://localhost:3335 \
-  "$VITE_BIN" dev --host 0.0.0.0 --port 3335 \
+  ORIGIN=http://localhost:3333 \
+  "$VITE_BIN" dev --host 0.0.0.0 --port 3333 \
   > "$VITE_LOG" 2>&1 &
 echo $! > "$VITE_PID_FILE"
 cd "$REPO_ROOT"
 
 sleep 3
 
-VITE_PORT=3335
+VITE_PORT=3333
 if ! curl -fsS -o /dev/null "http://localhost:$VITE_PORT/" 2>/dev/null; then
-  VITE_PORT=$(grep -oP 'Local:\s+http://localhost:\K[0-9]+' "$VITE_LOG" 2>/dev/null | tail -1 || echo "3335")
+  VITE_PORT=$(grep -oP 'Local:\s+http://localhost:\K[0-9]+' "$VITE_LOG" 2>/dev/null | tail -1 || echo "3333")
 fi
 
 cat <<EOF
