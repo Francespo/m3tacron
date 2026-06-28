@@ -73,7 +73,7 @@
     </MobileFilterDrawer>
 
     <!-- Main Content (3rd column) -->
-    <main class="flex-1 p-6 md:p-8 pb-20 lg:pb-8">
+    <main class="flex-1 min-w-0 p-6 md:p-8 pb-20 lg:pb-8">
         <h1 class="text-2xl font-sans font-bold text-primary mb-1">
             Tournaments
         </h1>
@@ -84,51 +84,72 @@
         <!-- Tournament Rows -->
         <div class="space-y-2">
             {#each items as t}
+                {@const formatLabel = getFormatLabel(t.format)}
+                {@const formatColor = getFormatColor(t.format)}
                 <a
                     href="/tournaments/{t.id}"
-                    class="flex items-center gap-4 bg-terminal-panel border border-border-dark rounded-md px-4 py-3 hover:border-secondary/40 transition-colors group"
+                    class="flex items-center gap-3 sm:gap-4 min-w-0 bg-terminal-panel border border-border-dark rounded-md px-4 py-3 min-h-[44px] hover:border-secondary/40 transition-colors group"
                 >
-                    <!-- Format Badge -->
-                    <div
-                        class="flex items-center justify-center min-w-[60px] self-stretch text-center"
+                    <!-- Format Badge: left column on sm+, chip on mobile -->
+                    <span
+                        class="hidden sm:flex items-center justify-center min-w-[60px] self-stretch text-center"
                     >
                         <span
                             class="text-[10px] font-mono font-bold tracking-wider uppercase"
-                            style="color: {getFormatColor(t.format)};"
+                            style="color: {formatColor};"
                         >
-                            {getFormatLabel(t.format)}
+                            {formatLabel}
                         </span>
-                    </div>
+                    </span>
 
-                    <!-- Info -->
+                    <!-- Info column -->
                     <div class="flex-1 min-w-0">
-                        <div class="mb-1.5">
+                        <!-- Top row: title + (mobile) format chip + player count -->
+                        <div class="flex items-center gap-2 mb-1 sm:mb-1.5">
                             <h3
-                                class="text-sm font-sans font-bold text-primary truncate group-hover:text-white"
+                                class="text-sm font-sans font-bold text-primary truncate group-hover:text-white flex-1 min-w-0"
                                 title={t.name}
                             >
                                 {t.name}
                             </h3>
-                        </div>
-                        <div class="flex items-center text-xs font-mono text-secondary">
-                            <span class="w-[88px] shrink-0" title={t.date}>
-                                {t.date}
+
+                            <!-- Format chip: mobile only -->
+                            <span
+                                class="sm:hidden shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider uppercase border"
+                                style="color: {formatColor}; border-color: {formatColor}40; background-color: {formatColor}14;"
+                            >
+                                {formatLabel}
                             </span>
-                            <span class="mx-2 text-secondary/60">•</span>
-                            <span class="truncate" title={t.location || "Unknown Location"}>
+
+                            <!-- Player Count: mobile (compact) -->
+                            <span
+                                class="sm:hidden shrink-0 text-sm font-sans font-bold text-primary tabular-nums"
+                            >
+                                {t.players ?? "?"}<span
+                                    class="ml-0.5 text-[10px] font-mono text-secondary"
+                                    >PLY</span
+                                >
+                            </span>
+                        </div>
+
+                        <!-- Bottom row: date • location -->
+                        <div class="flex items-center text-xs font-mono text-secondary min-w-0">
+                            <span class="shrink-0 truncate" title={t.date}>{t.date}</span>
+                            <span class="mx-2 text-secondary/60 shrink-0">•</span>
+                            <span class="truncate min-w-0" title={t.location || "Unknown Location"}>
                                 {t.location || "Unknown Location"}
                             </span>
                         </div>
                     </div>
 
-                    <!-- Player Count -->
-                    <div class="w-12 shrink-0 flex flex-col items-center justify-center text-center">
+                    <!-- Player Count: sm+ column -->
+                    <div
+                        class="hidden sm:flex w-12 shrink-0 flex-col items-center justify-center text-center"
+                    >
                         <span class="text-2xl font-sans font-bold text-primary"
                             >{t.players ?? "?"}</span
                         >
-                        <span class="text-[10px] font-mono text-secondary block"
-                            >PLY</span
-                        >
+                        <span class="text-[10px] font-mono text-secondary block">PLY</span>
                     </div>
                 </a>
             {/each}
