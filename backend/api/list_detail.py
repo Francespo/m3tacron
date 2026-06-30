@@ -18,18 +18,30 @@ def get_list_stats(
 ):
     """
     Get aggregated statistics and full composition for a specific list.
+
+    `list_id` may be either a numeric primary key (e.g. from
+    `PlayerStanding.list_id`) or a `canonical_signature` / list `name`.
+    Numeric IDs are tried first to keep the standings LIST button working.
     """
     with Session(engine) as session:
-        # 1. Try to find the list row directly by canonical_signature OR name.
-        # This is a single small lookup instead of a full table scan.
-        list_row = session.exec(
-            select(List).where(
-                or_(
-                    List.canonical_signature == list_id,
-                    List.name == list_id,
+        # 1. Try to find the list row by numeric id, then canonical_signature,
+        # then name. Numeric id is the dominant case (standings LIST button).
+        list_row = None
+
+        if list_id.isdigit():
+            list_row = session.exec(
+                select(List).where(List.id == int(list_id))
+            ).first()
+
+        if not list_row:
+            list_row = session.exec(
+                select(List).where(
+                    or_(
+                        List.canonical_signature == list_id,
+                        List.name == list_id,
+                    )
                 )
-            )
-        ).first()
+            ).first()
 
         if not list_row:
             # Match old behavior: return zero-stats response with placeholders

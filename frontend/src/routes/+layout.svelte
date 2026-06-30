@@ -34,28 +34,26 @@
 </script>
 
 <div
-	class="relative bg-terminal-bg min-h-screen text-primary overflow-x-hidden"
+	class="relative bg-terminal-bg h-screen text-primary overflow-hidden flex flex-col"
 >
-	<!-- Desktop Sidebar (md+) -->
+	<!-- Desktop Sidebar (md+). Rendered as a fixed-positioned component
+	     (see Sidebar.svelte) so it never scrolls with the page. -->
 	<Sidebar />
 
 	<!-- Mobile chrome (<md). Both are md:hidden internally, so mounting
-	     them unconditionally is safe; the desktop sidebar is unaffected. -->
+	     them unconditionally is safe; the desktop sidebar is unaffected.
+	     The flex column above lets the MobileTopBar claim its natural
+	     height on small viewports and the main content fill the rest. -->
 	<MobileTopBar onOpenNav={() => (navOpen = true)} />
 	<MobileNavDrawer bind:open={navOpen} />
 
-	<!-- Main Content Area -->
+	<!-- Main Content Area. flex-1 + overflow-y-auto gives this column its
+	     own independent scroll, decoupled from the (already fixed) sidebar
+	     and from the outer page. md:ml-[260px] keeps it clear of the
+	     desktop sidebar. -->
 	<div
-		class="md:ml-[260px] min-h-screen transition-all duration-200 relative"
+		class="md:ml-[260px] flex-1 overflow-y-auto transition-all duration-200 relative overflow-x-hidden"
 	>
-		<!-- Global glow logic can be ported here eventually, placing a vignette wrapper -->
-		<div
-			class="absolute top-0 right-0 bottom-0 pointer-events-none opacity-30 bg-gradient-to-l from-blue-900/10 to-transparent w-1/4"
-		></div>
-		<div
-			class="absolute bottom-0 left-0 right-0 pointer-events-none opacity-30 bg-gradient-to-t from-blue-900/10 to-transparent h-1/4"
-		></div>
-
 		<!-- Slot renders the specific route +page.svelte -->
 		{@render children()}
 	</div>

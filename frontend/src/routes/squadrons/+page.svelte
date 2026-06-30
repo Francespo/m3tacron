@@ -2,18 +2,17 @@
     import FilterPanel from "$lib/components/FilterPanel.svelte";
     import MobileFilterDrawer from "$lib/components/MobileFilterDrawer.svelte";
     import MobileFilterTrigger from "$lib/components/MobileFilterTrigger.svelte";
-    import ActiveChips from "$lib/components/ActiveChips.svelte";
+    import SortBy from "$lib/components/SortBy.svelte";
     import SquadronRowCard from "$lib/components/SquadronRowCard.svelte";
-    import SortSelector from "$lib/components/SortSelector.svelte";
     import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
+    import Toggle from "$lib/components/Toggle.svelte";
     import {
         ALL_FACTIONS,
         getFactionLabel,
-        getFactionColor,
-        getFactionChar,
     } from "$lib/data/factions";
     import { scheduleSync } from "$lib/sync/urlSync.svelte";
     import { filters } from "$lib/stores/filters.svelte";
+    import FactionIcon from "$lib/components/FactionIcon.svelte";
 
     let { data } = $props();
 
@@ -23,6 +22,13 @@
 
     const size = 20;
     let total = $state(0);
+
+    // Default sort metric for the squadrons listing. Matches the SortBy
+    // options below (Win Rate, Games, Lists) — "Lists" sorts by list_count
+    // (popularity) on the backend.
+    if (!filters.sortBy) {
+        filters.sortBy = "Games";
+    }
 
     // Track total from the latest promise resolution (for nextPage guard)
     $effect(() => {
@@ -57,20 +63,16 @@
 
 {#snippet filterBody()}
     <div class="space-y-3">
-        <span class="text-xs font-bold tracking-widest text-primary font-mono">
-            SQUADRON FILTERS
-        </span>
+        <div class="flex items-center gap-2">
+            <span class="text-xs font-bold tracking-widest text-primary font-mono">
+                SQUADRON FILTERS
+            </span>
+        </div>
 
-        <!-- Sort By -->
-        <SortSelector
-            bind:sortBy={filters.sortBy}
-            bind:sortDirection={filters.sortDirection}
-            options={[
-                { value: "Games", label: "Games (Most)" },
-                { value: "Win Rate", label: "Win Rate (Best)" },
-                { value: "Popularity", label: "Popularity" },
-            ]}
-        />
+        <!-- Sort By was moved to the main content section header
+             (rendered by SortBy) to give the list a single canonical
+             sort control. The old sidebar SortSelector was redundant
+             after that consolidation. -->
 
         <!-- Faction Checkboxes -->
         <div class="border-b border-border-dark mt-1">
@@ -112,18 +114,13 @@
                         <label
                             class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
                         >
-                            <input
-                                type="checkbox"
-                                class="rounded border-border-dark bg-black w-3 h-3"
+                            <Toggle
+                                size="xs"
+                                ariaLabel={`Toggle faction ${getFactionLabel(f)}`}
                                 checked={filters.selectedFactions.includes(f)}
                                 onchange={() => toggleFaction(f)}
                             />
-                            <span
-                                class="font-xwing text-sm"
-                                style="color: {getFactionColor(f)};"
-                            >
-                                {getFactionChar(f)}
-                            </span>
+                            <FactionIcon faction={f} size="sm" />
                             <span class="font-mono">{getFactionLabel(f)}</span>
                         </label>
                     {/each}
@@ -158,11 +155,21 @@
     </MobileFilterDrawer>
 
     <main class="flex-1 p-6 md:p-8 pb-20 lg:pb-8">
-        <ActiveChips />
-
-        <h1 class="text-[32px] font-sans font-bold text-primary mb-1">
-            Squadrons
-        </h1>
+        <div class="flex items-start justify-between gap-3 mb-1 flex-wrap">
+            <h1 class="text-3xl font-sans font-bold text-primary">Squadrons</h1>
+            <SortBy
+                value={filters.sortBy || "Games"}
+                direction={filters.sortDirection}
+                options={[
+                    { value: "Games", label: "Lists" },
+                    { value: "Win Rate", label: "Win Rate" },
+                ]}
+                onChange={(v, d) => {
+                    filters.sortBy = v;
+                    filters.sortDirection = d;
+                }}
+            />
+        </div>
 
         {#await data.itemsPromise}
             <p class="text-secondary font-mono text-sm mb-6">Loading...</p>
@@ -176,13 +183,34 @@
         {:then resolved}
             {@const resolvedTotal = Number(resolved.total ?? 0)}
             {@const squadronItems = resolved.items ?? []}
+            <!--
+                Filter: exclude only multi-faction squadrons (ships from
+                different factions illegally combined in one list).
+                - Include all single-faction squadrons (the vast majority).
+                - Include squadrons with no pilots array (legacy data we
+                  cannot inspect for multi-faction content).
+                - Exclude multi-faction squadrons (more than one unique
+                  faction across the squadron's pilots).
+            -->
+            {@const visibleSquadrons = squadronItems.filter((s: any) => {
+                if (!Array.isArray(s.pilots) || s.pilots.length === 0) return true;
+
+                const factions = new Set<string>();
+                for (const p of s.pilots) {
+                    if (p.faction_xws) factions.add(p.faction_xws);
+                }
+
+                if (factions.size > 1) return false;
+
+                return true;
+            })}
             <p class="text-secondary font-mono text-sm mb-6">
-                {resolvedTotal} UNIQUE SQUADRONS
+                {total} Unique Squadrons Found
             </p>
 
             <!-- Squadron Cards -->
             <div class="space-y-3">
-                {#each squadronItems as list}
+                {#each visibleSquadrons as list}
                     <SquadronRowCard {list} />
                 {/each}
             </div>
@@ -193,7 +221,7 @@
                     class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
                 >
                     <button
-                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
                         onclick={prevPage}
                         disabled={page <= 1}
                     >
@@ -202,7 +230,7 @@
                     <span class="text-xs font-mono text-secondary">Page {page}</span
                     >
                     <button
-                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
                         onclick={nextPage}
                         disabled={page * size >= resolvedTotal}
                     >

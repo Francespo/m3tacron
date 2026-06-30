@@ -224,6 +224,14 @@ def get_squadron_lists(
         # {"slot_xws": [upgrade_xws, ...], ...} (slot → list of upgrade IDs).
         # The raw list_json already has this format, so we can pass it through
         # without reformatting.
+        # Row tuple layout (from the SQL above):
+        #   [0]=canonical_signature, [1]=faction, [2]=faction_xws_normalized,
+        #   [3]=name, [4]=points, [5]=list_json,
+        #   [6]=COUNT(*) (number of playerstanding rows — popularity),
+        #   [7]=SUM(total_games) (rounds played),
+        #   [8]=SUM(wins)
+        # NB: a previous version had `wins` and `games` swapped here, which
+        # inflated win_rate (it divided row count into total rounds).
         l_data = {
             "signature": row[0],
             "name": row[3] or "",
@@ -231,8 +239,8 @@ def get_squadron_lists(
             "original_points": 0,
             "faction_xws": row[2] or "unknown",
             "pilots": list_json.get("pilots", []),
-            "wins": int(row[7] or 0),
-            "games": int(row[6] or 0),
+            "wins": int(row[8] or 0),
+            "games": int(row[7] or 0),
         }
         squadron_lists.append(enrich_list_data(l_data, source=ds_enum))
 

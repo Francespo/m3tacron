@@ -18,6 +18,8 @@ class PilotData(BaseModel):
     xws: str
     ship_xws: str = ""
     faction_xws: str = ""
+    cost: int = 0
+    initiative: int = 0
     upgrades: list[UpgradeData] = []
 
 
@@ -97,6 +99,10 @@ class PlayerStandingData(BaseModel):
     losses: int
     list_json: dict[str, Any] | None = None
     faction: Faction
+    # FK into the normalized `list` table. Optional because some legacy
+    # standings rows may not have been migrated yet. The standings UI
+    # uses this to wire the "LIST" button to the list detail page.
+    list_id: int | None = None
 
 
 class MatchData(BaseModel):

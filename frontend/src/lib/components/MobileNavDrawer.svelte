@@ -5,7 +5,9 @@
 	 * Parent should NOT mount this on md+; the desktop Sidebar owns that space.
 	 */
 	import { page } from "$app/state";
+	import { filters } from "$lib/stores/filters.svelte";
 	import { NAV_LINKS } from "./Sidebar.svelte";
+	import Toggle from "./Toggle.svelte";
 
 	let { open = $bindable(false) }: { open: boolean } = $props();
 
@@ -111,17 +113,57 @@
 	tabindex="-1"
 >
 	<div
-		class="flex items-center justify-between h-14 px-4 border-b border-border-dark shrink-0"
+		class="flex items-center justify-between gap-3 px-4 py-3 border-b border-border-dark shrink-0"
 	>
-		<span class="text-primary font-sans font-medium tracking-[0.15em] text-lg">
-			M3TACRON
-		</span>
+		<div class="flex flex-col items-start min-w-0">
+			<span
+				class="text-primary font-mono font-bold uppercase tracking-tighter leading-none text-2xl"
+			>
+				M3TACRON
+			</span>
+			<!-- XWA / LEGACY + Epic toggle (consolidated content source controls) -->
+			<div class="flex items-center gap-1 mt-1.5">
+				<button
+					type="button"
+					onclick={() => (filters.dataSource = "xwa")}
+					aria-pressed={filters.dataSource === "xwa"}
+					class="px-2 py-0.5 text-xs font-mono rounded transition-colors {filters.dataSource ===
+					'xwa'
+						? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50'
+						: 'bg-transparent text-secondary border border-border-dark hover:text-primary'}"
+				>
+					XWA
+				</button>
+				<button
+					type="button"
+					onclick={() => (filters.dataSource = "legacy")}
+					aria-pressed={filters.dataSource === "legacy"}
+					class="px-2 py-0.5 text-xs font-mono rounded transition-colors {filters.dataSource ===
+					'legacy'
+						? 'bg-purple-500/20 text-purple-400 border border-purple-500/50'
+						: 'bg-transparent text-secondary border border-border-dark hover:text-primary'}"
+				>
+					LEGACY
+				</button>
+				<label
+					class="flex items-center gap-1 ml-1 text-xs text-secondary font-mono cursor-pointer hover:text-primary"
+				>
+					<Toggle
+						size="xs"
+						ariaLabel="Include epic content"
+						checked={filters.includeEpic}
+						onchange={(e) => (filters.includeEpic = (e.currentTarget as HTMLInputElement).checked)}
+					/>
+					Epic
+				</label>
+			</div>
+		</div>
 		<button
 			bind:this={closeBtnEl}
 			type="button"
 			onclick={() => (open = false)}
 			aria-label="Close menu"
-			class="flex items-center justify-center w-11 h-11 rounded-md text-secondary hover:text-primary hover:bg-[#ffffff08] active:bg-[#ffffff14] transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+			class="flex items-center justify-center w-11 h-11 rounded-md text-secondary hover:text-primary hover:bg-[#ffffff08] active:bg-[#ffffff14] transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 shrink-0"
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"

@@ -11,6 +11,7 @@
 	import type { Snippet } from "svelte";
 	import { page } from "$app/state";
 	import { filters } from "$lib/stores/filters.svelte";
+	import TournamentFilters from "./TournamentFilters.svelte";
 
 	type Props = {
 		open: boolean;
@@ -124,7 +125,7 @@
 	aria-modal="true"
 	aria-label={title}
 	aria-hidden={!open}
-	class="fixed inset-y-0 right-0 z-[60] w-[min(92vw,380px)] bg-terminal-panel border-l border-[#ffffff14] flex flex-col transform transition-transform duration-200 ease-out motion-reduce:transition-none {open
+	class="fixed inset-y-0 right-0 z-[60] w-[min(92vw,380px)] min-w-0 bg-terminal-panel border-l border-[#ffffff14] flex flex-col transform transition-transform duration-200 ease-out motion-reduce:transition-none {open
 		? 'translate-x-0'
 		: 'translate-x-full'}"
 	tabindex="-1"
@@ -170,13 +171,23 @@
 		</button>
 	</header>
 
-	<!-- Body: overflow-y-auto so filters can be long. Bottom safe-area
-	     padding so the iOS home indicator doesn't cover the last control. -->
-	<div
-		class="flex-1 overflow-y-auto overscroll-contain p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-4"
-	>
-		{@render children()}
+	<!-- Body: TournamentFilters is rendered in a non-scrolling wrapper so
+	     its info tooltip (absolutely positioned, extends below the icon)
+	     is never clipped by overflow. The page-specific children snippet
+	     sits in its own scrollable area below. Bottom safe-area padding
+	     on the scroll area keeps the iOS home indicator from covering
+	     the last control. -->
+	<div class="relative z-50 p-4 pb-0 min-w-0">
+		<TournamentFilters />
 	</div>
+	{#if children}
+		<div
+			class="flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+		>
+			<div class="h-px bg-border-dark my-4"></div>
+			{@render children()}
+		</div>
+	{/if}
 
 	<!-- Footer: custom snippet wins; otherwise render default Reset + Apply. -->
 	{#if footer}

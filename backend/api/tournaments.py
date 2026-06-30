@@ -270,7 +270,8 @@ def get_tournament_detail(tournament_id: int):
                 wins=(p.swiss_wins or 0) + (p.cut_wins or 0),
                 losses=(p.swiss_losses or 0) + (p.cut_losses or 0),
                 faction=faction_enum,
-                list_json=p.list_json if has_list else None
+                list_json=p.list_json if has_list else None,
+                list_id=p.list_id,
             )
 
             players_swiss.append(p_res)

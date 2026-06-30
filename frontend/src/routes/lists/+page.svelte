@@ -2,19 +2,19 @@
     import FilterPanel from "$lib/components/FilterPanel.svelte";
     import MobileFilterDrawer from "$lib/components/MobileFilterDrawer.svelte";
     import MobileFilterTrigger from "$lib/components/MobileFilterTrigger.svelte";
-    import SortSelector from "$lib/components/SortSelector.svelte";
+    import SortBy from "$lib/components/SortBy.svelte";
     import ListRowCard from "$lib/components/ListRowCard.svelte";
     import {
         ALL_FACTIONS,
         getFactionLabel,
-        getFactionColor,
-        getFactionChar,
     } from "$lib/data/factions";
     import { page as currentPage } from "$app/state";
     import { filters } from "$lib/stores/filters.svelte";
     import { scheduleSync } from "$lib/sync/urlSync.svelte";
     import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
+    import Toggle from "$lib/components/Toggle.svelte";
     import { xwingData } from "$lib/stores/xwingData.svelte";
+    import FactionIcon from "$lib/components/FactionIcon.svelte";
 
     let { data } = $props();
 
@@ -71,23 +71,28 @@
             filters.selectedFactions = [...filters.selectedFactions, f];
         }
     }
+
+    // Default sort metric for the lists listing. The layout hydrates
+    // `filters.sortBy` from the URL on first client mount, so we only seed a
+    // default when the URL didn't supply one.
+    $effect(() => {
+        if (!filters.sortBy) {
+            filters.sortBy = "Games";
+        }
+    });
 </script>
 
 {#snippet filterBody()}
     <div class="space-y-3">
-        <span class="text-xs font-bold tracking-widest text-primary font-mono">
-            LIST FILTERS
-        </span>
+        <div class="flex items-center gap-2">
+            <span class="text-xs font-bold tracking-widest text-primary font-mono">
+                LIST FILTERS
+            </span>
+        </div>
 
-        <SortSelector
-            bind:sortBy={filters.sortBy}
-            bind:sortDirection={filters.sortDirection}
-            options={[
-                { value: "Games", label: "Popularity (Games)" },
-                { value: "Win Rate", label: "Win Rate" },
-                { value: "Points Cost", label: "Points" },
-            ]}
-        />
+        <!-- Sort By was moved to the main content section header
+             (rendered by SortBy) to give the list a single canonical
+             sort control. The old sidebar SortSelector was removed. -->
 
         <!-- Min Games -->
         <div class="space-y-1">
@@ -98,7 +103,7 @@
             <input
                 type="number"
                 min="1"
-                class="w-full bg-black border border-border-dark rounded px-2 py-1.5 text-xs font-mono text-primary focus:border-primary focus:outline-none"
+                class="w-full bg-black border border-border-dark rounded-md px-2 py-1.5 text-xs font-mono text-primary focus:border-primary focus:outline-none"
                 bind:value={minGames}
             />
         </div>
@@ -143,18 +148,13 @@
                         <label
                             class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
                         >
-                            <input
-                                type="checkbox"
-                                class="rounded border-border-dark bg-black w-3 h-3"
+                            <Toggle
+                                size="xs"
+                                ariaLabel={`Toggle faction ${getFactionLabel(f)}`}
                                 checked={filters.selectedFactions.includes(f)}
                                 onchange={() => toggleFaction(f)}
                             />
-                            <span
-                                class="font-xwing text-sm"
-                                style="color: {getFactionColor(f)};"
-                            >
-                                {getFactionChar(f)}
-                            </span>
+                            <FactionIcon faction={f} size="sm" />
                             <span class="font-mono">{getFactionLabel(f)}</span>
                         </label>
                     {/each}
@@ -189,7 +189,7 @@
     </MobileFilterDrawer>
 
     <main class="flex-1 p-6 md:p-8 pb-20 lg:pb-8">
-        <h1 class="text-2xl font-sans font-bold text-primary mb-1">
+        <h1 class="text-3xl font-sans font-bold text-primary mb-1">
             List Browser
         </h1>
 
@@ -205,44 +205,95 @@
         {:then resolved}
             {@const resolvedTotal = Number(resolved.total ?? 0)}
             {@const listItems = resolved.items ?? []}
-            <p class="text-secondary font-mono text-sm mb-6">
-                {resolvedTotal} Lists Found
-            </p>
+
+            <!-- Result summary + sort indicator -->
+            <div
+                class="flex items-center justify-between flex-wrap gap-3 mb-6"
+            >
+                <p class="text-secondary font-mono text-sm">
+                    {resolvedTotal} Lists Found
+                </p>
+
+                <SortBy
+                    value={filters.sortBy || "Games"}
+                    direction={filters.sortDirection}
+                    options={[
+                        { value: "Games", label: "Lists" },
+                        { value: "Win Rate", label: "Win Rate" },
+                        { value: "Points Cost", label: "Points" },
+                    ]}
+                    onChange={(v, d) => {
+                        filters.sortBy = v;
+                        filters.sortDirection = d;
+                    }}
+                />
+            </div>
 
             <!-- List Cards -->
-            <div class="space-y-3">
-                {#each listItems as list}
-                    <ListRowCard {list} />
-                {/each}
-            </div>
+            {#if listItems.length > 0}
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    {#each listItems as list}
+                        <ListRowCard {list} />
+                    {/each}
+                </div>
+            {:else}
+                <!-- Empty state: no lists matched the current filters -->
+                <div
+                    class="bg-terminal-panel border border-border-dark rounded-lg p-8 text-center space-y-2"
+                >
+                    <p
+                        class="text-primary font-sans font-bold text-lg tracking-wide"
+                    >
+                        No lists found
+                    </p>
+                    <p class="text-secondary font-mono text-sm">
+                        Try adjusting your filters or lowering the minimum games
+                        threshold.
+                    </p>
+                </div>
+            {/if}
 
             <!-- Pagination -->
             {#if resolvedTotal > size}
                 <div
                     class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
                 >
-                    <button
-                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
-                        onclick={prevPage}
-                        disabled={page <= 1}
-                    >
-                        ← Prev
-                    </button>
-                    <span class="text-xs font-mono text-secondary">Page {page}</span
-                    >
-                    <button
-                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
-                        onclick={nextPage}
-                        disabled={page * size >= resolvedTotal}
-                    >
-                        Next →
-                    </button>
+                <button
+                    class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                    onclick={prevPage}
+                    disabled={page <= 1}
+                >
+                    ← Prev
+                </button>
+                <span class="text-xs font-mono text-secondary">Page {page}</span
+                >
+                <button
+                    class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                    onclick={nextPage}
+                    disabled={page * size >= resolvedTotal}
+                >
+                    Next →
+                </button>
                 </div>
             {/if}
         {:catch error}
-            <p class="text-red-400 font-mono text-sm mb-6">
-                Failed to load lists: {error.message}
-            </p>
+            <!-- Error state -->
+            <div
+                class="bg-red-950/30 border border-red-500/30 rounded-lg p-6 text-center space-y-2"
+                role="alert"
+            >
+                <p
+                    class="text-red-400 font-sans font-bold text-base tracking-wide"
+                >
+                    Failed to load lists
+                </p>
+                <p class="text-red-300/80 font-mono text-sm">
+                    {error.message}
+                </p>
+                <p class="text-secondary font-mono text-xs mt-2">
+                    Try refreshing or clearing your filters.
+                </p>
+            </div>
         {/await}
     </main>
 </div>

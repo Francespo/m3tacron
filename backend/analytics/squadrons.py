@@ -58,22 +58,43 @@ def aggregate_squadron_stats(
         where_clauses.append("l.faction_xws_normalized = ANY(:factions)")
         params["factions"] = normalized
 
-    # Ship filter — use list.ship_list (comma-joined) for fast filter
-    ship_clause = ship_list_filter_clause(filters.get("ships"), params)
+    # Ship filter — use list.ship_list (comma-joined) for fast filter.
+    # Accept both "ship" (singular, used by ship_detail.py) and "ships"
+    # (plural, used by the broader API surface).
+    #
+    # mode="all" → AND semantics: a squadron matches only when EVERY
+    # selected ship is present in its ship_list. This is the natural
+    # choice for squadrons — selecting X-wing + A-wing should show
+    # squadrons that contain BOTH, not the union.
+    ship_clause = ship_list_filter_clause(
+        filters.get("ship") or filters.get("ships"),
+        params,
+        mode="all",
+    )
     if ship_clause:
         where_clauses.append(ship_clause)
 
     where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
     # GROUP BY ship_list — no Python post-processing needed
+    #
+    # NB: `games` must be a SUM of swiss + cut rounds (wins + losses + draws),
+    # not `COUNT(*)` of playerstanding rows. A single playerstanding row can
+    # represent many games (e.g. swiss_wins=5, swiss_losses=3 → 8 games),
+    # and `wins` is also a SUM, so dividing one SUM by a COUNT produces the
+    # same units-mismatch bug that drove win_rate > 100%.
     sql = text(
         f"""
         SELECT
             l.faction as faction,
             l.ship_list as ship_list,
-            COUNT(*) as games,
+            COUNT(DISTINCT ps.id) as popularity,
             SUM(COALESCE(ps.swiss_wins, 0) + COALESCE(ps.cut_wins, 0)) as wins,
-            COUNT(DISTINCT ps.id) as popularity
+            SUM(
+                COALESCE(ps.swiss_wins, 0) + COALESCE(ps.swiss_losses, 0) +
+                COALESCE(ps.swiss_draws, 0) + COALESCE(ps.cut_wins, 0) +
+                COALESCE(ps.cut_losses, 0) + COALESCE(ps.cut_draws, 0)
+            ) as games
         FROM playerstanding ps
         JOIN tournament t ON t.id = ps.tournament_id
         JOIN list l ON l.id = ps.list_id
@@ -90,9 +111,9 @@ def aggregate_squadron_stats(
     for row in rows:
         faction = row[0] or "unknown"
         ship_list_str = row[1] or ""
-        games_count = int(row[2] or 0)
+        popularity = int(row[2] or 0)
         wins_count = int(row[3] or 0)
-        popularity = int(row[4] or 0)
+        games_count = int(row[4] or 0)
         ships = ship_list_str.split(",") if ship_list_str else []
         win_rate = round((wins_count / games_count) * 100, 1) if games_count > 0 else 0.0
         results.append({

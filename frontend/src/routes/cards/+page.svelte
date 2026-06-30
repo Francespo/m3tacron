@@ -2,16 +2,15 @@
     import FilterPanel from "$lib/components/FilterPanel.svelte";
     import MobileFilterDrawer from "$lib/components/MobileFilterDrawer.svelte";
     import MobileFilterTrigger from "$lib/components/MobileFilterTrigger.svelte";
-    import SortSelector from "$lib/components/SortSelector.svelte";
+    import SortBy from "$lib/components/SortBy.svelte";
     import AdvancedFilters from "$lib/components/AdvancedFilters.svelte";
     import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
     import PilotCard from "$lib/components/PilotCard.svelte";
     import UpgradeCard from "$lib/components/UpgradeCard.svelte";
+    import Toggle from "$lib/components/Toggle.svelte";
     import {
         getWinRateColor,
         ALL_FACTIONS,
-        getFactionColor,
-        getFactionChar,
         getFactionLabel,
     } from "$lib/data/factions";
     import { filters } from "$lib/stores/filters.svelte";
@@ -19,6 +18,7 @@
     import DebouncedTextInput from "$lib/components/DebouncedTextInput.svelte";
     import { xwingData } from "$lib/stores/xwingData.svelte";
     import { goto } from "$app/navigation";
+    import FactionIcon from "$lib/components/FactionIcon.svelte";
 
     let { data } = $props();
 
@@ -32,11 +32,23 @@
 
     let isAdvanced = $state(false);
 
-    // Track total from the latest promise resolution (for nextPage guard)
+    // Track total from the latest promise resolution (for nextPage guard).
+    // Clamp to a non-negative integer: backend already clamps (Phase 0) but
+    // a missing/garbage value should never produce a negative `total`.
     $effect(() => {
         data.itemsPromise.then((resolved: any) => {
-            total = Number(resolved.total ?? 0);
+            total = Math.max(0, Math.floor(Number(resolved.total ?? 0)));
         });
+    });
+
+    // Default sort: when the store starts empty (no URL, no prior visit),
+    // set a real metric so the SortBy in the main content header always
+    // has a valid selection. "Popularity" is a sensible default for both
+    // Pilots and Upgrades.
+    $effect(() => {
+        if (!filters.sortBy) {
+            filters.sortBy = "Popularity";
+        }
     });
 
     // Ensure data is loaded for the current data source, then push the
@@ -103,20 +115,9 @@
             <AdvancedFilters isPilotsTab={data.tab === "pilots"} />
         {/if}
 
-        <SortSelector
-            bind:sortBy={filters.sortBy}
-            bind:sortDirection={filters.sortDirection}
-            options={[
-                { value: "Popularity", label: "Popularity (Lists)" },
-                { value: "Win Rate", label: "Win Rate" },
-                { value: "Games", label: "Popularity (Games)" },
-                { value: "Name", label: "Name" },
-                { value: "Cost", label: "Points Cost" },
-                ...(data.tab === "pilots" && isXwa
-                    ? [{ value: "Loadout", label: "Loadout Value" }]
-                    : []),
-            ]}
-        />
+        <!-- Sort By was moved to the main content section header
+             (rendered by SortBy) to give the list a single canonical
+             sort control. The old sidebar SortSelector was removed. -->
 
         <!-- Text Search -->
         <div class="space-y-1">
@@ -170,22 +171,20 @@
             </button>
 
             {#if factionOpen}
-                <div class="pb-3 space-y-1 max-h-[180px] overflow-y-auto pl-2">
+                <div
+                    class="pb-3 space-y-1 max-h-[180px] overflow-y-auto custom-scrollbar pl-2"
+                >
                     {#each ALL_FACTIONS as f}
                         <label
                             class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
                         >
-                            <input
-                                type="checkbox"
-                                class="rounded border-border-dark bg-black w-3 h-3"
+                            <Toggle
+                                size="xs"
+                                ariaLabel={`Toggle faction ${getFactionLabel(f)}`}
                                 checked={filters.selectedFactions.includes(f)}
                                 onchange={() => toggleFaction(f)}
                             />
-                            <span
-                                class="font-xwing text-sm"
-                                style="color: {getFactionColor(f)};"
-                                >{getFactionChar(f)}</span
-                            >
+                            <FactionIcon faction={f} size="sm" />
                             <span class="font-mono">{getFactionLabel(f)}</span>
                         </label>
                     {/each}
@@ -222,38 +221,60 @@
     </MobileFilterDrawer>
 
     <main class="flex-1 p-6 md:p-8 pb-20 lg:pb-8">
-        <!-- Tabs: Pilots / Upgrades -->
-        <div class="flex items-center gap-6 mb-6">
-            <button
-                class="text-lg font-sans font-bold transition-colors {data.tab ===
-                'pilots'
-                    ? 'text-primary'
-                    : 'text-secondary hover:text-primary'}"
-                onclick={() => {
-                    goto("?tab=pilots&page=0", {
-                        keepFocus: true,
-                        noScroll: true,
-                        replaceState: true,
-                    });
+        <h1 class="text-3xl font-sans font-bold text-primary mb-1">
+            Cards
+        </h1>
+
+        <!-- Tabs: Pilots / Upgrades + SortBy -->
+        <div class="flex items-center justify-between gap-4 flex-wrap mb-6">
+            <div class="flex items-center gap-6">
+                <button
+                    class="text-lg font-sans font-bold transition-colors {data.tab ===
+                    'pilots'
+                        ? 'text-primary'
+                        : 'text-secondary hover:text-primary'}"
+                    onclick={() => {
+                        goto("?tab=pilots&page=0", {
+                            keepFocus: true,
+                            noScroll: true,
+                            replaceState: true,
+                        });
+                    }}
+                >
+                    Pilots
+                </button>
+                <button
+                    class="text-lg font-sans font-bold transition-colors {data.tab ===
+                    'upgrades'
+                        ? 'text-primary'
+                        : 'text-secondary hover:text-primary'}"
+                    onclick={() => {
+                        goto("?tab=upgrades&page=0", {
+                            keepFocus: true,
+                            noScroll: true,
+                            replaceState: true,
+                        });
+                    }}
+                >
+                    Upgrades
+                </button>
+            </div>
+
+            <SortBy
+                value={filters.sortBy || "Popularity"}
+                direction={filters.sortDirection}
+                options={[
+                    { value: "Name", label: "Name" },
+                    { value: "Cost", label: "Points Cost" },
+                    { value: "Games", label: "Games" },
+                    { value: "Popularity", label: "Lists" },
+                    { value: "Win Rate", label: "Win Rate" },
+                ]}
+                onChange={(v, d) => {
+                    filters.sortBy = v;
+                    filters.sortDirection = d;
                 }}
-            >
-                Pilots
-            </button>
-            <button
-                class="text-lg font-sans font-bold transition-colors {data.tab ===
-                'upgrades'
-                    ? 'text-primary'
-                    : 'text-secondary hover:text-primary'}"
-                onclick={() => {
-                    goto("?tab=upgrades&page=0", {
-                        keepFocus: true,
-                        noScroll: true,
-                        replaceState: true,
-                    });
-                }}
-            >
-                Upgrades
-            </button>
+            />
         </div>
 
         <!-- Card Grid -->
@@ -266,12 +287,30 @@
                 {/each}
             </div>
         {:then resolved}
-            {@const resolvedTotal = Number(resolved.total ?? 0)}
-            {@const cardItems = resolved.items ?? []}
+            {@const resolvedTotal = Math.max(0, Math.floor(Number(resolved.total ?? 0)))}
+            {@const cardItems = (resolved.items ?? []).map((c: any) => ({
+                // Sanitize numeric stats before passing into the card
+                // components. Phase 0 backend already clamps at the source,
+                // but defensive guards here mean a stale or out-of-band
+                // payload can never show "-3 games" or "NaN%".
+                ...c,
+                games_count: Math.max(0, Number(c?.games_count ?? 0)),
+                list_count: Math.max(0, Number(c?.list_count ?? c?.lists ?? 0)),
+                different_lists_count: Math.max(
+                    0,
+                    Number(c?.different_lists_count ?? c?.different_list_count ?? 0),
+                ),
+                wins: Math.max(0, Number(c?.wins ?? 0)),
+            }))}
+            <!-- Result count in the same "N x Found" style as squadrons,
+                 lists, ships, and tournaments listings. -->
+            <p class="text-secondary font-mono text-sm mb-6">
+                {resolvedTotal} {data.tab === "pilots" ? "Pilots" : "Upgrades"} Found
+            </p>
             <div
                 class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6"
             >
-                {#each cardItems as card}
+                {#each cardItems as card (card.xws)}
                     <a
                         href={`/${data.tab === "pilots" ? "pilot" : "upgrade"}/${card.xws}`}
                         class="block h-full group"
@@ -291,14 +330,14 @@
                     class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
                 >
                     <button
-                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
                         onclick={prevPage}
                         disabled={page <= 1}>← Prev</button
                     >
                     <span class="text-xs font-mono text-secondary">Page {page}</span
                     >
                     <button
-                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
                         onclick={nextPage}
                         disabled={page * size >= resolvedTotal}>Next →</button
                     >

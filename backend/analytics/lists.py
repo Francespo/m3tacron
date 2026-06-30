@@ -104,7 +104,18 @@ def aggregate_list_stats(
             where_clauses.append("l.faction_xws_normalized = ANY(:factions)")
             params["factions"] = normalized
 
-    ship_clause = ship_list_filter_clause(filters.get("ships"), params)
+    # Ship filter — accept both "ship" (singular, used by ship_detail.py)
+    # and "ships" (plural, used by the broader API surface).
+    #
+    # mode="all" → AND semantics: a list matches only when EVERY
+    # selected ship is present in its ship_list. Matches the
+    # squadrons page behavior: selecting X-wing + A-wing should
+    # return lists that contain BOTH, not the union.
+    ship_clause = ship_list_filter_clause(
+        filters.get("ship") or filters.get("ships"),
+        params,
+        mode="all",
+    )
     if ship_clause:
         where_clauses.append(ship_clause)
 
@@ -154,6 +165,11 @@ def aggregate_list_stats(
         except (ValueError, AttributeError):
             f_enum = Faction.UNKNOWN
         pilots_out = _reformat_pilots(list_json.get("pilots", []))
+        wins = int(row[8] or 0)
+        games = int(row[7] or 0)
+        # win_rate as a percentage (0-100), one decimal place. Avoid
+        # division-by-zero — empty groups surface as 0.0.
+        win_rate = round((wins / games) * 100, 1) if games else 0.0
         final_list.append({
             "signature": row[0],
             "name": row[3] or "",
@@ -161,8 +177,9 @@ def aggregate_list_stats(
             "original_points": 0,
             "faction_xws": f_enum,
             "pilots": pilots_out,
-            "wins": int(row[8] or 0),
-            "games": int(row[7] or 0),
+            "wins": wins,
+            "games": games,
+            "win_rate": win_rate,
         })
 
     final_list.sort(key=lambda x: x["games"], reverse=True)

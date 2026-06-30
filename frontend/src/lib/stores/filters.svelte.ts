@@ -6,9 +6,16 @@
  * anything that triggers navigation / side effects. URL synchronization
  * is performed by callers (each route) which build URLSearchParams via
  * `toSearchParams` and then call `goto()` themselves.
+ *
+ * The one exception is the read-only `isPendingSync()` import from
+ * `$lib/sync/urlSync.svelte`: it is a non-mutating flag that lets
+ * `applyFromSearchParams` distinguish a stale-URL race condition
+ * (the store just mutated, the URL hasn't caught up yet) from a real
+ * navigation. The store itself never *causes* a navigation.
  */
 
 import { getFormatFullLabel } from "$lib/data/formats";
+import { isPendingSync, resolvePendingSync, markHydrated } from "$lib/sync/urlSync.svelte";
 
 // ---------------------------------------------------------------------------
 // State
@@ -255,6 +262,7 @@ const ROUTE_FIELDS: Record<RouteId, readonly FieldKey[]> = {
     ],
     tournaments: [
         'dataSource',
+        'includeEpic',
         'selectedFormats',
         'selectedSources',
         'selectedContinents',
@@ -296,20 +304,13 @@ const SINGLE_KEY: Record<FieldKey, string> = {
 };
 
 /**
- * True when `selectedFormats` is the implicit default for the current
- * `dataSource` (i.e. exactly one entry equal to the source's default format).
- * In that case the URL omits `formats` entirely.
- */
-function isFormatsAtDefault(formats: string[], source: 'xwa' | 'legacy'): boolean {
-    if (formats.length !== 1) return false;
-    const defaultFormat = source === 'xwa' ? 'xwa' : 'legacy_x2po';
-    return formats[0] === defaultFormat;
-}
-
-/**
  * Serialize the current filter state to a `URLSearchParams` containing ONLY
  * the fields the given route supports. Default values are omitted, multi-
  * value fields use repeated keys, and the key order is deterministic.
+ *
+ * `selectedFormats` is always written in full (even when it matches the
+ * current `dataSource` default) so the URL round-trips cleanly with
+ * `applyFromSearchParams` and multi-select stays stable across re-renders.
  */
 function toSearchParams(routeId: RouteId): URLSearchParams {
     const params = new URLSearchParams();
@@ -389,13 +390,8 @@ function toSearchParams(routeId: RouteId): URLSearchParams {
                 break;
             // Multi-value fields
             case 'selectedFormats':
-                if (
-                    selectedFormats.length > 0 &&
-                    !isFormatsAtDefault(selectedFormats, dataSource)
-                ) {
-                    for (const f of selectedFormats) {
-                        params.append(SINGLE_KEY.selectedFormats, f);
-                    }
+                for (const f of selectedFormats) {
+                    params.append(SINGLE_KEY.selectedFormats, f);
                 }
                 break;
             case 'selectedFactions':
@@ -505,7 +501,66 @@ function applyFromSearchParams(params: URLSearchParams): void {
 
     // Multi-value fields
     const formats = params.getAll('formats');
-    if (formats.length > 0) selectedFormats = formats;
+    if (formats.length > 0) {
+        // Defensive guard against a stale-URL race condition.
+        //
+        // The layout's `$effect` calls `applyFromSearchParams` on
+        // every URL change. But the `+page.svelte` `$effect` writes
+        // the URL via a debounced `scheduleSync`, so there is a
+        // window in which the user has just mutated the store but the
+        // URL has not been updated yet. If the layout's effect re-runs
+        // during that window, it reads the STALE URL and would
+        // clobber the user's mutation.
+        //
+        // `isPendingSync()` returns `true` while such a sync is in
+        // flight. When it is, we skip the write — the store is the
+        // source of truth and the URL will catch up. Once the URL
+        // actually changes to match the store, we call
+        // `resolvePendingSync()` to clear the flag so the NEXT URL
+        // change (a real navigation) hydrates the store normally.
+        if (isPendingSync()) {
+            // Stale URL: trust the store, do not overwrite.
+        } else {
+            // No sync in flight — either initial hydration or a real
+            // navigation. Hydrate the store from the URL.
+            selectedFormats = formats;
+        }
+    } else {
+        // URL has no `formats` — could be a navigation to a page
+        // without filters, or the post-`resolvePendingSync` case
+        // where the URL now matches the store. Either way, only
+        // clear the store if there isn't a sync in flight.
+        if (!isPendingSync() && selectedFormats.length > 0) {
+            selectedFormats = [];
+        }
+    }
+
+    // If a sync was pending, check whether the URL we just observed
+    // matches the store's current state. If so, the sync has landed
+    // and we can clear the pending flag. If not, keep the flag so the
+    // next layout re-run (with the freshly-updated URL) will still
+    // skip overwriting.
+    if (isPendingSync()) {
+        const currentUrlFormats = formats;
+        let matches = currentUrlFormats.length === selectedFormats.length;
+        if (matches) {
+            for (let i = 0; i < currentUrlFormats.length; i++) {
+                if (currentUrlFormats[i] !== selectedFormats[i]) {
+                    matches = false;
+                    break;
+                }
+            }
+        }
+        if (matches) {
+            resolvePendingSync();
+        }
+    } else {
+        // No pending sync — this is the very first hydration after
+        // page load, or a real navigation. Either way, the store has
+        // now been synchronised with the URL at this point in time,
+        // so future syncs can safely be guarded.
+        markHydrated();
+    }
     const factions = params.getAll('factions');
     if (factions.length > 0) selectedFactions = factions;
     const ships = params.getAll('ships');

@@ -9,12 +9,16 @@ from ..data_structures.data_source import DataSource
 
 def _reformat_pilots(raw_pilots: list[dict]) -> list[dict]:
     """
-    Transform raw list_json pilots to the {xws, upgrades: [{xws}]} format
-    used by the Pydantic PilotData schema.
+    Transform raw list_json pilots to the {xws, ship, points, name, upgrades: [{xws}]}
+    format used by the Pydantic PilotData schema.
 
     `raw_pilots` come straight from list_json; the `upgrades` field may be:
     - dict: slot -> list of upgrade ids (XWS)
     - list: flat list of upgrade ids (no slot info)
+
+    We preserve the original `ship`, `points`, `name`, and `faction` fields
+    so `enrich_list_data` can fall back to them for variant-XWS pilots that
+    are not present in the manifest (e.g. `fennrau-armedanddangerous`).
 
     Output is suitable for the analytics pre-transform that feeds
     `enrich_list_data`.
@@ -34,7 +38,14 @@ def _reformat_pilots(raw_pilots: list[dict]) -> list[dict]:
         elif isinstance(raw_up, list):
             for item in raw_up:
                 upgrades_list.append({"xws": str(item)})
-        out.append({"xws": pid, "upgrades": upgrades_list})
+        out.append({
+            "xws": pid,
+            "ship": p.get("ship", ""),
+            "points": p.get("points", 0),
+            "name": p.get("name", ""),
+            "faction": p.get("faction", ""),
+            "upgrades": upgrades_list,
+        })
     return out
 
 
@@ -46,17 +57,19 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
     calculated_points = 0
     
     for p in pilots:
-        pid = p.get("id") or p.get("name")
+        pid = p.get("id") or p.get("xws") or p.get("name")
         pilot_info = get_pilot_info(pid, source=source) or {}
-        
-        pilot_name = pilot_info.get("name", pid)
-        ship_xws = pilot_info.get("ship_xws", "")
+
+        pilot_name = pilot_info.get("name") or p.get("name") or pid
+        ship_xws = pilot_info.get("ship_xws") or p.get("ship", "")
         ship_name = pilot_info.get("ship", "Unknown Ship")
         ship_icon_name = get_ship_icon_name(ship_xws)
         pilot_image = pilot_info.get("image", "")
-        
-        # Prioritize external_data cost over DB cost if available
-        pilot_points_raw = pilot_info.get("cost", p.get("points", 0))
+
+        # Prioritize external_data cost over DB cost if available,
+        # then fall back to the original list_json `points` field
+        # (preserved by `_reformat_pilots`) for variant-XWS pilots.
+        pilot_points_raw = pilot_info.get("cost") or p.get("points", 0)
         pilot_loadout_raw = pilot_info.get("loadout", 0)
         
         try: pilot_points = int(pilot_points_raw)
@@ -119,8 +132,10 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
         
         rich_pilots.append(PilotData(
             xws=pid,
-            ship_xws=ship_xws,
-            faction_xws=pilot_info.get("faction", ""),
+            ship_xws=ship_xws or p.get("ship", ""),  # fall back to original list_json ship field
+            faction_xws=pilot_info.get("faction") or p.get("faction", ""),  # also fall back
+            cost=pilot_points,  # already computed with fallbacks above
+            initiative=int(pilot_info.get("initiative") or 0),
             upgrades=rich_upgrades
         ))
     

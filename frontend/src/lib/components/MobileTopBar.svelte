@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ContentSourceToggle from "./ContentSourceToggle.svelte";
 	/**
 	 * MobileTopBar
 	 *
@@ -6,11 +7,9 @@
 	 * nav/filter drawers (which are z-60). The desktop sidebar (z-100, hidden
 	 * on <md) is unaffected by this component.
 	 *
-	 * The right side deliberately stays empty for now: the Game Content Source
-	 * toggle (XWA / Legacy + Epic) is rendered inside MobileFilterDrawer on
-	 * small screens. Putting it here would clutter the always-visible chrome
-	 * and duplicate the "Filters" entry point. If a future feature needs a
-	 * persistent right-side action, slot it in here.
+	 * The right side hosts the shared ContentSourceToggle (XWA / LGCY / Epic)
+	 * so mobile users can switch game content source in one tap without
+	 * opening the full filter drawer.
 	 */
 	let { onOpenNav }: { onOpenNav: () => void } = $props();
 </script>
@@ -53,7 +52,8 @@
 			M3TACRON
 		</a>
 
-		<!-- Right-side balance spacer — keeps the wordmark visually centered. -->
-		<div class="shrink-0 w-11 h-11" aria-hidden="true"></div>
+		<!-- Shared ContentSourceToggle: XWA | LGCY + Epic. Same visual as
+		     the desktop sidebar's consolidated controls. -->
+		<ContentSourceToggle />
 	</div>
 </header>

@@ -61,6 +61,8 @@
 
 <script lang="ts">
 	import { page } from "$app/stores";
+	import { filters } from "$lib/stores/filters.svelte";
+	import Toggle from "./Toggle.svelte";
 
 	// Sidebar Links — derived from the module-level NAV_LINKS so the desktop
 	// sidebar and the mobile nav drawer render the same set of routes.
@@ -78,14 +80,49 @@
 	<div class="border-b border-border-dark w-full px-4 py-6">
 		<div class="flex flex-col {collapsed ? 'items-center' : 'items-start'}">
 			<span
-				class="text-primary font-sans font-medium tracking-[0.15em] {collapsed
+				class="text-primary font-mono font-bold uppercase tracking-tighter leading-none {collapsed
 					? 'text-lg'
-					: 'text-xl'}"
+					: 'text-2xl'}"
 			>
 				{collapsed ? "M3" : "M3TACRON"}
 			</span>
 			{#if !collapsed}
-				<span class="text-secondary font-mono text-xs">v2.0.0</span>
+				<!-- XWA / LEGACY + Epic toggle (consolidated content source controls) -->
+				<div class="flex items-center gap-1 mt-2">
+					<button
+						type="button"
+						onclick={() => (filters.dataSource = "xwa")}
+						aria-pressed={filters.dataSource === "xwa"}
+						class="px-2 py-0.5 text-xs font-mono rounded transition-colors {filters.dataSource ===
+						'xwa'
+							? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50'
+							: 'bg-transparent text-secondary border border-border-dark hover:text-primary'}"
+					>
+						XWA
+					</button>
+					<button
+						type="button"
+						onclick={() => (filters.dataSource = "legacy")}
+						aria-pressed={filters.dataSource === "legacy"}
+						class="px-2 py-0.5 text-xs font-mono rounded transition-colors {filters.dataSource ===
+						'legacy'
+							? 'bg-purple-500/20 text-purple-400 border border-purple-500/50'
+							: 'bg-transparent text-secondary border border-border-dark hover:text-primary'}"
+					>
+						LEGACY
+					</button>
+					<label
+						class="flex items-center gap-1 ml-1 text-xs text-secondary font-mono cursor-pointer hover:text-primary"
+					>
+						<Toggle
+							size="xs"
+							ariaLabel="Include epic content"
+							checked={filters.includeEpic}
+							onchange={(e) => (filters.includeEpic = (e.currentTarget as HTMLInputElement).checked)}
+						/>
+						Epic
+					</label>
+				</div>
 			{/if}
 		</div>
 	</div>
