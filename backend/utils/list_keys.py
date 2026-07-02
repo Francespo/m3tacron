@@ -57,3 +57,22 @@ def get_list_key(xws: Any) -> str:
     temp_pilots.sort(key=lambda x: (x["xws"], str(x["upgrades"])))
     
     return json.dumps(temp_pilots, sort_keys=True)
+
+
+def get_ship_list(xws: dict) -> str:
+    """
+    Extract sorted ship XWS list from list_json for squadron grouping.
+    Returns comma-joined string like "btla4ywing,t65xwing,t65xwing".
+    """
+    if not xws or not isinstance(xws, dict):
+        return ""
+    
+    pilots = xws.get("pilots", [])
+    ships = []
+    for p in pilots:
+        ship = p.get("ship") or ""
+        if ship:
+            ships.append(ship)
+    
+    ships.sort()
+    return ",".join(ships)

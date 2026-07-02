@@ -4,12 +4,9 @@
      * Purpose: High-fidelity Pilot card component.
      * Replicates the current grid-card aesthetic while allowing for expanded views.
      */
-    import {
-        getWinRateColor,
-        getFactionColor,
-        getFactionChar,
-    } from "$lib/data/factions";
+    import { getWinRateColor } from "$lib/data/factions";
     import StatIcon from "./StatIcon.svelte";
+    import FactionIcon from "./FactionIcon.svelte";
     import { xwingData } from "$lib/stores/xwingData.svelte";
 
     let {
@@ -41,8 +38,6 @@
     );
 
     const faction = $derived(pData?.faction || pilot.faction_xws || "unknown");
-    const fColor = $derived(getFactionColor(faction));
-    const fChar = $derived(getFactionChar(faction));
     const name = $derived(pData?.name || pilot.xws);
     const image = $derived(pData?.image);
     const shipXws = $derived(pData?.ship);
@@ -56,7 +51,7 @@
 
 {#if viewMode === "grid"}
     <div
-        class="bg-terminal-panel border border-border-dark rounded-xl overflow-hidden hover:border-primary/40 transition-all duration-300 hover:scale-[1.04] hover:z-20 flex flex-col relative aspect-square group"
+        class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden hover:border-primary/40 transition-all duration-300 hover:scale-[1.04] hover:z-20 flex flex-col relative aspect-square group"
     >
         <!-- Card Image -->
         {#if showImage}
@@ -104,15 +99,18 @@
                                     style="filter: brightness(1.1);"
                                 />
                             </div>
-                            <span class="truncate">{name}</span>
+                            <a
+                                href="/pilot/{pilot.xws}"
+                                class="truncate border-b border-transparent hover:border-accent/50 hover:text-accent transition-colors"
+                            >
+                                {name}
+                            </a>
                         </div>
-                        {#if fChar}
-                            <StatIcon
-                                type={fChar}
-                                size="1.125rem"
-                                color={fColor}
+                        {#if faction}
+                            <FactionIcon
+                                {faction}
+                                size="md"
                                 className="drop-shadow-md opacity-90 flex-shrink-0"
-                                style="filter: brightness(1.2);"
                             />
                         {/if}
                     </h3>
@@ -131,68 +129,37 @@
             {#if showStats}
                 <div class="flex flex-wrap gap-1.5 mt-auto">
                     <!-- WR -->
-                    <div
-                        class="px-1.5 py-0.5 rounded bg-[#ffffff0a] border border-[#ffffff10] flex items-center gap-1"
+                    <span
+                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
+                        style="color: {wrColor};"
                     >
-                        <span
-                            class="text-[10px] font-bold"
-                            style="color: {wrColor};"
-                        >
-                            {isNaN(wr) ? "NA" : wr.toFixed(1) + "%"}
-                        </span>
-                        <span class="text-[9px] font-mono text-secondary"
-                            >WR</span
-                        >
-                    </div>
+                        WR {isNaN(wr) ? "NA" : wr.toFixed(1) + "%"}
+                    </span>
                     <!-- Games -->
-                    <div
-                        class="px-1.5 py-0.5 rounded bg-[#ffffff0a] border border-[#ffffff10] flex items-center gap-1"
+                    <span
+                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
                     >
-                        <span class="text-[10px] font-bold text-primary"
-                            >{games}</span
-                        >
-                        <span class="text-[9px] font-mono text-secondary"
-                            >G</span
-                        >
-                    </div>
-                    <!-- Lists + Different Lists -->
-                    <div
-                        class="px-1.5 py-0.5 rounded bg-[#ffffff0a] border border-[#ffffff10] flex items-center gap-1"
+                        GAMES {games}
+                    </span>
+                    <!-- Lists + Unique Lists -->
+                    <span
+                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
                     >
-                        <span class="text-[10px] font-bold text-primary"
-                            >{listsCount}</span
-                        >
-                        <span class="text-[9px] font-mono text-secondary"
-                            >L</span
-                        >
-                        <span class="text-[8px] font-mono text-secondary/80"
-                            >(DL {differentListsCount})</span
-                        >
-                    </div>
+                        LISTS {listsCount} (UNIQUE {differentListsCount})
+                    </span>
                     <!-- Points -->
-                    <div
-                        class="px-1.5 py-0.5 rounded bg-emerald-900/30 border border-emerald-500/30 flex items-center gap-1"
+                    <span
+                        class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-mono font-bold"
                     >
-                        <span class="text-[10px] font-bold text-emerald-400"
-                            >{points}</span
-                        >
-                        <span class="text-[9px] font-mono text-emerald-500/80"
-                            >PTS</span
-                        >
-                    </div>
+                        PTS {points}
+                    </span>
                     <!-- Loadout (XWA Only logic) -->
                     {#if loadout !== undefined && loadout !== null}
-                        <div
-                            class="px-1.5 py-0.5 rounded bg-violet-900/20 border border-violet-500/20 flex items-center gap-1"
+                        <span
+                            class="px-1.5 py-0.5 bg-violet-500/20 text-violet-400 border border-violet-500/30 rounded-md text-[10px] font-mono font-bold"
                         >
-                            <span class="text-[10px] font-bold text-violet-300"
-                                >{loadout}</span
-                            >
-                            <span
-                                class="text-[9px] font-mono text-violet-400/80"
-                                >LV</span
-                            >
-                        </div>
+                            LV {loadout}
+                        </span>
                     {/if}
                 </div>
             {/if}

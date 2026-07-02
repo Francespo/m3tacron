@@ -11,12 +11,30 @@ export const load: PageLoad = async ({ fetch, url }) => {
     if (!apiUrl.searchParams.has('page')) apiUrl.searchParams.set('page', '0');
     if (!apiUrl.searchParams.has('size')) apiUrl.searchParams.set('size', '20');
 
-    try {
-        const res = await fetch(apiUrl.toString());
-        if (!res.ok) throw new Error('Failed to fetch');
-        const data = await res.json();
-        return { items: data.items, total: data.total };
-    } catch {
-        return { items: [], total: 0 };
-    }
+    const sort_metric = url.searchParams.get('sort_metric') || 'Games';
+    const sort_direction = url.searchParams.get('sort_direction') || 'desc';
+
+    const parsePayload = (data: any) => ({
+        items: data?.items ?? [],
+        total: Number(data?.total ?? 0),
+        page: Number(data?.page ?? 0),
+        size: Number(data?.size ?? 20),
+        sort_metric,
+        sort_direction,
+    });
+
+    // Return a promise so SvelteKit navigates immediately and streams data in.
+    // This prevents navigation from blocking on slow API responses.
+    const itemsPromise = fetch(apiUrl.toString())
+        .then(async (response) => {
+            if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
+            const data = await response.json();
+            return parsePayload(data);
+        })
+        .catch((e) => {
+            console.error('Fetch failed:', e);
+            return { items: [], total: 0, page: 0, size: 20, sort_metric, sort_direction };
+        });
+
+    return { itemsPromise, sort_metric, sort_direction };
 };

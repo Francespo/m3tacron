@@ -1,5 +1,6 @@
 <script lang="ts">
     import { filters } from "$lib/stores/filters.svelte";
+    import Toggle from "./Toggle.svelte";
 
     let { isPilotsTab = true }: { isPilotsTab?: boolean } = $props();
 
@@ -79,30 +80,33 @@
             <label
                 class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
             >
-                <input
-                    type="checkbox"
-                    class="rounded border-border-dark bg-black w-3 h-3"
-                    bind:checked={filters.isUnique}
+                <Toggle
+                    size="xs"
+                    ariaLabel="Toggle Unique"
+                    checked={filters.isUnique}
+                    onchange={(e) => (filters.isUnique = (e.currentTarget as HTMLInputElement).checked)}
                 />
                 <span class="font-mono">Unique</span>
             </label>
             <label
                 class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
             >
-                <input
-                    type="checkbox"
-                    class="rounded border-border-dark bg-black w-3 h-3"
-                    bind:checked={filters.isLimited}
+                <Toggle
+                    size="xs"
+                    ariaLabel="Toggle Limited"
+                    checked={filters.isLimited}
+                    onchange={(e) => (filters.isLimited = (e.currentTarget as HTMLInputElement).checked)}
                 />
                 <span class="font-mono">Limited</span>
             </label>
             <label
                 class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
             >
-                <input
-                    type="checkbox"
-                    class="rounded border-border-dark bg-black w-3 h-3"
-                    bind:checked={filters.isGeneric}
+                <Toggle
+                    size="xs"
+                    ariaLabel="Toggle Generic"
+                    checked={filters.isGeneric}
+                    onchange={(e) => (filters.isGeneric = (e.currentTarget as HTMLInputElement).checked)}
                 />
                 <span class="font-mono">Generic</span>
             </label>
@@ -121,9 +125,9 @@
                     <label
                         class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
                     >
-                        <input
-                            type="checkbox"
-                            class="rounded border-border-dark bg-black w-3 h-3"
+                        <Toggle
+                            size="xs"
+                            ariaLabel={`Toggle base size ${size}`}
                             checked={filters.selectedBaseSizes.includes(size)}
                             onchange={() => toggleBaseSize(size)}
                         />

@@ -11,10 +11,15 @@ from backend.data_structures.source import Source
 
 class UpgradeData(BaseModel):
     xws: str
+    slot_xws: str = ""
 
 
 class PilotData(BaseModel):
     xws: str
+    ship_xws: str = ""
+    faction_xws: str = ""
+    cost: int = 0
+    initiative: int = 0
     upgrades: list[UpgradeData] = []
 
 
@@ -23,7 +28,13 @@ class ListData(BaseModel):
     signature: str
     points: int
     original_points: int
-    faction_xws: Faction
+    faction_xws: str = ""
+    faction: str = ""
+    faction_key: str = ""
+    icon_char: str = ""
+    count: int = 0
+    win_rate: float = 0.0
+    total_loadout: int = 0
     pilots: list[PilotData]
     wins: int
     games: int
@@ -58,6 +69,7 @@ class UpgradeStats(BaseModel):
 class ShipStats(BaseModel):
     xws: str
     faction_xws: Faction
+    factions: list[str] = []
     games_count: int
     list_count: int
     different_lists_count: int
@@ -87,6 +99,10 @@ class PlayerStandingData(BaseModel):
     losses: int
     list_json: dict[str, Any] | None = None
     faction: Faction
+    # FK into the normalized `list` table. Optional because some legacy
+    # standings rows may not have been migrated yet. The standings UI
+    # uses this to wire the "LIST" button to the list detail page.
+    list_id: int | None = None
 
 
 class MatchData(BaseModel):

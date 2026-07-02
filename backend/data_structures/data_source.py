@@ -16,3 +16,16 @@ class DataSource(StrEnum):
             
     def __str__(self) -> str:
         return self.value
+
+
+def parse_data_source(value: str) -> DataSource:
+    """
+    Parse a data source string, falling back to DataSource.XWA on error.
+
+    Centralises the "try DataSource(value) except: XWA" pattern used in
+    several endpoints so the fallback behaviour stays consistent.
+    """
+    try:
+        return DataSource(value)
+    except (ValueError, KeyError):
+        return DataSource.XWA

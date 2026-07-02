@@ -10,7 +10,8 @@ Defines:
 import logging
 from sqlmodel import Field, Relationship, SQLModel
 from datetime import date, datetime
-from sqlalchemy import JSON, Column, String
+from sqlalchemy import JSON, Column, Computed, String
+from sqlalchemy.dialects.postgresql import JSONB
 
 from .data_structures.formats import Format
 from .data_structures.source import Source
@@ -50,9 +51,9 @@ class TeamStanding(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     tournament_id: int = Field(foreign_key="tournament.id")
     team_name: str = Field()
-    swiss_rank: int = Field(default=-1)
-    swiss_wins: int = Field(default=-1)
-    swiss_losses: int = Field(default=-1)
+    swiss_rank: int = Field(default=0)
+    swiss_wins: int = Field(default=0)
+    swiss_losses: int = Field(default=0)
     swiss_draws: int = Field(default=0)
     swiss_event_points: int | None = Field(default=None)
     swiss_tie_breaker_points: int | None = Field(default=None)
@@ -67,6 +68,23 @@ class TeamStanding(SQLModel, table=True):
         back_populates="team_standings")
 
 
+class List(SQLModel, table=True):
+    """
+    Deduplicated squad list. One row per unique canonical signature.
+    Referenced by PlayerStanding.list_id.
+    """
+    id: int | None = Field(default=None, primary_key=True)
+    canonical_signature: str = Field(unique=True, index=False)  # UNIQUE creates implicit index
+    faction: str
+    faction_xws_normalized: str  # denormalized for fast WHERE filtering
+    name: str | None = None
+    points: int | None = None
+    pilot_count: int | None = None
+    ship_list: str  # sorted comma-joined: "btla4ywing,t65xwing,t65xwing"
+    list_json: dict = Field(sa_column=Column(JSONB))
+    created_at: datetime | None = Field(default=None)
+
+
 class PlayerStanding(SQLModel, table=True):
     """
     A player's performance in a tournament.
@@ -75,9 +93,9 @@ class PlayerStanding(SQLModel, table=True):
     tournament_id: int = Field(foreign_key="tournament.id")
     player_name: str = Field()
     team_id: int | None = Field(default=None, foreign_key="teamstanding.id")
-    swiss_rank: int = Field(default=-1)
-    swiss_wins: int = Field(default=-1)
-    swiss_losses: int = Field(default=-1)
+    swiss_rank: int = Field(default=0)
+    swiss_wins: int = Field(default=0)
+    swiss_losses: int = Field(default=0)
     swiss_draws: int = Field(default=0)
     swiss_event_points: int | None = Field(default=None)
     swiss_tie_breaker_points: int | None = Field(default=None)
@@ -87,7 +105,21 @@ class PlayerStanding(SQLModel, table=True):
     cut_draws: int | None = Field(default=None)
     cut_event_points: int | None = Field(default=None)
     cut_tie_breaker_points: int | None = Field(default=None)
-    list_json: dict = Field(default={}, sa_column=Column(JSON))
+    list_json: dict = Field(default={}, sa_column=Column(JSONB))
+    list_id: int | None = Field(default=None, foreign_key="list.id", index=True)
+    # Generated column: lower(replace(replace(list_json->>'faction', ' ', ''), '-', ''))
+    # Mirrors the SQL GENERATED ALWAYS AS expression. Marked nullable since list_json
+    # may lack a 'faction' key, in which case the column will be NULL.
+    faction_xws_normalized: str | None = Field(
+        default=None,
+        sa_column=Column(
+            String,
+            Computed(
+                "lower(replace(replace(list_json->>'faction', ' ', ''), '-', ''))",
+                persisted=True,
+            ),
+        ),
+    )
 
     tournament: Tournament | None = Relationship(back_populates="standings")
     team: TeamStanding | None = Relationship(
@@ -137,6 +169,18 @@ class TeamMatch(SQLModel, table=True):
 
     winner_id: int | None = Field(default=None)  # -1 if draw
     is_bye: bool = Field(default=False)
+
+
+class ScrapeMeta(SQLModel, table=True):
+    """
+    Key/value store for incremental scrape state (e.g. data_version).
+
+    Populated by `backend/scripts/migrate_performance.sql` for existing
+    databases. `SQLModel.metadata.create_all` (in `database.create_db_and_tables`)
+    will create it automatically for new installations.
+    """
+    key: str = Field(primary_key=True)
+    value: str
 
 
 class Supporter(SQLModel, table=True):

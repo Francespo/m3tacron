@@ -29,24 +29,27 @@ Options:
 """
 
 import argparse
+import json
 import logging
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
+from typing import Any, cast
 from urllib.parse import urlparse
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlmodel import Session, create_engine, select
 
 from ..database import engine, create_db_and_tables
 from ..data_structures.round_types import RoundType
+from ..data_structures.source import Source
 from ..models import Match, PlayerStanding, Tournament, TeamStanding, TeamMatch
+from ..scrapers.base import BaseScraper
 from ..scrapers.listfortress_scraper import ListFortressScraper
 from ..scrapers.longshanks_scraper import LongshanksScraper
 from ..scrapers.rollbetter_scraper import RollbetterScraper
+from ..utils.list_keys import get_ship_list
 
 logging.basicConfig(
     level=logging.INFO,
@@ -193,17 +196,147 @@ def _delete_existing_tournament(session: Session, url: str) -> None:
 
     existing = session.exec(select(Tournament).where(
         Tournament.url == url)).first()
-    if existing:
+    if existing is not None:
+        eid = existing.id
+        assert eid is not None
         logger.info(f"Deleting existing tournament data for {url}")
         session.exec(delete(TeamMatch).where(
-            TeamMatch.tournament_id == existing.id))
-        session.exec(delete(Match).where(Match.tournament_id == existing.id))
+            cast(Any, TeamMatch.tournament_id) == eid))
+        session.exec(delete(Match).where(
+            cast(Any, Match.tournament_id) == eid))
         session.exec(delete(PlayerStanding).where(
-            PlayerStanding.tournament_id == existing.id))
+            cast(Any, PlayerStanding.tournament_id) == eid))
         session.exec(delete(TeamStanding).where(
-            TeamStanding.tournament_id == existing.id))
-        session.exec(delete(Tournament).where(Tournament.id == existing.id))
+            cast(Any, TeamStanding.tournament_id) == eid))
+        session.exec(delete(Tournament).where(
+            cast(Any, Tournament.id) == eid))
         session.commit()
+
+
+def _normalize_faction(faction: str | None) -> str:
+    """Normalize a faction string for faction_xws_normalized.
+
+    Mirrors the SQL expression: lower(replace(replace(faction, ' ', ''), '-', '')).
+    """
+    return (faction or "").lower().replace(" ", "").replace("-", "")
+
+
+def _persist_list_rows(
+    session: Session, list_jsons: list[dict]
+) -> dict[str, int]:
+    """Batch-insert unique list_json payloads into the `list` table.
+
+    Returns:
+        Mapping of ``json.dumps(lj, sort_keys=True)`` → ``list_id`` for all
+        payloads in the input (whether newly inserted or pre-existing).
+        The caller uses the same Python-side JSON canonicalisation to
+        look up the list_id for each player.
+
+    Skips payloads that are empty (``{}``) or missing a 'faction' key, since
+    those cannot be inserted (the schema requires `faction` and `ship_list`
+    NOT NULL) and should leave list_id NULL on the playerstanding row.
+
+    The ``canonical_signature`` is computed in SQL via
+    ``md5(CAST(:lj AS jsonb)::text)`` so it matches the historical migration
+    at ``migrate_normalize_list.sql`` byte-for-byte. Computing the signature
+    in Python would not match because ``jsonb::text`` produces compact JSON
+    (``{"a":1}``) while ``json.dumps`` produces ``{"a": 1}`` (with spaces).
+
+    This function is Postgres-only (uses ``CAST(... AS jsonb)``,
+    ``ON CONFLICT``, ``= ANY(...)``). SQLite does not support those
+    constructs, so callers running against a SQLite engine (e.g. the
+    ``_write_sqlite`` artifact path) skip list-table population entirely.
+    """
+    # Bug 2: _write_sqlite calls save_tournament_data against a SQLite
+    # engine. The Postgres-specific constructs below (CAST AS jsonb, ON
+    # CONFLICT, = ANY) would crash. Skip list-table population for SQLite
+    # artifacts — the playerstanding rows still get written, just without
+    # a list_id (the artifact is a read-only convenience for analysis).
+    if session.bind and session.bind.dialect.name == "sqlite":
+        return {}
+
+    lj_json_to_lj: dict[str, dict] = {}
+    for lj in list_jsons:
+        if not lj or not isinstance(lj, dict):
+            continue
+        # Skip empty dicts and lists with no faction — these cannot be
+        # represented in the `list` table (NOT NULL constraints on
+        # faction / ship_list) and would fail INSERT.
+        if not lj.get("faction"):
+            continue
+        # Dedupe by Python-side canonical JSON so the batched INSERT has
+        # one row per list. (The canonical_signature hash is computed in
+        # SQL so it exactly matches jsonb::text.)
+        lj_json = json.dumps(lj, sort_keys=True, default=str)
+        lj_json_to_lj.setdefault(lj_json, lj)
+
+    if not lj_json_to_lj:
+        return {}
+
+    # Build a parameterised multi-row INSERT with named params so we can
+    # safely serialise arbitrary list_json via CAST(:lj AS jsonb).
+    # (Using `:lj::jsonb` directly fails because SQLAlchemy's text() parser
+    # treats the `::` cast as a nameless bind parameter.)
+    # The canonical_signature is computed in SQL as md5(CAST(:lj AS
+    # jsonb)::text) so it exactly matches the historical migration
+    # (migrate_normalize_list.sql) which uses md5(list_json::text).
+    value_clauses: list[str] = []
+    params: dict[str, object] = {}
+    for i, (lj_json, lj) in enumerate(lj_json_to_lj.items()):
+        value_clauses.append(
+            f"(md5(CAST(:lj_{i} AS jsonb)::text), :fac_{i}, :fn_{i}, :name_{i}, :pts_{i}, "
+            f":pc_{i}, :sl_{i}, CAST(:lj_{i} AS jsonb))"
+        )
+        faction = lj.get("faction") or "unknown"
+        pilots = lj.get("pilots") or []
+        # ship_list comes from get_ship_list() in backend/utils/list_keys.py
+        # — single source of truth shared with the rest of the codebase.
+        # Critically, get_ship_list filters out pilots with no ship, so we
+        # never get a leading comma (",t65xwing") for pilots with missing
+        # ship fields. The previous inline expression did not filter and
+        # produced inconsistent ship_list values.
+        ship_list = get_ship_list(lj)
+        # `pilot_count` is the count of pilot entries.
+        pilot_count = len(pilots) if isinstance(pilots, list) else None
+        # `points` is best-effort: only cast to int if the raw value is
+        # an integer-looking number. Anything else stays NULL.
+        raw_points = lj.get("points")
+        if isinstance(raw_points, bool):
+            # bool is a subclass of int; treat as non-numeric.
+            points_val: int | None = None
+        elif isinstance(raw_points, int):
+            points_val = raw_points
+        else:
+            points_val = None
+        params[f"fac_{i}"] = faction
+        params[f"fn_{i}"] = _normalize_faction(faction)
+        params[f"name_{i}"] = lj.get("name") or ""
+        params[f"pts_{i}"] = points_val
+        params[f"pc_{i}"] = pilot_count
+        params[f"sl_{i}"] = ship_list
+        params[f"lj_{i}"] = lj_json
+
+    insert_sql = text(
+        "INSERT INTO list "
+        "(canonical_signature, faction, faction_xws_normalized, "
+        " name, points, pilot_count, ship_list, list_json) "
+        f"VALUES {', '.join(value_clauses)} "
+        "ON CONFLICT (canonical_signature) DO NOTHING"
+    )
+    session.execute(insert_sql, params)
+
+    # Query back IDs by matching on list_json content (which is stored as
+    # jsonb in the `list` table). This is robust regardless of how the
+    # canonical_signature is computed — as long as the row exists, we
+    # can find it by its JSON content.
+    select_sql = text(
+        "SELECT id, list_json::text FROM list "
+        "WHERE list_json = ANY(:ljs)"
+    )
+    rows = session.execute(
+        select_sql, {"ljs": list(lj_json_to_lj.keys())}
+    ).all()
+    return {lj_text: lid for lid, lj_text in rows}
 
 
 def save_tournament_data(
@@ -236,10 +369,12 @@ def save_tournament_data(
     # Also include any team names that appear in team matches
     for m in matches:
         if isinstance(m, dict) and m.get("is_team_match"):
-            if m.get("p1_name_temp"):
-                team_names.add(m.get("p1_name_temp").strip())
-            if m.get("p2_name_temp"):
-                team_names.add(m.get("p2_name_temp").strip())
+            p1n = m.get("p1_name_temp")
+            if isinstance(p1n, str):
+                team_names.add(p1n.strip())
+            p2n = m.get("p2_name_temp")
+            if isinstance(p2n, str):
+                team_names.add(p2n.strip())
 
     team_id_map: dict[str, int] = {}
     if team_names:
@@ -252,7 +387,8 @@ def save_tournament_data(
                 team_name=tname,
             )
             session.add(ts)
-            team_id_map[tname.lower().strip()] = ts.id
+            if ts.id is not None:
+                team_id_map[tname.lower().strip()] = ts.id
         session.flush()
 
     # Assign player IDs from current max + offset so they are unique.
@@ -270,6 +406,22 @@ def save_tournament_data(
         session.add(player)
         if player.player_name:
             player_id_map[player.player_name.lower().strip()] = player.id
+
+    # --- Lists: insert unique list_json payloads into the `list` table
+    # and link each player to its list_id. Done before session.flush() so
+    # player.list_id is set when the players are flushed (the FK is
+    # enforced at flush time on Postgres).
+    list_jsons = [p.list_json for p in players if p.list_json]
+    lj_json_to_lid = _persist_list_rows(session, list_jsons)
+    for player in players:
+        lj = player.list_json
+        if not lj or not isinstance(lj, dict) or not lj.get("faction"):
+            # Skip — no list_id for empty/missing-faction lists.
+            continue
+        lj_json = json.dumps(lj, sort_keys=True, default=str)
+        lid = lj_json_to_lid.get(lj_json)
+        if lid is not None:
+            player.list_id = lid
 
     if players:
         session.flush()  # Flush so match FKs can reference player IDs
@@ -314,6 +466,7 @@ def save_tournament_data(
                 winner_name = (match_raw.get("winner_name_temp")
                                or "").lower().strip()
                 match = Match(
+                    tournament_id=tournament.id,
                     round_number=match_raw["round_number"],
                     round_type=match_raw.get("round_type", RoundType.SWISS),
                     scenario=match_raw.get("scenario"),
@@ -632,6 +785,7 @@ def _write_sqlite(sqlite_path: str, saved_items: list) -> None:
             )
             p_copies = [
                 PlayerStanding(
+                    tournament_id=tournament.id,
                     player_name=p.player_name,
                     team_id=getattr(p, "team_id", None),
                     swiss_rank=p.swiss_rank,
@@ -667,7 +821,7 @@ def _write_sqlite(sqlite_path: str, saved_items: list) -> None:
 
 def build_scrapers(
     platform: str, include_listfortress: bool
-) -> list[tuple[str, object]]:
+) -> list[tuple[str, BaseScraper]]:
     """Build the list of (name, scraper) pairs to run.
 
     Longshanks is split into two instances (2.5 and Legacy 2.0 subdomains).
@@ -683,7 +837,7 @@ def build_scrapers(
         - 'listfortress': ListFortress only.
         - 'all': All three platforms (Longshanks + RollBetter + ListFortress).
     """
-    scrapers: list[tuple[str, object]] = []
+    scrapers: list[tuple[str, BaseScraper]] = []
 
     if platform in ("all", "longshanks+rollbetter", "longshanks"):
         scrapers.append(
@@ -706,8 +860,8 @@ def build_scrapers(
 
 
 def _split_scrapers(
-    scrapers: list[tuple[str, object]],
-) -> tuple[list[tuple[str, object]], list[tuple[str, object]]]:
+    scrapers: list[tuple[str, BaseScraper]],
+) -> tuple[list[tuple[str, BaseScraper]], list[tuple[str, BaseScraper]]]:
     """Split scrapers into independent and dependent groups.
 
     Independent scrapers (Longshanks, Rollbetter) can run in parallel
@@ -720,8 +874,8 @@ def _split_scrapers(
     Returns:
         Tuple of (independent_scrapers, dependent_scrapers).
     """
-    independent: list[tuple[str, object]] = []
-    dependent: list[tuple[str, object]] = []
+    independent: list[tuple[str, BaseScraper]] = []
+    dependent: list[tuple[str, BaseScraper]] = []
 
     for name, scraper in scrapers:
         if "listfortress" in name:
@@ -818,6 +972,12 @@ def main() -> int:
         except argparse.ArgumentTypeError as exc:
             logger.error(str(exc))
             return 1
+
+    if date_from is None or date_to is None:
+        # Should not happen: this branch is only reached when
+        # tournament_urls is empty and parse_time_range succeeded.
+        logger.error("Internal error: date range not set.")
+        return 1
 
     logger.info(
         f"Date range: {date_from} -> {date_to} | "
@@ -956,69 +1116,6 @@ def main() -> int:
                 )
                 total_saved += saved
                 total_skipped += skipped
-        independent, dependent = _split_scrapers(scrapers)
-
-        # Stage 1: Run independent scrapers in parallel.
-        # Longshanks and Rollbetter pull from completely different domains,
-        # so there is no URL collision risk across parallel workers.
-        if independent:
-            logger.info(
-                f"Running {len(independent)} independent scraper(s) in parallel: "
-                f"{', '.join(n for n, _ in independent)}"
-            )
-            with ThreadPoolExecutor(max_workers=len(independent)) as executor:
-                future_to_name: dict = {}
-                for name, scraper in independent:
-                    future = executor.submit(
-                        scrape_platform,
-                        scraper,
-                        name,
-                        date_from,
-                        date_to,
-                        args.max_tournaments,
-                        existing_urls,
-                        all_saved_items,
-                        args.overwrite,
-                    )
-                    future_to_name[future] = name
-
-                for future in as_completed(future_to_name):
-                    name = future_to_name[future]
-                    try:
-                        saved, skipped = future.result()
-                        total_saved += saved
-                        total_skipped += skipped
-                        logger.info(
-                            f"[{name}] Parallel worker finished: "
-                            f"{saved} saved, {skipped} skipped."
-                        )
-                    except Exception as exc:
-                        logger.error(
-                            f"[{name}] Parallel worker failed: {exc}",
-                            exc_info=True,
-                        )
-
-        # Stage 2: Run dependent scrapers (ListFortress) sequentially after
-        # all independent scrapers have completed, so it can deduplicate
-        # against the full set of already-saved tournament URLs.
-        if dependent:
-            logger.info(
-                f"Running {len(dependent)} dependent scraper(s) sequentially: "
-                f"{', '.join(n for n, _ in dependent)}"
-            )
-            for name, scraper in dependent:
-                saved, skipped = scrape_platform(
-                    scraper,
-                    name,
-                    date_from,
-                    date_to,
-                    args.max_tournaments,
-                    existing_urls,
-                    all_saved_items,
-                    args.overwrite,
-                )
-                total_saved += saved
-                total_skipped += skipped
 
     logger.info(
         f"Finished. Saved: {total_saved} new tournament(s), "
@@ -1032,6 +1129,14 @@ def main() -> int:
             logger.error(f"Failed to write SQLite artifact: {exc}")
     elif args.sqlite_output and not all_saved_items:
         logger.info("No new tournaments saved; skipping SQLite artifact.")
+
+    # Bump data_version to invalidate API cache
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("UPDATE scrape_meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'data_version'"))
+        print("[cache] data_version bumped — API cache will invalidate on next check")
+    except Exception as e:
+        print(f"[cache] WARNING: Could not bump data_version: {e}")
 
     return 0
 
