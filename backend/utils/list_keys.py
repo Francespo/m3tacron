@@ -1,10 +1,29 @@
 import json
+from typing import Any
 
-def get_list_key(xws: dict) -> str:
+
+def coerce_list_json(raw: Any) -> dict:
+    """Return a dict for a list payload, parsing JSON strings when needed."""
+    if isinstance(raw, dict):
+        return raw
+
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            return {}
+        if isinstance(parsed, dict):
+            return parsed
+
+    return {}
+
+
+def get_list_key(xws: Any) -> str:
     """
     Generate a unique, canonical signature for a list based on pilots and upgrades.
     """
-    if not xws or not isinstance(xws, dict):
+    xws = coerce_list_json(xws)
+    if not xws:
         return ""
     
     pilots = xws.get("pilots", [])
@@ -38,3 +57,22 @@ def get_list_key(xws: dict) -> str:
     temp_pilots.sort(key=lambda x: (x["xws"], str(x["upgrades"])))
     
     return json.dumps(temp_pilots, sort_keys=True)
+
+
+def get_ship_list(xws: dict) -> str:
+    """
+    Extract sorted ship XWS list from list_json for squadron grouping.
+    Returns comma-joined string like "btla4ywing,t65xwing,t65xwing".
+    """
+    if not xws or not isinstance(xws, dict):
+        return ""
+    
+    pilots = xws.get("pilots", [])
+    ships = []
+    for p in pilots:
+        ship = p.get("ship") or ""
+        if ship:
+            ships.append(ship)
+    
+    ships.sort()
+    return ",".join(ships)

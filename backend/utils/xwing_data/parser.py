@@ -2,6 +2,7 @@ from ...data_structures.factions import Faction
 from .core import get_faction_name
 from .pilots import get_pilot_info
 from .upgrades import get_upgrade_name
+from ...utils.list_keys import coerce_list_json
 
 def normalize_faction(faction_str: str) -> str:
     return Faction.from_xws(faction_str).value
@@ -25,7 +26,8 @@ def parse_xws(xws: dict) -> dict:
         ]
     }
     """
-    if not xws or not isinstance(xws, dict):
+    xws = coerce_list_json(xws)
+    if not xws:
         return {}
         
     faction_raw = xws.get("faction", "")

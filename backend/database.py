@@ -3,7 +3,7 @@ from sqlalchemy import event
 from sqlmodel import create_engine, SQLModel
 
 # Explicitly import models to ensure they are registered with SQLModel.metadata
-from .models import Tournament, PlayerStanding, TeamStanding, Match, TeamMatch, Supporter, Contribution
+from .models import Tournament, PlayerStanding, TeamStanding, Match, TeamMatch, ScrapeMeta, Supporter, Contribution
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -34,6 +34,9 @@ engine = create_engine(
     # to scrape, and PostgreSQL/Supabase idle-timeout kills idle connections
     # in the pool, causing "server closed the connection unexpectedly".
     pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
+    pool_timeout=15,
     pool_recycle=300,  # recycle connections after 5 minutes (defense in depth)
 )
 

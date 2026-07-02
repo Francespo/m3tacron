@@ -1,18 +1,85 @@
 <script lang="ts">
     import { browser } from "$app/environment";
     import { goto } from "$app/navigation";
-    import ContentSourceToggle from "$lib/components/ContentSourceToggle.svelte";
+    import BackLink from "$lib/components/BackLink.svelte";
     import { filters } from "$lib/stores/filters.svelte";
-    import { getFactionColor, getFactionChar } from "$lib/data/factions";
+    import { getFactionColor } from "$lib/data/factions";
+    import SortBy from "$lib/components/SortBy.svelte";
+    import FactionIcon from "$lib/components/FactionIcon.svelte";
 
     let { data } = $props();
     import UpgradeCard from "$lib/components/UpgradeCard.svelte";
-    
+
     let info = $derived(data.info);
     let upgrades = $derived(data.upgrades);
     let chart = $derived(data.chart);
     let configurations = $derived(data.configurations);
     let initialized = $state(false);
+
+    // Client-side sort state for "Top Configurations". The backend
+    // returns configs pre-sorted by `count` desc; we re-sort in the
+    // browser so the SortBy control can flip between "most-played"
+    // (popularity / lists / games, all proxied by `count`), and
+    // computed win rate (provided by the backend).
+    type ConfigSortKey = "popularity" | "lists" | "games" | "winrate";
+    let configSortKey = $state<ConfigSortKey>("popularity");
+    let configSortDir = $state<"asc" | "desc">("desc");
+
+    function configSortValue(c: any): number {
+        switch (configSortKey) {
+            case "winrate":
+                return Math.max(0, c.win_rate ?? 0);
+            case "games":
+            case "lists":
+            case "popularity":
+            default:
+                return Math.max(0, c.count ?? 0);
+        }
+    }
+
+    let sortedConfigurations = $derived.by(() => {
+        const dir = configSortDir === "asc" ? 1 : -1;
+        return [...configurations].sort((a, b) => {
+            const diff = configSortValue(a) - configSortValue(b);
+            if (diff !== 0) return diff * dir;
+            // Stable tiebreaker: most-used first, then by name.
+            return (b.count ?? 0) - (a.count ?? 0);
+        });
+    });
+
+    // Client-side sort state for "Top Compatible Upgrades". The
+    // backend already returns upgrades sorted by list_count desc; the
+    // SortBy control re-sorts by absolute games or by computed win
+    // rate without a server round-trip.
+    type UpgSortKey = "games" | "winrate";
+    let upgSortKey = $state<UpgSortKey>("games");
+    let upgSortDir = $state<"asc" | "desc">("desc");
+
+    function upgGames(u: any): number {
+        return Math.max(0, u.count ?? 0);
+    }
+    function upgWinRate(u: any): number {
+        const g = upgGames(u);
+        const w = Math.max(0, u.wins ?? 0);
+        return g > 0 ? (w / g) * 100 : -1;
+    }
+
+    let sortedUpgrades = $derived.by(() => {
+        const dir = upgSortDir === "asc" ? 1 : -1;
+        return [...upgrades].sort((a, b) => {
+            let diff: number;
+            if (upgSortKey === "winrate") {
+                diff = upgWinRate(a) - upgWinRate(b);
+            } else {
+                diff = upgGames(a) - upgGames(b);
+            }
+            if (diff !== 0) return diff * dir;
+            // Tiebreaker: more games first, then alphabetical by xws.
+            const gDiff = upgGames(b) - upgGames(a);
+            if (gDiff !== 0) return gDiff;
+            return (a.xws || "").localeCompare(b.xws || "");
+        });
+    });
 
     function getDefaultFormats(ds: "xwa" | "legacy", includeEpic: boolean): string[] {
         if (ds === "xwa") {
@@ -126,10 +193,7 @@
 
 <div class="min-h-screen p-6 md:p-8 font-sans">
     <!-- Back link -->
-    <a href="/cards" class="inline-flex items-center gap-2 text-secondary hover:text-primary transition-colors text-sm font-mono mb-6">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-        BACK TO CARDS
-    </a>
+    <BackLink href="/cards" ariaLabel="Back to Cards" />
 
     <!-- Header Section -->
     <div class="flex flex-col lg:flex-row gap-8 mb-10">
@@ -152,46 +216,35 @@
         <div class="flex-grow flex flex-col gap-6">
             <!-- Name & Badges -->
             <div>
-                <div class="flex items-start justify-between gap-4 flex-wrap">
-                    <div class="min-w-0 flex-1">
-                        <div class="flex items-center gap-3 flex-wrap min-w-0">
-                            <h1 class="text-3xl font-sans font-bold text-primary">{info?.name || data.pilotXws}</h1>
-                            <span class="px-2 py-0.5 text-xs font-mono font-bold rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">PILOT</span>
-                            {#if info?.faction_xws}
-                                <span
-                                    class="font-xwing text-xl"
-                                    style="color: {getFactionColor(info.faction_xws)};"
-                                    title={info?.faction || info.faction_xws}
-                                >
-                                    {getFactionChar(info.faction_xws)}
-                                </span>
-                            {/if}
-                        </div>
-                        {#if info?.ship}
-                            <p class="text-secondary font-mono text-sm mt-1">
-                                {#if info.ship_xws}
-                                    <i class="xwing-miniatures-ship xwing-miniatures-ship-{info.ship_xws}" style="color: {getFactionColor(info.faction_xws || '')}; font-size: 1.2rem;"></i>
-                                {/if}
-                                {info.ship}
-                            </p>
+                <div>
+                    <div class="flex items-center gap-3 flex-wrap min-w-0">
+                        <h1 class="text-3xl font-sans font-bold text-primary">{info?.name || data.pilotXws}</h1>
+                        <span class="px-2 py-0.5 text-xs font-mono font-bold rounded-md bg-blue-500/20 text-blue-400 border border-blue-500/30">PILOT</span>
+                        {#if info?.faction_xws}
+                            <FactionIcon
+                                faction={info.faction_xws}
+                                size="lg"
+                            />
                         {/if}
                     </div>
-
-                    <div class="w-full lg:w-[320px] lg:flex-shrink-0">
-                        <div class="bg-terminal-panel border border-border-dark rounded-lg p-3">
-                            <ContentSourceToggle />
-                        </div>
-                    </div>
+                    {#if info?.ship}
+                        <p class="text-secondary font-mono text-sm mt-1">
+                            {#if info.ship_xws}
+                                <i class="xwing-miniatures-ship xwing-miniatures-ship-{info.ship_xws}" style="color: {getFactionColor(info.faction_xws || '')}; font-size: 1.2rem;"></i>
+                            {/if}
+                            {info.ship}
+                        </p>
+                    {/if}
+                    <!-- The right-column ContentSourceToggle card was removed
+                         here; the XWA / LEGACY / Epic controls now live in
+                         the desktop Sidebar / mobile nav drawer. -->
                 </div>
                 <div class="flex items-center gap-2 mt-3 flex-wrap">
                     {#if info?.cost != null}
-                        <span class="px-2 py-0.5 text-xs font-mono rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">{info.cost} PTS</span>
+                        <span class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-mono font-bold">PTS {info.cost}</span>
                     {/if}
                     {#if info?.loadout != null && info.loadout > 0}
-                        <span class="px-2 py-0.5 text-xs font-mono rounded bg-purple-500/20 text-purple-400 border border-purple-500/30">{info.loadout} LV</span>
-                    {/if}
-                    {#if info?.initiative != null}
-                        <span class="px-2 py-0.5 text-xs font-mono rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">I{info.initiative}</span>
+                        <span class="px-1.5 py-0.5 bg-violet-500/20 text-violet-400 border border-violet-500/30 rounded-md text-[10px] font-mono font-bold">LV {info.loadout}</span>
                     {/if}
                 </div>
             </div>
@@ -213,26 +266,42 @@
     <!-- Top Configurations Section (NEW) -->
     {#if configurations && configurations.length > 0}
         <section class="mb-10">
-            <h2 class="text-xl font-sans font-bold text-primary mb-4 uppercase tracking-wider">
-                Top Configurations
-                <span class="text-secondary text-sm font-normal ml-2">({data.configTotal} unique combos)</span>
-            </h2>
+            <div class="flex items-center justify-between gap-3 mb-4">
+                <h2 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2 flex items-baseline gap-2">
+                    <span>Top Configurations</span>
+                    <span class="text-secondary text-base font-normal">({data.configTotal} unique combos)</span>
+                </h2>
+                <SortBy
+                    value={configSortKey}
+                    direction={configSortDir}
+                    options={[
+                        { value: "popularity", label: "Games" },
+                        { value: "lists", label: "Lists" },
+                        { value: "games", label: "Games" },
+                        { value: "winrate", label: "Win Rate" }
+                    ]}
+                    onChange={(v, d) => {
+                        configSortKey = v as ConfigSortKey;
+                        configSortDir = d;
+                    }}
+                />
+            </div>
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {#each configurations as config, i}
+                {#each sortedConfigurations as config, i (config.upgrades.map((u: any) => u.xws).join("|"))}
                     <div class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:border-primary/30 transition-all">
                         <div class="flex items-center justify-between mb-3">
                             <span class="text-xs font-mono text-secondary">#{i + 1}</span>
                             <div class="flex items-center gap-2">
-                                <span class="px-2 py-0.5 text-xs font-mono rounded bg-white/5 text-secondary">{config.count} USED</span>
+                                <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary">GAMES {config.count}</span>
                                 <span
-                                    class="px-2 py-0.5 text-xs font-mono rounded"
+                                    class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold"
                                     style="background: {wrColor(config.win_rate)}15; color: {wrColor(config.win_rate)};"
-                                >{config.win_rate}% WR</span>
+                                >WR {config.win_rate}%</span>
                             </div>
                         </div>
                         <div class="flex flex-wrap gap-1.5">
                             {#each config.upgrades as upg}
-                                <span class="px-2 py-1 text-xs font-mono rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20" title={upg.type}>
+                                <span class="px-2 py-1 text-xs font-mono rounded-md bg-cyan-500/10 text-cyan-300 border border-cyan-500/20" title={upg.type}>
                                     {upg.name}
                                 </span>
                             {/each}
@@ -248,13 +317,27 @@
 
     <!-- Top Compatible Upgrades Section -->
     <section>
-        <h2 class="text-xl font-sans font-bold text-primary mb-4 uppercase tracking-wider">
-            Top Compatible Upgrades
-            <span class="text-secondary text-sm font-normal ml-2">({data.upgrades_total} total)</span>
-        </h2>
+        <div class="flex items-center justify-between gap-3 mb-4">
+            <h2 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2 flex items-baseline gap-2">
+                <span>Top Compatible Upgrades</span>
+                <span class="text-secondary text-base font-normal">({data.upgrades_total} total)</span>
+            </h2>
+            <SortBy
+                value={upgSortKey}
+                direction={upgSortDir}
+                options={[
+                    { value: "games", label: "Games" },
+                    { value: "winrate", label: "Win Rate" }
+                ]}
+                onChange={(v, d) => {
+                    upgSortKey = v as UpgSortKey;
+                    upgSortDir = d;
+                }}
+            />
+        </div>
 
-        {#if upgrades && upgrades.length > 0}
-            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">                {#each upgrades as u}
+        {#if sortedUpgrades && sortedUpgrades.length > 0}
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">                {#each sortedUpgrades as u (u.xws)}
                     <UpgradeCard upgrade={{
                         ...u,
                         slot_xws: u.type_xws || u.type,

@@ -5,7 +5,8 @@ Provides pilot info, compatible upgrade stats, temporal usage chart,
 and top upgrade configurations for a given pilot.
 """
 from fastapi import APIRouter, Query
-from collections import defaultdict
+from sqlmodel import Session
+from sqlalchemy import text
 
 from ..analytics.core import aggregate_card_stats
 from ..analytics.charts import get_card_usage_history
@@ -14,8 +15,6 @@ from ..data_structures.data_source import DataSource
 from ..utils.xwing_data.pilots import load_all_pilots
 from ..utils.xwing_data.upgrades import load_all_upgrades
 from ..database import engine
-from ..models import PlayerStanding, Tournament
-from sqlmodel import Session, select
 
 router = APIRouter(prefix="/api/pilot", tags=["Pilot Detail"])
 
@@ -94,65 +93,82 @@ def get_pilot_configurations(
     """
     Return top upgrade configurations for this pilot.
 
-    Aggregates the exact upgrade loadouts used with this pilot,
-    counts frequency and calculates win rate per unique combo.
+    Uses a SQL-side filter on the joined list table — we only fetch
+    rows whose list_json contains the requested pilot, then aggregate
+    upgrade combos and wins in Python (still N matches, but no full
+    table scan).
     """
     ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
     all_upgrades = load_all_upgrades(ds)
 
-    # Build format filter set
-    allowed = set(formats) if formats else None
-
-    # Scan database for lists containing this pilot
-    config_stats: dict[str, dict] = {}  # frozen_key -> {count, wins, upgrades_list}
+    config_stats: dict[str, dict] = {}
 
     with Session(engine) as session:
-        query = select(PlayerStanding, Tournament).where(
-            PlayerStanding.tournament_id == Tournament.id
+        params: dict = {"pilot_xws": pilot_xws}
+        fmt_clause = ""
+        if formats:
+            fmt_clause = " AND t.format = ANY(:formats)"
+            params["formats"] = list(formats)
+
+        # Filter at the SQL level via the list table JOIN and the
+        # list_json->'pilots' containment check. We do this in raw SQL
+        # (matches the pattern in analytics/core.py) so the query planner
+        # can use the playerstanding.list_id index.
+        sql = text(
+            f"""
+            SELECT
+                ps.swiss_wins, ps.swiss_losses, ps.swiss_draws,
+                ps.cut_wins, ps.cut_losses, ps.cut_draws,
+                p
+            FROM playerstanding ps
+            JOIN list l ON l.id = ps.list_id
+            JOIN tournament t ON t.id = ps.tournament_id
+            JOIN jsonb_array_elements(l.list_json::jsonb->'pilots') p ON true
+            WHERE p->>'id' = :pilot_xws{fmt_clause}
+            """
         )
-        rows = session.exec(query).all()
+        rows = session.execute(sql, params).fetchall()
 
-        for result, tournament in rows:
-            # Format check
-            t_fmt = tournament.format
-            fmt_val = t_fmt.value if hasattr(t_fmt, "value") else (t_fmt or "unknown")
-            if allowed and fmt_val not in allowed:
+        for row in rows:
+            swiss_wins = row[0] or 0
+            swiss_losses = row[1] or 0
+            swiss_draws = row[2] or 0
+            cut_wins = row[3] or 0
+            cut_losses = row[4] or 0
+            cut_draws = row[5] or 0
+
+            pilot_obj = row[6]
+            if not pilot_obj or not isinstance(pilot_obj, dict):
                 continue
 
-            xws = result.list_json
-            if not xws or not isinstance(xws, dict):
-                continue
-
-            # Find this pilot in the list
-            for p in xws.get("pilots", []):
-                pid = p.get("id") or p.get("name")
-                if pid != pilot_xws:
-                    continue
-
-                # Extract upgrade combo
-                raw_upgrades = p.get("upgrades", {}) or {}
-                upgrade_ids = []
+            # Extract upgrade combo from the JSONB pilot element.
+            raw_upgrades = pilot_obj.get("upgrades", {}) or {}
+            upgrade_ids = []
+            if isinstance(raw_upgrades, dict):
                 for slot_list in raw_upgrades.values():
-                    upgrade_ids.extend(slot_list)
-                upgrade_ids.sort()
+                    if isinstance(slot_list, list):
+                        upgrade_ids.extend(str(x) for x in slot_list)
+            elif isinstance(raw_upgrades, list):
+                upgrade_ids.extend(str(x) for x in raw_upgrades)
+            upgrade_ids.sort()
 
-                key = "|".join(upgrade_ids)
+            key = "|".join(upgrade_ids)
 
-                if key not in config_stats:
-                    config_stats[key] = {
-                        "upgrade_ids": upgrade_ids,
-                        "count": 0,
-                        "wins": 0,
-                    }
-                config_stats[key]["count"] += 1
-                # Win detection
-                won = False
-                if hasattr(result, "winner") and result.winner:
-                    won = True
-                elif hasattr(result, "swiss_standing") and result.swiss_standing == 1:
-                    won = True
-                if won:
-                    config_stats[key]["wins"] += 1
+            if key not in config_stats:
+                config_stats[key] = {
+                    "upgrade_ids": upgrade_ids,
+                    "count": 0,
+                    "wins": 0,
+                }
+            config_stats[key]["count"] += 1
+            # Win detection: a player wins if they won at least one game in
+            # this match (swiss + cut wins > 0). This is the closest we can
+            # get to a per-match win indicator without a `winner` column.
+            # The old code attempted to use `row.winner` and `swiss_standing`
+            # but neither existed on PlayerStanding, so wins were always 0.
+            total_wins = swiss_wins + cut_wins
+            if total_wins > 0:
+                config_stats[key]["wins"] += total_wins
 
     # Sort by count desc, take top N
     sorted_configs = sorted(config_stats.values(), key=lambda x: x["count"], reverse=True)[:limit]
