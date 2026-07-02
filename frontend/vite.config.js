@@ -4,6 +4,11 @@ import { defineConfig } from 'vite';
 
 const shouldLogConfig = process.env.VITE_LOG_CONFIG === 'true';
 
+/**
+ * Log a labeled config value to the console when VITE_LOG_CONFIG is true.
+ * @param {string} label
+ * @param {unknown} value
+ */
 function logConfig(label, value) {
 	if (!shouldLogConfig) return;
 	console.log(`[vite-config] ${label}`, value);
@@ -16,6 +21,7 @@ function logEnvSnapshot() {
 		.filter((key) => /^(VITE_|COOLIFY_|SERVICE_|ORIGIN$|ALLOWED_ORIGINS$|NODE_ENV$|ENV_VAR_SOURCE$)/.test(key))
 		.sort();
 
+	/** @type {Record<string, string | undefined>} */
 	const envSummary = {};
 	for (const key of visibleKeys) {
 		envSummary[key] = process.env[key];
@@ -33,6 +39,13 @@ function resolveApiProxyTarget() {
 	return resolved;
 }
 
+// Ensure we never return an empty string as proxy target
+function resolveSafeApiProxyTarget() {
+	const t = resolveApiProxyTarget();
+	if (!t || String(t).trim() === '') return undefined;
+	return t;
+}
+
 function resolveAllowedHosts() {
 	const raw = process.env.VITE_ALLOWED_HOSTS;
 	if (!raw) {
@@ -41,9 +54,17 @@ function resolveAllowedHosts() {
 		return undefined;
 	}
 
+	const normalized = raw.trim().toLowerCase();
+
+	if (normalized === 'true') {
+		logConfig('VITE_ALLOWED_HOSTS_RAW', raw);
+		logConfig('VITE_ALLOWED_HOSTS_RESOLVED', true);
+		return true;
+	}
+
 	const resolved = raw
 		.split(',')
-		.map((host) => host.trim())
+		.map((/** @type {string} */ host) => host.trim())
 		.filter(Boolean);
 
 	logConfig('VITE_ALLOWED_HOSTS_RAW', raw);
@@ -63,7 +84,7 @@ export default defineConfig({
 		...(proxyTarget
 			? {
 					proxy: {
-						'/api': proxyTarget
+						'/api': resolveSafeApiProxyTarget()
 					}
 				}
 			: {})

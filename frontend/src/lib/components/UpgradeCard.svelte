@@ -44,7 +44,7 @@
 
 {#if viewMode === "grid"}
     <div
-        class="bg-terminal-panel border border-border-dark rounded-xl overflow-hidden hover:border-primary/40 transition-all duration-300 hover:scale-[1.04] hover:z-20 flex flex-col relative aspect-square group"
+        class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden hover:border-primary/40 transition-all duration-300 hover:scale-[1.04] hover:z-20 flex flex-col relative aspect-square group"
     >
         <!-- Card Image -->
         {#if showImage}
@@ -80,7 +80,7 @@
                         <div class="flex items-center gap-1 flex-shrink-0">
                             {#if slot}
                                 <div
-                                    class="w-6 h-6 rounded bg-white/5 flex items-center justify-center border border-white/10"
+                                    class="w-6 h-6 rounded-md bg-white/5 flex items-center justify-center border border-white/10"
                                 >
                                     <StatIcon
                                         type={slot}
@@ -92,7 +92,12 @@
                                 </div>
                             {/if}
                         </div>
-                        <span class="line-clamp-2">{name}</span>
+                        <a
+                            href="/upgrade/{upgrade.xws}"
+                            class="line-clamp-2 border-b border-transparent hover:border-accent/50 hover:text-accent transition-colors"
+                        >
+                            {name}
+                        </a>
                     </h3>
                 {/if}
                 {#if showSlot && slotName}
@@ -108,55 +113,30 @@
             {#if showStats}
                 <div class="flex flex-wrap gap-1.5 mt-auto">
                     <!-- WR -->
-                    <div
-                        class="px-1.5 py-0.5 rounded bg-[#ffffff0a] border border-[#ffffff10] flex items-center gap-1"
+                    <span
+                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
+                        style="color: {wrColor};"
                     >
-                        <span
-                            class="text-[10px] font-bold"
-                            style="color: {wrColor};"
-                        >
-                            {isNaN(wr) ? "NA" : wr.toFixed(1) + "%"}
-                        </span>
-                        <span class="text-[9px] font-mono text-secondary"
-                            >WR</span
-                        >
-                    </div>
+                        WR {isNaN(wr) ? "NA" : wr.toFixed(1) + "%"}
+                    </span>
                     <!-- Games -->
-                    <div
-                        class="px-1.5 py-0.5 rounded bg-[#ffffff0a] border border-[#ffffff10] flex items-center gap-1"
+                    <span
+                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
                     >
-                        <span class="text-[10px] font-bold text-primary"
-                            >{games}</span
-                        >
-                        <span class="text-[9px] font-mono text-secondary"
-                            >G</span
-                        >
-                    </div>
-                    <!-- Lists + Different Lists -->
-                    <div
-                        class="px-1.5 py-0.5 rounded bg-[#ffffff0a] border border-[#ffffff10] flex items-center gap-1"
+                        GAMES {games}
+                    </span>
+                    <!-- Lists + Unique Lists -->
+                    <span
+                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
                     >
-                        <span class="text-[10px] font-bold text-primary"
-                            >{listsCount}</span
-                        >
-                        <span class="text-[9px] font-mono text-secondary"
-                            >L</span
-                        >
-                        <span class="text-[8px] font-mono text-secondary/80"
-                            >(DL {differentListsCount})</span
-                        >
-                    </div>
+                        LISTS {listsCount} (UNIQUE {differentListsCount})
+                    </span>
                     <!-- Points -->
-                    <div
-                        class="px-1.5 py-0.5 rounded bg-emerald-900/30 border border-emerald-500/30 flex items-center gap-1"
+                    <span
+                        class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-mono font-bold"
                     >
-                        <span class="text-[10px] font-bold text-emerald-400"
-                            >{points}</span
-                        >
-                        <span class="text-[9px] font-mono text-emerald-500/80"
-                            >PTS</span
-                        >
-                    </div>
+                        PTS {points}
+                    </span>
                 </div>
             {/if}
         </div>

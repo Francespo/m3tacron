@@ -50,6 +50,36 @@ body {
     padding: 0;
 }
 
+@layer base {
+    /* Prevent horizontal scroll bleed on body */
+    html, body {
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    /* Modern (Firefox) */
+    html {
+        scrollbar-color: #333 transparent;
+        scrollbar-width: thin;
+    }
+
+    /* Webkit browsers (Chrome, Safari, Edge) */
+    html::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    html::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    html::-webkit-scrollbar-thumb {
+        background: #333;
+        border-radius: 4px;
+    }
+    html::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+}
+
 .custom-scrollbar {
     scrollbar-color: #333333 transparent;
     scrollbar-width: thin;

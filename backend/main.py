@@ -57,13 +57,69 @@ def on_startup():
         try:
             create_db_and_tables()
             print(f"Database ready on attempt {attempt}/{retries}")
-            return
+            break
         except Exception as exc:
             last_error = exc
             print(f"Database not ready (attempt {attempt}/{retries}): {exc}")
             time.sleep(delay_seconds)
+    else:
+        raise RuntimeError(f"Database startup failed after {retries} attempts: {last_error}")
 
-    raise RuntimeError(f"Database startup failed after {retries} attempts: {last_error}")
+    # Pre-warm the analytics cache so the first user request is instant.
+    # Runs in a background thread so the server accepts traffic immediately.
+    if os.getenv("PREWARM_CACHE", "true").lower() == "true":
+        _prewarm_cache()
+
+
+def _prewarm_cache():
+    """Hit the API endpoints via HTTP so cache keys exactly match what users request.
+
+    Runs in a daemon thread so startup returns immediately. Uses internal
+    HTTP requests (no external port needed) via the same uvicorn worker.
+    """
+    import threading
+
+    def _run():
+        import urllib.request
+        import json
+
+        base = "http://127.0.0.1:8888"
+        # Cover the most common URL variants the frontend sends on first visit
+        endpoints = [
+            # Lists - default landing, with and without min_games/factions
+            "lists?page=0&size=20&sort_metric=Games&sort_direction=desc&min_games=3&data_source=xwa",
+            "lists?page=0&size=20&sort_metric=Games&sort_direction=desc&data_source=xwa",
+            "lists?page=0&size=20&sort_metric=Win%20Rate&sort_direction=desc&min_games=3&data_source=xwa",
+            # Squadrons - default + Win Rate
+            "squadrons?page=0&size=20&sort_metric=Games&sort_direction=desc&data_source=xwa",
+            "squadrons?page=0&size=20&sort_metric=Win%20Rate&sort_direction=desc&data_source=xwa",
+            # Ships - Popularity + Games
+            "ships?page=0&size=50&sort_metric=Popularity&sort_direction=desc&data_source=xwa",
+            "ships?page=0&size=50&sort_metric=Games&sort_direction=desc&data_source=xwa",
+            # Cards/Pilots - default
+            "cards/pilots?page=0&size=20&sort_metric=Popularity&sort_direction=desc&data_source=xwa",
+            "cards/pilots?page=0&size=20&sort_metric=Win%20Rate&sort_direction=desc&data_source=xwa",
+            # Cards/Upgrades - default
+            "cards/upgrades?page=0&size=20&sort_metric=Popularity&sort_direction=desc&data_source=xwa",
+            "cards/upgrades?page=0&size=20&sort_metric=Win%20Rate&sort_direction=desc&data_source=xwa",
+        ]
+        for path in endpoints:
+            name = path.split("?")[0].split("/")[-1] or "root"
+            try:
+                t0 = time.time()
+                req = urllib.request.Request(f"{base}/api/{path}")
+                resp = urllib.request.urlopen(req, timeout=150)
+                data = json.loads(resp.read())
+                count = data.get("total", len(data.get("items", [])))
+                elapsed = time.time() - t0
+                print(f"[prewarm] {name}: {count} items in {elapsed:.1f}s ✓")
+            except Exception as e:
+                print(f"[prewarm] {name}: FAILED ({e})")
+
+        print("[prewarm] done")
+
+    thread = threading.Thread(target=_run, daemon=True, name="cache-prewarm")
+    thread.start()
 
 @app.get("/")
 def read_root():

@@ -1,8 +1,11 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { filters } from "$lib/stores/filters.svelte";
+    import { scheduleSync } from "$lib/sync/urlSync.svelte";
     import { API_BASE } from "$lib/api";
     import { getFormatFullLabel } from "$lib/data/formats";
+    import DebouncedTextInput from "./DebouncedTextInput.svelte";
+    import Toggle from "./Toggle.svelte";
 
     let dateOpen = $state(false);
     let locationOpen = $state(false);
@@ -27,7 +30,7 @@
 
     let availableContinents = $derived(Object.keys(locationHierarchy).sort());
 
-    let availableCountries = $derived(() => {
+    let availableCountries = $derived.by(() => {
         let countries = new Set<string>();
         let conts =
             filters.selectedContinents.length > 0
@@ -43,7 +46,7 @@
         return Array.from(countries).sort();
     });
 
-    let availableCities = $derived(() => {
+    let availableCities = $derived.by(() => {
         let cities = new Set<string>();
         let conts =
             filters.selectedContinents.length > 0
@@ -71,12 +74,12 @@
         ),
     );
     let filteredCountries = $derived(
-        availableCountries().filter((c) =>
+        availableCountries.filter((c) =>
             c.toLowerCase().includes(locationSearch.toLowerCase()),
         ),
     );
     let filteredCities = $derived(
-        availableCities().filter((c) =>
+        availableCities.filter((c) =>
             c.toLowerCase().includes(locationSearch.toLowerCase()),
         ),
     );
@@ -164,9 +167,40 @@
 <div class="w-full space-y-3">
     <!-- Header -->
     <div class="flex items-center justify-between">
-        <span class="text-xs font-bold tracking-widest text-primary font-mono">
-            TOURNAMENT FILTERS
-        </span>
+        <div class="flex items-center gap-2">
+            <span class="text-xs font-bold tracking-widest text-primary font-mono">
+                TOURNAMENT FILTERS
+            </span>
+            <button
+                type="button"
+                class="group relative inline-flex items-center justify-center w-4 h-4 rounded-full text-secondary hover:text-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                aria-label="How tournament filters work"
+            >
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="16" x2="12" y2="12" />
+                    <line x1="12" y1="8" x2="12.01" y2="8" />
+                </svg>
+                <div
+                    class="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-64 p-2 bg-terminal-panel border border-border-dark rounded-md text-[10px] font-mono text-secondary opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-opacity z-50 pointer-events-none"
+                >
+                    Tournament filters are applied to the page's input data. The
+                    page-specific filters and the tournament filters are
+                    complementary — for example, if you filter for tournaments
+                    on a list page, only data from tournaments that match your
+                    filter is shown.
+                </div>
+            </button>
+        </div>
     </div>
 
     <!-- Date Range Accordion -->
@@ -254,9 +288,9 @@
                                 <label
                                     class="flex items-center gap-2 cursor-pointer text-secondary hover:text-primary"
                                 >
-                                    <input
-                                        type="checkbox"
-                                        class="rounded border-border-dark bg-black w-3 h-3"
+                                    <Toggle
+                                        size="xs"
+                                        ariaLabel={`Toggle continent ${c}`}
                                         checked={filters.selectedContinents.includes(
                                             c,
                                         )}
@@ -283,9 +317,9 @@
                                 <label
                                     class="flex items-center gap-2 cursor-pointer text-secondary hover:text-primary"
                                 >
-                                    <input
-                                        type="checkbox"
-                                        class="rounded border-border-dark bg-black w-3 h-3"
+                                    <Toggle
+                                        size="xs"
+                                        ariaLabel={`Toggle country ${c}`}
                                         checked={filters.selectedCountries.includes(
                                             c,
                                         )}
@@ -312,9 +346,9 @@
                                 <label
                                     class="flex items-center gap-2 cursor-pointer text-secondary hover:text-primary"
                                 >
-                                    <input
-                                        type="checkbox"
-                                        class="rounded border-border-dark bg-black w-3 h-3"
+                                    <Toggle
+                                        size="xs"
+                                        ariaLabel={`Toggle city ${c}`}
                                         checked={filters.selectedCities.includes(
                                             c,
                                         )}
@@ -338,9 +372,18 @@
             class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary transition-colors"
             onclick={() => (formatOpen = !formatOpen)}
         >
-            <span class="text-xs font-mono font-bold tracking-wider"
-                >Format</span
-            >
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-mono font-bold tracking-wider"
+                    >Format</span
+                >
+                {#if filters.selectedFormats.length > 0}
+                    <span
+                        class="text-[10px] bg-white/10 text-secondary px-1.5 rounded-full font-mono"
+                    >
+                        {filters.selectedFormats.length}
+                    </span>
+                {/if}
+            </div>
             <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="14"
@@ -367,9 +410,9 @@
                             <label
                                 class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary pl-1"
                             >
-                                <input
-                                    type="checkbox"
-                                    class="rounded border-border-dark bg-black w-3 h-3"
+                                <Toggle
+                                    size="xs"
+                                    ariaLabel={`Toggle format ${f.id}`}
                                     checked={filters.selectedFormats.includes(
                                         f.id,
                                     )}
@@ -413,9 +456,9 @@
                     <label
                         class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
                     >
-                        <input
-                            type="checkbox"
-                            class="rounded border-border-dark bg-black w-3 h-3"
+                        <Toggle
+                            size="xs"
+                            ariaLabel={`Toggle source ${source.id}`}
                             checked={filters.selectedSources.includes(
                                 source.id,
                             )}
@@ -433,11 +476,14 @@
         <span class="text-xs font-mono font-bold tracking-wider text-secondary"
             >Search Name</span
         >
-        <input
-            type="text"
+        <DebouncedTextInput
+            value={filters.searchName}
+            onDebouncedChange={(v) => {
+                filters.searchName = v;
+                scheduleSync(250);
+            }}
             placeholder="Search name..."
-            class="w-full bg-black border border-border-dark rounded px-2 py-1.5 text-xs font-mono text-primary placeholder:text-[#555] focus:border-primary focus:outline-none"
-            bind:value={filters.searchName}
+            ariaLabel="Search tournament name"
         />
     </div>
 </div>

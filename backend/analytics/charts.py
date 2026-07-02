@@ -7,6 +7,7 @@ from sqlmodel import Session, select
 from ..database import engine
 from ..models import PlayerStanding, Tournament
 from ..data_structures.formats import Format
+from ..utils.list_keys import coerce_list_json
 from .filters import filter_query, apply_tournament_filters
 
 def get_card_usage_history(
@@ -50,8 +51,9 @@ def get_card_usage_history(
                 continue
                 
             date_key = tournament.date.strftime("%Y-%m")
-            xws = result.list_json
-            if not xws or not isinstance(xws, dict): continue
+            xws = coerce_list_json(result.list_json)
+            if not xws:
+                continue
             
             # Check presence of tracked cards in the list
             found_cards = set()
