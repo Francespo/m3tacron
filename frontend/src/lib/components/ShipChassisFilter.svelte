@@ -2,11 +2,8 @@
     import { onMount } from "svelte";
     import { filters } from "$lib/stores/filters.svelte";
     import { fetchAllShips, type ShipChassis } from "$lib/api/ships";
-    import {
-        getFactionColor,
-        getFactionChar,
-        getFactionLabel,
-    } from "$lib/data/factions";
+    import Toggle from "./Toggle.svelte";
+    import FactionIcon from "./FactionIcon.svelte";
 
     /** Page-local selected factions — hides ships not playable in these factions. */
     let { selectedFactions = [] }: { selectedFactions?: string[] } = $props();
@@ -126,9 +123,9 @@
                             class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary group"
                         >
                             <!-- Toggle checkbox -->
-                            <input
-                                type="checkbox"
-                                class="rounded border-border-dark bg-black w-3 h-3 flex-shrink-0"
+                            <Toggle
+                                size="xs"
+                                ariaLabel={`Toggle ship ${ship.name}`}
                                 checked={filters.selectedShips.includes(
                                     ship.xws,
                                 )}
@@ -150,15 +147,11 @@
                                 class="flex items-center gap-0.5 flex-shrink-0"
                             >
                                 {#each ship.factions as faction}
-                                    <span
-                                        class="font-xwing text-sm drop-shadow-sm opacity-90"
-                                        style="color: {getFactionColor(
-                                            faction,
-                                        )};"
-                                        title={getFactionLabel(faction)}
-                                    >
-                                        {getFactionChar(faction)}
-                                    </span>
+                                    <FactionIcon
+                                        {faction}
+                                        size="sm"
+                                        className="drop-shadow-sm opacity-90"
+                                    />
                                 {/each}
                             </span>
                         </label>

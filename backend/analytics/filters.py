@@ -1,7 +1,7 @@
 """
 Filtering logic for card analytics.
 """
-from ..models import Tournament
+from ..models import PlayerStanding, Tournament
 
 def filter_query(query, filters: dict):
     """
@@ -15,6 +15,10 @@ def filter_query(query, filters: dict):
             - sources: list[str] — list of allowed sources
             - player_count_min: int — minimum Tournament.player_count
             - player_count_max: int — maximum Tournament.player_count
+            - allowed_formats: list[str] — list of allowed tournament format keys
+                (matches Tournament.format column directly, e.g. ["xwa", "amg"])
+            - factions: list[str] — list of faction xws keys to include
+                (normalized to match the faction_xws_normalized generated column)
     """
     if not filters:
         return query
@@ -36,6 +40,21 @@ def filter_query(query, filters: dict):
         query = query.where(Tournament.player_count >= int(filters["player_count_min"]))
     if filters.get("player_count_max") is not None:
         query = query.where(Tournament.player_count <= int(filters["player_count_max"]))
+
+    # Format Filter — Tournament.format is a real column on tournament table
+    if filters.get("allowed_formats"):
+        formats = filters["allowed_formats"]
+        if isinstance(formats, (list, set)) and len(formats) > 0:
+            query = query.where(Tournament.format.in_(formats))
+
+    # Faction Filter — uses the new faction_xws_normalized generated column.
+    # The generated column is: lower(replace(replace(list_json->>'faction', ' ', ''), '-', ''))
+    if filters.get("factions"):
+        factions = filters["factions"]
+        if isinstance(factions, (list, set)) and len(factions) > 0:
+            # Normalize faction strings to match the generated column
+            normalized = [f.lower().replace(" ", "").replace("-", "") for f in factions]
+            query = query.where(PlayerStanding.faction_xws_normalized.in_(normalized))
 
     return query
 

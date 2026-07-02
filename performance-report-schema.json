@@ -1,0 +1,218 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "M3tacron Performance Report",
+  "description": "Aggregated performance report schema for M3tacron performance suite",
+  "type": "object",
+  "required": ["schema_version", "metadata", "database", "backend", "frontend", "infrastructure", "slo", "artifacts"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["run_id", "timestamp", "environment", "commit_sha"],
+      "properties": {
+        "run_id": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "environment": { "type": "string" },
+        "commit_sha": { "type": "string" },
+        "db_snapshot": {
+          "type": "object",
+          "required": ["timestamp", "source", "row_counts", "validation_status"],
+          "properties": {
+            "timestamp": { "type": "string" },
+            "source": { "type": "string" },
+            "row_counts": { "type": "object", "additionalProperties": { "type": "integer" } },
+            "validation_status": { "type": "string", "enum": ["passed", "failed", "skipped"] }
+          }
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "properties": {
+        "benchmarks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "mean", "rounds"],
+            "properties": {
+              "name": { "type": "string" },
+              "mean": { "type": "number" },
+              "min": { "type": "number" },
+              "max": { "type": "number" },
+              "stddev": { "type": "number" },
+              "rounds": { "type": "integer" },
+              "median": { "type": "number" },
+              "iqr": { "type": "number" },
+              "q1": { "type": "number" },
+              "q3": { "type": "number" }
+            }
+          }
+        },
+        "summary": {
+          "type": "object",
+          "properties": {
+            "total_benchmarks": { "type": "integer" },
+            "avg_query_time_ms": { "type": "number" },
+            "max_query_time_ms": { "type": "number" }
+          }
+        }
+      }
+    },
+    "backend": {
+      "type": "object",
+      "properties": {
+        "http_metrics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["endpoint", "method", "p50", "p95", "p99", "error_rate"],
+            "properties": {
+              "endpoint": { "type": "string" },
+              "method": { "type": "string" },
+              "p50": { "type": "number" },
+              "p95": { "type": "number" },
+              "p99": { "type": "number" },
+              "error_rate": { "type": "number" },
+              "rps": { "type": "number" },
+              "total_requests": { "type": "integer" }
+            }
+          }
+        },
+        "summary": {
+          "type": "object",
+          "properties": {
+            "total_endpoints": { "type": "integer" },
+            "overall_p95": { "type": "number" },
+            "overall_error_rate": { "type": "number" },
+            "total_requests": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "frontend": {
+      "type": "object",
+      "properties": {
+        "lighthouse": {
+          "type": "object",
+          "properties": {
+            "routes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["route", "performance_score"],
+                "properties": {
+                  "route": { "type": "string" },
+                  "url": { "type": "string" },
+                  "performance_score": { "type": "number" },
+                  "accessibility_score": { "type": "number" },
+                  "lcp": { "type": "number" },
+                  "cls": { "type": "number" },
+                  "report_path": { "type": "string" }
+                }
+              }
+            },
+            "performance_score": { "type": "number" }
+          }
+        },
+        "web_vitals": {
+          "type": "object",
+          "properties": {
+            "lcp": { "type": "number" },
+            "inp": { "type": "number" },
+            "cls": { "type": "number" },
+            "ttfb": { "type": "number" }
+          }
+        },
+        "summary": {
+          "type": "object",
+          "properties": {
+            "avg_performance_score": { "type": "number" },
+            "routes_tested": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "infrastructure": {
+      "type": "object",
+      "properties": {
+        "docker_stats": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["container", "cpu_percent", "memory_mb"],
+            "properties": {
+              "container": { "type": "string" },
+              "cpu_percent": { "type": "number" },
+              "memory_mb": { "type": "number" },
+              "memory_limit_mb": { "type": "number" },
+              "net_in_mb": { "type": "number" },
+              "net_out_mb": { "type": "number" },
+              "block_in_mb": { "type": "number" },
+              "block_out_mb": { "type": "number" }
+            }
+          }
+        },
+        "summary": {
+          "type": "object",
+          "properties": {
+            "total_containers": { "type": "integer" },
+            "total_snapshots": { "type": "integer" },
+            "peak_memory_mb": { "type": "number" },
+            "avg_cpu_percent": { "type": "number" }
+          }
+        }
+      }
+    },
+    "slo": {
+      "type": "object",
+      "required": ["overall", "checks"],
+      "properties": {
+        "overall": { "type": "string", "enum": ["pass", "fail", "degraded"] },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "status", "threshold", "actual"],
+            "properties": {
+              "name": { "type": "string" },
+              "status": { "type": "string", "enum": ["pass", "fail", "warn"] },
+              "threshold": { "type": "number" },
+              "actual": { "type": "number" },
+              "unit": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["k6_smoke", "lighthouse", "pytest_benchmark", "docker_stats", "db_validation"],
+      "properties": {
+        "k6_smoke": { "type": "string" },
+        "lighthouse": { "type": "string" },
+        "pytest_benchmark": { "type": "string" },
+        "docker_stats": { "type": "string" },
+        "db_validation": { "type": "string" },
+        "validation_manifest": { "type": "string" }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pass", "degraded", "fail"]
+    },
+    "details": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "artifact": { "type": "string" },
+          "expected_path": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    }
+  }
+}

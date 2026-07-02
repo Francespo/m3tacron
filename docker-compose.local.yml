@@ -1,0 +1,137 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: m3tacron
+      POSTGRES_PASSWORD: m3tacron
+      POSTGRES_DB: m3tacron
+    ports:
+      - "5435:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    command: >
+      postgres
+        -c shared_buffers=256MB
+        -c effective_cache_size=2GB
+        -c work_mem=4MB
+        -c maintenance_work_mem=128MB
+        -c max_connections=20
+        -c statement_timeout=120000
+        -c log_min_duration_statement=2000
+        -c log_temp_files=0
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
+          pids: 128
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U m3tacron -d m3tacron"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  db-seed:
+    image: postgres:17-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: m3tacron
+    entrypoint: >
+      sh -c "
+      set -e;
+      echo '[db-seed] waiting for postgres...' ;
+      until pg_isready -h postgres -U m3tacron; do sleep 1; done;
+      echo '[db-seed] dropping + recreating public schema' ;
+      psql -h postgres -U m3tacron -d m3tacron -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO m3tacron;' ;
+      if [ -f /seed/dev_latest.dump ]; then
+        echo '[db-seed] restoring /seed/dev_latest.dump' ;
+        pg_restore -h postgres -U m3tacron -d m3tacron --no-owner --no-privileges /seed/dev_latest.dump || true ;
+        echo '[db-seed] restore done' ;
+      else
+        echo '[db-seed] WARN: no /seed/dev_latest.dump found, starting with empty DB' ;
+      fi ;
+      echo '[db-seed] applying performance migration...' ;
+      psql -h postgres -U m3tacron -d m3tacron -f /migrations/migrate_performance.sql || echo '[db-seed] migration script not found or failed (non-fatal)' ;
+      echo '[db-seed] applying normalize list migration...' ;
+      psql -h postgres -U m3tacron -d m3tacron -f /migrations/migrate_normalize_list.sql || echo '[db-seed] migration script not found or failed (non-fatal)' ;
+      echo '[db-seed] done' ;
+      tail -f /dev/null
+      "
+    volumes:
+      - ./local-data/dumps:/seed:ro
+      - ./backend/scripts/migrate_performance.sql:/migrations/migrate_performance.sql:ro
+      - ./backend/scripts/migrate_normalize_list.sql:/migrations/migrate_normalize_list.sql:ro
+    # Healthcheck ensures the dump is fully restored before the backend starts.
+    # It polls the `list` table (the key artifact of the migrated dump) for a
+    # non-zero row count. Without this, the backend's startup cache prewarm
+    # races with pg_restore and caches empty results, poisoning the cache
+    # for the entire session.
+    healthcheck:
+      test: ["CMD-SHELL", "psql -h postgres -U m3tacron -d m3tacron -tAc 'SELECT COUNT(*) FROM list' | grep -qE '^[1-9][0-9]*$'"]
+      interval: 3s
+      timeout: 5s
+      retries: 60
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+          pids: 64
+        reservations:
+          memory: 64M
+    restart: "no"
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        - INSTALL_PLAYWRIGHT_BROWSER=false
+    ports:
+      - "8890:8888"
+    volumes:
+      - ./backend:/app/backend
+      - ./external_data:/app/external_data:ro
+    environment:
+      - DATABASE_URL=postgresql://m3tacron:m3tacron@postgres:5432/m3tacron
+    command: >
+      uvicorn backend.main:app
+        --workers 1
+        --host 0.0.0.0
+        --port 8888
+        --timeout-keep-alive 120
+        --backlog 2048
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+          pids: 128
+        reservations:
+          memory: 128M
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-seed:
+        # Wait for db-seed to be healthy (dump fully restored) before starting
+        # the backend. This prevents the startup cache prewarm from running
+        # against an empty/incomplete database and poisoning the cache with
+        # empty results.
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8888/', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  pgdata:

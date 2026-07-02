@@ -3,8 +3,42 @@ from ..analytics.core import aggregate_card_stats
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
 from ..data_structures.data_source import DataSource
 from .schemas import PaginatedPilotsResponse, PaginatedUpgradesResponse
+from ..cache import get_cached_or_compute
 
 router = APIRouter(prefix="/api/cards", tags=["Cards"])
+
+
+def _compute_cards(
+    page: int,
+    size: int,
+    data_source: str,
+    sort_metric: str,
+    sort_direction: str,
+    mode: str,
+    filters: dict,
+) -> list[dict]:
+    """Run the expensive card aggregation for pilots or upgrades mode.
+
+    Returns the full sorted list (caller paginates).
+    """
+    try:
+        ds_enum = DataSource(data_source)
+    except ValueError:
+        ds_enum = DataSource.XWA
+
+    criteria_map = {
+        "Cost": SortingCriteria.COST,
+        "Games": SortingCriteria.GAMES,
+        "Name": SortingCriteria.NAME,
+        "Popularity": SortingCriteria.POPULARITY,
+        "Win Rate": SortingCriteria.WINRATE,
+        "Loadout": SortingCriteria.LOADOUT,
+    }
+    criteria = criteria_map.get(sort_metric, SortingCriteria.POPULARITY)
+    s_dir = SortDirection.DESCENDING if sort_direction == "desc" else SortDirection.ASCENDING
+
+    return aggregate_card_stats(filters, criteria, s_dir, mode, ds_enum)
+
 
 def _build_filters(
     formats: list[str] | None = None,
@@ -124,22 +158,6 @@ def get_pilots(
     player_count_min: int | None = Query(None),
     player_count_max: int | None = Query(None),
 ):
-    try:
-        ds_enum = DataSource(data_source)
-    except ValueError:
-        ds_enum = DataSource.XWA
-
-    criteria_map = {
-        "Cost": SortingCriteria.COST,
-        "Games": SortingCriteria.GAMES,
-        "Name": SortingCriteria.NAME,
-        "Popularity": SortingCriteria.POPULARITY,
-        "Win Rate": SortingCriteria.WINRATE,
-        "Loadout": SortingCriteria.LOADOUT
-    }
-    criteria = criteria_map.get(sort_metric, SortingCriteria.POPULARITY)
-    s_dir = SortDirection.DESCENDING if sort_direction == "desc" else SortDirection.ASCENDING
-
     filters = _build_filters(
         formats=formats, factions=factions, ships=ships, initiatives=initiatives,
         search_text=search_text, points_min=points_min, points_max=points_max,
@@ -153,10 +171,37 @@ def get_pilots(
         player_count_min=player_count_min, player_count_max=player_count_max
     )
 
-    data = aggregate_card_stats(filters, criteria, s_dir, "pilots", ds_enum)
+    cache_key = (
+        f"cards_pilots|{data_source}|{sort_metric}|{sort_direction}"
+        f"|{','.join(sorted(formats or []))}"
+        f"|{','.join(sorted(factions or []))}"
+        f"|{','.join(sorted(ships or []))}"
+        f"|{','.join(sorted(str(i) for i in (initiatives or [])))}"
+        f"|{search_text or ''}"
+        f"|{points_min}|{points_max}"
+        f"|{loadout_min}|{loadout_max}"
+        f"|{hull_min}|{hull_max}"
+        f"|{shields_min}|{shields_max}"
+        f"|{agility_min}|{agility_max}"
+        f"|{attack_min}|{attack_max}"
+        f"|{init_min}|{init_max}"
+        f"|{is_unique}|{is_limited}|{is_not_limited}"
+        f"|{','.join(sorted(base_sizes or []))}"
+        f"|{','.join(sorted(platforms or []))}"
+        f"|{','.join(sorted(continent or []))}"
+        f"|{','.join(sorted(country or []))}"
+        f"|{','.join(sorted(city or []))}"
+        f"|{date_start or ''}|{date_end or ''}"
+        f"|{player_count_min}|{player_count_max}"
+    )
+
+    def compute():
+        return _compute_cards(page, size, data_source, sort_metric, sort_direction, "pilots", filters)
+
+    data = get_cached_or_compute(cache_key, compute)
     total = len(data)
     items = data[page * size : (page + 1) * size]
-    
+
     return PaginatedPilotsResponse(items=items, total=total, page=page, size=size)
 
 
@@ -167,7 +212,7 @@ def get_upgrades(
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Popularity"),
     sort_direction: str = Query("desc"),
-    
+
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
     upgrade_types: list[str] | None = Query(None),
@@ -183,21 +228,6 @@ def get_upgrades(
     player_count_min: int | None = Query(None),
     player_count_max: int | None = Query(None),
 ):
-    try:
-        ds_enum = DataSource(data_source)
-    except ValueError:
-        ds_enum = DataSource.XWA
-
-    criteria_map = {
-        "Cost": SortingCriteria.COST,
-        "Games": SortingCriteria.GAMES,
-        "Name": SortingCriteria.NAME,
-        "Popularity": SortingCriteria.POPULARITY,
-        "Win Rate": SortingCriteria.WINRATE,
-    }
-    criteria = criteria_map.get(sort_metric, SortingCriteria.POPULARITY)
-    s_dir = SortDirection.DESCENDING if sort_direction == "desc" else SortDirection.ASCENDING
-
     filters = _build_filters(
         formats=formats, factions=factions, upgrade_types=upgrade_types,
         search_text=search_text, points_min=points_min, points_max=points_max,
@@ -206,8 +236,26 @@ def get_upgrades(
         player_count_min=player_count_min, player_count_max=player_count_max
     )
 
-    data = aggregate_card_stats(filters, criteria, s_dir, "upgrades", ds_enum)
+    cache_key = (
+        f"cards_upgrades|{data_source}|{sort_metric}|{sort_direction}"
+        f"|{','.join(sorted(formats or []))}"
+        f"|{','.join(sorted(factions or []))}"
+        f"|{','.join(sorted(upgrade_types or []))}"
+        f"|{search_text or ''}"
+        f"|{points_min}|{points_max}"
+        f"|{','.join(sorted(platforms or []))}"
+        f"|{','.join(sorted(continent or []))}"
+        f"|{','.join(sorted(country or []))}"
+        f"|{','.join(sorted(city or []))}"
+        f"|{date_start or ''}|{date_end or ''}"
+        f"|{player_count_min}|{player_count_max}"
+    )
+
+    def compute():
+        return _compute_cards(page, size, data_source, sort_metric, sort_direction, "upgrades", filters)
+
+    data = get_cached_or_compute(cache_key, compute)
     total = len(data)
     items = data[page * size : (page + 1) * size]
-    
+
     return PaginatedUpgradesResponse(items=items, total=total, page=page, size=size)

@@ -16,6 +16,22 @@
         [...options].sort((a, b) => a.label.localeCompare(b.label)),
     );
 
+    // Defensive default: if parent passes an empty sortBy (or no
+    // matching option), show the first sorted option as the visible
+    // selection rather than rendering a blank <select>. The first
+    // option in the array is also written back to sortBy on change
+    // when the user picks anything, so the bound state stays sane.
+    let displayValue = $derived(
+        sortedOptions.find((o) => o.value === sortBy)?.value ??
+            sortedOptions[0]?.value ??
+            "",
+    );
+
+    function onSortChange(event: Event) {
+        const target = event.currentTarget as HTMLSelectElement;
+        sortBy = target.value;
+    }
+
     function toggleDirection() {
         sortDirection = sortDirection === "desc" ? "asc" : "desc";
     }
@@ -28,7 +44,8 @@
     <div class="flex gap-2">
         <select
             class="flex-1 bg-black border border-border-dark rounded px-2 py-1.5 text-xs font-mono text-primary focus:border-primary focus:outline-none"
-            bind:value={sortBy}
+            value={displayValue}
+            onchange={onSortChange}
         >
             {#each sortedOptions as option}
                 <option value={option.value}>{option.label}</option>

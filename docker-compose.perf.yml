@@ -1,0 +1,78 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${LOCAL_DB_NAME:-m3tacron_perf}
+      POSTGRES_USER: ${LOCAL_DB_USER:-perf_user}
+      POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD:-perf_password}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${LOCAL_DB_USER:-perf_user} -d ${LOCAL_DB_NAME:-m3tacron_perf}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        - INSTALL_PLAYWRIGHT_BROWSER=false
+    ports:
+      - "8888:8888"
+    environment:
+      - LOCAL_DB_HOST=postgres
+      - LOCAL_DB_PORT=5432
+      - LOCAL_DB_NAME=${LOCAL_DB_NAME:-m3tacron_perf}
+      - LOCAL_DB_USER=${LOCAL_DB_USER:-perf_user}
+      - LOCAL_DB_PASSWORD=${LOCAL_DB_PASSWORD:-perf_password}
+      - ALLOWED_ORIGINS=*
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8888/', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.dev
+      args:
+        - VITE_API_BASE=http://localhost:8888/api
+    ports:
+      - "3333:3333"
+    environment:
+      - ORIGIN=http://localhost:3333
+      - VITE_API_BASE=http://localhost:8888/api
+      - VITE_PROXY_TARGET=http://backend:8888
+      - VITE_ALLOWED_HOSTS=localhost
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3333/', (r) => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1));"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  evidence:
+    image: busybox
+    volumes:
+      - evidence:/evidence
+    command: sh -c "mkdir -p /evidence/k6 /evidence/lighthouse /evidence/benchmark /evidence/docker-stats /evidence/reports && tail -f /dev/null"
+
+volumes:
+  pgdata:
+  evidence:

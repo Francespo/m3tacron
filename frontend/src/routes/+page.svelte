@@ -1,20 +1,74 @@
 <script lang="ts">
     import { browser } from "$app/environment";
     import { filters } from "$lib/stores/filters.svelte";
-    import ContentSourceToggle from "$lib/components/ContentSourceToggle.svelte";
+    import SortBy from "$lib/components/SortBy.svelte";
     import {
         getFactionColor,
         getFactionChar,
         getFactionLabel,
     } from "$lib/data/factions";
     import { xwingData } from "$lib/stores/xwingData.svelte";
+    import Chart from "chart.js/auto";
+    import FactionIcon from "$lib/components/FactionIcon.svelte";
 
     let meta = $state<any>(null);
     let loading = $state(true);
     let error = $state(false);
     let errorMsg = $state("");
 
-    type RankingMode = "popularity" | "winrate";
+    /**
+     * Latest tournament date in the current data source (and epic toggle).
+     * Populated by a separate fetch to `/api/tournaments` so the "Last Sync"
+     * stat can show the most recent tournament that actually exists in the
+     * active source, rather than the generic `meta.last_sync` timestamp
+     * (which is just `datetime.now()` formatted as a date on the backend).
+     * Falls back to `meta.last_sync` while the fetch is in flight or if the
+     * source has no tournaments yet.
+     */
+    let latestTournamentDate = $state<string | null>(null);
+
+    /**
+     * Source-aware Total Tournaments and Total Players counts.
+     *
+     * The `/api/meta-snapshot` endpoint computes `total_tournaments` and
+     * `total_players` by counting rows in the tournaments/player_standings
+     * tables with only a `date >= now-90d` filter — it does NOT filter by
+     * `data_source`. As a result the meta-snapshot returns the same number
+     * for XWA and Legacy (e.g. 73 for both), so the Total Tournaments /
+     * Total Players stat cards never change when the user switches source.
+     *
+     * This effect computes the correct source-aware counts by hitting
+     * `/api/tournaments` with the source's `formats` filter and the same
+     * 90-day window, paginating if necessary to sum every tournament's
+     * `players` field. The values are exposed as separate reactive state
+     * (not by mutating `meta`) so there is no race with the meta-snapshot
+     * $effect overwriting the object.
+     *
+     * The template prefers these values and falls back to the meta-snapshot
+     * fields while this fetch is in flight.
+     */
+    let sourceAwareTournaments = $state<number | null>(null);
+    let sourceAwarePlayers = $state<number | null>(null);
+
+    /**
+     * Map a `(dataSource, includeEpic)` pair to the list of `formats` the
+     * tournaments endpoint should filter on. The XWA macro is `{xwa, amg}`
+     * and the Legacy macro is `{legacy_x2po, legacy_xlc}`; the Epic toggle
+     * controls whether the larger squad-size variant (amg / legacy_xlc) is
+     * included.
+     */
+    function formatsForSource(
+        source: "xwa" | "legacy",
+        epic: boolean,
+    ): string[] {
+        if (source === "xwa") {
+            return epic ? ["xwa", "amg"] : ["xwa"];
+        }
+        return epic ? ["legacy_x2po", "legacy_xlc"] : ["legacy_x2po"];
+    }
+
+    type SortKey = "popularity" | "winrate" | "games";
+    type SortDir = "asc" | "desc";
     const DASHBOARD_RANKING_PREFS_KEY = "m3tacron.dashboard.rankingModes.v1";
     const WR_MIN_GAMES = {
         pilots: 3,
@@ -23,10 +77,22 @@
         lists: 3,
     };
 
-    let pilotRankingMode = $state<RankingMode>("popularity");
-    let upgradeRankingMode = $state<RankingMode>("popularity");
-    let shipRankingMode = $state<RankingMode>("popularity");
-    let listRankingMode = $state<RankingMode>("popularity");
+    function isSortKey(v: unknown): v is SortKey {
+        return v === "popularity" || v === "winrate" || v === "games";
+    }
+
+    function isSortDir(v: unknown): v is SortDir {
+        return v === "asc" || v === "desc";
+    }
+
+    let pilotSortKey = $state<SortKey>("popularity");
+    let pilotSortDir = $state<SortDir>("desc");
+    let upgradeSortKey = $state<SortKey>("popularity");
+    let upgradeSortDir = $state<SortDir>("desc");
+    let shipSortKey = $state<SortKey>("popularity");
+    let shipSortDir = $state<SortDir>("desc");
+    let listSortKey = $state<SortKey>("popularity");
+    let listSortDir = $state<SortDir>("desc");
 
     $effect(() => {
         if (!browser) return;
@@ -35,52 +101,52 @@
             const raw = localStorage.getItem(DASHBOARD_RANKING_PREFS_KEY);
             if (!raw) return;
 
-            const saved = JSON.parse(raw) as {
-                pilots?: RankingMode;
-                upgrades?: RankingMode;
-                ships?: RankingMode;
-                lists?: RankingMode;
+            const saved = JSON.parse(raw) as any;
+
+            // Backward-compat: previous format stored a plain string per
+            // section (e.g. { pilots: "popularity" }). New format stores
+            // { pilots: { key, dir } }.
+            const readSection = (
+                raw: any,
+            ): { key: SortKey; dir: SortDir } | null => {
+                if (typeof raw === "string" && isSortKey(raw)) {
+                    return { key: raw, dir: "desc" };
+                }
+                if (
+                    raw &&
+                    typeof raw === "object" &&
+                    isSortKey(raw.key) &&
+                    isSortDir(raw.dir)
+                ) {
+                    return { key: raw.key, dir: raw.dir };
+                }
+                return null;
             };
 
-            if (saved.pilots === "popularity" || saved.pilots === "winrate") {
-                pilotRankingMode = saved.pilots;
+            const pilots = readSection(saved.pilots);
+            if (pilots) {
+                pilotSortKey = pilots.key;
+                pilotSortDir = pilots.dir;
             }
-            if (saved.upgrades === "popularity" || saved.upgrades === "winrate") {
-                upgradeRankingMode = saved.upgrades;
+            const upgrades = readSection(saved.upgrades);
+            if (upgrades) {
+                upgradeSortKey = upgrades.key;
+                upgradeSortDir = upgrades.dir;
             }
-            if (saved.ships === "popularity" || saved.ships === "winrate") {
-                shipRankingMode = saved.ships;
+            const ships = readSection(saved.ships);
+            if (ships) {
+                shipSortKey = ships.key;
+                shipSortDir = ships.dir;
             }
-            if (saved.lists === "popularity" || saved.lists === "winrate") {
-                listRankingMode = saved.lists;
+            const lists = readSection(saved.lists);
+            if (lists) {
+                listSortKey = lists.key;
+                listSortDir = lists.dir;
             }
         } catch (err) {
             console.warn("Failed to read dashboard ranking preferences", err);
         }
     });
-
-    function resolveDashboardMetaUrl(source: string): string {
-        if (!browser) {
-            return `/api/meta-snapshot?data_source=${source}`;
-        }
-
-        const { protocol, hostname } = window.location;
-        const previewMatch = hostname.match(/^(\d+)\.dev\.m3tacron\.com$/);
-
-        if (previewMatch) {
-            return `${protocol}//${previewMatch[1]}.api.dev.m3tacron.com/api/meta-snapshot?data_source=${source}`;
-        }
-
-        if (hostname === "dev.m3tacron.com") {
-            return `${protocol}//api.dev.m3tacron.com/api/meta-snapshot?data_source=${source}`;
-        }
-
-        if (hostname === "m3tacron.com" || hostname === "www.m3tacron.com") {
-            return `${protocol}//api.m3tacron.com/api/meta-snapshot?data_source=${source}`;
-        }
-
-        return `/api/meta-snapshot?data_source=${source}`;
-    }
 
     $effect(() => {
         if (!browser) return;
@@ -89,10 +155,10 @@
             localStorage.setItem(
                 DASHBOARD_RANKING_PREFS_KEY,
                 JSON.stringify({
-                    pilots: pilotRankingMode,
-                    upgrades: upgradeRankingMode,
-                    ships: shipRankingMode,
-                    lists: listRankingMode,
+                    pilots: { key: pilotSortKey, dir: pilotSortDir },
+                    upgrades: { key: upgradeSortKey, dir: upgradeSortDir },
+                    ships: { key: shipSortKey, dir: shipSortDir },
+                    lists: { key: listSortKey, dir: listSortDir },
                 }),
             );
         } catch (err) {
@@ -102,7 +168,12 @@
 
     $effect(() => {
         if (!browser) return;
+        // Track BOTH the data source AND the epic toggle so the dashboard
+        // re-fetches whenever the user changes either one via the
+        // ContentSourceToggle. Reading both inside the effect makes them
+        // reactive dependencies under Svelte 5 runes.
         const source = filters.dataSource;
+        const epic = filters.includeEpic;
         // Ensure data is loaded
         xwingData.setSource(source as any);
 
@@ -112,7 +183,14 @@
         error = false;
         errorMsg = "";
 
-        const targetUrl = resolveDashboardMetaUrl(source);
+        // Pass `epic` to the meta-snapshot even though the backend currently
+        // ignores it; the dashboard will already be wired correctly if the
+        // endpoint starts honoring it. The `data_source` query param is the
+        // one that actually filters the snapshot today.
+        const params = new URLSearchParams();
+        params.set("data_source", source);
+        if (epic) params.set("epic", "true");
+        const targetUrl = `/api/meta-snapshot?${params.toString()}`;
         fetch(targetUrl)
             .then(async (res) => {
                 if (!res.ok) {
@@ -137,6 +215,141 @@
                     loading = false;
                 }
             });
+
+        return () => {
+            isCancelled = true;
+        };
+    });
+
+    /**
+     * Fetch the latest tournament date in the current source. This is used
+     * by the "Last Sync" stat so it shows a real tournament date instead of
+     * the generic `last_sync` timestamp. The meta-snapshot endpoint doesn't
+     * expose a "max(date)" field, so we hit `/api/tournaments` with
+     * `size=1&sort=Date desc` and read the first item's `date`.
+     *
+     * Runs as a separate $effect so it re-issues on every (dataSource,
+     * includeEpic) change and is independent of the main meta-snapshot
+     * loading state.
+     */
+    $effect(() => {
+        if (!browser) return;
+        const source = filters.dataSource;
+        const epic = filters.includeEpic;
+
+        let isCancelled = false;
+
+        const params = new URLSearchParams();
+        params.set("page", "0");
+        params.set("size", "1");
+        params.set("sort_metric", "Date");
+        params.set("sort_direction", "desc");
+        for (const f of formatsForSource(source, epic)) {
+            params.append("formats", f);
+        }
+        const url = `/api/tournaments?${params.toString()}`;
+
+        fetch(url)
+            .then(async (res) => {
+                if (!res.ok) {
+                    // Don't blow up the dashboard if this secondary fetch
+                    // fails — the stat will fall back to `meta.last_sync`.
+                    return null;
+                }
+                return res.json();
+            })
+            .then((data) => {
+                if (isCancelled || !data) return;
+                const first = data?.items?.[0];
+                if (first?.date) {
+                    latestTournamentDate = first.date;
+                }
+            })
+            .catch(() => {
+                /* swallow — keep previous / fallback value */
+            });
+
+        return () => {
+            isCancelled = true;
+        };
+    });
+
+    /**
+     * Fetch source-aware Total Tournaments and Total Players counts for the
+     * 90-day window that the meta-snapshot uses. See the
+     * `sourceAwareTournaments` / `sourceAwarePlayers` declarations above
+     * for why this exists.
+     *
+     * Hits `/api/tournaments?date_start=…&formats=…` (paginated at 100/page
+     * which is the backend's hard cap) and:
+     *   - reads `data.total` for Total Tournaments
+     *   - sums `players` across every page for Total Players
+     *
+     * Re-issues on every (dataSource, includeEpic) change and is independent
+     * of the meta-snapshot and latestTournamentDate $effects.
+     */
+    $effect(() => {
+        if (!browser) return;
+        const source = filters.dataSource;
+        const epic = filters.includeEpic;
+
+        // Reset to null on every source change so the template falls back
+        // to the (stale) meta-snapshot values for the brief moment before
+        // the new counts arrive, then snaps to the correct values.
+        sourceAwareTournaments = null;
+        sourceAwarePlayers = null;
+
+        let isCancelled = false;
+
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 90);
+        const dateStart = startDate.toISOString().slice(0, 10);
+
+        const formats = formatsForSource(source, epic);
+        const pageSize = 100;
+
+        const fetchPage = (page: number): Promise<any> => {
+            const params = new URLSearchParams();
+            params.set("page", String(page));
+            params.set("size", String(pageSize));
+            params.set("date_start", dateStart);
+            for (const f of formats) {
+                params.append("formats", f);
+            }
+            return fetch(`/api/tournaments?${params.toString()}`)
+                .then((r) => (r.ok ? r.json() : null))
+                .catch(() => null);
+        };
+
+        fetchPage(0).then(async (data) => {
+            if (isCancelled || !data) return;
+            const items: any[] = data?.items || [];
+            const total: number = typeof data?.total === "number" ? data.total : items.length;
+            let allPlayers = items.reduce(
+                (sum: number, t: any) => sum + (Number(t?.players) || 0),
+                0,
+            );
+
+            // Paginate to sum players across every page. The backend caps
+            // `size` at 100, so anything beyond that needs additional
+            // requests. In practice the 90-day window is well under 100
+            // tournaments per source, but we paginate defensively so the
+            // counts stay correct as the dataset grows.
+            const totalPages = Math.ceil(total / pageSize);
+            for (let p = 1; p < totalPages; p++) {
+                if (isCancelled) return;
+                const pageData = await fetchPage(p);
+                if (!pageData) break;
+                for (const item of pageData?.items || []) {
+                    allPlayers += Number(item?.players) || 0;
+                }
+            }
+
+            if (!isCancelled) {
+                sourceAwareTournaments = total;
+                sourceAwarePlayers = allPlayers;
+            }
+        });
 
         return () => {
             isCancelled = true;
@@ -176,34 +389,39 @@
         return (wins / games) * 100;
     }
 
-    function sortByRankingMode(
+    function sortByKey(
         items: any[],
-        rankingMode: RankingMode,
+        key: SortKey,
+        dir: SortDir,
     ): any[] {
         return [...items].sort((a, b) => {
             const gamesA = Number(a.games_count ?? a.games ?? 0);
             const gamesB = Number(b.games_count ?? b.games ?? 0);
-
-            if (rankingMode === "winrate") {
-                const wrA = getWinRate(Number(a.wins ?? 0), gamesA);
-                const wrB = getWinRate(Number(b.wins ?? 0), gamesB);
-                if (wrB !== wrA) return wrB - wrA;
-                return gamesB - gamesA;
-            }
-
-            if (gamesB !== gamesA) return gamesB - gamesA;
             const wrA = getWinRate(Number(a.wins ?? 0), gamesA);
             const wrB = getWinRate(Number(b.wins ?? 0), gamesB);
-            return wrB - wrA;
+
+            let cmp = 0;
+            if (key === "winrate") {
+                if (wrB !== wrA) cmp = wrB - wrA;
+                else cmp = gamesB - gamesA;
+            } else if (key === "games") {
+                cmp = gamesB - gamesA;
+            } else {
+                // popularity: by games count, with WR tiebreaker
+                if (gamesB !== gamesA) cmp = gamesB - gamesA;
+                else cmp = wrB - wrA;
+            }
+
+            return dir === "asc" ? cmp : -cmp;
         });
     }
 
     function applyWrMinGames(
         items: any[],
-        rankingMode: RankingMode,
+        key: SortKey,
         minGames: number,
     ): any[] {
-        if (rankingMode !== "winrate") return items;
+        if (key !== "winrate") return items;
         return items.filter((item) =>
             Number(item?.games_count ?? item?.games ?? 0) >= minGames,
         );
@@ -222,29 +440,17 @@
         };
     }
 
-    function chartAction(node: HTMLCanvasElement, config: any) {
-        let chart: any;
+    Chart.defaults.color = "#AAAAAA";
 
-        if (browser) {
-            import("chart.js/auto").then((m) => {
-                const ChartJS = m.default;
-                ChartJS.defaults.color = "#AAAAAA";
-                chart = new ChartJS(node, config);
-            });
-        }
+    function chartAction(node: HTMLCanvasElement, config: any) {
+        const chart = new Chart(node, config);
 
         return {
             update(newConfig: any) {
-                if (chart) {
-                    chart.destroy();
-                    import("chart.js/auto").then((m) => {
-                        const ChartJS = m.default;
-                        chart = new ChartJS(node, newConfig);
-                    });
-                }
+                chart.update(newConfig);
             },
             destroy() {
-                if (chart) chart.destroy();
+                chart.destroy();
             },
         };
     }
@@ -252,7 +458,13 @@
     let barData = $derived(
         meta?.factions
             ? {
-                  labels: meta.factions.map((d: any) => getFactionChar(d.xws) || "?"),
+                  // Chart.js labels are plain strings — keep the raw "?" fallback
+                  // for unknown so Chart.js doesn't try to render an HTML
+                  // element. (The X-Wing font would render "?" as a
+                  // geometric/rocket glyph otherwise.)
+                  labels: meta.factions.map((d: any) =>
+                      d.xws === "unknown" ? "?" : getFactionChar(d.xws),
+                  ),
                   datasets: [
                       {
                           label: "Win Rate (%)",
@@ -357,32 +569,56 @@
     );
 
     let sortedPilots = $derived(
-        sortByRankingMode(
-            applyWrMinGames(meta?.pilots || [], pilotRankingMode, WR_MIN_GAMES.pilots),
-            pilotRankingMode,
+        sortByKey(
+            applyWrMinGames(meta?.pilots || [], pilotSortKey, WR_MIN_GAMES.pilots),
+            pilotSortKey,
+            pilotSortDir,
         ),
     );
 
     let sortedUpgrades = $derived(
-        sortByRankingMode(
-            applyWrMinGames(meta?.upgrades || [], upgradeRankingMode, WR_MIN_GAMES.upgrades),
-            upgradeRankingMode,
+        sortByKey(
+            applyWrMinGames(meta?.upgrades || [], upgradeSortKey, WR_MIN_GAMES.upgrades),
+            upgradeSortKey,
+            upgradeSortDir,
         ),
     );
 
     let sortedShips = $derived(
-        sortByRankingMode(
-            applyWrMinGames(meta?.ships || [], shipRankingMode, WR_MIN_GAMES.ships),
-            shipRankingMode,
+        sortByKey(
+            applyWrMinGames(meta?.ships || [], shipSortKey, WR_MIN_GAMES.ships),
+            shipSortKey,
+            shipSortDir,
         ),
     );
 
     let sortedLists = $derived(
-        sortByRankingMode(
-            applyWrMinGames(meta?.lists || [], listRankingMode, WR_MIN_GAMES.lists),
-            listRankingMode,
+        sortByKey(
+            applyWrMinGames(meta?.lists || [], listSortKey, WR_MIN_GAMES.lists),
+            listSortKey,
+            listSortDir,
         ),
     );
+
+    /**
+     * Period banner range. We treat the snapshot's `last_sync` as the end of
+     * the 90-day window and compute the start by subtracting 90 days. This
+     * keeps the banner purely client-side and avoids any backend changes.
+     * Returns null when `last_sync` is missing or unparseable so the banner
+     * can fall back to a generic "last 90 days" label.
+     */
+    let periodRange = $derived.by(() => {
+        const endStr = meta?.last_sync;
+        if (!endStr || typeof endStr !== "string" || endStr === "Never") {
+            return null;
+        }
+        const end = new Date(endStr);
+        if (Number.isNaN(end.getTime())) return null;
+        const start = new Date(end);
+        start.setDate(start.getDate() - 90);
+        const fmt = (d: Date) => d.toISOString().slice(0, 10);
+        return { start: fmt(start), end: fmt(end) };
+    });
 </script>
 
 <div class="min-h-screen p-6 font-sans">
@@ -390,18 +626,9 @@
         class="mb-8 flex flex-col md:flex-row md:items-start justify-between gap-4 w-full"
     >
         <div>
-            <h1
-                class="text-3xl font-mono uppercase tracking-widest font-bold text-primary"
-            >
-                M3taCron <span class="text-secondary text-2xl font-light"
-                    >Dashboard</span
-                >
+            <h1 class="text-3xl font-sans font-bold text-primary mb-1">
+                Meta Dashboard
             </h1>
-        </div>
-        <div
-            class="w-full md:w-64 bg-terminal-panel border border-border-dark p-3 rounded-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-        >
-            <ContentSourceToggle />
         </div>
     </header>
 
@@ -418,10 +645,38 @@
             </p>
         </div>
     {:else}
+        <!-- Period Banner: prominent "Last 90 Days" indicator -->
+        <div
+            class="bg-terminal-panel border border-border-dark rounded-lg p-4 mb-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+        >
+            <div class="flex flex-col sm:flex-row sm:items-center gap-3 flex-wrap">
+                <div
+                    class="px-2 py-1 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded text-xs font-mono font-bold uppercase tracking-wider self-start"
+                >
+                    {meta.date_range || "Last 90 Days"}
+                </div>
+                <div
+                    data-testid="period-banner-data-source"
+                    class="px-2 py-1 {filters.dataSource === 'legacy'
+                        ? 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+                        : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'} border rounded text-xs font-mono font-bold uppercase tracking-wider self-start"
+                >
+                    {filters.dataSource === 'legacy' ? 'Legacy' : 'XWA'}
+                </div>
+                <span class="text-sm text-secondary font-mono">
+                    {#if periodRange}
+                        Tournament data from {periodRange.start} to {periodRange.end}
+                    {:else}
+                        Tournament data from the most recent 90 days
+                    {/if}
+                </span>
+            </div>
+        </div>
+
         <!-- Top Stats Row -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             <div
-                class="bg-terminal-panel border border-border-dark rounded-[6px] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] flex flex-col items-start gap-1"
+                class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] flex flex-col items-start gap-1"
             >
                 <div class="flex items-center gap-2">
                     <svg
@@ -444,13 +699,16 @@
                         >Tournaments</span
                     >
                 </div>
-                <div class="text-4xl font-bold font-sans text-primary">
-                    {meta.total_tournaments || 0}
+                <div
+                    data-testid="dashboard-total-tournaments"
+                    class="text-4xl font-bold font-mono text-primary"
+                >
+                    {sourceAwareTournaments ?? meta.total_tournaments ?? 0}
                 </div>
             </div>
 
             <div
-                class="bg-terminal-panel border border-border-dark rounded-[6px] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] flex flex-col items-start gap-1"
+                class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] flex flex-col items-start gap-1"
             >
                 <div class="flex items-center gap-2">
                     <svg
@@ -477,48 +735,16 @@
                         >Players</span
                     >
                 </div>
-                <div class="text-4xl font-bold font-sans text-primary">
-                    {meta.total_players || 0}
-                </div>
-            </div>
-
-            <div
-                class="bg-terminal-panel border border-border-dark rounded-[6px] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] flex flex-col items-start gap-1"
-            >
-                <div class="flex items-center gap-2">
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        class="text-secondary"
-                        ><path d="M8 2v4" /><path d="M16 2v4" /><rect
-                            width="18"
-                            height="18"
-                            x="3"
-                            y="4"
-                            rx="2"
-                        /><path d="M3 10h18" /></svg
-                    >
-                    <span
-                        class="text-secondary font-mono text-[10px] font-bold uppercase tracking-widest"
-                        >Date Range</span
-                    >
-                </div>
                 <div
-                    class="text-2xl font-bold font-sans text-primary leading-tight mt-1"
+                    data-testid="dashboard-total-players"
+                    class="text-4xl font-bold font-mono text-primary"
                 >
-                    {meta.date_range || "Unknown"}
+                    {sourceAwarePlayers ?? meta.total_players ?? 0}
                 </div>
             </div>
 
             <div
-                class="bg-terminal-panel border border-border-dark rounded-[6px] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] flex flex-col items-start gap-1"
+                class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] flex flex-col items-start gap-1"
             >
                 <div class="flex items-center gap-2">
                     <svg
@@ -544,9 +770,10 @@
                     >
                 </div>
                 <div
-                    class="text-2xl font-bold font-sans text-primary leading-tight mt-1"
+                    data-testid="dashboard-last-sync"
+                    class="text-2xl font-bold font-mono text-primary leading-tight mt-1"
                 >
-                    {meta.last_sync || "Unknown"}
+                    {latestTournamentDate || meta.last_sync || "Unknown"}
                 </div>
             </div>
         </div>
@@ -554,7 +781,7 @@
         <!-- Section 1: Factions -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             <div
-                class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
+                class="bg-terminal-panel border border-border-dark rounded-lg p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
             >
                 <h2
                     class="text-sm font-mono font-bold uppercase mb-4 text-primary"
@@ -575,7 +802,7 @@
             </div>
 
             <div
-                class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
+                class="bg-terminal-panel border border-border-dark rounded-lg p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
             >
                 <h2
                     class="text-sm font-mono font-bold uppercase mb-4 text-primary"
@@ -601,13 +828,7 @@
                         <div
                             class="flex items-center gap-[6px] text-xs font-mono text-secondary mr-3 mb-[6px]"
                         >
-                            <span
-                                class="font-xwing text-sm"
-                                style="color: {getFactionColor(dist.xws)}"
-                                aria-hidden="true"
-                            >
-                                {getFactionChar(dist.xws)}
-                            </span>
+                            <FactionIcon faction={dist.xws} size="sm" />
                             <span>{getFactionLabel(dist.xws)} {pct}%</span>
                         </div>
                     {/each}
@@ -619,30 +840,27 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             <!-- Top Pilots -->
             <div
-                class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
+                class="bg-terminal-panel border border-border-dark rounded-lg p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
             >
-                <div class="mb-4 flex items-center justify-between gap-2">
+                <div class="mb-4 flex items-baseline justify-between gap-3">
                     <h2
-                        class="text-sm font-mono font-bold uppercase text-primary"
+                        class="text-sm font-mono font-bold uppercase text-primary border-b border-border-dark pb-2 flex items-baseline gap-2 flex-1"
                     >
                         Top Pilots
                     </h2>
-                    <div class="inline-flex rounded border border-border-dark overflow-hidden">
-                        <button
-                            type="button"
-                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition-colors {pilotRankingMode === 'popularity' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
-                            onclick={() => (pilotRankingMode = "popularity")}
-                        >
-                            Games
-                        </button>
-                        <button
-                            type="button"
-                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider border-l border-border-dark transition-colors {pilotRankingMode === 'winrate' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
-                            onclick={() => (pilotRankingMode = "winrate")}
-                        >
-                            WR
-                        </button>
-                    </div>
+                    <SortBy
+                        value={pilotSortKey}
+                        direction={pilotSortDir}
+                        options={[
+                            { value: "popularity", label: "Games" },
+                            { value: "winrate", label: "Win Rate" },
+                            { value: "games", label: "Games" }
+                        ]}
+                        onChange={(newValue, newDirection) => {
+                            pilotSortKey = newValue as SortKey;
+                            pilotSortDir = newDirection;
+                        }}
+                    />
                 </div>
                 <div class="w-full flex flex-col">
                     {#each sortedPilots.slice(0, 5) as pilot}
@@ -708,30 +926,27 @@
 
             <!-- Top Upgrades -->
             <div
-                class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
+                class="bg-terminal-panel border border-border-dark rounded-lg p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
             >
-                <div class="mb-4 flex items-center justify-between gap-2">
+                <div class="mb-4 flex items-baseline justify-between gap-3">
                     <h2
-                        class="text-sm font-mono font-bold uppercase text-primary"
+                        class="text-sm font-mono font-bold uppercase text-primary border-b border-border-dark pb-2 flex items-baseline gap-2 flex-1"
                     >
                         Top Upgrades
                     </h2>
-                    <div class="inline-flex rounded border border-border-dark overflow-hidden">
-                        <button
-                            type="button"
-                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition-colors {upgradeRankingMode === 'popularity' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
-                            onclick={() => (upgradeRankingMode = "popularity")}
-                        >
-                            Games
-                        </button>
-                        <button
-                            type="button"
-                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider border-l border-border-dark transition-colors {upgradeRankingMode === 'winrate' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
-                            onclick={() => (upgradeRankingMode = "winrate")}
-                        >
-                            WR
-                        </button>
-                    </div>
+                    <SortBy
+                        value={upgradeSortKey}
+                        direction={upgradeSortDir}
+                        options={[
+                            { value: "popularity", label: "Games" },
+                            { value: "winrate", label: "Win Rate" },
+                            { value: "games", label: "Games" }
+                        ]}
+                        onChange={(newValue, newDirection) => {
+                            upgradeSortKey = newValue as SortKey;
+                            upgradeSortDir = newDirection;
+                        }}
+                    />
                 </div>
                 <div class="w-full flex flex-col">
                     {#each sortedUpgrades.slice(0, 6) as upgrade}
@@ -791,30 +1006,27 @@
 
             <!-- Top Ships -->
             <div
-                class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
+                class="bg-terminal-panel border border-border-dark rounded-lg p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
             >
-                <div class="mb-4 flex items-center justify-between gap-2">
+                <div class="mb-4 flex items-baseline justify-between gap-3">
                     <h2
-                        class="text-sm font-mono font-bold uppercase text-primary"
+                        class="text-sm font-mono font-bold uppercase text-primary border-b border-border-dark pb-2 flex items-baseline gap-2 flex-1"
                     >
                         Top Ships
                     </h2>
-                    <div class="inline-flex rounded border border-border-dark overflow-hidden">
-                        <button
-                            type="button"
-                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition-colors {shipRankingMode === 'popularity' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
-                            onclick={() => (shipRankingMode = "popularity")}
-                        >
-                            Games
-                        </button>
-                        <button
-                            type="button"
-                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider border-l border-border-dark transition-colors {shipRankingMode === 'winrate' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
-                            onclick={() => (shipRankingMode = "winrate")}
-                        >
-                            WR
-                        </button>
-                    </div>
+                    <SortBy
+                        value={shipSortKey}
+                        direction={shipSortDir}
+                        options={[
+                            { value: "popularity", label: "Games" },
+                            { value: "winrate", label: "Win Rate" },
+                            { value: "games", label: "Games" }
+                        ]}
+                        onChange={(newValue, newDirection) => {
+                            shipSortKey = newValue as SortKey;
+                            shipSortDir = newDirection;
+                        }}
+                    />
                 </div>
                 <div class="w-full flex flex-col">
                     {#each sortedShips.slice(0, 5) as ship}
@@ -884,37 +1096,34 @@
         <!-- Section 3: Meta Lists -->
         <div class="w-full">
             <div
-                class="bg-terminal-panel border border-border-dark rounded-[6px] p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
+                class="bg-terminal-panel border border-border-dark rounded-lg p-[20px] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] w-full flex flex-col"
             >
-                <div class="mb-4 flex items-center justify-between gap-2">
+                <div class="mb-4 flex items-baseline justify-between gap-3">
                     <h2
-                        class="text-sm font-mono font-bold uppercase text-primary"
+                        class="text-sm font-mono font-bold uppercase text-primary border-b border-border-dark pb-2 flex items-baseline gap-2 flex-1"
                     >
                         Top Meta Lists
                     </h2>
-                    <div class="inline-flex rounded border border-border-dark overflow-hidden">
-                        <button
-                            type="button"
-                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition-colors {listRankingMode === 'popularity' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
-                            onclick={() => (listRankingMode = "popularity")}
-                        >
-                            Games
-                        </button>
-                        <button
-                            type="button"
-                            class="px-2 py-1 text-[10px] font-mono uppercase tracking-wider border-l border-border-dark transition-colors {listRankingMode === 'winrate' ? 'bg-secondary text-black' : 'bg-transparent text-secondary hover:bg-white/5'}"
-                            onclick={() => (listRankingMode = "winrate")}
-                        >
-                            WR
-                        </button>
-                    </div>
+                    <SortBy
+                        value={listSortKey}
+                        direction={listSortDir}
+                        options={[
+                            { value: "popularity", label: "Games" },
+                            { value: "winrate", label: "Win Rate" },
+                            { value: "games", label: "Games" }
+                        ]}
+                        onChange={(newValue, newDirection) => {
+                            listSortKey = newValue as SortKey;
+                            listSortDir = newDirection;
+                        }}
+                    />
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 w-full">
                     {#each sortedLists.slice(0, 4) as list}
                         {@const factionXws = list.faction_xws}
                         {@const wr = getWinRate(list.wins || 0, list.games || 0)}
                         <div
-                            class="p-4 bg-[rgba(255,255,255,0.01)] border border-border-dark hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer w-full flex flex-col gap-3 rounded-md"
+                            class="p-4 bg-[rgba(255,255,255,0.01)] border border-border-dark hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer w-full flex flex-col gap-3 rounded-lg"
                         >
                             <div
                                 class="flex w-full items-start justify-between border-b border-border-dark pb-3"
@@ -922,13 +1131,11 @@
                                 <div
                                     class="flex items-center gap-2 overflow-hidden mr-2 h-12"
                                 >
-                                    <span
-                                        class="font-xwing xwing-icon text-2xl flex-shrink-0"
-                                        style="color: {getFactionColor(factionXws)}"
-                                        aria-hidden="true"
-                                    >
-                                        {getFactionChar(factionXws)}
-                                    </span>
+                                    <FactionIcon
+                                        faction={factionXws}
+                                        size="lg"
+                                        className="flex-shrink-0"
+                                    />
                                     <div class="flex flex-col min-w-0">
                                         <span
                                             class="text-base font-bold text-primary line-clamp-2 leading-tight"
