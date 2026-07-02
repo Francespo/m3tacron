@@ -2,13 +2,13 @@
   "name": "m3tacron-dev",
   "image": "mcr.microsoft.com/devcontainers/python:3-3.13-trixie",
   "features": {
+    "ghcr.io/devcontainers/features/node:2.0.0": {},
     "ghcr.io/devcontainers/features/github-cli:1": {},
-    "ghcr.io/devcontainers/features/git-lfs:1": {},
-    "ghcr.io/devcontainers/features/node:2": {},
-    "ghcr.io/devcontainers/features/sshd:1": {},
-    "ghcr.io/devcontainers/features/copilot-cli:1": {}
+    "ghcr.io/devcontainers/features/copilot-cli:1": {},
+    "ghcr.io/siri404/devcontainer-ai-features/gemini-cli:1": {},
+    "ghcr.io/devcontainers/features/git-lfs:1": {}
   },
-  "forwardPorts": [8000, 3000, 8100, 5173, 3484],
+  "forwardPorts": [8000, 3000, 8100, 5173],
   "portsAttributes": {
     "8000": {
       "label": "FastAPI"
@@ -21,9 +21,6 @@
     },
     "5173": {
       "label": "Vite"
-    },
-    "3484": {
-      "label": "Cline Kanban"
     }
   },
   "customizations": {
@@ -40,8 +37,7 @@
         "GitHub.vscode-pull-request-github",
         "bretwardjames.gh-projects",
         "GitHub.copilot-chat",
-        "github.vscode-github-actions",
-        "saoudrizwan.claude-dev"
+        "github.vscode-github-actions"
       ],
       "settings": {
         "python.analysis.typeCheckingMode": "basic",

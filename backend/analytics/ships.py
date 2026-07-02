@@ -3,18 +3,12 @@ Ship Analytics - Aggregation Logic for Ships.
 
 Aggregates statistics (win rate, popularity, games) per ship per faction.
 """
-from sqlmodel import Session, select
-import json
+from sqlmodel import Session
+from sqlalchemy import text
 from ..database import engine
-from ..models import PlayerStanding, Tournament
-from ..utils.xwing_data.pilots import load_all_pilots
 from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
-from ..utils.list_keys import coerce_list_json
-from ..utils.stats import normalize_stat_count
-from .filters import filter_query, get_active_formats, apply_tournament_filters
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
-from ..utils.list_keys import get_list_key
 
 
 def aggregate_ship_stats(
@@ -24,121 +18,109 @@ def aggregate_ship_stats(
     data_source: DataSource = DataSource.XWA
 ) -> list[dict]:
     """
-    Aggregate statistics for ships grouped by faction.
+    Aggregate statistics for ships using SQL GROUP BY with pilot_ship_mapping.
     Returns list of dicts matching ShipStats schema.
     """
+    source_str = "xwa" if data_source == DataSource.XWA else "legacy"
+
+    where_clauses = ["p->>'id' IS NOT NULL"]
+    params: dict[str, object] = {"source": source_str}
+
+    if filters.get("date_start"):
+        where_clauses.append("t.date >= :date_start"); params["date_start"] = filters["date_start"]
+    if filters.get("date_end"):
+        where_clauses.append("t.date <= :date_end"); params["date_end"] = filters["date_end"]
+    sources = filters.get("sources") or filters.get("platforms") or []
+    if sources:
+        where_clauses.append("t.source = ANY(:sources)"); params["sources"] = sources
+    if filters.get("player_count_min") is not None:
+        where_clauses.append("t.player_count >= :pc_min"); params["pc_min"] = int(filters["player_count_min"])
+    if filters.get("player_count_max") is not None:
+        where_clauses.append("t.player_count <= :pc_max"); params["pc_max"] = int(filters["player_count_max"])
+    fmts = filters.get("allowed_formats")
+    if fmts:
+        where_clauses.append("t.format = ANY(:formats)"); params["formats"] = list(fmts)
+    # Push faction filter to SQL
+    facs = filters.get("factions") or filters.get("faction")
+    if facs:
+        if isinstance(facs, str): facs = [facs]
+        normalized = [f.lower().replace(" ", "").replace("-", "") for f in facs]
+        where_clauses.append("ps.faction_xws_normalized = ANY(:factions)"); params["factions"] = normalized
+    # Push ship filter to SQL
+    ship_filter = filters.get("ship") or filters.get("ships")
+    if ship_filter:
+        if isinstance(ship_filter, str): ship_filter = [ship_filter]
+        where_clauses.append("psm.ship_xws = ANY(:ship_filter)"); params["ship_filter"] = ship_filter
+    # Push search filter to SQL (search by ship name via pilot_ship_mapping)
+    search = filters.get("search_name")
+    if search:
+        where_clauses.append("psm.ship_xws ILIKE :search"); params["search"] = f"%{search}%"
+
+    where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+
+    sql = text(f"""
+        SELECT
+            psm.ship_xws,
+            array_remove(array_agg(DISTINCT l.faction), NULL) as factions,
+            COUNT(DISTINCT ps.id) as list_count,
+            SUM(COALESCE(ps.swiss_wins, 0) + COALESCE(ps.cut_wins, 0)) as wins,
+            SUM(COALESCE(ps.swiss_wins, 0) + COALESCE(ps.swiss_losses, 0) + COALESCE(ps.swiss_draws, 0)
+                + COALESCE(ps.cut_wins, 0) + COALESCE(ps.cut_losses, 0) + COALESCE(ps.cut_draws, 0)) as games,
+            COUNT(DISTINCT ps.list_id) as different_lists_count
+        FROM playerstanding ps
+        JOIN tournament t ON t.id = ps.tournament_id
+        JOIN list l ON l.id = ps.list_id
+        JOIN jsonb_array_elements(l.list_json::jsonb->'pilots') p ON true
+        JOIN pilot_ship_mapping psm ON psm.pilot_xws = (p->>'id') AND psm.source = :source
+        WHERE {where_sql}
+        GROUP BY psm.ship_xws
+        ORDER BY games DESC
+    """)
+
+    # SQL execution inside a tight session scope — no Python processing
+    # happens while the connection is held. This prevents pool exhaustion
+    # under concurrent load.
     with Session(engine) as session:
-        query = select(PlayerStanding, Tournament).where(
-            PlayerStanding.tournament_id == Tournament.id
-        )
-        query = filter_query(query, filters)
-        rows = session.exec(query).all()
-        
-        all_pilots = load_all_pilots(data_source)
-        
-        allowed_formats = get_active_formats(filters.get("allowed_formats", None))
-        
-        # Structure: (ship_xws, faction_xws) -> stats
-        ship_stats: dict[tuple[str, str], dict] = {}
-        
-        # Init from pilot data
-        for pid, p_info in all_pilots.items():
-            ship_xws = p_info.get("ship_xws", "")
-            faction = p_info.get("faction", "")
-            
-            if not ship_xws or not faction: continue
-            
-            try:
-                faction_enum = Faction.from_xws(faction)
-                faction_xws = faction_enum.value
-            except (ValueError, AttributeError):
-                continue # Skip unknown factions or handle generic
-            
-            key = (ship_xws, faction_xws)
-            if key not in ship_stats:
-                ship_stats[key] = {
-                    "xws": ship_xws,
-                    "faction_xws": faction_enum, # Enum
-                    "games_count": 0,
-                    "list_count": 0,
-                    "different_lists_count": 0,
-                    "wins": 0,
-                    "_signatures": set()
-                }
+        result = session.execute(sql, params).fetchall()
 
-        for result, tournament in rows:
-            t_fmt_raw = tournament.format
-            t_fmt = t_fmt_raw.value if hasattr(t_fmt_raw, 'value') else (t_fmt_raw or "unknown")
-            
-            if allowed_formats and t_fmt not in allowed_formats: continue
-            if not apply_tournament_filters(tournament, filters): continue
-            
-            xws = coerce_list_json(result.list_json)
-            if not xws:
-                continue
-            
-            s_wins = normalize_stat_count(result.swiss_wins)
-            s_losses = normalize_stat_count(result.swiss_losses)
-            s_draws = normalize_stat_count(result.swiss_draws)
-            c_wins = normalize_stat_count(result.cut_wins)
-            c_losses = normalize_stat_count(result.cut_losses)
-            c_draws = normalize_stat_count(result.cut_draws)
-            
-            wins = s_wins + c_wins
-            games = wins + s_losses + s_draws + c_losses + c_draws
-            
-            sig = get_list_key(xws)
-            
-            # Identify ships in this list
-            # Ship counts: if list has 2 TIEs, list_count for TIE +1? games_count +games?
-            # Or +2?
-            # Usually "Ship Stats" means "Performance of this chassis in this faction".
-            # If I bring 2 TIEs, TIE Fighter presence is 1 list.
-            # So unique ships per list.
-            
-            unique_ships = set()
-            for p in xws.get("pilots", []):
-                pid = p.get("id") or p.get("name")
-                if not pid: continue
-                
-                # We need ship_xws for this pilot
-                # Lookup in all_pilots
-                if pid in all_pilots:
-                    p_info = all_pilots[pid]
-                    s_xws = p_info.get("ship_xws")
-                    f_raw = p_info.get("faction")
-                    if s_xws and f_raw:
-                        try:
-                            f_enum = Faction.from_xws(f_raw)
-                            unique_ships.add((s_xws, f_enum.value))
-                        except: pass
-            
-            for s_xws, f_xws in unique_ships:
-                key = (s_xws, f_xws)
-                if key in ship_stats:
-                    s = ship_stats[key]
-                    s["games_count"] += games
-                    s["list_count"] += 1
-                    s["wins"] += wins
-                    s["_signatures"].add(sig)
+    # Python processing (no database connection needed)
+    results = []
+    for row in result:
+        ship_xws = row[0]
+        factions = row[1] or ["unknown"]
+        list_count = row[2] or 0
+        wins = row[3] or 0
+        games = row[4] or 0
+        different_lists = row[5] or 0
 
-        results = []
-        for key, data in ship_stats.items():
-            if data["list_count"] > 0:
-                data["different_lists_count"] = len(data.pop("_signatures"))
-                results.append(data)
-                
-        # Sort
-        def sort_key(item):
-            if sort_criteria == SortingCriteria.POPULARITY:
-                return (item["list_count"], item["games_count"])
-            elif sort_criteria == SortingCriteria.GAMES:
-                return item["games_count"]
-            elif sort_criteria == SortingCriteria.WINRATE:
-                return item["wins"] / item["games_count"] if item["games_count"] > 0 else 0
-            elif sort_criteria == SortingCriteria.NAME:
-                return item["xws"]
-            return 0
+        # Use first faction for display, store all factions
+        primary_faction = factions[0] if factions else "unknown"
+        try:
+            faction_enum = Faction.from_xws(primary_faction)
+        except (ValueError, AttributeError):
+            faction_enum = Faction.UNKNOWN
 
-        results.sort(key=sort_key, reverse=(sort_direction == SortDirection.DESCENDING))
-        return results
+        results.append({
+            "xws": ship_xws,
+            "faction_xws": faction_enum,
+            "factions": factions,
+            "games_count": games,
+            "list_count": list_count,
+            "different_lists_count": different_lists,
+            "wins": wins,
+        })
+
+    # Sort
+    def sort_key(item):
+        if sort_criteria == SortingCriteria.POPULARITY:
+            return (item["list_count"], item["games_count"])
+        elif sort_criteria == SortingCriteria.GAMES:
+            return item["games_count"]
+        elif sort_criteria == SortingCriteria.WINRATE:
+            return item["wins"] / item["games_count"] if item["games_count"] > 0 else 0
+        elif sort_criteria == SortingCriteria.NAME:
+            return item["xws"]
+        return 0
+
+    results.sort(key=sort_key, reverse=(sort_direction == SortDirection.DESCENDING))
+    return results
