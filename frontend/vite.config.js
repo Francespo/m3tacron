@@ -39,12 +39,27 @@ function resolveApiProxyTarget() {
 	return resolved;
 }
 
+// Ensure we never return an empty string as proxy target
+function resolveSafeApiProxyTarget() {
+	const t = resolveApiProxyTarget();
+	if (!t || String(t).trim() === '') return undefined;
+	return t;
+}
+
 function resolveAllowedHosts() {
 	const raw = process.env.VITE_ALLOWED_HOSTS;
 	if (!raw) {
 		logConfig('VITE_ALLOWED_HOSTS_RAW', raw);
 		logConfig('VITE_ALLOWED_HOSTS_RESOLVED', undefined);
 		return undefined;
+	}
+
+	const normalized = raw.trim().toLowerCase();
+
+	if (normalized === 'true') {
+		logConfig('VITE_ALLOWED_HOSTS_RAW', raw);
+		logConfig('VITE_ALLOWED_HOSTS_RESOLVED', true);
+		return true;
 	}
 
 	const resolved = raw
@@ -69,7 +84,7 @@ export default defineConfig({
 		...(proxyTarget
 			? {
 					proxy: {
-						'/api': proxyTarget
+						'/api': resolveSafeApiProxyTarget()
 					}
 				}
 			: {})
