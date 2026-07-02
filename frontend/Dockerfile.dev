@@ -4,6 +4,10 @@ WORKDIR /app
 
 ENV NODE_OPTIONS=--max-old-space-size=512
 
+# Allow build-time injection of the API base for dev preview deployments
+ARG VITE_API_BASE
+ENV VITE_API_BASE=$VITE_API_BASE
+
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends git ca-certificates \
 	&& rm -rf /var/lib/apt/lists/*
