@@ -275,7 +275,7 @@
                     value={configSortKey}
                     direction={configSortDir}
                     options={[
-                        { value: "popularity", label: "Games" },
+                        { value: "popularity", label: "Popularity" },
                         { value: "lists", label: "Lists" },
                         { value: "games", label: "Games" },
                         { value: "winrate", label: "Win Rate" }
