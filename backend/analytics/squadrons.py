@@ -89,11 +89,11 @@ def aggregate_squadron_stats(
             l.faction as faction,
             l.ship_list as ship_list,
             COUNT(DISTINCT ps.id) as popularity,
-            SUM(COALESCE(ps.swiss_wins, 0) + COALESCE(ps.cut_wins, 0)) as wins,
+            SUM(GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0))) as wins,
             SUM(
-                COALESCE(ps.swiss_wins, 0) + COALESCE(ps.swiss_losses, 0) +
-                COALESCE(ps.swiss_draws, 0) + COALESCE(ps.cut_wins, 0) +
-                COALESCE(ps.cut_losses, 0) + COALESCE(ps.cut_draws, 0)
+                GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.swiss_losses, 0)) +
+                GREATEST(0, COALESCE(ps.swiss_draws, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0)) +
+                GREATEST(0, COALESCE(ps.cut_losses, 0)) + GREATEST(0, COALESCE(ps.cut_draws, 0))
             ) as games
         FROM playerstanding ps
         JOIN tournament t ON t.id = ps.tournament_id
