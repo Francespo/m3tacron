@@ -71,12 +71,12 @@ def aggregate_faction_stats(
                 # Should be initialized, but if not (e.g. unknown faction)
                  continue
             
-            s_wins = result.swiss_wins or 0
-            s_losses = result.swiss_losses or 0
-            s_draws = result.swiss_draws or 0
-            c_wins = result.cut_wins or 0
-            c_losses = result.cut_losses or 0
-            c_draws = result.cut_draws or 0
+            s_wins = max(0, result.swiss_wins or 0)
+            s_losses = max(0, result.swiss_losses or 0)
+            s_draws = max(0, result.swiss_draws or 0)
+            c_wins = max(0, result.cut_wins or 0)
+            c_losses = max(0, result.cut_losses or 0)
+            c_draws = max(0, result.cut_draws or 0)
             
             wins = s_wins + c_wins
             games = wins + s_losses + s_draws + c_losses + c_draws
