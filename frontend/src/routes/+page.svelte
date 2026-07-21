@@ -412,7 +412,7 @@
                 else cmp = wrB - wrA;
             }
 
-            return dir === "asc" ? cmp : -cmp;
+            return dir === "desc" ? cmp : -cmp;
         });
     }
 
@@ -852,7 +852,7 @@
                         value={pilotSortKey}
                         direction={pilotSortDir}
                         options={[
-                            { value: "popularity", label: "Games" },
+                            { value: "popularity", label: "Popularity" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}
@@ -938,7 +938,7 @@
                         value={upgradeSortKey}
                         direction={upgradeSortDir}
                         options={[
-                            { value: "popularity", label: "Games" },
+                            { value: "popularity", label: "Popularity" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}
@@ -1018,7 +1018,7 @@
                         value={shipSortKey}
                         direction={shipSortDir}
                         options={[
-                            { value: "popularity", label: "Games" },
+                            { value: "popularity", label: "Popularity" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}
@@ -1108,7 +1108,7 @@
                         value={listSortKey}
                         direction={listSortDir}
                         options={[
-                            { value: "popularity", label: "Games" },
+                            { value: "popularity", label: "Popularity" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}
