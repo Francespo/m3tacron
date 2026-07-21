@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: m3tacron
       POSTGRES_DB: m3tacron
     ports:
-      - "5435:5432"
+      - "${POSTGRES_PORT:-5435}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     command: >
@@ -95,7 +95,7 @@ services:
       args:
         - INSTALL_PLAYWRIGHT_BROWSER=false
     ports:
-      - "8890:8888"
+      - "${BACKEND_PORT:-8890}:8888"
     volumes:
       - ./backend:/app/backend
       - ./external_data:/app/external_data:ro
