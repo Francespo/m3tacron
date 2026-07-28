@@ -40,7 +40,9 @@ function resolveBackendApiBase() {
 /** @type {import('./$types').RequestHandler} */
 export async function GET({ params, url, fetch, request }) {
 	const path = params.path || '';
-	const backendBase = resolveBackendApiBase() || resolvePreviewBackendApiBase(request.url);
+	// Preview deployments: always use internal Docker network to reach backend
+	const isPreview = process.env.ENV_VAR_SOURCE === 'preview' || (process.env.COOLIFY_BRANCH || '').startsWith('pull/');
+	const backendBase = isPreview ? 'http://backend:8888/api' : (resolveBackendApiBase() || resolvePreviewBackendApiBase(request.url));
 	const target = new URL(`${backendBase}/${path}`);
 
 	for (const [key, value] of url.searchParams.entries()) {

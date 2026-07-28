@@ -28,6 +28,11 @@ function resolveBackendFromRequestHost(url: URL): string | null {
 }
 
 function resolveBackendApiBase(url: URL): string {
+    // Preview deployments: always use internal Docker network to reach backend
+    if (process.env.ENV_VAR_SOURCE === 'preview' || process.env.COOLIFY_BRANCH?.startsWith('pull/')) {
+        return 'http://backend:8888/api';
+    }
+
     const fromHost = resolveBackendFromRequestHost(url);
     if (fromHost) {
         return fromHost;
