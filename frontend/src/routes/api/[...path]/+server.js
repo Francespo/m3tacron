@@ -9,7 +9,8 @@ function resolvePreviewBackendApiBase(requestUrl) {
 		const host = new URL(requestUrl).hostname;
 		const match = host.match(/^(\d+)\.dev\.m3tacron\.com$/);
 		if (match) {
-			return `https://${match[1]}.api.dev.m3tacron.com/api`;
+			// Preview deployment - talk directly to local backend container via docker network
+			return 'http://backend:8888/api';
 		}
 	} catch {
 		// Fall through to the default proxy target.
