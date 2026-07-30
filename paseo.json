@@ -1,6 +1,6 @@
 {
   "worktree": {
-    "setup": "git submodule update --init --recursive\npython3 -m venv .venv\n. .venv/bin/activate\npip install -e '.[dev]'\nnpm ci --prefix frontend\nmkdir -p local-data/dumps\ncp \"$PASEO_SOURCE_CHECKOUT_PATH/local-data/dumps/dev_latest.dump\" local-data/dumps/dev_latest.dump 2>/dev/null || true\nmkdir -p .ssh\ncp \"$PASEO_SOURCE_CHECKOUT_PATH/.agents/skills/m3tacron/ssh_key\" .ssh/ssh_key 2>/dev/null || true\nchmod 600 .ssh/ssh_key 2>/dev/null || true",
+    "setup": "bash scripts/local_dev/worktree_setup.sh",
     "teardown": "bash scripts/local_dev/up.sh --stop 2>/dev/null || true\nrm -rf .venv frontend/node_modules .pytest_cache local-data .ssh",
     "servicePorts": { "range": "9000-9100" }
   },
