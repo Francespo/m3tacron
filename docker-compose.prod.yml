@@ -25,7 +25,7 @@ services:
     expose:
       - "3333"
     environment:
-      - ORIGIN=${ORIGIN:-}
+      - ORIGIN=${ORIGIN:-${COOLIFY_URL}}
       - VITE_API_BASE=${VITE_API_BASE}
     depends_on:
       - backend
