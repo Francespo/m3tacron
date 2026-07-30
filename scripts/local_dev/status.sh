@@ -10,10 +10,12 @@ echo "==> Container status:"
 docker compose -f docker-compose.local.yml ps
 
 echo
+BACKEND_PORT="${BACKEND_PORT:-8890}"
+VITE_PORT="${VITE_PORT:-3335}"
 echo "==> Health probes:"
-curl -fsS -o /dev/null -w "  backend  (http://localhost:8890/)    -> HTTP %{http_code}\n" http://localhost:8890/ 2>/dev/null \
+curl -fsS -o /dev/null -w "  backend  (http://localhost:${BACKEND_PORT}/)    -> HTTP %{http_code}\n" "http://localhost:${BACKEND_PORT}/" 2>/dev/null \
   || echo "  backend  -> DOWN"
-curl -fsS -o /dev/null -w "  frontend (http://localhost:3335/)    -> HTTP %{http_code}\n" http://localhost:3335/ 2>/dev/null \
+curl -fsS -o /dev/null -w "  frontend (http://localhost:${VITE_PORT}/)    -> HTTP %{http_code}\n" "http://localhost:${VITE_PORT}/" 2>/dev/null \
   || echo "  frontend -> DOWN"
 
 echo
