@@ -80,6 +80,54 @@
         }
         return Array.from(groups.entries()).sort((a, b) => a[0] - b[0]);
     });
+
+    // --- Match round carousel state ---
+    let currentRoundIndex = $state(0);
+
+    // Clamp index when roundGroups changes (e.g. different tournament)
+    $effect(() => {
+        const max = roundGroups.length - 1;
+        if (currentRoundIndex > max) currentRoundIndex = max;
+        if (currentRoundIndex < 0) currentRoundIndex = 0;
+    });
+
+    function prevRound() {
+        if (currentRoundIndex > 0) currentRoundIndex--;
+    }
+    function nextRound() {
+        if (currentRoundIndex < roundGroups.length - 1) currentRoundIndex++;
+    }
+
+    // --- Standings pagination ---
+    const STANDINGS_PER_PAGE = 10;
+    let swissPage = $state(0);
+    let cutPage = $state(0);
+
+    const swissTotalPages = $derived(
+        Math.ceil((data.detail?.players_swiss?.length ?? 0) / STANDINGS_PER_PAGE)
+    );
+    const cutTotalPages = $derived(
+        Math.ceil((data.detail?.players_cut?.length ?? 0) / STANDINGS_PER_PAGE)
+    );
+    const swissPageItems = $derived(
+        (data.detail?.players_swiss ?? []).slice(
+            swissPage * STANDINGS_PER_PAGE,
+            (swissPage + 1) * STANDINGS_PER_PAGE
+        )
+    );
+    const cutPageItems = $derived(
+        (data.detail?.players_cut ?? []).slice(
+            cutPage * STANDINGS_PER_PAGE,
+            (cutPage + 1) * STANDINGS_PER_PAGE
+        )
+    );
+
+    // Reset pagination when tournament changes
+    $effect(() => {
+        void data.detail;
+        swissPage = 0;
+        cutPage = 0;
+    });
 </script>
 
 <svelte:head>
@@ -188,11 +236,16 @@
                 <!-- Cut Standings -->
                 {#if data.detail.players_cut && data.detail.players_cut.length > 0}
                     <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden">
-                        <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3">
+                        <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center justify-between">
                             <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">CUT STANDINGS</h2>
+                            {#if cutTotalPages > 1}
+                                <span class="text-xs font-mono text-secondary">
+                                    Page {cutPage + 1} / {cutTotalPages}
+                                </span>
+                            {/if}
                         </div>
                         <div class="flex flex-col">
-                            {#each data.detail.players_cut as p}
+                            {#each cutPageItems as p}
                                 <div class="flex items-center gap-3 p-3 border-b border-border-dark last:border-0 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
                                     <span class="w-8 h-8 rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center font-mono text-sm">{p.rank}</span>
                                     <FactionIcon faction={p.faction} size="md" />
@@ -215,16 +268,35 @@
                                 </div>
                             {/each}
                         </div>
+                        {#if cutTotalPages > 1}
+                            <div class="flex items-center justify-center gap-3 p-2 border-t border-border-dark">
+                                <button
+                                    class="px-3 py-1 border border-border-dark rounded-md text-xs font-mono text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
+                                    disabled={cutPage === 0}
+                                    onclick={() => cutPage--}
+                                >Prev</button>
+                                <button
+                                    class="px-3 py-1 border border-border-dark rounded-md text-xs font-mono text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
+                                    disabled={cutPage >= cutTotalPages - 1}
+                                    onclick={() => cutPage++}
+                                >Next</button>
+                            </div>
+                        {/if}
                     </div>
                 {/if}
 
                 <!-- Swiss Standings -->
                 <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden">
-                    <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3">
+                    <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center justify-between">
                         <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">{data.detail.players_cut?.length > 0 ? "SWISS STANDINGS" : "STANDINGS"}</h2>
+                        {#if swissTotalPages > 1}
+                            <span class="text-xs font-mono text-secondary">
+                                Page {swissPage + 1} / {swissTotalPages}
+                            </span>
+                        {/if}
                     </div>
                     <div class="flex flex-col">
-                            {#each (data.detail.players_swiss || []) as p}
+                            {#each swissPageItems as p}
                                 <div class="flex items-center gap-3 p-3 border-b border-border-dark last:border-0 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
                                     <span class="w-8 h-8 rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center font-mono text-sm">{p.rank}</span>
                                     <FactionIcon faction={p.faction} size="md" />
@@ -247,42 +319,79 @@
                                 </div>
                             {/each}
                     </div>
+                    {#if swissTotalPages > 1}
+                        <div class="flex items-center justify-center gap-3 p-2 border-t border-border-dark">
+                            <button
+                                class="px-3 py-1 border border-border-dark rounded-md text-xs font-mono text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
+                                disabled={swissPage === 0}
+                                onclick={() => swissPage--}
+                            >Prev</button>
+                            <button
+                                class="px-3 py-1 border border-border-dark rounded-md text-xs font-mono text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
+                                disabled={swissPage >= swissTotalPages - 1}
+                                onclick={() => swissPage++}
+                            >Next</button>
+                        </div>
+                    {/if}
                 </div>
             </div>
 
-            <!-- Matches -->
-            {#if matches.length > 0}
-                <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden">
-                    <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3">
-                        <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">MATCHES</h2>
+            <!-- Matches (round carousel) -->
+            {#if roundGroups.length > 0}
+                {@const [roundNum, roundMatches] = roundGroups[currentRoundIndex]}
+                {@const dom = dominantScenario(roundMatches)}
+                <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden flex flex-col" style="max-height: calc(100vh - 120px);">
+                    <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center justify-between gap-2 shrink-0">
+                        <button
+                            class="p-1.5 rounded-md border border-border-dark text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
+                            disabled={currentRoundIndex === 0}
+                            onclick={prevRound}
+                            aria-label="Previous round"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                        </button>
+                        <div class="flex-1 text-center min-w-0">
+                            <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">
+                                ROUND {roundNum}
+                            </h2>
+                            {#if dom}
+                                <span class="text-[11px] font-mono text-secondary uppercase tracking-wider">{humanizeScenario(dom)}</span>
+                            {/if}
+                        </div>
+                        <button
+                            class="p-1.5 rounded-md border border-border-dark text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
+                            disabled={currentRoundIndex >= roundGroups.length - 1}
+                            onclick={nextRound}
+                            aria-label="Next round"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                        </button>
                     </div>
-                    <div class="flex flex-col gap-2 p-2">
-                        {#each roundGroups as [roundNum, roundMatches]}
-                            {@const dom = dominantScenario(roundMatches)}
-                            <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden">
-                                <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center gap-3">
-                                    <h3 class="text-sm font-bold text-primary font-mono">ROUND {roundNum}</h3>
-                                    {#if dom}
-                                        <span class="text-xs font-mono text-secondary uppercase tracking-wider">· {humanizeScenario(dom)}</span>
-                                    {/if}
+                    <div class="flex flex-col divide-y divide-border-dark/50 overflow-y-auto p-2">
+                        {#each roundMatches as m}
+                            {@const winnerName = pickWinnerName(m)}
+                            <div class="flex items-center justify-between gap-3 p-2 mx-1 my-0.5 rounded-md bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)] transition-colors">
+                                <span class="font-mono text-sm text-left flex-1 truncate pr-2 {winnerName === m.player1 ? 'text-green-400 font-bold' : winnerName === null ? 'text-secondary' : 'text-primary'}" title={m.player1}>{m.player1}</span>
+                                <div class="flex items-center justify-center gap-1 font-mono text-base w-14 font-bold">
+                                    <span class={winnerName === m.player1 ? 'text-green-400 bg-green-500/15 px-2 py-0.5 rounded-md border border-green-500/30' : winnerName === null ? 'text-secondary' : 'text-red-400'}>{m.score1}</span>
+                                    <span class="text-secondary">-</span>
+                                    <span class={winnerName === m.player2 ? 'text-green-400 bg-green-500/15 px-2 py-0.5 rounded-md border border-green-500/30' : winnerName === null ? 'text-secondary' : 'text-red-400'}>{m.score2}</span>
                                 </div>
-                                <div class="flex flex-col divide-y divide-border-dark/50">
-                                    {#each roundMatches as m}
-                                        {@const winnerName = pickWinnerName(m)}
-                                        <div class="flex items-center justify-between gap-3 p-2 mx-1 my-0.5 rounded-md bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)] transition-colors">
-                                            <span class="font-mono text-sm text-left flex-1 truncate pr-2 {winnerName === m.player1 ? 'text-green-400 font-bold' : winnerName === null ? 'text-secondary' : 'text-primary'}" title={m.player1}>{m.player1}</span>
-                                            <div class="flex items-center justify-center gap-1 font-mono text-base w-14 font-bold">
-                                                <span class={winnerName === m.player1 ? 'text-green-400 bg-green-500/15 px-2 py-0.5 rounded-md border border-green-500/30' : winnerName === null ? 'text-secondary' : 'text-red-400'}>{m.score1}</span>
-                                                <span class="text-secondary">-</span>
-                                                <span class={winnerName === m.player2 ? 'text-green-400 bg-green-500/15 px-2 py-0.5 rounded-md border border-green-500/30' : winnerName === null ? 'text-secondary' : 'text-red-400'}>{m.score2}</span>
-                                            </div>
-                                            <span class="font-mono text-sm text-right flex-1 truncate pl-2 {winnerName === m.player2 ? 'text-green-400 font-bold' : winnerName === null ? 'text-secondary' : 'text-primary'}" title={m.player2}>{m.player2}</span>
-                                        </div>
-                                    {/each}
-                                </div>
+                                <span class="font-mono text-sm text-right flex-1 truncate pl-2 {winnerName === m.player2 ? 'text-green-400 font-bold' : winnerName === null ? 'text-secondary' : 'text-primary'}" title={m.player2}>{m.player2}</span>
                             </div>
                         {/each}
                     </div>
+                    {#if roundGroups.length > 1}
+                        <div class="flex items-center justify-center gap-1.5 p-2 border-t border-border-dark shrink-0">
+                            {#each roundGroups as _, i}
+                                <button
+                                    class="w-2 h-2 rounded-full transition-colors {i === currentRoundIndex ? 'bg-primary' : 'bg-[rgba(255,255,255,0.15)] hover:bg-[rgba(255,255,255,0.25)]'}"
+                                    onclick={() => currentRoundIndex = i}
+                                    aria-label="Go to round {roundGroups[i][0]}"
+                                ></button>
+                            {/each}
+                        </div>
+                    {/if}
                 </div>
             {/if}
         </div>
