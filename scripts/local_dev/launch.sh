@@ -1,30 +1,45 @@
 #!/usr/bin/env bash
-# Launch the m3tacron local dev stack (backend + DB in Docker, frontend on host).
-# Usage: bash scripts/local_dev/launch.sh [--port PORT]
+# m3tacron local dev — single entry point.
+# Auto-runs setup if first time, then starts the stack.
 #
-# This is the simple entry point for agents working in a worktree.
-# For more control, use up.sh directly.
+# Usage:
+#   bash scripts/local_dev/launch.sh              # setup + launch (full stack, Vite foreground)
+#   bash scripts/local_dev/launch.sh --setup-only # setup only, don't start servers
+#   bash scripts/local_dev/launch.sh --port 4335  # custom frontend port
+#
+# Ports are configurable via env or flags:
+#   BACKEND_PORT, POSTGRES_PORT, VITE_PORT (or --backend-port, --postgres-port, --port)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$REPO_ROOT"
 
-# --- Configurable ports (env or arg) ---
+# --- Parse args ---
 BACKEND_PORT="${BACKEND_PORT:-8890}"
 POSTGRES_PORT="${POSTGRES_PORT:-5435}"
 VITE_PORT="${VITE_PORT:-3335}"
+SETUP_ONLY=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --port) VITE_PORT="$2"; shift 2 ;;
     --backend-port) BACKEND_PORT="$2"; shift 2 ;;
     --postgres-port) POSTGRES_PORT="$2"; shift 2 ;;
+    --setup-only) SETUP_ONLY=true; shift ;;
     *) echo "Unknown arg: $1"; exit 1 ;;
   esac
 done
 
 export BACKEND_PORT POSTGRES_PORT VITE_PORT
+
+# --- Setup if needed ---
+bash "$SCRIPT_DIR/ensure-setup.sh"
+
+if $SETUP_ONLY; then
+  echo "==> Setup-only mode. Exiting."
+  exit 0
+fi
 
 # --- Bring up Docker stack ---
 echo "==> Starting Postgres (:$POSTGRES_PORT) + Backend (:$BACKEND_PORT)..."

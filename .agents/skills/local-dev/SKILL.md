@@ -21,8 +21,9 @@ One-command local hosting against a fresh copy of the live dev DB.
 bash scripts/local_dev/launch.sh
 ```
 
-This starts Postgres + backend in Docker, waits for health, then runs Vite in the foreground with hot-reload. Output:
+This auto-detects whether dependencies are installed. First run does full setup (submodules, venv, npm, dump copy), then starts the stack. Subsequent runs skip setup and launch directly.
 
+Output:
 ```
 ============================================================
   m3tacron dev stack
@@ -34,13 +35,11 @@ This starts Postgres + backend in Docker, waits for health, then runs Vite in th
 
 Press Ctrl+C to stop Vite. Docker stack keeps running (stop with `up.sh --stop`).
 
-### Alternative: background mode
+### Setup only
 
 ```bash
-bash scripts/local_dev/up.sh
+bash scripts/local_dev/launch.sh --setup-only
 ```
-
-Starts Docker stack + Vite in background. Returns immediately with status URLs.
 
 ## Architecture
 
@@ -117,8 +116,10 @@ Paseo assigns unique ports from the `9000-9100` range per worktree. Docker port 
 
 | Command | What it does |
 |---|---|
-| `bash scripts/local_dev/launch.sh` | Start full stack with Vite in foreground (agent-friendly) |
-| `bash scripts/local_dev/up.sh` | Start full stack with Vite in background |
+| `bash scripts/local_dev/launch.sh` | One-command start: auto-setup + Docker + Vite (foreground) |
+| `bash scripts/local_dev/launch.sh --setup-only` | Run setup only (submodules, venv, npm, dump) |
+| `bash scripts/local_dev/launch.sh --port 4335` | Start with custom frontend port |
+| `bash scripts/local_dev/up.sh` | Alternative: start full stack with Vite in background |
 | `bash scripts/local_dev/up.sh --stop` | Stop everything (Docker + Vite) |
 | `bash scripts/local_dev/seed.sh` | Force a fresh dev dump from the server |
 | `bash scripts/local_dev/status.sh` | Container status, health probes, DB row counts, dump age |
