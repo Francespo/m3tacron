@@ -1,0 +1,43 @@
+{
+  "worktree": {
+    "setup": "git submodule update --init --recursive\npython3 -m venv .venv\n. .venv/bin/activate\npip install -e '.[dev]'\nnpm ci --prefix frontend\nmkdir -p local-data/dumps\ncp \"$PASEO_SOURCE_CHECKOUT_PATH/local-data/dumps/dev_latest.dump\" local-data/dumps/dev_latest.dump 2>/dev/null || true\nmkdir -p .ssh\ncp \"$PASEO_SOURCE_CHECKOUT_PATH/.agents/skills/m3tacron/ssh_key\" .ssh/ssh_key 2>/dev/null || true\nchmod 600 .ssh/ssh_key 2>/dev/null || true",
+    "teardown": "bash scripts/local_dev/up.sh --stop 2>/dev/null || true\nrm -rf .venv frontend/node_modules .pytest_cache local-data .ssh",
+    "servicePorts": { "range": "9000-9100" }
+  },
+  "scripts": {
+    "local": {
+      "command": "bash scripts/local_dev/up.sh"
+    },
+    "seed": {
+      "command": "LOCAL_DEV_SSH_KEY=.ssh/ssh_key bash scripts/local_dev/seed.sh"
+    },
+    "reset": {
+      "command": "bash scripts/local_dev/reset.sh"
+    },
+    "status": {
+      "command": "bash scripts/local_dev/status.sh"
+    },
+    "test": {
+      "command": ". .venv/bin/activate && pytest"
+    },
+    "test:backend": {
+      "command": ". .venv/bin/activate && pytest backend/tests"
+    },
+    "lint": {
+      "command": "npm run check --prefix frontend"
+    },
+    "db": {
+      "command": "bash scripts/local_dev/db.sh"
+    },
+    "backend": {
+      "type": "service",
+      "command": "docker compose -f docker-compose.local.yml up --build --abort-on-container-exit postgres db-seed backend",
+      "port": 8890
+    },
+    "frontend": {
+      "type": "service",
+      "command": "VITE_API_BASE=\"http://localhost:$PASEO_SERVICE_BACKEND_PORT/api\" npm run dev --prefix frontend -- --host 0.0.0.0 --port $PASEO_PORT",
+      "port": 3335
+    }
+  }
+}

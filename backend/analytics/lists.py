@@ -133,11 +133,11 @@ def aggregate_list_stats(
                 l.list_json,
                 COUNT(*) as games,
                 SUM(
-                    COALESCE(ps.swiss_wins, 0) + COALESCE(ps.swiss_losses, 0) +
-                    COALESCE(ps.swiss_draws, 0) + COALESCE(ps.cut_wins, 0) +
-                    COALESCE(ps.cut_losses, 0) + COALESCE(ps.cut_draws, 0)
+                    GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.swiss_losses, 0)) +
+                    GREATEST(0, COALESCE(ps.swiss_draws, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0)) +
+                    GREATEST(0, COALESCE(ps.cut_losses, 0)) + GREATEST(0, COALESCE(ps.cut_draws, 0))
                 ) as total_games,
-                SUM(COALESCE(ps.swiss_wins, 0) + COALESCE(ps.cut_wins, 0)) as wins
+                SUM(GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0))) as wins
             FROM playerstanding ps
             JOIN tournament t ON t.id = ps.tournament_id
             JOIN list l ON l.id = ps.list_id

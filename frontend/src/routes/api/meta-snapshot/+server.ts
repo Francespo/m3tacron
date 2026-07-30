@@ -8,26 +8,31 @@ function normalizeBackendApiBase(raw: string): string {
 function resolveBackendFromRequestHost(url: URL): string | null {
     const host = url.hostname.toLowerCase();
 
-    // Preview: 110.dev.m3tacron.com -> 110.api.dev.m3tacron.com
+    // Preview deployment - talk directly to local backend container via docker network
     const previewMatch = host.match(/^(\d+)\.dev\.m3tacron\.com$/);
     if (previewMatch) {
-        return `${url.protocol}//${previewMatch[1]}.api.dev.m3tacron.com/api`;
+        return 'http://backend:8888/api';
     }
 
     // Shared dev domain.
     if (host === 'dev.m3tacron.com') {
-        return `${url.protocol}//api.dev.m3tacron.com/api`;
+        return `https://api.dev.m3tacron.com/api`;
     }
 
     // Production domains.
     if (host === 'm3tacron.com' || host === 'www.m3tacron.com') {
-        return `${url.protocol}//api.m3tacron.com/api`;
+        return `https://api.m3tacron.com/api`;
     }
 
     return null;
 }
 
 function resolveBackendApiBase(url: URL): string {
+    // Preview deployments: always use internal Docker network to reach backend
+    if (process.env.ENV_VAR_SOURCE === 'preview' || process.env.COOLIFY_BRANCH?.startsWith('pull/')) {
+        return 'http://backend:8888/api';
+    }
+
     const fromHost = resolveBackendFromRequestHost(url);
     if (fromHost) {
         return fromHost;

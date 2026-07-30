@@ -398,10 +398,10 @@ def aggregate_card_stats(
             SELECT
                 p->>'id' as card_xws,
                 COUNT(DISTINCT ps.id) as list_count,
-                SUM(COALESCE(ps.swiss_wins, 0) + COALESCE(ps.cut_wins, 0)) as wins,
+                SUM(GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0))) as wins,
                 SUM(
-                    COALESCE(ps.swiss_wins, 0) + COALESCE(ps.swiss_losses, 0) + COALESCE(ps.swiss_draws, 0)
-                    + COALESCE(ps.cut_wins, 0) + COALESCE(ps.cut_losses, 0) + COALESCE(ps.cut_draws, 0)
+                    GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.swiss_losses, 0)) + GREATEST(0, COALESCE(ps.swiss_draws, 0))
+                    + GREATEST(0, COALESCE(ps.cut_wins, 0)) + GREATEST(0, COALESCE(ps.cut_losses, 0)) + GREATEST(0, COALESCE(ps.cut_draws, 0))
                 ) as games,
                 COUNT(DISTINCT ps.list_id) as different_lists_count
             FROM playerstanding ps
@@ -452,10 +452,10 @@ def aggregate_card_stats(
             SELECT
                 u_elem as card_xws,
                 COUNT(DISTINCT ps_id) as list_count,
-                SUM(COALESCE(swiss_wins, 0) + COALESCE(cut_wins, 0)) as wins,
+                SUM(GREATEST(0, COALESCE(swiss_wins, 0)) + GREATEST(0, COALESCE(cut_wins, 0))) as wins,
                 SUM(
-                    COALESCE(swiss_wins, 0) + COALESCE(swiss_losses, 0) + COALESCE(swiss_draws, 0)
-                    + COALESCE(cut_wins, 0) + COALESCE(cut_losses, 0) + COALESCE(cut_draws, 0)
+                    GREATEST(0, COALESCE(swiss_wins, 0)) + GREATEST(0, COALESCE(swiss_losses, 0)) + GREATEST(0, COALESCE(swiss_draws, 0))
+                    + GREATEST(0, COALESCE(cut_wins, 0)) + GREATEST(0, COALESCE(cut_losses, 0)) + GREATEST(0, COALESCE(cut_draws, 0))
                 ) as games,
                 COUNT(DISTINCT list_id) as different_lists_count
             FROM upgrade_values, jsonb_array_elements_text(upgrades_json) u_elem

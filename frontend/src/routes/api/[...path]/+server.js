@@ -9,7 +9,8 @@ function resolvePreviewBackendApiBase(requestUrl) {
 		const host = new URL(requestUrl).hostname;
 		const match = host.match(/^(\d+)\.dev\.m3tacron\.com$/);
 		if (match) {
-			return `https://${match[1]}.api.dev.m3tacron.com/api`;
+			// Preview deployment - talk directly to local backend container via docker network
+			return 'http://backend:8888/api';
 		}
 	} catch {
 		// Fall through to the default proxy target.
@@ -39,7 +40,9 @@ function resolveBackendApiBase() {
 /** @type {import('./$types').RequestHandler} */
 export async function GET({ params, url, fetch, request }) {
 	const path = params.path || '';
-	const backendBase = resolveBackendApiBase() || resolvePreviewBackendApiBase(request.url);
+	// Preview deployments: always use internal Docker network to reach backend
+	const isPreview = process.env.ENV_VAR_SOURCE === 'preview' || (process.env.COOLIFY_BRANCH || '').startsWith('pull/');
+	const backendBase = isPreview ? 'http://backend:8888/api' : (resolveBackendApiBase() || resolvePreviewBackendApiBase(request.url));
 	const target = new URL(`${backendBase}/${path}`);
 
 	for (const [key, value] of url.searchParams.entries()) {
