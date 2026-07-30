@@ -11,28 +11,36 @@ One-command local hosting against a fresh copy of the live dev DB.
 
 - Docker + Docker Compose v2 (`docker compose` CLI)
 - Node.js 20+ on the host (for native Vite dev server)
-- `ssh` + `scp` on PATH
-- Access to the dev DB container via the `audit-bot` SSH key
+- `ssh` + `scp` on PATH (only needed for `seed.sh` to pull fresh dumps)
+- Access to the dev DB container via the `audit-bot` SSH key (only for `seed.sh`)
 - ~5 GB free disk for the Postgres volume + the dump cache
 
 ## Quick start
 
 ```bash
+bash scripts/local_dev/launch.sh
+```
+
+This starts Postgres + backend in Docker, waits for health, then runs Vite in the foreground with hot-reload. Output:
+
+```
+============================================================
+  m3tacron dev stack
+  Postgres: localhost:5435  (m3tacron / m3tacron)
+  Backend:  http://localhost:8890  (docs at /docs)
+  Frontend: starting on port 3335...
+============================================================
+```
+
+Press Ctrl+C to stop Vite. Docker stack keeps running (stop with `up.sh --stop`).
+
+### Alternative: background mode
+
+```bash
 bash scripts/local_dev/up.sh
 ```
 
-Output:
-```
-============================================================
-  m3tacron local stack is running
-  Frontend: http://localhost:3335  (hot-reload via Vite)
-  Backend:  http://localhost:8890  (docs at /docs)
-  Postgres: localhost:5435         (m3tacron / m3tacron)
-  Dump age: 2026-06-18 21:30:01
-============================================================
-  To stop: bash scripts/local_dev/up.sh --stop
-  Logs:    bash scripts/local_dev/logs.sh [backend|postgres]
-```
+Starts Docker stack + Vite in background. Returns immediately with status URLs.
 
 ## Architecture
 
@@ -57,15 +65,60 @@ Output:
 └─────────────────────────────────────────────────┘
 ```
 
-- **Frontend**: runs natively on the host via `npx vite dev` with `VITE_API_BASE=http://localhost:8890/api`. Editing `frontend/src/` triggers instant Vite HMR.
+- **Frontend**: runs natively on the host via Vite with `VITE_API_BASE=http://localhost:8890/api`. Editing `frontend/src/` triggers instant HMR.
 - **Backend**: runs in Docker with `uvicorn --reload` watching `backend/`. Editing backend files triggers instant reload.
 - **Database**: runs in Docker on port 5435 with a named volume (`pgdata`). Seeded from the dev server's dump on first `up`.
+
+## Configurable ports
+
+All ports are configurable via environment variables, so parallel worktrees can coexist:
+
+| Variable | Default | Used by |
+|---|---|---|
+| `BACKEND_PORT` | `8890` | Backend container host mapping, healthcheck, Vite API base |
+| `POSTGRES_PORT` | `5435` | Postgres container host mapping |
+| `VITE_PORT` | `3335` | Vite dev server, `up.sh` background process |
+
+Override per invocation:
+
+```bash
+BACKEND_PORT=9890 VITE_PORT=4335 bash scripts/local_dev/launch.sh
+```
+
+Or pass flags to `launch.sh`:
+
+```bash
+bash scripts/local_dev/launch.sh --port 4335 --backend-port 9890
+```
+
+## Paseo worktree integration
+
+When Paseo creates a worktree, `paseo.json` triggers `scripts/local_dev/worktree_setup.sh` which:
+
+1. Initializes git submodules (`external_data/`) with retry — falls back to copying from the source checkout if clone fails
+2. Creates a Python venv and installs backend + dev dependencies
+3. Runs `npm ci` in `frontend/`
+4. Copies the cached DB dump from the source checkout (`local-data/dumps/dev_latest.dump`)
+5. Copies the SSH key for `seed.sh` (`.agents/skills/m3tacron/ssh_key` → `.ssh/ssh_key`)
+
+After setup, agents start the stack with:
+
+```bash
+bash scripts/local_dev/launch.sh
+```
+
+Or use the Paseo `launch` service (registered as a foreground service on port 3335).
+
+### Parallel worktrees
+
+Paseo assigns unique ports from the `9000-9100` range per worktree. Docker port mappings use `$BACKEND_PORT` and `$POSTGRES_PORT` env vars, so each worktree's stack binds to different host ports.
 
 ## Helper commands
 
 | Command | What it does |
 |---|---|
-| `bash scripts/local_dev/up.sh` | Bring up backend+DB in Docker, frontend on host with hot-reload |
+| `bash scripts/local_dev/launch.sh` | Start full stack with Vite in foreground (agent-friendly) |
+| `bash scripts/local_dev/up.sh` | Start full stack with Vite in background |
 | `bash scripts/local_dev/up.sh --stop` | Stop everything (Docker + Vite) |
 | `bash scripts/local_dev/seed.sh` | Force a fresh dev dump from the server |
 | `bash scripts/local_dev/status.sh` | Container status, health probes, DB row counts, dump age |
@@ -78,8 +131,15 @@ Output:
 
 ### I just changed a frontend component
 ```bash
-bash scripts/local_dev/up.sh   # only needed the first time
+bash scripts/local_dev/launch.sh  # or up.sh
 # edit frontend/src/ — Vite HMR shows the change instantly
+```
+
+### I just changed a backend endpoint
+```bash
+# launch.sh/up.sh must already be running
+# edit backend/ — uvicorn --reload picks it up
+curl -s http://localhost:8890/api/your-endpoint
 ```
 
 ### I want fresh dev data
@@ -91,7 +151,7 @@ docker compose -f docker-compose.local.yml restart db-seed
 ### I want a clean DB
 ```bash
 bash scripts/local_dev/reset.sh
-bash scripts/local_dev/up.sh
+bash scripts/local_dev/launch.sh
 ```
 
 ### I want to test backend only (no frontend)
@@ -102,17 +162,22 @@ curl -s http://localhost:8890/api/tournaments | jq '.total'
 
 ## Troubleshooting
 
-**Port 3335 already in use**
-The Vite server will automatically try 3336, 3337, etc. Check:
-```bash
-grep -oP 'Local:\s+http://localhost:\K[0-9]+' /tmp/m3tacron-vite.log
-```
+**Port already in use**
+Override via env: `BACKEND_PORT=9890 bash scripts/local_dev/launch.sh`
 
 **Frontend shows "ECONNREFUSED" on API calls**
 Backend is not healthy yet. Wait ~30s or check `bash scripts/local_dev/status.sh`.
 
 **`up.sh` hangs on "Waiting for backend healthcheck"**
 Tail logs: `bash scripts/local_dev/logs.sh backend`
+
+**Submodule clone fails in worktree**
+`worktree_setup.sh` retries once, then falls back to copying `external_data/` from the source checkout. If that also fails, run manually:
+```bash
+git submodule update --init --recursive
+# or
+cp -a "$PASEO_SOURCE_CHECKOUT_PATH/external_data" external_data
+```
 
 **Test against prod DB instead of dev**
 ```bash
@@ -125,6 +190,7 @@ LOCAL_DEV_DB_CONTAINER=rdvq2p6xwxho16pbcyd40w0d bash scripts/local_dev/seed.sh
 - Postgres volume: Docker named volume `pgdata`
 - Backend code: bind-mounted (no rebuild on edit)
 - Frontend code: runs natively (Vite watches for changes)
+- SSH key (worktrees): `.ssh/ssh_key` (gitignored, copied from source checkout)
 
 To nuke everything: `bash scripts/local_dev/reset.sh`
 
@@ -149,12 +215,12 @@ The VPS has **10 GB RAM and 2 cores**. Without limits, a single heavy query can 
 | `work_mem` | 4 MB | Per-operation memory for sorts, hashes, merges. Too high = OOM with concurrent queries. |
 | `maintenance_work_mem` | 128 MB | For VACUUM, CREATE INDEX, ALTER TABLE. |
 | `max_connections` | 20 | Each connection costs ~10 MB. Low concurrency for local dev. |
-| `statement_timeout` | 60000 (60s) | Kills any query running longer than 60 seconds. Prevents runaway queries from hanging forever. |
+| `statement_timeout` | 120000 (120s) | Kills any query running longer than 120 seconds. Prevents runaway queries from hanging forever. |
 
 ### Crash prevention measures
 
 1. **Container memory limits** — If a container exceeds its limit, Docker kills it (not the host). The host survives.
-2. **`statement_timeout=60s`** — PostgreSQL auto-kills queries that run longer than 60 seconds. No query can hang indefinitely.
+2. **`statement_timeout=120s`** — PostgreSQL auto-kills queries that run longer than 120 seconds. No query can hang indefinitely.
 3. **Low `work_mem=4MB`** — Prevents a single sort/hash operation from consuming hundreds of MB.
 4. **PID limits** — Prevents fork bombs or runaway process creation inside containers.
 5. **Migration auto-applied on seed** — The db-seed container runs `migrate_performance.sql` after restoring the dump, so the jsonb conversion and indexes are always present.
@@ -167,5 +233,5 @@ docker ps -a | grep -v Up
 # Check if it was OOM
 docker inspect <container> --format '{{.State.OOMKilled}}'
 # Restart the stack
-bash scripts/local_dev/up.sh
+bash scripts/local_dev/launch.sh
 ```
