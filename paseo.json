@@ -1,7 +1,7 @@
 {
   "worktree": {
     "setup": "bash scripts/local_dev/worktree_setup.sh",
-    "teardown": "bash scripts/local_dev/up.sh --stop 2>/dev/null || true\nrm -rf .venv frontend/node_modules .pytest_cache local-data .ssh",
+    "teardown": "bash scripts/local_dev/up.sh --stop 2>/dev/null || true\nrm -rf .venv frontend/node_modules .pytest_cache local-data",
     "servicePorts": { "range": "9000-9100" }
   },
   "scripts": {
@@ -14,7 +14,7 @@
       "port": 3335
     },
     "seed": {
-      "command": "LOCAL_DEV_SSH_KEY=.ssh/ssh_key bash scripts/local_dev/seed.sh"
+      "command": "bash scripts/local_dev/seed.sh"
     },
     "reset": {
       "command": "bash scripts/local_dev/reset.sh"

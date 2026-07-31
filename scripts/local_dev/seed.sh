@@ -7,7 +7,7 @@
 #   bash scripts/local_dev/seed.sh --from-server
 #
 # Environment overrides (all optional):
-#   LOCAL_DEV_SSH_KEY      path to ssh key   (default: <project>/.agents/skills/m3tacron/ssh_key)
+#   LOCAL_DEV_SSH_KEY      path to ssh key   (default: ~/.ssh/m3tacron_audit_bot)
 #   LOCAL_DEV_SSH_USER     ssh user          (default: audit-bot)
 #   LOCAL_DEV_SSH_HOST     ssh host          (default: 84.8.253.2)
 #   LOCAL_DEV_DB_CONTAINER dev DB container  (default: h356grmw78dsf5qwsqb8l0xd)
@@ -19,7 +19,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DUMPS_DIR="$REPO_ROOT/local-data/dumps"
 mkdir -p "$DUMPS_DIR"
 
-SSH_KEY="${LOCAL_DEV_SSH_KEY:-$REPO_ROOT/.agents/skills/m3tacron/ssh_key}"
+SSH_KEY="${LOCAL_DEV_SSH_KEY:-$HOME/.ssh/m3tacron_audit_bot}"
 SSH_USER="${LOCAL_DEV_SSH_USER:-audit-bot}"
 SSH_HOST="${LOCAL_DEV_SSH_HOST:-84.8.253.2}"
 DB_CONTAINER="${LOCAL_DEV_DB_CONTAINER:-h356grmw78dsf5qwsqb8l0xd}"

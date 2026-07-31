@@ -51,11 +51,4 @@ if [[ -n "$SRC" ]]; then
   cp "$SRC/local-data/dumps/dev_latest.dump" local-data/dumps/dev_latest.dump 2>/dev/null || true
 fi
 
-# --- Copy SSH key ---
-if [[ -n "$SRC" ]]; then
-  mkdir -p .ssh
-  cp "$SRC/.agents/skills/m3tacron/ssh_key" .ssh/ssh_key 2>/dev/null || true
-  chmod 600 .ssh/ssh_key 2>/dev/null || true
-fi
-
 echo "==> Setup complete."

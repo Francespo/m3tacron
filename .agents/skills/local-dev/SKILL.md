@@ -11,9 +11,8 @@ One-command local hosting against a fresh copy of the live dev DB.
 
 - Docker + Docker Compose v2 (`docker compose` CLI)
 - Node.js 20+ on the host (for native Vite dev server)
-- `ssh` + `scp` on PATH (only needed for `seed.sh` to pull fresh dumps)
-- Access to the dev DB container via the `audit-bot` SSH key (only for `seed.sh`)
 - ~5 GB free disk for the Postgres volume + the dump cache
+- **SSH key at `~/.ssh/m3tacron_audit_bot`** (only for `seed.sh` to pull fresh dumps from the dev server — not needed if you already have a cached dump)
 
 ## Quick start
 
@@ -98,7 +97,6 @@ When Paseo creates a worktree, `paseo.json` triggers `scripts/local_dev/worktree
 2. Creates a Python venv and installs backend + dev dependencies
 3. Runs `npm ci` in `frontend/`
 4. Copies the cached DB dump from the source checkout (`local-data/dumps/dev_latest.dump`)
-5. Copies the SSH key for `seed.sh` (`.agents/skills/m3tacron/ssh_key` → `.ssh/ssh_key`)
 
 After setup, agents start the stack with:
 
@@ -191,7 +189,7 @@ LOCAL_DEV_DB_CONTAINER=rdvq2p6xwxho16pbcyd40w0d bash scripts/local_dev/seed.sh
 - Postgres volume: Docker named volume `pgdata`
 - Backend code: bind-mounted (no rebuild on edit)
 - Frontend code: runs natively (Vite watches for changes)
-- SSH key (worktrees): `.ssh/ssh_key` (gitignored, copied from source checkout)
+- SSH key: `~/.ssh/m3tacron_audit_bot` (machine-level, not in repo)
 
 To nuke everything: `bash scripts/local_dev/reset.sh`
 
