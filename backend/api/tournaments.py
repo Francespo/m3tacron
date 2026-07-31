@@ -225,45 +225,6 @@ def get_tournament_detail(tournament_id: int):
         query_p = select(PlayerStanding).where(PlayerStanding.tournament_id == tournament_id).order_by(PlayerStanding.swiss_rank)  # pyright: ignore[reportArgumentType,reportAttributeAccessIssue]
         all_results = session.exec(query_p).all()
 
-        matches_db = session.exec(select(Match).where(Match.tournament_id == tournament_id).order_by(Match.round_number)).all()  # pyright: ignore[reportArgumentType,reportAttributeAccessIssue]
-
-        # Compute fallback W-L stats from match history if DB stats are unpopulated (0)
-        player_computed_stats: dict[int, dict[str, int]] = {}
-        for p in all_results:
-            if p.id is not None:
-                player_computed_stats[p.id] = {"wins": 0, "losses": 0}
-
-        for m in matches_db:
-            p1_id = m.player1_id
-            p2_id = m.player2_id
-            w_id = m.winner_id
-            s1 = m.player1_score or 0
-            s2 = m.player2_score or 0
-
-            if m.is_bye or p2_id is None:
-                if p1_id is not None and p1_id in player_computed_stats:
-                    player_computed_stats[p1_id]["wins"] += 1
-                continue
-
-            if w_id is not None:
-                if w_id in player_computed_stats:
-                    player_computed_stats[w_id]["wins"] += 1
-                if p1_id == w_id and p2_id is not None and p2_id in player_computed_stats:
-                    player_computed_stats[p2_id]["losses"] += 1
-                elif p2_id == w_id and p1_id is not None and p1_id in player_computed_stats:
-                    player_computed_stats[p1_id]["losses"] += 1
-            else:
-                if s1 > s2:
-                    if p1_id is not None and p1_id in player_computed_stats:
-                        player_computed_stats[p1_id]["wins"] += 1
-                    if p2_id is not None and p2_id in player_computed_stats:
-                        player_computed_stats[p2_id]["losses"] += 1
-                elif s2 > s1:
-                    if p2_id is not None and p2_id in player_computed_stats:
-                        player_computed_stats[p2_id]["wins"] += 1
-                    if p1_id is not None and p1_id in player_computed_stats:
-                        player_computed_stats[p1_id]["losses"] += 1
-
         # Pre-fetch faction from the joined list table for each row.
         # list_id is set for the bulk of modern rows; legacy rows may be null
         # and fall back to the original list_json read.
@@ -300,23 +261,14 @@ def get_tournament_detail(tournament_id: int):
 
             has_list = bool(p.list_json and isinstance(p.list_json, dict) and p.list_json.get("pilots"))
 
-            db_wins = (p.swiss_wins or 0) + (p.cut_wins or 0)
-            db_losses = (p.swiss_losses or 0) + (p.cut_losses or 0)
-            calc = player_computed_stats.get(p.id, {}) if p.id else {}
-            calc_w = calc.get("wins", 0)
-            calc_l = calc.get("losses", 0)
-
-            final_wins = db_wins if db_wins > 0 else calc_w
-            final_losses = db_losses if (db_wins > 0 or db_losses > 0) else calc_l
-
             p_res = PlayerStandingData(
                 id=p.id,  # pyright: ignore[reportArgumentType,reportAttributeAccessIssue]
                 name=p.player_name,
                 rank=p.swiss_rank if p.swiss_rank is not None else 0,
                 swiss_rank=p.swiss_rank if p.swiss_rank is not None else 0,
                 cut_rank=p.cut_rank,
-                wins=final_wins,
-                losses=final_losses,
+                wins=(p.swiss_wins or 0) + (p.cut_wins or 0),
+                losses=(p.swiss_losses or 0) + (p.cut_losses or 0),
                 faction=faction_enum,
                 list_json=p.list_json if has_list else None,
                 list_id=p.list_id,
@@ -331,6 +283,7 @@ def get_tournament_detail(tournament_id: int):
         players_swiss.sort(key=lambda x: x.swiss_rank)
         players_cut.sort(key=lambda x: x.cut_rank)
         
+        matches_db = session.exec(select(Match).where(Match.tournament_id == tournament_id).order_by(Match.round_number)).all()  # pyright: ignore[reportArgumentType,reportAttributeAccessIssue]
         player_map = {p.id: p.player_name for p in all_results}
         
         matches = [MatchData(

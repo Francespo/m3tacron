@@ -114,7 +114,13 @@
 
         const entries = Array.from(map.values());
         const swissRounds = entries.filter((e) => e.type === "swiss").sort((a, b) => a.roundNum - b.roundNum);
-        const cutRounds = entries.filter((e) => e.type === "cut").sort((a, b) => a.roundNum - b.roundNum);
+        // Knockout stages run from the largest bracket to the final, so order
+        // cut rounds by match count descending (most matches = earliest stage).
+        // round_number semantics vary by source (Top-N size vs sequential), so
+        // match count is the reliable ordering signal.
+        const cutRounds = entries
+            .filter((e) => e.type === "cut")
+            .sort((a, b) => b.matches.length - a.matches.length);
 
         const result: RoundGroup[] = [];
 
