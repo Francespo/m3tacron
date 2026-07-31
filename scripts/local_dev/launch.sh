@@ -2,6 +2,9 @@
 # m3tacron local dev — single entry point.
 # Auto-runs setup if first time, then starts the stack.
 #
+# The server binds to 0.0.0.0 so it's accessible to other users in the tailnet.
+# The tailnet hostname is auto-detected via `tailscale` (falls back to `hostname`).
+#
 # Usage:
 #   bash scripts/local_dev/launch.sh              # setup + launch (full stack, Vite foreground)
 #   bash scripts/local_dev/launch.sh --setup-only # setup only, don't start servers
@@ -33,6 +36,17 @@ done
 
 export BACKEND_PORT POSTGRES_PORT VITE_PORT
 
+# --- Detect tailnet hostname ---
+HOSTNAME_SHORT="$(hostname -s 2>/dev/null || echo localhost)"
+TAILSCALE_HOST=""
+if command -v tailscale &>/dev/null; then
+  TAILSCALE_HOST="$(tailscale status --json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['Self']['HostName'])" 2>/dev/null || true)"
+fi
+TAILNET_HOST="${TAILSCALE_HOST:-$HOSTNAME_SHORT}"
+
+# Vite allowed hosts: localhost + tailnet hostname
+VITE_ALLOWED="localhost,127.0.0.1,${TAILNET_HOST}"
+
 # --- Setup if needed ---
 bash "$SCRIPT_DIR/ensure-setup.sh"
 
@@ -63,9 +77,16 @@ done
 echo ""
 echo "============================================================"
 echo "  m3tacron dev stack"
+echo ""
+echo "  Local access:"
+echo "    Frontend: http://localhost:${VITE_PORT}"
+echo "    Backend:  http://localhost:${BACKEND_PORT}/docs"
+echo ""
+echo "  Tailnet access (other users):"
+echo "    Frontend: http://${TAILNET_HOST}:${VITE_PORT}"
+echo "    Backend:  http://${TAILNET_HOST}:${BACKEND_PORT}/docs"
+echo ""
 echo "  Postgres: localhost:${POSTGRES_PORT}  (m3tacron / m3tacron)"
-echo "  Backend:  http://localhost:${BACKEND_PORT}  (docs at /docs)"
-echo "  Frontend: starting on port ${VITE_PORT}..."
 echo "============================================================"
 echo ""
 
@@ -78,6 +99,6 @@ fi
 exec env \
   NODE_OPTIONS="--max-old-space-size=4096" \
   VITE_API_BASE="http://localhost:${BACKEND_PORT}/api" \
-  VITE_ALLOWED_HOSTS=localhost,127.0.0.1 \
-  ORIGIN="http://localhost:${VITE_PORT}" \
+  VITE_ALLOWED_HOSTS="$VITE_ALLOWED" \
+  ORIGIN="http://${TAILNET_HOST}:${VITE_PORT}" \
   "$VITE_BIN" dev --host 0.0.0.0 --port "$VITE_PORT"

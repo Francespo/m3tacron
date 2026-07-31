@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# m3tacron local dev stack — background mode.
+# Starts Docker stack + Vite in background. Binds to 0.0.0.0 for tailnet access.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,6 +11,14 @@ VITE_PID_FILE="/tmp/m3tacron-vite.pid"
 VITE_LOG="/tmp/m3tacron-vite.log"
 DEFAULT_PORT="${VITE_PORT:-3335}"
 VITE_PORT="$DEFAULT_PORT"
+
+# --- Detect tailnet hostname ---
+HOSTNAME_SHORT="$(hostname -s 2>/dev/null || echo localhost)"
+TAILSCALE_HOST=""
+if command -v tailscale &>/dev/null; then
+  TAILSCALE_HOST="$(tailscale status --json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['Self']['HostName'])" 2>/dev/null || true)"
+fi
+TAILNET_HOST="${TAILSCALE_HOST:-$HOSTNAME_SHORT}"
 
 cd "$REPO_ROOT"
 
@@ -115,8 +125,8 @@ fi
 nohup env \
   NODE_OPTIONS="--max-old-space-size=4096" \
   VITE_API_BASE="http://localhost:${BACKEND_PORT}/api" \
-  VITE_ALLOWED_HOSTS=localhost,127.0.0.1 \
-  ORIGIN="http://localhost:$VITE_PORT" \
+  VITE_ALLOWED_HOSTS="localhost,127.0.0.1,${TAILNET_HOST}" \
+  ORIGIN="http://${TAILNET_HOST}:$VITE_PORT" \
   "$VITE_BIN" dev --host 0.0.0.0 --port "$VITE_PORT" \
   > "$VITE_LOG" 2>&1 &
 echo $! > "$VITE_PID_FILE"
@@ -134,8 +144,15 @@ cat <<EOF
 
 ============================================================
   m3tacron local stack is running
-  Frontend: http://localhost:$VITE_PORT  (hot-reload via Vite)
-  Backend:  http://localhost:${BACKEND_PORT}       (docs at /docs)
+
+  Local access:
+    Frontend: http://localhost:$VITE_PORT  (hot-reload via Vite)
+    Backend:  http://localhost:${BACKEND_PORT}       (docs at /docs)
+
+  Tailnet access (other users):
+    Frontend: http://${TAILNET_HOST}:$VITE_PORT
+    Backend:  http://${TAILNET_HOST}:${BACKEND_PORT}/docs
+
   Postgres: localhost:${POSTGRES_PORT}              (m3tacron / m3tacron)
   Dump age: $(stat -c %y "$DUMP_FILE" 2>/dev/null | cut -d. -f1 || echo "unknown")
 ============================================================

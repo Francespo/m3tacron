@@ -67,6 +67,24 @@ bash scripts/local_dev/launch.sh --setup-only
 - **Backend**: runs in Docker with `uvicorn --reload` watching `backend/`. Editing backend files triggers instant reload.
 - **Database**: runs in Docker on port 5435 with a named volume (`pgdata`). Seeded from the dev server's dump on first `up`.
 
+## Tailnet access
+
+All services bind to `0.0.0.0` so other users in the tailnet can access them. The tailnet hostname is auto-detected via `tailscale` (falls back to `hostname`).
+
+After launching, the banner shows both local and tailnet URLs:
+
+```
+  Local access:
+    Frontend: http://localhost:3335
+    Backend:  http://localhost:8890/docs
+
+  Tailnet access (other users):
+    Frontend: http://server-francesco:3335
+    Backend:  http://server-francesco:8890/docs
+```
+
+`VITE_ALLOWED_HOSTS` is set automatically to include the tailnet hostname, so CORS works for tailnet users without manual configuration.
+
 ## Configurable ports
 
 All ports are configurable via environment variables, so parallel worktrees can coexist:
