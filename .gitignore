@@ -38,6 +38,8 @@ assets/external/
 *.key
 id_rsa*
 id_ed25519*
+ssh_key
+ssh_key.pub
 
 # --- Database dumps ---
 *.dump
