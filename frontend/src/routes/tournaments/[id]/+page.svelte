@@ -109,25 +109,40 @@
     const cutTotalPages = $derived(
         Math.ceil((data.detail?.players_cut?.length ?? 0) / STANDINGS_PER_PAGE)
     );
-    const swissPageItems = $derived(
-        (data.detail?.players_swiss ?? []).slice(
-            swissPage * STANDINGS_PER_PAGE,
-            (swissPage + 1) * STANDINGS_PER_PAGE
-        )
-    );
-    const cutPageItems = $derived(
-        (data.detail?.players_cut ?? []).slice(
-            cutPage * STANDINGS_PER_PAGE,
-            (cutPage + 1) * STANDINGS_PER_PAGE
-        )
-    );
 
-    // Reset pagination when tournament changes
+    // --- Standings tab toggle ---
+    const hasCut = $derived((data.detail?.players_cut?.length ?? 0) > 0);
+    const hasSwiss = $derived((data.detail?.players_swiss?.length ?? 0) > 0);
+    let standingsTab = $state<"swiss" | "cut">("swiss");
+
+    // Reset pagination and tab when tournament changes
     $effect(() => {
         void data.detail;
         swissPage = 0;
         cutPage = 0;
+        standingsTab = "swiss";
     });
+
+    // Active standings based on tab
+    const activeStandings = $derived(
+        standingsTab === "cut"
+            ? (data.detail?.players_cut ?? [])
+            : (data.detail?.players_swiss ?? [])
+    );
+    const activeTotalPages = $derived(
+        standingsTab === "cut" ? cutTotalPages : swissTotalPages
+    );
+    const activePage = $derived(
+        standingsTab === "cut" ? cutPage : swissPage
+    );
+    function prevPage() {
+        if (standingsTab === "cut") cutPage--;
+        else swissPage--;
+    }
+    function nextPage() {
+        if (standingsTab === "cut") cutPage++;
+        else swissPage++;
+    }
 </script>
 
 <svelte:head>
@@ -233,19 +248,32 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             <div class="flex flex-col gap-6">
-                <!-- Cut Standings -->
-                {#if data.detail.players_cut && data.detail.players_cut.length > 0}
+                <!-- Standings (toggleable when both Cut + Swiss exist) -->
+                {#if hasCut || hasSwiss}
                     <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden">
-                        <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center justify-between">
-                            <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">CUT STANDINGS</h2>
-                            {#if cutTotalPages > 1}
+                        <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center justify-between gap-3">
+                            {#if hasCut && hasSwiss}
+                                <div class="flex items-center bg-[rgba(255,255,255,0.05)] rounded-md p-0.5">
+                                    <button
+                                        class="px-3 py-1 rounded-md text-xs font-mono font-bold uppercase tracking-wider transition-colors {standingsTab === 'swiss' ? 'bg-[rgba(255,255,255,0.1)] text-primary' : 'text-secondary hover:text-primary'}"
+                                        onclick={() => { standingsTab = 'swiss'; }}
+                                    >Swiss</button>
+                                    <button
+                                        class="px-3 py-1 rounded-md text-xs font-mono font-bold uppercase tracking-wider transition-colors {standingsTab === 'cut' ? 'bg-[rgba(255,255,255,0.1)] text-primary' : 'text-secondary hover:text-primary'}"
+                                        onclick={() => { standingsTab = 'cut'; }}
+                                    >Cut</button>
+                                </div>
+                            {:else}
+                                <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">{hasCut ? "CUT STANDINGS" : "STANDINGS"}</h2>
+                            {/if}
+                            {#if activeTotalPages > 1}
                                 <span class="text-xs font-mono text-secondary">
-                                    Page {cutPage + 1} / {cutTotalPages}
+                                    Page {activePage + 1} / {activeTotalPages}
                                 </span>
                             {/if}
                         </div>
                         <div class="flex flex-col">
-                            {#each cutPageItems as p}
+                            {#each activeStandings as p}
                                 <div class="flex items-center gap-3 p-3 border-b border-border-dark last:border-0 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
                                     <span class="w-8 h-8 rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center font-mono text-sm">{p.rank}</span>
                                     <FactionIcon faction={p.faction} size="md" />
@@ -268,72 +296,22 @@
                                 </div>
                             {/each}
                         </div>
-                        {#if cutTotalPages > 1}
+                        {#if activeTotalPages > 1}
                             <div class="flex items-center justify-center gap-3 p-2 border-t border-border-dark">
                                 <button
                                     class="px-3 py-1 border border-border-dark rounded-md text-xs font-mono text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
-                                    disabled={cutPage === 0}
-                                    onclick={() => cutPage--}
+                                    disabled={activePage === 0}
+                                    onclick={prevPage}
                                 >Prev</button>
                                 <button
                                     class="px-3 py-1 border border-border-dark rounded-md text-xs font-mono text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
-                                    disabled={cutPage >= cutTotalPages - 1}
-                                    onclick={() => cutPage++}
+                                    disabled={activePage >= activeTotalPages - 1}
+                                    onclick={nextPage}
                                 >Next</button>
                             </div>
                         {/if}
                     </div>
                 {/if}
-
-                <!-- Swiss Standings -->
-                <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden">
-                    <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center justify-between">
-                        <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">{data.detail.players_cut?.length > 0 ? "SWISS STANDINGS" : "STANDINGS"}</h2>
-                        {#if swissTotalPages > 1}
-                            <span class="text-xs font-mono text-secondary">
-                                Page {swissPage + 1} / {swissTotalPages}
-                            </span>
-                        {/if}
-                    </div>
-                    <div class="flex flex-col">
-                            {#each swissPageItems as p}
-                                <div class="flex items-center gap-3 p-3 border-b border-border-dark last:border-0 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
-                                    <span class="w-8 h-8 rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center font-mono text-sm">{p.rank}</span>
-                                    <FactionIcon faction={p.faction} size="md" />
-                                    <div class="flex flex-col">
-                                        <span class="font-mono text-primary font-medium">{p.name}</span>
-                                        <span class="text-xs text-secondary">
-                                            <span class="text-green-400 font-bold">{p.wins}W</span>
-                                            <span class="mx-0.5">-</span>
-                                            <span class="text-red-400 font-bold">{p.losses}L</span>
-                                        </span>
-                                    </div>
-                                    <div class="flex-1"></div>
-                                    {#if p.list_id}
-                                        <a
-                                            href="/list/{p.list_id}"
-                                            class="px-3 py-1 border border-border-dark rounded-md text-xs font-mono hover:bg-[rgba(255,255,255,0.1)] text-primary no-underline"
-                                            >LIST</a
-                                        >
-                                    {/if}
-                                </div>
-                            {/each}
-                    </div>
-                    {#if swissTotalPages > 1}
-                        <div class="flex items-center justify-center gap-3 p-2 border-t border-border-dark">
-                            <button
-                                class="px-3 py-1 border border-border-dark rounded-md text-xs font-mono text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
-                                disabled={swissPage === 0}
-                                onclick={() => swissPage--}
-                            >Prev</button>
-                            <button
-                                class="px-3 py-1 border border-border-dark rounded-md text-xs font-mono text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
-                                disabled={swissPage >= swissTotalPages - 1}
-                                onclick={() => swissPage++}
-                            >Next</button>
-                        </div>
-                    {/if}
-                </div>
             </div>
 
             <!-- Matches (round carousel) -->
