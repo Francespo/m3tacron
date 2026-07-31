@@ -508,6 +508,8 @@ def _finalize_results(
     def sort_key(item):
         if sort_criteria == SortingCriteria.LISTS:
             return (item["list_count"], item["games_count"])
+        elif sort_criteria == SortingCriteria.UNIQUE_LISTS:
+            return (item["different_lists_count"], item["games_count"])
         elif sort_criteria == SortingCriteria.GAMES:
             return item["games_count"]
         elif sort_criteria == SortingCriteria.WINRATE:

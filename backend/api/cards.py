@@ -31,6 +31,7 @@ def _compute_cards(
         "Games": SortingCriteria.GAMES,
         "Name": SortingCriteria.NAME,
         "Lists": SortingCriteria.LISTS,
+        "Unique Lists": SortingCriteria.UNIQUE_LISTS,
         "Win Rate": SortingCriteria.WINRATE,
         "Loadout": SortingCriteria.LOADOUT,
     }

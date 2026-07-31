@@ -9,6 +9,7 @@ class SortDirection(StrEnum):
 
 class SortingCriteria(StrEnum):
     LISTS = "lists"
+    UNIQUE_LISTS = "unique_lists"
     NAME = "name"
     WINRATE = "win_rate"
     COST = "cost"
@@ -20,6 +21,7 @@ class SortingCriteria(StrEnum):
         """Human-readable sorting name."""
         match self:
             case SortingCriteria.LISTS: return "Lists"
+            case SortingCriteria.UNIQUE_LISTS: return "Unique Lists"
             case SortingCriteria.NAME: return "Name"
             case SortingCriteria.WINRATE: return "Win Rate"
             case SortingCriteria.COST: return "Cost"

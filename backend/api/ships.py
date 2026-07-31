@@ -26,6 +26,7 @@ def _compute_ships(
     criteria_map = {
         "Games": SortingCriteria.GAMES,
         "Lists": SortingCriteria.LISTS,
+        "Unique Lists": SortingCriteria.UNIQUE_LISTS,
         "Win Rate": SortingCriteria.WINRATE,
     }
     criteria = criteria_map.get(sort_metric, SortingCriteria.LISTS)

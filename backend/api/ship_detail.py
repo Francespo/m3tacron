@@ -50,6 +50,7 @@ def get_ship_pilots(
     ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
     criteria_map = {
         "Lists": SortingCriteria.LISTS,
+        "Unique Lists": SortingCriteria.UNIQUE_LISTS,
         "Win Rate": SortingCriteria.WINRATE,
         "Games": SortingCriteria.GAMES,
     }

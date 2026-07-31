@@ -67,7 +67,7 @@
         return epic ? ["legacy_x2po", "legacy_xlc"] : ["legacy_x2po"];
     }
 
-    type SortKey = "lists" | "winrate" | "games";
+    type SortKey = "lists" | "unique" | "winrate" | "games";
     type SortDir = "asc" | "desc";
     const DASHBOARD_RANKING_PREFS_KEY = "m3tacron.dashboard.rankingModes.v1";
     const WR_MIN_GAMES = {
@@ -78,7 +78,7 @@
     };
 
     function isSortKey(v: unknown): v is SortKey {
-        return v === "lists" || v === "winrate" || v === "games";
+        return v === "lists" || v === "unique" || v === "winrate" || v === "games";
     }
 
     function isSortDir(v: unknown): v is SortDir {
@@ -406,6 +406,12 @@
                 else cmp = gamesB - gamesA;
             } else if (key === "games") {
                 cmp = gamesB - gamesA;
+            } else if (key === "unique") {
+                // unique lists: distinct lists, with games count tiebreaker
+                const uniqA = Number(a.different_lists_count ?? 0);
+                const uniqB = Number(b.different_lists_count ?? 0);
+                if (uniqB !== uniqA) cmp = uniqB - uniqA;
+                else cmp = gamesB - gamesA;
             } else {
                 // lists: by list count, with games count tiebreaker
                 const listA = Number(a.list_count ?? 0);
@@ -855,6 +861,7 @@
                         direction={pilotSortDir}
                         options={[
                             { value: "lists", label: "Lists" },
+                            { value: "unique", label: "Unique Lists" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}
@@ -941,6 +948,7 @@
                         direction={upgradeSortDir}
                         options={[
                             { value: "lists", label: "Lists" },
+                            { value: "unique", label: "Unique Lists" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}
@@ -1021,6 +1029,7 @@
                         direction={shipSortDir}
                         options={[
                             { value: "lists", label: "Lists" },
+                            { value: "unique", label: "Unique Lists" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}

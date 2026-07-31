@@ -47,6 +47,10 @@ def _compute_squadrons(
     reverse = sort_direction == "desc"
     if sort_metric == "Win Rate":
         filtered_data.sort(key=lambda x: x["win_rate"], reverse=reverse)
+    elif sort_metric == "Lists":
+        filtered_data.sort(key=lambda x: x.get("popularity", x.get("count", 0)), reverse=reverse)
+    elif sort_metric == "Unique Lists":
+        filtered_data.sort(key=lambda x: x.get("different_lists_count", 0), reverse=reverse)
     else:
         filtered_data.sort(key=lambda x: x["games"], reverse=reverse)
 

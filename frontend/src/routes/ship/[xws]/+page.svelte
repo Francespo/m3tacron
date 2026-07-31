@@ -211,7 +211,7 @@
     // control: win rate, games, and popularity (squad.popularity or
     // squad.count). The win_rate field on squadrons is already a
     // percentage; we fall back to wins/games if missing.
-    type SquadSortKey = "winrate" | "games" | "lists";
+    type SquadSortKey = "winrate" | "games" | "lists" | "unique";
 
     let squadSortKey = $state<SquadSortKey>("winrate");
     let squadSortDir = $state<"asc" | "desc">("desc");
@@ -226,6 +226,8 @@
             }
             case "games":
                 return Math.max(0, s.games ?? 0);
+            case "unique":
+                return Math.max(0, s.different_lists_count ?? 0);
             case "lists":
                 return Math.max(0, s.popularity ?? s.count ?? 0);
         }
@@ -768,7 +770,8 @@
                     options={[
                         { value: "winrate", label: "Win Rate" },
                         { value: "games", label: "Games" },
-                        { value: "lists", label: "Lists" }
+                        { value: "lists", label: "Lists" },
+                        { value: "unique", label: "Unique Lists" }
                     ]}
                     onChange={(v, d) => {
                         squadSortKey = v as SquadSortKey;

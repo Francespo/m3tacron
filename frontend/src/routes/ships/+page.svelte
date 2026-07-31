@@ -229,6 +229,7 @@
                 direction={filters.sortDirection}
                 options={[
                     { value: "Lists", label: "Lists" },
+                    { value: "Unique Lists", label: "Unique Lists" },
                     { value: "Win Rate", label: "Win Rate" },
                     { value: "Games", label: "Games" },
                 ]}

@@ -268,6 +268,7 @@
                     { value: "Cost", label: "Points Cost" },
                     { value: "Games", label: "Games" },
                     { value: "Lists", label: "Lists" },
+                    { value: "Unique Lists", label: "Unique Lists" },
                     { value: "Win Rate", label: "Win Rate" },
                 ]}
                 onChange={(v, d) => {
