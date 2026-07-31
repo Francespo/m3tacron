@@ -206,6 +206,13 @@
     const activePage = $derived(
         standingsTab === "cut" ? cutPage : swissPage
     );
+    // Page slice — the list renders this, not the full array
+    const activePageItems = $derived(
+        activeStandings.slice(
+            activePage * STANDINGS_PER_PAGE,
+            (activePage + 1) * STANDINGS_PER_PAGE
+        )
+    );
     function prevPage() {
         if (standingsTab === "cut") cutPage--;
         else swissPage--;
@@ -214,6 +221,45 @@
         if (standingsTab === "cut") cutPage++;
         else swissPage++;
     }
+
+    // --- Knockout placement detection ---
+    // Canonical standings have unique sequential ranks (1, 2, 3, ...).
+    // Knockout brackets share ranks: everyone eliminated at the same stage
+    // gets the bracket size as rank (1=winner, 2=runner-up, 4=semi-final,
+    // 8=quarter-final, 16=round of 16, ...). When that pattern is present we
+    // render a compact "reached this stage" view instead of a standings table.
+    const cutIsKnockout = $derived.by(() => {
+        const players: { rank: number }[] = data.detail?.players_cut ?? [];
+        if (players.length < 2) return false;
+        const ranks = players.map((p) => p.rank);
+        const counts = new Map<number, number>();
+        for (const r of ranks) counts.set(r, (counts.get(r) ?? 0) + 1);
+        const shared = [...counts.values()].filter((c) => c > 1).reduce((a, b) => a + b, 0);
+        const allPowersOfTwo = ranks.every((r) => r > 0 && (r & (r - 1)) === 0);
+        return shared / players.length > 0.5 || (allPowersOfTwo && shared > 0);
+    });
+
+    function cutStageLabel(rank: number): string {
+        if (rank === 1) return "Winner";
+        if (rank === 2) return "Runner-Up";
+        if (rank === 4) return "Semi-Finals";
+        if (rank === 8) return "Quarter-Finals";
+        if (rank === 16) return "Round of 16";
+        if (rank === 32) return "Round of 32";
+        if (rank === 64) return "Round of 64";
+        if (rank === 128) return "Round of 128";
+        return `Place ${rank}`;
+    }
+
+    // Group the current cut page by bracket rank (knockout view only)
+    const cutTierGroups = $derived.by(() => {
+        const groups = new Map<number, { rank: number; players: typeof activePageItems }>();
+        for (const p of activePageItems) {
+            if (!groups.has(p.rank)) groups.set(p.rank, { rank: p.rank, players: [] });
+            groups.get(p.rank)!.players.push(p);
+        }
+        return Array.from(groups.values()).sort((a, b) => a.rank - b.rank);
+    });
 </script>
 
 <svelte:head>
@@ -367,8 +413,26 @@
                         </div>
 
                         <!-- Standings Player List -->
+                        {#if standingsTab === 'cut' && cutIsKnockout}
+                            <!-- Knockout placement: group by reached stage, compact -->
+                            <div class="flex flex-col">
+                                {#each cutTierGroups as g}
+                                    <div class="flex items-center gap-3 p-2.5 border-b border-border-dark last:border-0">
+                                        <span class="w-20 shrink-0 text-[10px] font-mono uppercase tracking-wide text-right leading-tight {g.rank <= 2 ? 'text-green-400 font-bold' : 'text-amber-300'}">{cutStageLabel(g.rank)}</span>
+                                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
+                                            {#each g.players as p}
+                                                <span class="inline-flex items-center gap-1.5 min-w-0">
+                                                    <FactionIcon faction={p.faction} size="sm" />
+                                                    <span class="font-mono text-sm text-primary truncate max-w-[160px]" title={p.name}>{p.name}</span>
+                                                </span>
+                                            {/each}
+                                        </div>
+                                    </div>
+                                {/each}
+                            </div>
+                        {:else}
                         <div class="flex flex-col">
-                            {#each activeStandings as p}
+                            {#each activePageItems as p}
                                 <div class="flex items-center gap-3 p-3 border-b border-border-dark last:border-0 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
                                     <span class="w-8 h-8 rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center font-mono text-sm">{p.rank}</span>
                                     <FactionIcon faction={p.faction} size="md" />
@@ -391,6 +455,7 @@
                                 </div>
                             {/each}
                         </div>
+                        {/if}
                     </div>
                 {/if}
             </div>
