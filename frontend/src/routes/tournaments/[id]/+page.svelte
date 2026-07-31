@@ -20,12 +20,22 @@
     // the actual scores (type-safe, no ID comparison needed).
     type Match = {
         round: number;
+        type?: string | null;
         scenario?: string | null;
         player1: string;
         player2: string;
         score1: number;
         score2: number;
         winner_id?: number | string | null;
+    };
+
+    type RoundGroup = {
+        key: string;
+        roundNum: number;
+        type: "swiss" | "cut";
+        label: string;
+        shortLabel: string;
+        matches: Match[];
     };
 
     // Pick the dominant scenario for a round. Byes (matches with no scenario)
@@ -68,17 +78,72 @@
         return null;
     }
 
-    // Group matches by round, sorted ascending by round number. The backend
-    // already orders matches by round, but grouping defensively keeps the
-    // UI correct even if that ever changes.
+    function getCutStageLabel(matchCount: number, cutIndexFromEnd: number): string {
+        if (matchCount === 1) return "Finals";
+        if (matchCount === 2) return "Semi-Finals";
+        if (matchCount >= 3 && matchCount <= 4) return "Quarter-Finals";
+        if (matchCount >= 5 && matchCount <= 8) return "Round of 16";
+        if (matchCount >= 9 && matchCount <= 16) return "Round of 32";
+        if (matchCount >= 17 && matchCount <= 32) return "Round of 64";
+        if (matchCount >= 33 && matchCount <= 64) return "Round of 128";
+
+        if (cutIndexFromEnd === 0) return "Finals";
+        if (cutIndexFromEnd === 1) return "Semi-Finals";
+        if (cutIndexFromEnd === 2) return "Quarter-Finals";
+        if (cutIndexFromEnd === 3) return "Round of 16";
+        if (cutIndexFromEnd === 4) return "Round of 32";
+        if (cutIndexFromEnd === 5) return "Round of 64";
+
+        return "Cut Round";
+    }
+
+    // Group matches by type and round, distinguishing Swiss from Cut rounds.
     const roundGroups = $derived.by(() => {
-        const groups = new Map<number, Match[]>();
+        const map = new Map<string, { roundNum: number; type: "swiss" | "cut"; matches: Match[] }>();
+
         for (const m of matches as Match[]) {
-            const r = m.round;
-            if (!groups.has(r)) groups.set(r, []);
-            groups.get(r)!.push(m);
+            const rawType = (m.type || "").toLowerCase().trim();
+            const type: "swiss" | "cut" = rawType === "cut" ? "cut" : "swiss";
+            const key = `${type}_${m.round}`;
+
+            if (!map.has(key)) {
+                map.set(key, { roundNum: m.round, type, matches: [] });
+            }
+            map.get(key)!.matches.push(m);
         }
-        return Array.from(groups.entries()).sort((a, b) => a[0] - b[0]);
+
+        const entries = Array.from(map.values());
+        const swissRounds = entries.filter((e) => e.type === "swiss").sort((a, b) => a.roundNum - b.roundNum);
+        const cutRounds = entries.filter((e) => e.type === "cut").sort((a, b) => a.roundNum - b.roundNum);
+
+        const result: RoundGroup[] = [];
+
+        swissRounds.forEach((s) => {
+            result.push({
+                key: `swiss_${s.roundNum}`,
+                roundNum: s.roundNum,
+                type: "swiss",
+                label: `SWISS · ROUND ${s.roundNum}`,
+                shortLabel: `S${s.roundNum}`,
+                matches: s.matches,
+            });
+        });
+
+        const totalCut = cutRounds.length;
+        cutRounds.forEach((c, idx) => {
+            const indexFromEnd = totalCut - 1 - idx;
+            const stage = getCutStageLabel(c.matches.length, indexFromEnd);
+            result.push({
+                key: `cut_${c.roundNum}`,
+                roundNum: c.roundNum,
+                type: "cut",
+                label: `CUT · ${stage.toUpperCase()}`,
+                shortLabel: stage,
+                matches: c.matches,
+            });
+        });
+
+        return result;
     });
 
     // --- Match round carousel state ---
@@ -266,12 +331,36 @@
                             {:else}
                                 <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">{hasCut ? "CUT STANDINGS" : "STANDINGS"}</h2>
                             {/if}
-                            {#if activeTotalPages > 1}
-                                <span class="text-xs font-mono text-secondary">
-                                    Page {activePage + 1} / {activeTotalPages}
-                                </span>
-                            {/if}
+
+                            <!-- Standings Pagination Controls in Top Header -->
+                            <div class="flex items-center gap-3">
+                                {#if activeTotalPages > 1}
+                                    <span class="text-xs font-mono text-secondary">
+                                        Page {activePage + 1} / {activeTotalPages}
+                                    </span>
+                                    <div class="flex items-center gap-1">
+                                        <button
+                                            class="p-1.5 rounded-md border border-border-dark text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
+                                            disabled={activePage === 0}
+                                            onclick={prevPage}
+                                            aria-label="Previous page"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                                        </button>
+                                        <button
+                                            class="p-1.5 rounded-md border border-border-dark text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
+                                            disabled={activePage >= activeTotalPages - 1}
+                                            onclick={nextPage}
+                                            aria-label="Next page"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                                        </button>
+                                    </div>
+                                {/if}
+                            </div>
                         </div>
+
+                        <!-- Standings Player List -->
                         <div class="flex flex-col">
                             {#each activeStandings as p}
                                 <div class="flex items-center gap-3 p-3 border-b border-border-dark last:border-0 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
@@ -296,57 +385,61 @@
                                 </div>
                             {/each}
                         </div>
-                        {#if activeTotalPages > 1}
-                            <div class="flex items-center justify-center gap-3 p-2 border-t border-border-dark">
-                                <button
-                                    class="px-3 py-1 border border-border-dark rounded-md text-xs font-mono text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
-                                    disabled={activePage === 0}
-                                    onclick={prevPage}
-                                >Prev</button>
-                                <button
-                                    class="px-3 py-1 border border-border-dark rounded-md text-xs font-mono text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
-                                    disabled={activePage >= activeTotalPages - 1}
-                                    onclick={nextPage}
-                                >Next</button>
-                            </div>
-                        {/if}
                     </div>
                 {/if}
             </div>
 
             <!-- Matches (round carousel) -->
             {#if roundGroups.length > 0}
-                {@const [roundNum, roundMatches] = roundGroups[currentRoundIndex]}
-                {@const dom = dominantScenario(roundMatches)}
+                {@const group = roundGroups[currentRoundIndex]}
+                {@const dom = dominantScenario(group.matches)}
                 <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden flex flex-col" style="max-height: calc(100vh - 120px);">
-                    <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center justify-between gap-2 shrink-0">
-                        <button
-                            class="p-1.5 rounded-md border border-border-dark text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
-                            disabled={currentRoundIndex === 0}
-                            onclick={prevRound}
-                            aria-label="Previous round"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-                        </button>
-                        <div class="flex-1 text-center min-w-0">
-                            <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">
-                                ROUND {roundNum}
-                            </h2>
+                    <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center justify-between gap-3 shrink-0">
+                        <div class="flex flex-col min-w-0">
+                            <div class="flex items-center gap-2">
+                                <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">
+                                    {group.label}
+                                </h2>
+                                <span class="px-1.5 py-0.5 text-[10px] font-mono rounded font-semibold uppercase {group.type === 'cut' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'}">
+                                    {group.type === 'cut' ? 'Knockout' : 'Swiss'}
+                                </span>
+                            </div>
                             {#if dom}
-                                <span class="text-[11px] font-mono text-secondary uppercase tracking-wider">{humanizeScenario(dom)}</span>
+                                <span class="text-[11px] font-mono text-secondary uppercase tracking-wider truncate">{humanizeScenario(dom)}</span>
                             {/if}
                         </div>
-                        <button
-                            class="p-1.5 rounded-md border border-border-dark text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
-                            disabled={currentRoundIndex >= roundGroups.length - 1}
-                            onclick={nextRound}
-                            aria-label="Next round"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                        </button>
+
+                        <!-- Matches Round Controls in Top Header -->
+                        <div class="flex items-center gap-3 shrink-0">
+                            {#if roundGroups.length > 1}
+                                <span class="text-xs font-mono text-secondary">
+                                    Round {currentRoundIndex + 1} / {roundGroups.length}
+                                </span>
+                                <div class="flex items-center gap-1">
+                                    <button
+                                        class="p-1.5 rounded-md border border-border-dark text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
+                                        disabled={currentRoundIndex === 0}
+                                        onclick={prevRound}
+                                        aria-label="Previous round"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                                    </button>
+                                    <button
+                                        class="p-1.5 rounded-md border border-border-dark text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
+                                        disabled={currentRoundIndex >= roundGroups.length - 1}
+                                        onclick={nextRound}
+                                        aria-label="Next round"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                                    </button>
+                                </div>
+                            {/if}
+                        </div>
                     </div>
+
+                    <!-- Matches List -->
                     <div class="flex flex-col divide-y divide-border-dark/50 overflow-y-auto p-2">
-                        {#each roundMatches as m}
+                        {#each group.matches as m}
                             {@const winnerName = pickWinnerName(m)}
                             <div class="flex items-center justify-between gap-3 p-2 mx-1 my-0.5 rounded-md bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)] transition-colors">
                                 <span class="font-mono text-sm text-left flex-1 truncate pr-2 {winnerName === m.player1 ? 'text-green-400 font-bold' : winnerName === null ? 'text-secondary' : 'text-primary'}" title={m.player1}>{m.player1}</span>
@@ -359,14 +452,15 @@
                             </div>
                         {/each}
                     </div>
+
+                    <!-- Quick Jump Round Bar -->
                     {#if roundGroups.length > 1}
-                        <div class="flex items-center justify-center gap-1.5 p-2 border-t border-border-dark shrink-0">
-                            {#each roundGroups as _, i}
+                        <div class="flex items-center justify-center gap-1.5 p-2 border-t border-border-dark shrink-0 overflow-x-auto">
+                            {#each roundGroups as rg, i}
                                 <button
-                                    class="w-2 h-2 rounded-full transition-colors {i === currentRoundIndex ? 'bg-primary' : 'bg-[rgba(255,255,255,0.15)] hover:bg-[rgba(255,255,255,0.25)]'}"
+                                    class="px-2 py-0.5 text-[11px] font-mono rounded transition-colors {i === currentRoundIndex ? (rg.type === 'cut' ? 'bg-amber-500/30 text-amber-200 border border-amber-500/40' : 'bg-primary/20 text-primary border border-primary/30') : 'text-secondary hover:text-primary hover:bg-[rgba(255,255,255,0.05)]'}"
                                     onclick={() => currentRoundIndex = i}
-                                    aria-label="Go to round {roundGroups[i][0]}"
-                                ></button>
+                                >{rg.shortLabel}</button>
                             {/each}
                         </div>
                     {/if}
