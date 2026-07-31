@@ -26,9 +26,9 @@
     const size = 50;
 
     // Default sort for the ships page when the URL didn't specify one.
-    // "Popularity" = list_count, the most useful default for browsing ships.
+    // "Lists" = list_count, the most useful default for browsing ships.
     if (!filters.sortBy) {
-        filters.sortBy = "Popularity";
+        filters.sortBy = "Lists";
     }
 
     // Merged ship data: all ships from xwingData + stats from API
@@ -225,10 +225,10 @@
         <div class="flex items-start justify-between gap-3 mb-1 flex-wrap">
             <h1 class="text-3xl font-sans font-bold text-primary">Ships</h1>
             <SortBy
-                value={filters.sortBy || "Popularity"}
+                value={filters.sortBy || "Lists"}
                 direction={filters.sortDirection}
                 options={[
-                    { value: "Popularity", label: "Lists" },
+                    { value: "Lists", label: "Lists" },
                     { value: "Win Rate", label: "Win Rate" },
                     { value: "Games", label: "Games" },
                 ]}

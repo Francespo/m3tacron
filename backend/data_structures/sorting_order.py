@@ -8,7 +8,7 @@ class SortDirection(StrEnum):
     DESCENDING = "desc"
 
 class SortingCriteria(StrEnum):
-    POPULARITY = "popularity"
+    LISTS = "lists"
     NAME = "name"
     WINRATE = "win_rate"
     COST = "cost"
@@ -19,7 +19,7 @@ class SortingCriteria(StrEnum):
     def label(self) -> str:
         """Human-readable sorting name."""
         match self:
-            case SortingCriteria.POPULARITY: return "Popularity"
+            case SortingCriteria.LISTS: return "Lists"
             case SortingCriteria.NAME: return "Name"
             case SortingCriteria.WINRATE: return "Win Rate"
             case SortingCriteria.COST: return "Cost"
@@ -31,7 +31,7 @@ class SortingCriteria(StrEnum):
         for member in cls:
             if member.label == label:
                 return member
-        return cls.POPULARITY # Default
+        return cls.LISTS # Default
             
     def __str__(self) -> str:
         return self.value

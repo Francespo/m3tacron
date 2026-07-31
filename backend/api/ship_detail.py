@@ -43,17 +43,17 @@ def get_ship_info(
 def get_ship_pilots(
     ship_xws: str,
     data_source: str = Query("xwa"),
-    sort_metric: str = Query("Popularity"),
+    sort_metric: str = Query("Lists"),
     sort_direction: str = Query("desc"),
 ):
     """Return pilot stats filtered to this ship."""
     ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
     criteria_map = {
-        "Popularity": SortingCriteria.POPULARITY,
+        "Lists": SortingCriteria.LISTS,
         "Win Rate": SortingCriteria.WINRATE,
         "Games": SortingCriteria.GAMES,
     }
-    criteria = criteria_map.get(sort_metric, SortingCriteria.POPULARITY)
+    criteria = criteria_map.get(sort_metric, SortingCriteria.LISTS)
     direction = SortDirection.DESCENDING if sort_direction == "desc" else SortDirection.ASCENDING
 
     filters = {

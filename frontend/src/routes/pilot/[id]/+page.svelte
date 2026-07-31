@@ -21,8 +21,8 @@
     // browser so the SortBy control can flip between "most-played"
     // (popularity / lists / games, all proxied by `count`), and
     // computed win rate (provided by the backend).
-    type ConfigSortKey = "popularity" | "lists" | "games" | "winrate";
-    let configSortKey = $state<ConfigSortKey>("popularity");
+    type ConfigSortKey = "lists" | "games" | "winrate";
+    let configSortKey = $state<ConfigSortKey>("lists");
     let configSortDir = $state<"asc" | "desc">("desc");
 
     function configSortValue(c: any): number {
@@ -31,7 +31,6 @@
                 return Math.max(0, c.win_rate ?? 0);
             case "games":
             case "lists":
-            case "popularity":
             default:
                 return Math.max(0, c.count ?? 0);
         }
@@ -275,7 +274,7 @@
                     value={configSortKey}
                     direction={configSortDir}
                     options={[
-                        { value: "popularity", label: "Popularity" },
+                        { value: "lists", label: "Lists" },
                         { value: "lists", label: "Lists" },
                         { value: "games", label: "Games" },
                         { value: "winrate", label: "Win Rate" }

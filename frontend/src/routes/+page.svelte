@@ -67,7 +67,7 @@
         return epic ? ["legacy_x2po", "legacy_xlc"] : ["legacy_x2po"];
     }
 
-    type SortKey = "popularity" | "winrate" | "games";
+    type SortKey = "lists" | "winrate" | "games";
     type SortDir = "asc" | "desc";
     const DASHBOARD_RANKING_PREFS_KEY = "m3tacron.dashboard.rankingModes.v1";
     const WR_MIN_GAMES = {
@@ -78,20 +78,20 @@
     };
 
     function isSortKey(v: unknown): v is SortKey {
-        return v === "popularity" || v === "winrate" || v === "games";
+        return v === "lists" || v === "winrate" || v === "games";
     }
 
     function isSortDir(v: unknown): v is SortDir {
         return v === "asc" || v === "desc";
     }
 
-    let pilotSortKey = $state<SortKey>("popularity");
+    let pilotSortKey = $state<SortKey>("lists");
     let pilotSortDir = $state<SortDir>("desc");
-    let upgradeSortKey = $state<SortKey>("popularity");
+    let upgradeSortKey = $state<SortKey>("lists");
     let upgradeSortDir = $state<SortDir>("desc");
-    let shipSortKey = $state<SortKey>("popularity");
+    let shipSortKey = $state<SortKey>("lists");
     let shipSortDir = $state<SortDir>("desc");
-    let listSortKey = $state<SortKey>("popularity");
+    let listSortKey = $state<SortKey>("lists");
     let listSortDir = $state<SortDir>("desc");
 
     $effect(() => {
@@ -407,9 +407,11 @@
             } else if (key === "games") {
                 cmp = gamesB - gamesA;
             } else {
-                // popularity: by games count, with WR tiebreaker
-                if (gamesB !== gamesA) cmp = gamesB - gamesA;
-                else cmp = wrB - wrA;
+                // lists: by list count, with games count tiebreaker
+                const listA = Number(a.list_count ?? 0);
+                const listB = Number(b.list_count ?? 0);
+                if (listB !== listA) cmp = listB - listA;
+                else cmp = gamesB - gamesA;
             }
 
             return dir === "desc" ? cmp : -cmp;
@@ -852,7 +854,7 @@
                         value={pilotSortKey}
                         direction={pilotSortDir}
                         options={[
-                            { value: "popularity", label: "Popularity" },
+                            { value: "lists", label: "Lists" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}
@@ -916,7 +918,7 @@
                                 >
                                 <span
                                     class="text-[11px] text-secondary shrink-0"
-                                    >{pilot.games_count || 0} games</span
+                                    >{pilot.games_count || 0} games · {pilot.list_count ?? pilot.lists ?? 0} lists</span
                                 >
                             </div>
                         </div>
@@ -938,7 +940,7 @@
                         value={upgradeSortKey}
                         direction={upgradeSortDir}
                         options={[
-                            { value: "popularity", label: "Popularity" },
+                            { value: "lists", label: "Lists" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}
@@ -996,7 +998,7 @@
                                 >
                                 <span
                                     class="text-[11px] text-secondary shrink-0"
-                                    >{upgrade.games_count || 0} games</span
+                                    >{upgrade.games_count || 0} games · {upgrade.list_count ?? upgrade.lists ?? 0} lists</span
                                 >
                             </div>
                         </div>
@@ -1018,7 +1020,7 @@
                         value={shipSortKey}
                         direction={shipSortDir}
                         options={[
-                            { value: "popularity", label: "Popularity" },
+                            { value: "lists", label: "Lists" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}
@@ -1084,7 +1086,7 @@
                                 >
                                 <span
                                     class="text-[11px] text-secondary shrink-0"
-                                    >{ship.games_count || 0} games</span
+                                    >{ship.games_count || 0} games · {ship.list_count ?? ship.lists ?? 0} lists</span
                                 >
                             </div>
                         </div>
@@ -1108,7 +1110,7 @@
                         value={listSortKey}
                         direction={listSortDir}
                         options={[
-                            { value: "popularity", label: "Popularity" },
+                            { value: "lists", label: "Lists" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}
@@ -1157,7 +1159,7 @@
                                         >{wr.toFixed(1)}% WR</span
                                     >
                                     <span class="text-[11px] text-secondary"
-                                        >{list.games} games</span
+                                        >{list.games} games · {list.count ?? 0} lists</span
                                     >
                                 </div>
                             </div>

@@ -48,7 +48,7 @@
     // not wired to the SQL WHERE clause). The SortBy control is wired
     // up so the UI is in place; once a backend endpoint is added it
     // can be hooked up without touching the surrounding layout.
-    let sortBy = $state<string>("Popularity");
+    let sortBy = $state<string>("Lists");
     let sortDirection = $state<"asc" | "desc">("desc");
 
     // Drive the URL ?data_source=... param off the shared filter store
@@ -237,7 +237,7 @@
                     value={sortBy}
                     direction={sortDirection}
                     options={[
-                        { value: "Popularity", label: "Lists" },
+                        { value: "Lists", label: "Lists" },
                         { value: "Win Rate", label: "Win Rate" },
                         { value: "Games", label: "Games" },
                     ]}

@@ -97,6 +97,8 @@ def _compute_lists(
         filtered_data.sort(key=get_win_rate, reverse=reverse)
     elif sort_metric == "Points Cost":
         filtered_data.sort(key=lambda x: x["points"], reverse=reverse)
+    elif sort_metric == "Lists":
+        filtered_data.sort(key=lambda x: x.get("count", 0), reverse=reverse)
     else:
         filtered_data.sort(key=lambda x: x["games"], reverse=reverse)
 
