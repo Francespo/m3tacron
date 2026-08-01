@@ -14,7 +14,7 @@ export const load: PageLoad = async ({ fetch, url }) => {
     if (!apiUrl.searchParams.has('page')) apiUrl.searchParams.set('page', '0');
     if (!apiUrl.searchParams.has('size')) apiUrl.searchParams.set('size', '20');
 
-    const sort_metric = url.searchParams.get('sort_metric') || 'Popularity';
+    const sort_metric = url.searchParams.get('sort_metric') || 'Lists';
     const sort_direction = url.searchParams.get('sort_direction') || 'desc';
 
     const parsePayload = (data: any) => ({

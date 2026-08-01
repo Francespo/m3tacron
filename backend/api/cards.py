@@ -30,11 +30,12 @@ def _compute_cards(
         "Cost": SortingCriteria.COST,
         "Games": SortingCriteria.GAMES,
         "Name": SortingCriteria.NAME,
-        "Popularity": SortingCriteria.POPULARITY,
+        "Lists": SortingCriteria.LISTS,
+        "Unique Lists": SortingCriteria.UNIQUE_LISTS,
         "Win Rate": SortingCriteria.WINRATE,
         "Loadout": SortingCriteria.LOADOUT,
     }
-    criteria = criteria_map.get(sort_metric, SortingCriteria.POPULARITY)
+    criteria = criteria_map.get(sort_metric, SortingCriteria.LISTS)
     s_dir = SortDirection.DESCENDING if sort_direction == "desc" else SortDirection.ASCENDING
 
     return aggregate_card_stats(filters, criteria, s_dir, mode, ds_enum)
@@ -123,7 +124,7 @@ def get_pilots(
     page: int = Query(0, ge=0),
     size: int = Query(20, ge=1, le=100),
     data_source: str = Query("xwa"),
-    sort_metric: str = Query("Popularity"),
+    sort_metric: str = Query("Lists"),
     sort_direction: str = Query("desc"),
     
     formats: list[str] | None = Query(None),
@@ -210,7 +211,7 @@ def get_upgrades(
     page: int = Query(0, ge=0),
     size: int = Query(20, ge=1, le=100),
     data_source: str = Query("xwa"),
-    sort_metric: str = Query("Popularity"),
+    sort_metric: str = Query("Lists"),
     sort_direction: str = Query("desc"),
 
     formats: list[str] | None = Query(None),

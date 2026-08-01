@@ -94,13 +94,13 @@ def _prewarm_cache():
             "squadrons?page=0&size=20&sort_metric=Games&sort_direction=desc&data_source=xwa",
             "squadrons?page=0&size=20&sort_metric=Win%20Rate&sort_direction=desc&data_source=xwa",
             # Ships - Popularity + Games
-            "ships?page=0&size=50&sort_metric=Popularity&sort_direction=desc&data_source=xwa",
+            "ships?page=0&size=50&sort_metric=Lists&sort_direction=desc&data_source=xwa",
             "ships?page=0&size=50&sort_metric=Games&sort_direction=desc&data_source=xwa",
             # Cards/Pilots - default
-            "cards/pilots?page=0&size=20&sort_metric=Popularity&sort_direction=desc&data_source=xwa",
+            "cards/pilots?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=xwa",
             "cards/pilots?page=0&size=20&sort_metric=Win%20Rate&sort_direction=desc&data_source=xwa",
             # Cards/Upgrades - default
-            "cards/upgrades?page=0&size=20&sort_metric=Popularity&sort_direction=desc&data_source=xwa",
+            "cards/upgrades?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=xwa",
             "cards/upgrades?page=0&size=20&sort_metric=Win%20Rate&sort_direction=desc&data_source=xwa",
         ]
         for path in endpoints:

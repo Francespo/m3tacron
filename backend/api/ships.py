@@ -25,10 +25,11 @@ def _compute_ships(
 
     criteria_map = {
         "Games": SortingCriteria.GAMES,
-        "Popularity": SortingCriteria.POPULARITY,
+        "Lists": SortingCriteria.LISTS,
+        "Unique Lists": SortingCriteria.UNIQUE_LISTS,
         "Win Rate": SortingCriteria.WINRATE,
     }
-    criteria = criteria_map.get(sort_metric, SortingCriteria.POPULARITY)
+    criteria = criteria_map.get(sort_metric, SortingCriteria.LISTS)
     s_dir = SortDirection.DESCENDING if sort_direction == "desc" else SortDirection.ASCENDING
 
     return aggregate_ship_stats(filters, criteria, s_dir, ds_enum)
@@ -62,7 +63,7 @@ def get_ships(
     page: int = Query(0, ge=0),
     size: int = Query(20, ge=1, le=200),
     data_source: str = Query("xwa"),
-    sort_metric: str = Query("Popularity"),
+    sort_metric: str = Query("Lists"),
     sort_direction: str = Query("desc"),
     search: str | None = Query(None),
 

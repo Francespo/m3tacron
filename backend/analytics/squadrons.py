@@ -94,7 +94,8 @@ def aggregate_squadron_stats(
                 GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.swiss_losses, 0)) +
                 GREATEST(0, COALESCE(ps.swiss_draws, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0)) +
                 GREATEST(0, COALESCE(ps.cut_losses, 0)) + GREATEST(0, COALESCE(ps.cut_draws, 0))
-            ) as games
+            ) as games,
+            COUNT(DISTINCT l.id) as different_lists_count
         FROM playerstanding ps
         JOIN tournament t ON t.id = ps.tournament_id
         JOIN list l ON l.id = ps.list_id
@@ -114,6 +115,7 @@ def aggregate_squadron_stats(
         popularity = int(row[2] or 0)
         wins_count = int(row[3] or 0)
         games_count = int(row[4] or 0)
+        different_lists = int(row[5] or 0)
         ships = ship_list_str.split(",") if ship_list_str else []
         win_rate = round((wins_count / games_count) * 100, 1) if games_count > 0 else 0.0
         results.append({
@@ -124,6 +126,7 @@ def aggregate_squadron_stats(
             "games": games_count,
             "wins": wins_count,
             "count": popularity,
+            "different_lists_count": different_lists,
             "ships": ships,
         })
 

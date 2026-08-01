@@ -25,7 +25,7 @@
     // `list.popularity` (or `list.count` as a fallback, since the enriched
     // payload from the backend can use either field name). `winrate` is
     // computed on demand from `wins / games`.
-    type ListSortKey = "winrate" | "games" | "popularity";
+    type ListSortKey = "winrate" | "games" | "lists";
 
     let listSortKey = $state<ListSortKey>("winrate");
     let listSortDir = $state<"asc" | "desc">("desc");
@@ -42,7 +42,7 @@
             }
             case "games":
                 return Math.max(0, l.games ?? 0);
-            case "popularity":
+            case "lists":
                 return Math.max(0, l.popularity ?? l.count ?? 0);
         }
     }
@@ -409,10 +409,10 @@
                 options={[
                     { value: "winrate", label: "Win Rate" },
                     { value: "games", label: "Games" },
-                    { value: "popularity", label: "Lists" }
+                        { value: "lists", label: "Lists" }
                 ]}
                 onChange={(v, d) => {
-                    listSortKey = v as "winrate" | "games" | "popularity";
+                    listSortKey = v as "winrate" | "games" | "lists";
                     listSortDir = d;
                 }}
             />

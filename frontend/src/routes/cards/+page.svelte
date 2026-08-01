@@ -43,11 +43,11 @@
 
     // Default sort: when the store starts empty (no URL, no prior visit),
     // set a real metric so the SortBy in the main content header always
-    // has a valid selection. "Popularity" is a sensible default for both
+    // has a valid selection. "Lists" is a sensible default for both
     // Pilots and Upgrades.
     $effect(() => {
         if (!filters.sortBy) {
-            filters.sortBy = "Popularity";
+            filters.sortBy = "Lists";
         }
     });
 
@@ -261,13 +261,14 @@
             </div>
 
             <SortBy
-                value={filters.sortBy || "Popularity"}
+                value={filters.sortBy || "Lists"}
                 direction={filters.sortDirection}
                 options={[
                     { value: "Name", label: "Name" },
                     { value: "Cost", label: "Points Cost" },
                     { value: "Games", label: "Games" },
-                    { value: "Popularity", label: "Lists" },
+                    { value: "Lists", label: "Lists" },
+                    { value: "Unique Lists", label: "Unique Lists" },
                     { value: "Win Rate", label: "Win Rate" },
                 ]}
                 onChange={(v, d) => {

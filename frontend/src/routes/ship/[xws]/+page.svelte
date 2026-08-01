@@ -174,7 +174,7 @@
     // returns lists already sorted by some default metric; the SortBy
     // control re-sorts in the browser between win rate, games, and
     // popularity (list.popularity or list.count as a fallback).
-    type ListSortKey = "winrate" | "games" | "popularity";
+    type ListSortKey = "winrate" | "games" | "lists";
 
     let listSortKey = $state<ListSortKey>("winrate");
     let listSortDir = $state<"asc" | "desc">("desc");
@@ -189,7 +189,7 @@
             }
             case "games":
                 return Math.max(0, l.games ?? 0);
-            case "popularity":
+            case "lists":
                 return Math.max(0, l.popularity ?? l.count ?? 0);
         }
     }
@@ -211,7 +211,7 @@
     // control: win rate, games, and popularity (squad.popularity or
     // squad.count). The win_rate field on squadrons is already a
     // percentage; we fall back to wins/games if missing.
-    type SquadSortKey = "winrate" | "games" | "popularity";
+    type SquadSortKey = "winrate" | "games" | "lists" | "unique";
 
     let squadSortKey = $state<SquadSortKey>("winrate");
     let squadSortDir = $state<"asc" | "desc">("desc");
@@ -226,7 +226,9 @@
             }
             case "games":
                 return Math.max(0, s.games ?? 0);
-            case "popularity":
+            case "unique":
+                return Math.max(0, s.different_lists_count ?? 0);
+            case "lists":
                 return Math.max(0, s.popularity ?? s.count ?? 0);
         }
     }
@@ -720,7 +722,7 @@
                     options={[
                         { value: "winrate", label: "Win Rate" },
                         { value: "games", label: "Games" },
-                        { value: "popularity", label: "Lists" }
+                        { value: "lists", label: "Lists" }
                     ]}
                     onChange={(v, d) => {
                         listSortKey = v as ListSortKey;
@@ -768,7 +770,8 @@
                     options={[
                         { value: "winrate", label: "Win Rate" },
                         { value: "games", label: "Games" },
-                        { value: "popularity", label: "Lists" }
+                        { value: "lists", label: "Lists" },
+                        { value: "unique", label: "Unique Lists" }
                     ]}
                     onChange={(v, d) => {
                         squadSortKey = v as SquadSortKey;
@@ -791,7 +794,7 @@
                             : sGames > 0
                               ? (sWins / sGames) * 100
                               : 0}
-                    {@const sPopularity = Math.max(
+                    {@const sListCount = Math.max(
                         0,
                         squad.popularity ?? squad.count ?? 0,
                     )}
@@ -883,7 +886,7 @@
                                 <span
                                     class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary"
                                 >
-                                    LISTS {sPopularity}
+                                    LISTS {sListCount}
                                 </span>
                                 <span
                                     class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold"

@@ -161,7 +161,9 @@
                 value={filters.sortBy || "Games"}
                 direction={filters.sortDirection}
                 options={[
-                    { value: "Games", label: "Lists" },
+                    { value: "Games", label: "Games" },
+                    { value: "Lists", label: "Lists" },
+                    { value: "Unique Lists", label: "Unique Lists" },
                     { value: "Win Rate", label: "Win Rate" },
                 ]}
                 onChange={(v, d) => {
