@@ -35,7 +35,7 @@ def get_pilot_info(
 def get_pilot_upgrades(
     pilot_xws: str,
     data_source: str = Query("xwa"),
-    sort_metric: str = Query("Popularity"),
+    sort_metric: str = Query("Lists"),
     sort_direction: str = Query("desc"),
     page: int = Query(0, ge=0),
     size: int = Query(50, ge=1, le=100),

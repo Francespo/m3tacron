@@ -20,7 +20,7 @@ from ..data_structures.sorting_order import SortingCriteria, SortDirection
 
 def aggregate_card_stats(
     filters: dict,
-    sort_criteria: SortingCriteria = SortingCriteria.POPULARITY,
+    sort_criteria: SortingCriteria = SortingCriteria.LISTS,
     sort_direction: SortDirection = SortDirection.DESCENDING,
     mode: str = "pilots",  # pilots, upgrades
     data_source: DataSource = DataSource.XWA
@@ -506,8 +506,10 @@ def _finalize_results(
         results.append(s_data)
 
     def sort_key(item):
-        if sort_criteria == SortingCriteria.POPULARITY:
+        if sort_criteria == SortingCriteria.LISTS:
             return (item["list_count"], item["games_count"])
+        elif sort_criteria == SortingCriteria.UNIQUE_LISTS:
+            return (item["different_lists_count"], item["games_count"])
         elif sort_criteria == SortingCriteria.GAMES:
             return item["games_count"]
         elif sort_criteria == SortingCriteria.WINRATE:
