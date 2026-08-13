@@ -71,3 +71,4 @@ playwright-images/
 .playwright-mcp/
 verify*.png
 commit_message.json
+.opencode/
