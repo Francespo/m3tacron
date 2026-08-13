@@ -7,12 +7,29 @@ description: SSH access and database connection info for the m3tacron project se
 
 **Server:** `84.8.253.2` (port 22)
 **User:** `audit-bot`
-**Key:** `ssh_key` (this skill's directory)
-**Fingerprint:** `SHA256:XLU/H7Xjyw2nw30+dwccshyXiHk0DYLowcwPdwzGtJ4`
+**Key:** `~/.ssh/m3tacron_audit_bot` (must exist on the machine — not in the repo)
+
+### Prerequisites
+
+The SSH key must be present on the machine at `~/.ssh/m3tacron_audit_bot`. This is a machine-level prerequisite — the key is never stored in the repository.
+
+To set up on a new machine:
+```bash
+# Generate a keypair (if you don't have one for this server)
+ssh-keygen -t ed25519 -f ~/.ssh/m3tacron_audit_bot -C "m3tacron-audit-bot"
+
+# Copy the public key to the server
+ssh-copy-id -i ~/.ssh/m3tacron_audit_bot.pub audit-bot@84.8.253.2
+```
+
+To override the key path, set `LOCAL_DEV_SSH_KEY`:
+```bash
+LOCAL_DEV_SSH_KEY=/path/to/your/key bash scripts/local_dev/seed.sh
+```
 
 ### Connection command
 ```bash
-ssh -i /home/ubuntu/projects/m3tacron/.agents/skills/m3tacron/ssh_key -o StrictHostKeyChecking=no audit-bot@84.8.253.2
+ssh -i ~/.ssh/m3tacron_audit_bot -o StrictHostKeyChecking=no audit-bot@84.8.253.2
 ```
 
 ### Docker access

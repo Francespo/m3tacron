@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# m3tacron local dev stack — background mode.
+# Starts Docker stack + Vite in background. Binds to 0.0.0.0 for tailnet access.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -7,8 +9,16 @@ DUMPS_DIR="$REPO_ROOT/local-data/dumps"
 DUMP_FILE="$DUMPS_DIR/dev_latest.dump"
 VITE_PID_FILE="/tmp/m3tacron-vite.pid"
 VITE_LOG="/tmp/m3tacron-vite.log"
-DEFAULT_PORT=3333
+DEFAULT_PORT="${VITE_PORT:-3335}"
 VITE_PORT="$DEFAULT_PORT"
+
+# --- Detect tailnet hostname ---
+HOSTNAME_SHORT="$(hostname -s 2>/dev/null || echo localhost)"
+TAILSCALE_HOST=""
+if command -v tailscale &>/dev/null; then
+  TAILSCALE_HOST="$(tailscale status --json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['Self']['HostName'])" 2>/dev/null || true)"
+fi
+TAILNET_HOST="${TAILSCALE_HOST:-$HOSTNAME_SHORT}"
 
 cd "$REPO_ROOT"
 
@@ -89,17 +99,18 @@ fi
 cleanup_vite
 
 echo "==> Bringing up backend stack (postgres + backend in Docker)..."
+BACKEND_PORT="${BACKEND_PORT:-8890}"
 docker compose -f docker-compose.local.yml up -d --build postgres db-seed backend
 
 echo "==> Waiting for backend healthcheck..."
 for i in {1..30}; do
-  if curl -fsS http://localhost:8890/ -o /dev/null 2>/dev/null; then
+  if curl -fsS "http://localhost:${BACKEND_PORT}/" -o /dev/null 2>/dev/null; then
     echo "==> Backend is up."
     break
   fi
   sleep 2
   if [[ $i -eq 30 ]]; then
-    echo "!! Backend failed to come up in 60s. Run: bash scripts/local_dev/logs.sh backend"
+    echo "!! Backend failed to come up in 60s on port ${BACKEND_PORT}. Run: bash scripts/local_dev/logs.sh backend"
     exit 1
   fi
 done
@@ -113,9 +124,9 @@ if [[ ! -x "$VITE_BIN" ]]; then
 fi
 nohup env \
   NODE_OPTIONS="--max-old-space-size=4096" \
-  VITE_API_BASE=http://localhost:8890/api \
-  VITE_ALLOWED_HOSTS=localhost,127.0.0.1 \
-  ORIGIN=http://localhost:$VITE_PORT \
+  VITE_API_BASE="http://localhost:${BACKEND_PORT}/api" \
+  VITE_ALLOWED_HOSTS="localhost,127.0.0.1,${TAILNET_HOST}" \
+  ORIGIN="http://${TAILNET_HOST}:$VITE_PORT" \
   "$VITE_BIN" dev --host 0.0.0.0 --port "$VITE_PORT" \
   > "$VITE_LOG" 2>&1 &
 echo $! > "$VITE_PID_FILE"
@@ -128,13 +139,21 @@ if ! curl -fsS -o /dev/null "http://localhost:$VITE_PORT/" 2>/dev/null; then
   VITE_PORT=$(grep -oP 'Local:\s+http://localhost:\K[0-9]+' "$VITE_LOG" 2>/dev/null | tail -1 || echo "$DEFAULT_PORT")
 fi
 
+POSTGRES_PORT="${POSTGRES_PORT:-5435}"
 cat <<EOF
 
 ============================================================
   m3tacron local stack is running
-  Frontend: http://localhost:$VITE_PORT  (hot-reload via Vite)
-  Backend:  http://localhost:8890       (docs at /docs)
-  Postgres: localhost:5435              (m3tacron / m3tacron)
+
+  Local access:
+    Frontend: http://localhost:$VITE_PORT  (hot-reload via Vite)
+    Backend:  http://localhost:${BACKEND_PORT}       (docs at /docs)
+
+  Tailnet access (other users):
+    Frontend: http://${TAILNET_HOST}:$VITE_PORT
+    Backend:  http://${TAILNET_HOST}:${BACKEND_PORT}/docs
+
+  Postgres: localhost:${POSTGRES_PORT}              (m3tacron / m3tacron)
   Dump age: $(stat -c %y "$DUMP_FILE" 2>/dev/null | cut -d. -f1 || echo "unknown")
 ============================================================
   To stop: bash scripts/local_dev/up.sh --stop

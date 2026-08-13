@@ -20,6 +20,9 @@ dev = [
     "pytest-benchmark>=4.0.0",
 ]
 
+[tool.setuptools.packages.find]
+include = ["backend*"]
+
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
 addopts = "-m 'not performance'"
