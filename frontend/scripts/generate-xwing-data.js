@@ -128,7 +128,7 @@ function processSource(source) {
                                 faction: faction,
                                 image: pilot.image,
                                 artwork: pilot.artwork,
-                                upgrades: pilot.upgrades, // Slots
+                                slots: pilot.slots,
                                 caption: pilot.caption,
                                 ability: pilot.ability,
                                 shipAbility: pilot.shipAbility

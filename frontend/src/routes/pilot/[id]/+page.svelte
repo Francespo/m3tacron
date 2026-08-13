@@ -15,14 +15,15 @@
     let chart = $derived(data.chart);
     let configurations = $derived(data.configurations);
     let initialized = $state(false);
+    let currentlyPlayable = $state(data.currentlyPlayable ?? false);
 
     // Client-side sort state for "Top Configurations". The backend
     // returns configs pre-sorted by `count` desc; we re-sort in the
     // browser so the SortBy control can flip between "most-played"
     // (popularity / lists / games, all proxied by `count`), and
     // computed win rate (provided by the backend).
-    type ConfigSortKey = "lists" | "games" | "winrate";
-    let configSortKey = $state<ConfigSortKey>("lists");
+    type ConfigSortKey = "popularity" | "lists" | "games" | "winrate";
+    let configSortKey = $state<ConfigSortKey>("popularity");
     let configSortDir = $state<"asc" | "desc">("desc");
 
     function configSortValue(c: any): number {
@@ -31,6 +32,7 @@
                 return Math.max(0, c.win_rate ?? 0);
             case "games":
             case "lists":
+            case "popularity":
             default:
                 return Math.max(0, c.count ?? 0);
         }
@@ -95,6 +97,7 @@
             filters.dataSource = data.ds;
         }
         filters.includeEpic = !!data.includeEpic;
+        currentlyPlayable = !!data.currentlyPlayable;
         initialized = true;
     });
 
@@ -104,6 +107,7 @@
         const params = new URLSearchParams();
         params.set("data_source", filters.dataSource);
         if (filters.includeEpic) params.set("include_epic", "true");
+        if (currentlyPlayable) params.set("currently_playable", "true");
         for (const f of getDefaultFormats(filters.dataSource, filters.includeEpic)) {
             params.append("formats", f);
         }
@@ -262,28 +266,38 @@
         </div>
     </div>
 
-    <!-- Top Configurations Section (NEW) -->
+    <!-- Top Configurations Section -->
     {#if configurations && configurations.length > 0}
         <section class="mb-10">
-            <div class="flex items-center justify-between gap-3 mb-4">
-                <h2 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2 flex items-baseline gap-2">
-                    <span>Top Configurations</span>
-                    <span class="text-secondary text-base font-normal">({data.configTotal} unique combos)</span>
-                </h2>
-                <SortBy
-                    value={configSortKey}
-                    direction={configSortDir}
-                    options={[
-                        { value: "lists", label: "Lists" },
-                        { value: "lists", label: "Lists" },
-                        { value: "games", label: "Games" },
-                        { value: "winrate", label: "Win Rate" }
-                    ]}
-                    onChange={(v, d) => {
-                        configSortKey = v as ConfigSortKey;
-                        configSortDir = d;
-                    }}
-                />
+            <div class="flex flex-col gap-3 mb-4">
+                <div class="flex items-center justify-between gap-3">
+                    <h2 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2 flex items-baseline gap-2">
+                        <span>Top Configurations</span>
+                        <span class="text-secondary text-base font-normal">({data.configTotal} unique combos)</span>
+                    </h2>
+                    <SortBy
+                        value={configSortKey}
+                        direction={configSortDir}
+                        options={[
+                            { value: "popularity", label: "Games" },
+                            { value: "lists", label: "Lists" },
+                            { value: "games", label: "Games" },
+                            { value: "winrate", label: "Win Rate" }
+                        ]}
+                        onChange={(v, d) => {
+                            configSortKey = v as ConfigSortKey;
+                            configSortDir = d;
+                        }}
+                    />
+                </div>
+                <label class="inline-flex items-center gap-2 cursor-pointer self-start">
+                    <input
+                        type="checkbox"
+                        bind:checked={currentlyPlayable}
+                        class="w-4 h-4 rounded border-border-dark bg-terminal-panel text-cyan-400 focus:ring-cyan-500/40 accent-cyan-400"
+                    />
+                    <span class="text-xs font-mono text-secondary select-none">Currently Playable</span>
+                </label>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {#each sortedConfigurations as config, i (config.upgrades.map((u: any) => u.xws).join("|"))}

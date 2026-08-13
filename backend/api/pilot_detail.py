@@ -19,6 +19,37 @@ from ..database import engine
 router = APIRouter(prefix="/api/pilot", tags=["Pilot Detail"])
 
 
+def _normalize_slot(name: str) -> str:
+    """Normalize a slot name for case-insensitive, space/hyphen-agnostic comparison."""
+    return name.lower().replace(" ", "").replace("-", "")
+
+
+def _get_upgrade_slot_type(upgrade_info: dict) -> str:
+    """Get the primary slot type for an upgrade from its sides data."""
+    sides = upgrade_info.get("sides", [])
+    if sides and isinstance(sides, list) and len(sides) > 0:
+        side_type = sides[0].get("type", "")
+        if side_type:
+            return side_type
+    return upgrade_info.get("slot_category", "")
+
+
+def _get_upgrade_cost(upgrade_info: dict) -> int:
+    """Extract the numeric point cost from an upgrade's cost field."""
+    cost = upgrade_info.get("cost", {})
+    if isinstance(cost, (int, float)):
+        return int(cost)
+    if isinstance(cost, dict):
+        val = cost.get("value")
+        if val is not None:
+            return int(val)
+        # Initiative-keyed costs: pick the cheapest for conservative filtering
+        numeric = [int(v) for k, v in cost.items() if str(k).isdigit()]
+        if numeric:
+            return min(numeric)
+    return 0
+
+
 @router.get("/{pilot_xws}")
 def get_pilot_info(
     pilot_xws: str,
@@ -56,6 +87,25 @@ def get_pilot_upgrades(
         "include_epic": False,
     }
     data = aggregate_card_stats(filters, criteria, direction, "upgrades", ds)
+
+    # Filter upgrades to only those compatible with the pilot's actual slots.
+    # The SQL query finds co-occurrence (any upgrade in any list with this pilot),
+    # but we need to validate against the pilot's legal upgrade slots.
+    all_pilots_for_slots = load_all_pilots(ds)
+    pilot_info = all_pilots_for_slots.get(pilot_xws, {})
+    pilot_slots = {_normalize_slot(s) for s in pilot_info.get("slots", [])}
+    if pilot_slots:
+        all_upgrades_for_filter = load_all_upgrades(ds)
+        filtered = []
+        for item in data:
+            u_info = all_upgrades_for_filter.get(item["xws"], {})
+            u_type = _get_upgrade_slot_type(u_info)
+            if u_type and _normalize_slot(u_type) in pilot_slots:
+                item["type"] = u_type
+                item["type_xws"] = _normalize_slot(u_type)
+                filtered.append(item)
+        data = filtered
+
     total = len(data)
     start = page * size
     items = data[start:start + size]
@@ -89,6 +139,7 @@ def get_pilot_configurations(
     data_source: str = Query("xwa"),
     formats: list[str] | None = Query(None),
     limit: int = Query(10, ge=1, le=50),
+    currently_playable: bool = Query(False),
 ):
     """
     Return top upgrade configurations for this pilot.
@@ -159,37 +210,73 @@ def get_pilot_configurations(
                     "upgrade_ids": upgrade_ids,
                     "count": 0,
                     "wins": 0,
+                    "games": 0,
                 }
             config_stats[key]["count"] += 1
-            # Win detection: a player wins if they won at least one game in
-            # this match (swiss + cut wins > 0). This is the closest we can
-            # get to a per-match win indicator without a `winner` column.
-            # The old code attempted to use `row.winner` and `swiss_standing`
-            # but neither existed on PlayerStanding, so wins were always 0.
+            # Track total games played (wins + losses + draws) so we can
+            # compute a proper win-rate that never exceeds 100%.
+            total_games = swiss_wins + swiss_losses + swiss_draws + cut_wins + cut_losses + cut_draws
+            config_stats[key]["games"] += total_games
             total_wins = swiss_wins + cut_wins
             if total_wins > 0:
                 config_stats[key]["wins"] += total_wins
 
     # Sort by count desc, take top N
-    sorted_configs = sorted(config_stats.values(), key=lambda x: x["count"], reverse=True)[:limit]
+    sorted_configs = sorted(config_stats.values(), key=lambda x: x["count"], reverse=True)
 
-    # Enrich with upgrade names/images
+    # If currently_playable is requested, load pilot slot/loadout info and filter
+    if currently_playable:
+        all_pilots_info = load_all_pilots(ds)
+        pilot_info = all_pilots_info.get(pilot_xws, {})
+        pilot_slots = {_normalize_slot(s) for s in pilot_info.get("slots", [])}
+        pilot_loadout = int(pilot_info.get("loadout", 0) or 0)
+        is_xwa = ds == DataSource.XWA
+
+        playable_configs = []
+        for cfg in sorted_configs:
+            # Check slot compatibility: every upgrade's slot type must be in pilot's slots
+            if pilot_slots:
+                slot_ok = True
+                total_cost = 0
+                for uid in cfg["upgrade_ids"]:
+                    u_info = all_upgrades.get(uid, {})
+                    u_type = _get_upgrade_slot_type(u_info)
+                    if not u_type or _normalize_slot(u_type) not in pilot_slots:
+                        slot_ok = False
+                        break
+                    if is_xwa:
+                        total_cost += _get_upgrade_cost(u_info)
+                if not slot_ok:
+                    continue
+                # For XWA, check loadout budget
+                if is_xwa and pilot_loadout > 0 and total_cost > pilot_loadout:
+                    continue
+            playable_configs.append(cfg)
+        sorted_configs = playable_configs
+
+    sorted_configs = sorted_configs[:limit]
+
+    # Enrich with upgrade names/images and slot types
     results = []
     for cfg in sorted_configs:
         enriched_upgrades = []
         for uid in cfg["upgrade_ids"]:
             info = all_upgrades.get(uid, {})
+            slot_type = _get_upgrade_slot_type(info)
             enriched_upgrades.append({
                 "xws": uid,
                 "name": info.get("name", uid),
-                "type": info.get("type", ""),
+                "type": slot_type,
+                "type_xws": _normalize_slot(slot_type) if slot_type else "",
                 "image": info.get("image", ""),
+                "cost": _get_upgrade_cost(info),
             })
-        wr = round((cfg["wins"] / cfg["count"]) * 100, 1) if cfg["count"] > 0 else 0
+        wr = round((cfg["wins"] / cfg["games"]) * 100, 1) if cfg["games"] > 0 else 0
         results.append({
             "upgrades": enriched_upgrades,
             "count": cfg["count"],
             "wins": cfg["wins"],
+            "games": cfg["games"],
             "win_rate": wr,
         })
 

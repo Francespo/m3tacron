@@ -54,6 +54,7 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                             "initiative": pilot.get("initiative", 0),
                             "cost": pilot.get("cost", 0),
                             "loadout": pilot.get("loadout", 0),
+                            "slots": pilot.get("slots", []),
                             "ability": pilot.get("ability", ""),
                             # Ship stats for filtering
                             "hull": stats_flat.get("hull"),
