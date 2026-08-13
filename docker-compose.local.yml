@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     environment:
       POSTGRES_USER: m3tacron
       POSTGRES_PASSWORD: m3tacron
@@ -36,7 +36,7 @@ services:
     restart: unless-stopped
 
   db-seed:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     depends_on:
       postgres:
         condition: service_healthy

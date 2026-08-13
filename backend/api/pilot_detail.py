@@ -34,6 +34,17 @@ def _get_upgrade_slot_type(upgrade_info: dict) -> str:
     return upgrade_info.get("slot_category", "")
 
 
+def _get_upgrade_slots(upgrade_info: dict) -> list[str]:
+    """Get the full slot list for an upgrade (may be 1 or 2 slots, e.g. Synced Laser Cannons)."""
+    sides = upgrade_info.get("sides", [])
+    if sides and isinstance(sides, list) and len(sides) > 0:
+        slots = sides[0].get("slots", [])
+        if slots:
+            return list(slots)
+    primary = _get_upgrade_slot_type(upgrade_info)
+    return [primary] if primary else []
+
+
 def _get_upgrade_cost(upgrade_info: dict) -> int:
     """Extract the numeric point cost from an upgrade's cost field."""
     cost = upgrade_info.get("cost", {})
@@ -103,6 +114,8 @@ def get_pilot_upgrades(
             if u_type and _normalize_slot(u_type) in pilot_slots:
                 item["type"] = u_type
                 item["type_xws"] = _normalize_slot(u_type)
+                item["name"] = u_info.get("name", item["xws"])
+                item["image"] = u_info.get("image", "")
                 filtered.append(item)
         data = filtered
 
@@ -268,6 +281,7 @@ def get_pilot_configurations(
                 "name": info.get("name", uid),
                 "type": slot_type,
                 "type_xws": _normalize_slot(slot_type) if slot_type else "",
+                "slots": _get_upgrade_slots(info),
                 "image": info.get("image", ""),
                 "cost": _get_upgrade_cost(info),
             })

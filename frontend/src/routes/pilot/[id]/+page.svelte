@@ -2,8 +2,11 @@
     import { browser } from "$app/environment";
     import { goto } from "$app/navigation";
     import BackLink from "$lib/components/BackLink.svelte";
+    import CardTooltip from "$lib/components/CardTooltip.svelte";
     import { filters } from "$lib/stores/filters.svelte";
+    import { xwingData } from "$lib/stores/xwingData.svelte";
     import { getFactionColor } from "$lib/data/factions";
+    import { getSlotIcon } from "$lib/data/slots";
     import SortBy from "$lib/components/SortBy.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
 
@@ -97,6 +100,9 @@
             filters.dataSource = data.ds;
         }
         filters.includeEpic = !!data.includeEpic;
+        // Kick off the xwingData manifest for this data source so slot
+        // icons / names resolve even when the user lands here directly.
+        xwingData.setSource(filters.dataSource as any);
         currentlyPlayable = !!data.currentlyPlayable;
         initialized = true;
     });
@@ -301,22 +307,53 @@
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {#each sortedConfigurations as config, i (config.upgrades.map((u: any) => u.xws).join("|"))}
+                    {@const loadoutSum = (config.upgrades || []).reduce((s: number, u: any) => s + (u.cost || 0), 0)}
                     <div class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:border-primary/30 transition-all">
                         <div class="flex items-center justify-between mb-3">
                             <span class="text-xs font-mono text-secondary">#{i + 1}</span>
                             <div class="flex items-center gap-2">
-                                <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary">GAMES {config.count}</span>
+                                <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold">GAMES {config.count}</span>
                                 <span
                                     class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold"
                                     style="background: {wrColor(config.win_rate)}15; color: {wrColor(config.win_rate)};"
                                 >WR {config.win_rate}%</span>
+                                {#if loadoutSum > 0}
+                                    <span class="px-1.5 py-0.5 bg-violet-500/20 text-violet-400 border border-violet-500/30 rounded-md text-[10px] font-mono font-bold">LV {loadoutSum}</span>
+                                {/if}
                             </div>
                         </div>
                         <div class="flex flex-wrap gap-1.5">
                             {#each config.upgrades as upg}
-                                <span class="px-2 py-1 text-xs font-mono rounded-md bg-cyan-500/10 text-cyan-300 border border-cyan-500/20" title={upg.type}>
-                                    {upg.name}
-                                </span>
+                                <div
+                                    class="group relative flex items-stretch rounded-md overflow-visible text-xs font-mono cursor-pointer hover:brightness-125"
+                                    role="link"
+                                    tabindex="0"
+                                    title={upg.name}
+                                    aria-label="{upg.name} — open upgrade details"
+                                    onclick={() => goto(`/upgrade/${upg.xws}`)}
+                                    onkeydown={(e) => {
+                                        if (e.key === "Enter" || e.key === " ") {
+                                            e.preventDefault();
+                                            goto(`/upgrade/${upg.xws}`);
+                                        }
+                                    }}
+                                >
+                                    <!-- LEFT: slot icon glyph(s) -->
+                                    <span class="flex items-center gap-1 px-2 py-1 bg-[#ffffff05] text-primary border border-border-dark rounded-l-md" aria-hidden="true">
+                                        {#each upg.slots || [] as slot}
+                                            <span class="font-xwing leading-none">{getSlotIcon(slot) || "–"}</span>
+                                        {/each}
+                                    </span>
+                                    <!-- CENTER: upgrade name -->
+                                    <span class="flex items-center px-2 py-1 bg-[#ffffff05] text-primary border-y border-r border-border-dark">
+                                        {upg.name}
+                                    </span>
+                                    <!-- RIGHT: point cost -->
+                                    <span class="flex items-center px-2 py-1 bg-emerald-500/20 text-emerald-400 font-bold border-y border-r border-emerald-500/30 rounded-r-md">
+                                        {upg.cost}pts
+                                    </span>
+                                    <CardTooltip image={upg.image} name={upg.name} />
+                                </div>
                             {/each}
                             {#if config.upgrades.length === 0}
                                 <span class="text-xs font-mono text-secondary italic">No upgrades</span>

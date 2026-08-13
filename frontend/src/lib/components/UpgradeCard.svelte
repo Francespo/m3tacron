@@ -25,8 +25,8 @@
     } = $props();
 
     const uData = $derived(xwingData.getUpgrade(upgrade.xws));
-    const name = $derived(uData?.name || upgrade.xws);
-    const image = $derived(uData?.sides[0]?.image);
+    const name = $derived(uData?.name || upgrade.name || upgrade.xws);
+    const image = $derived(uData?.sides[0]?.image || upgrade.image);
     const slot = $derived(uData?.sides[0]?.slots?.[0] || upgrade.slot_xws);
 
     // Stats calculation

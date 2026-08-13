@@ -382,13 +382,13 @@ def aggregate_card_stats(
             params["ship_filter"] = list(ship_filter_sql)
             params["ship_source"] = "xwa" if data_source == DataSource.XWA else "legacy"
 
-    # If filter_pilot_id is set, restrict to lists containing that pilot.
-    # Achieved with the same list_json->'pilots' containment trick.
+    # If filter_pilot_id is set, restrict to the specific pilot's OWN
+    # upgrades. This filters the unnested pilot element directly rather
+    # than using an EXISTS on the list — otherwise upgrades belonging to
+    # OTHER pilots in the same list leak into this pilot's stats
+    # (e.g. Mandalorian-only upgrades showing up on a Wedge page).
     if filter_pilot_id:
-        where_clauses.append(
-            "EXISTS (SELECT 1 FROM jsonb_array_elements(ps.list_json->'pilots') sp "
-            "WHERE sp->>'id' = :filter_pilot_id)"
-        )
+        where_clauses.append("p->>'id' = :filter_pilot_id")
         params["filter_pilot_id"] = filter_pilot_id
 
     where_sql = " AND ".join(where_clauses)
