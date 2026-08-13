@@ -162,4 +162,4 @@ Read `codemap.md` when locating code or judging scope. Read `AGENTS.md` for repo
 
 ## Target Repository
 
-Confirm the target repo before creating: default is the current repository, but for the Hub automation loop issues should live where the trigger is wired (ask the user). Create with `gh issue create -R <owner/repo> --body-file`.
+Issues and labels live on the **upstream** repo (the project tracker), never on the fork. Default target: the upstream remote — `Francespo/m3tacron` — confirmed with the user before creating. The work-order labels (types + `frontend`/`backend`/`performance`) already exist upstream, and Priority/Size live in the M3tacron Project fields. Create with `gh issue create -R <owner/repo> --body-file`.
