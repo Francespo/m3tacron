@@ -8,8 +8,10 @@ function previewBackendHost() {
 	// PR-specific backend containers are reachable as `backend-pr-<N>` on the
 	// shared coolify network. The generic `backend` alias belongs to the old
 	// shared backend, so previews must target their own container.
-	// COOLIFY_BRANCH is like `pull/131/head`.
-	const fromBranch = (process.env.COOLIFY_BRANCH || '').match(/^pull\/(\d+)/);
+	// COOLIFY_BRANCH is like `pull/131/head` but Coolify quotes the value
+	// (e.g. `"pull/131/head"`), so strip any surrounding quotes first.
+	const branch = String(process.env.COOLIFY_BRANCH || '').replace(/^"|"$/g, '');
+	const fromBranch = branch.match(/^pull\/(\d+)/);
 	if (fromBranch) {
 		return `backend-pr-${fromBranch[1]}`;
 	}
