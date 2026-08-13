@@ -10,17 +10,11 @@
       "command": "bash scripts/local_dev/launch.sh",
       "port": 3335
     },
-    "test": {
-      "command": ". .venv/bin/activate && pytest"
-    },
     "seed": {
       "command": "bash scripts/local_dev/seed.sh"
     },
     "status": {
       "command": "bash scripts/local_dev/status.sh"
-    },
-    "lint": {
-      "command": "npm run check --prefix frontend"
     }
   }
 }
