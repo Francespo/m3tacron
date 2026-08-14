@@ -17,40 +17,58 @@
 	let { children }: { children: Snippet } = $props();
 
 	// Global navigation progress: a thin bar across the top of the viewport
-	// that appears the instant ANY navigation starts (sidebar links,
-	// pagination, tab switches, filter-driven `goto`s) and hides once the
-	// new route is interactive. On streamed loads the navigation completes
-	// as soon as the page shell is ready, so the route's own PendingIndicator
-	// keeps the "still updating" state visible after this bar hides.
+	// that appears only when a navigation actually takes noticeable time
+	// (sidebar links, pagination, tab switches, filter-driven `goto`s) and
+	// hides the moment the new route is interactive. Fast navigations finish
+	// before the show-delay elapses, so the bar never flashes for them. On
+	// streamed loads the navigation completes as soon as the page shell is
+	// ready, so the route's own PendingIndicator keeps the "still updating"
+	// state visible after this bar hides.
+	const SHOW_DELAY_MS = 350;
 	let navActive = $state(false);
+	let navShowTimer: ReturnType<typeof setTimeout> | null = null;
 	let navSafetyTimer: ReturnType<typeof setTimeout> | null = null;
 
 	beforeNavigate(() => {
-		// Immediate reaction to the click: bar on before the request runs.
+		// Don't show the bar yet — wait SHOW_DELAY_MS so instant navigations
+		// never flash it. Restart the pending show timer on every navigation
+		// (rapid successive clicks cancel the previous pending one).
+		if (navShowTimer !== null) {
+			clearTimeout(navShowTimer);
+			navShowTimer = null;
+		}
 		if (navSafetyTimer !== null) {
 			clearTimeout(navSafetyTimer);
 			navSafetyTimer = null;
 		}
-		navActive = true;
+		navShowTimer = setTimeout(() => {
+			navActive = true;
+			navShowTimer = null;
+		}, SHOW_DELAY_MS);
 		// Safety net: if the navigation never completes (cancelled, external
 		// link, unload), never leave the bar stuck on screen.
 		navSafetyTimer = setTimeout(() => {
 			navActive = false;
+			navShowTimer = null;
 			navSafetyTimer = null;
 		}, 10000);
 	});
 
 	afterNavigate(() => {
-		// The new route is interactive. Keep the bar for a beat so even fast
-		// navigations read as a visible response, then hand off to the
-		// page-level pending indicators for any still-streaming loads.
+		// The new route is interactive: cancel any pending show timer and
+		// clear the bar immediately. No lingering beat — instant navigations
+		// never show it, and slow ones disappear the moment the route is
+		// ready (the page-level pending indicators cover any still-streaming
+		// loads after this bar hides).
+		if (navShowTimer !== null) {
+			clearTimeout(navShowTimer);
+			navShowTimer = null;
+		}
 		if (navSafetyTimer !== null) {
 			clearTimeout(navSafetyTimer);
 			navSafetyTimer = null;
 		}
-		setTimeout(() => {
-			navActive = false;
-		}, 250);
+		navActive = false;
 	});
 
 	// Mobile-only nav drawer state. Bound to MobileTopBar's hamburger (open)
