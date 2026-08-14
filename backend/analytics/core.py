@@ -391,6 +391,18 @@ def aggregate_card_stats(
         )
         params["filter_pilot_id"] = filter_pilot_id
 
+    # If filter_upgrade_id is set, restrict to lists containing that upgrade.
+    # Works against the raw list_json pilots so both the object form
+    # ({"talent": ["predator"], ...}) and the array form of `upgrades`
+    # are covered by jsonb_each over sp->'upgrades'.
+    if filter_upgrade_id:
+        where_clauses.append(
+            "EXISTS (SELECT 1 FROM jsonb_array_elements(ps.list_json->'pilots') sp "
+            "WHERE EXISTS (SELECT 1 FROM jsonb_each(sp->'upgrades') e, "
+            "jsonb_array_elements_text(e.value) u WHERE u = :filter_upgrade_id))"
+        )
+        params["filter_upgrade_id"] = filter_upgrade_id
+
     where_sql = " AND ".join(where_clauses)
 
     if mode == "pilots":

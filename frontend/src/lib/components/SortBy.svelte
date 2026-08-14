@@ -30,7 +30,7 @@
     <button
         type="button"
         onclick={handleDirectionToggle}
-        class="inline-flex items-center justify-center w-7 h-7 bg-terminal-panel border border-border-dark rounded-md text-secondary hover:text-primary hover:bg-[#ffffff05] transition-colors"
+        class="inline-flex items-center justify-center w-7 h-7 bg-terminal-panel border border-border-dark rounded-md text-secondary hover:text-primary hover:bg-[#ffffff05] active:bg-[#ffffff14] transition-colors"
         aria-label={direction === "asc" ? "Sort ascending" : "Sort descending"}
     >
         {#if direction === "asc"}
