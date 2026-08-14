@@ -74,6 +74,14 @@ def get_squadrons(
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
     ships: list[str] | None = Query(None),
+    platforms: list[str] | None = Query(None),
+    continent: list[str] | None = Query(None),
+    country: list[str] | None = Query(None),
+    city: list[str] | None = Query(None),
+    date_start: str | None = Query(None),
+    date_end: str | None = Query(None),
+    player_count_min: int | None = Query(None),
+    player_count_max: int | None = Query(None),
     min_games: int = Query(0, ge=0),
 ):
     filters: dict = {}
@@ -83,6 +91,14 @@ def get_squadrons(
         filters["factions"] = factions
     if ships:
         filters["ships"] = ships
+    filters["platforms"] = platforms
+    filters["continent"] = continent
+    filters["country"] = country
+    filters["city"] = city
+    filters["date_start"] = date_start
+    filters["date_end"] = date_end
+    filters["player_count_min"] = player_count_min
+    filters["player_count_max"] = player_count_max
     filters["min_games"] = min_games
 
     # Build a stable cache key from all inputs that affect the response.
@@ -93,6 +109,12 @@ def get_squadrons(
         f"{','.join(sorted(formats or []))}|"
         f"{','.join(sorted(factions or []))}|"
         f"{','.join(sorted(ships or []))}|"
+        f"{','.join(sorted(platforms or []))}|"
+        f"{','.join(sorted(continent or []))}|"
+        f"{','.join(sorted(country or []))}|"
+        f"{','.join(sorted(city or []))}|"
+        f"{date_start or ''}|{date_end or ''}|"
+        f"{player_count_min}|{player_count_max}|"
         f"{min_games}"
     )
 

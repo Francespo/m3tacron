@@ -119,6 +119,12 @@ def get_ships(
         f"|{','.join(sorted(factions or []))}"
         f"|{','.join(sorted(ships or []))}"
         f"|{search or ''}"
+        f"|{','.join(sorted(platforms or []))}"
+        f"|{','.join(sorted(continent or []))}"
+        f"|{','.join(sorted(country or []))}"
+        f"|{','.join(sorted(city or []))}"
+        f"|{date_start or ''}|{date_end or ''}"
+        f"|{player_count_min}|{player_count_max}"
     )
 
     def compute():
