@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Query
-from ..analytics.lists import aggregate_list_stats
+from ..analytics.lists import aggregate_list_stats, fetch_list_pilots
 from ..cache import get_cached_or_compute
 from ..data_structures.data_source import DataSource
 from ..data_structures.factions import Faction
@@ -166,6 +166,18 @@ def get_lists(
     # Sort AFTER the cache lookup — the heavy aggregation is sort-independent.
     filtered_data = _sort_list_stats(filtered_data, sort_metric, sort_direction)
     total = len(filtered_data)
-    items = filtered_data[page * size : (page + 1) * size]
+    page_items = filtered_data[page * size : (page + 1) * size]
+
+    # Pilots are aggregated lazily (see analytics/lists.py): the stats rows
+    # carry empty pilots, so attach them only for the page being returned.
+    # Copy each row first — the cached list is shared across requests and
+    # must never be mutated.
+    signatures: list[str] = [row["signature"] for row in page_items if row.get("signature")]
+    pilots_map = fetch_list_pilots(signatures) if signatures else {}
+    items = [
+        {**row, "pilots": pilots_map.get(row["signature"], [])}
+        for row in page_items
+        if row.get("signature")
+    ]
 
     return PaginatedListsResponse(items=items, total=total, page=page, size=size)
