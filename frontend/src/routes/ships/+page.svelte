@@ -310,14 +310,26 @@
             {@const startIdx = (page - 1) * size}
             {@const shipItems = mergedShips.slice(startIdx, startIdx + size)}
 
-            <!-- Stale ships stay visible while a refetch runs; the thin bar
-                 says the query started without blocking further interaction. -->
-            <div class="relative">
-                <PendingIndicator active={pending} label="Updating…" />
-
-                <p class="text-secondary font-mono text-sm mb-6">
+            <!-- Stale ships stay visible while a refetch runs: the grid
+                 container dims while `pending` and smoothly returns to full
+                 opacity; the neutral inline tag next to the count says the
+                 update is in flight. -->
+            <div class="flex items-center gap-2.5 mb-6">
+                <p class="text-secondary font-mono text-sm">
                     {resolvedTotal} Ships Found
                 </p>
+                <PendingIndicator
+                    active={pending}
+                    mode="tag"
+                    label="Updating…"
+                />
+            </div>
+
+            <div
+                class="transition-opacity duration-200 {pending
+                    ? 'opacity-50'
+                    : 'opacity-100'}"
+            >
 
                 {#if shipItems.length > 0}
                     <!-- Ships Heatmap Grid -->

@@ -188,14 +188,26 @@
             {@const resolvedTotal = resolved?.total ?? 0}
             {@const items = resolved?.items ?? []}
 
-            <!-- Stale rows stay visible while a refetch runs; the thin bar
-                 says the query started without blocking further interaction. -->
-            <div class="relative">
-                <PendingIndicator active={pending} label="Updating…" />
-
-                <p class="text-secondary font-mono text-sm mb-6">
+            <!-- Stale rows stay visible while a refetch runs: the rows
+                 container dims while `pending` and smoothly returns to full
+                 opacity; the neutral inline tag next to the count says the
+                 update is in flight. -->
+            <div class="flex items-center gap-2.5 mb-6">
+                <p class="text-secondary font-mono text-sm">
                     {resolvedTotal} Tournaments Found
                 </p>
+                <PendingIndicator
+                    active={pending}
+                    mode="tag"
+                    label="Updating…"
+                />
+            </div>
+
+            <div
+                class="transition-opacity duration-200 {pending
+                    ? 'opacity-50'
+                    : 'opacity-100'}"
+            >
 
                 {#if items.length > 0}
                     <!-- Tournament Rows -->

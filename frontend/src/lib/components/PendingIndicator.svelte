@@ -10,10 +10,10 @@
      *     `relative` container. It is absolutely positioned and
      *     pointer-events-none, so it never blocks interaction (filters,
      *     pagination, sorting stay usable) and never shifts the layout.
-     *   - mode="tag": a small blinking-dot + label for inline use next to
-     *     result counts / headers.
+     *   - mode="tag": a small monochrome blinking-dot + label chip for
+     *     inline use next to result counts / headers.
      *
-     * Terminal aesthetic: muted track, thin cyan sweep, monospace label.
+     * Terminal aesthetic: muted track, thin neutral sweep, monospace label.
      * No flashy animation — just enough motion to say "your input was
      * received and the query has started".
      */
@@ -35,7 +35,7 @@
         </div>
     {:else}
         <span
-            class="inline-flex items-center gap-1.5 font-mono text-[11px] text-secondary"
+            class="inline-flex items-center gap-1.5 border border-border-dark bg-[#ffffff05] rounded-md px-2 py-0.5 font-mono text-xs text-secondary"
             role="status"
         >
             <span class="pending-dot" aria-hidden="true"></span>
@@ -66,7 +66,7 @@
         background: linear-gradient(
             90deg,
             transparent 0%,
-            rgba(34, 211, 238, 0.75) 50%,
+            rgba(255, 255, 255, 0.7) 50%,
             transparent 100%
         );
         animation: pending-sweep 1.1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
@@ -84,8 +84,8 @@
         width: 7px;
         height: 7px;
         border-radius: 9999px;
-        background: rgba(34, 211, 238, 0.55);
-        box-shadow: 0 0 6px rgba(34, 211, 238, 0.45);
+        background: rgba(255, 255, 255, 0.65);
+        box-shadow: 0 0 6px rgba(255, 255, 255, 0.3);
         animation: pending-blink 1.1s steps(2, jump-none) infinite;
     }
     @keyframes pending-blink {

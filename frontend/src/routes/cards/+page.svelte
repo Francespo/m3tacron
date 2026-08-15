@@ -363,16 +363,28 @@
                 wins: Math.max(0, Number(c?.wins ?? 0)),
             }))}
 
-            <!-- Stale cards stay visible while a refetch runs; the thin bar
-                 says the query started without blocking further interaction. -->
-            <div class="relative">
-                <PendingIndicator active={pending} label="Updating…" />
-
+            <!-- Stale cards stay visible while a refetch runs: the grid
+                 container dims while `pending` and smoothly returns to full
+                 opacity; the neutral inline tag next to the count says the
+                 update is in flight. -->
+            <div class="flex items-center gap-2.5 mb-6">
                 <!-- Result count in the same "N x Found" style as squadrons,
                      lists, ships, and tournaments listings. -->
-                <p class="text-secondary font-mono text-sm mb-6">
+                <p class="text-secondary font-mono text-sm">
                     {resolvedTotal} {data.tab === "pilots" ? "Pilots" : "Upgrades"} Found
                 </p>
+                <PendingIndicator
+                    active={pending}
+                    mode="tag"
+                    label="Updating…"
+                />
+            </div>
+
+            <div
+                class="transition-opacity duration-200 {pending
+                    ? 'opacity-50'
+                    : 'opacity-100'}"
+            >
                 {#if cardItems.length > 0}
                     <div
                         class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6"
