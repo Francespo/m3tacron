@@ -70,36 +70,101 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
             except Exception:
                 continue
     
-    # Manual patches for missing scenario pilots (e.g. Battle of Yavin / D'Qar)
+    # Manual patches for missing scenario pilots (e.g. Battle of Yavin / D'Qar / Armed and Dangerous)
     # Only apply to XWA, they don't exist in Legacy.
     # For safety, applying generally if missing.
     MANUAL_PILOT_DATA = {
+        # Evacuation of D'QAR
         "longshot-evacuationofdqar": {
-            "name": "Longshot", "ship": "TIE/fo Fighter", "ship_xws": "tiefofighter", "faction": "First Order", "ship_icon": "tiefofighter"
+            "name": "Longshot", "ship": "TIE/fo Fighter", "ship_xws": "tiefofighter", "faction": "firstorder", "ship_icon": "tiefofighter"
+        },
+        "scorch-evacuationofdqar": {
+            "name": "Scorch", "ship": "TIE/fo Fighter", "ship_xws": "tiefofighter", "faction": "firstorder", "ship_icon": "tiefofighter"
         },
         "stomeronistarck-evacuationofdqar": {
-            "name": "Stomeroni Starck", "ship": "T-70 X-wing", "ship_xws": "t70xwing", "faction": "Resistance", "ship_icon": "t70xwing"
+            "name": "Stomeroni Starck", "ship": "T-70 X-wing", "ship_xws": "t70xwing", "faction": "resistance", "ship_icon": "t70xwing"
         },
         "zizitlo-evacuationofdqar": {
-            "name": "Zizi Tlo", "ship": "RZ-2 A-wing", "ship_xws": "rz2awing", "faction": "Resistance", "ship_icon": "rz2awing"
+            "name": "Zizi Tlo", "ship": "RZ-2 A-wing", "ship_xws": "rz2awing", "faction": "resistance", "ship_icon": "rz2awing"
         },
         "caithrenalli-evacuationofdqar": {
-            "name": "C'ai Threnalli", "ship": "T-70 X-wing", "ship_xws": "t70xwing", "faction": "Resistance", "ship_icon": "t70xwing"
+            "name": "C'ai Threnalli", "ship": "T-70 X-wing", "ship_xws": "t70xwing", "faction": "resistance", "ship_icon": "t70xwing"
         },
+        "ronithblario-evacuationofdqar": {
+            "name": "Ronith Blario", "ship": "RZ-2 A-wing", "ship_xws": "rz2awing", "faction": "resistance", "ship_icon": "rz2awing"
+        },
+        "poedameron-evacuationofdqar": {
+            "name": "Poe Dameron", "ship": "T-70 X-wing", "ship_xws": "t70xwing", "faction": "resistance", "ship_icon": "t70xwing"
+        },
+        "vennie-evacuationofdqar": {
+            "name": "Vennie", "ship": "MG-100 StarFortress", "ship_xws": "mg100starfortress", "faction": "resistance", "ship_icon": "mg100starfortress"
+        },
+        "pettyofficerthanisson-evacuationofdqar": {
+            "name": "Petty Officer Thanisson", "ship": "Xi-class Light Shuttle", "ship_xws": "xiclasslightshuttle", "faction": "firstorder", "ship_icon": "xiclasslightshuttle"
+        },
+        "kyloren-evacuationofdqar": {
+            "name": "Kylo Ren", "ship": "TIE/vn Silencer", "ship_xws": "tievnsilencer", "faction": "firstorder", "ship_icon": "tievnsilencer"
+        },
+        "midnight-evacuationofdqar": {
+            "name": "Midnight", "ship": "TIE/fo Fighter", "ship_xws": "tiefofighter", "faction": "firstorder", "ship_icon": "tiefofighter"
+        },
+        "zeta5-evacuationofdqar": {
+            "name": "Zeta 5", "ship": "TIE/fo Fighter", "ship_xws": "tiefofighter", "faction": "firstorder", "ship_icon": "tiefofighter"
+        },
+        "omega2-evacuationofdqar": {
+            "name": "Omega 2", "ship": "TIE/fo Fighter", "ship_xws": "tiefofighter", "faction": "firstorder", "ship_icon": "tiefofighter"
+        },
+        "theta3-evacuationofdqar": {
+            "name": "Theta 3", "ship": "TIE/fo Fighter", "ship_xws": "tiefofighter", "faction": "firstorder", "ship_icon": "tiefofighter"
+        },
+        "theta4-evacuationofdqar": {
+            "name": "Theta 4", "ship": "TIE/fo Fighter", "ship_xws": "tiefofighter", "faction": "firstorder", "ship_icon": "tiefofighter"
+        },
+        "jaycristubbs-evacuationofdqar": {
+            "name": "Jaycris Tubbs", "ship": "T-70 X-wing", "ship_xws": "t70xwing", "faction": "resistance", "ship_icon": "t70xwing"
+        },
+        "pammichnerrogoode-evacuationofdqar": {
+            "name": "Pammich Nerro Goode", "ship": "Resistance Transport", "ship_xws": "resistancetransport", "faction": "resistance", "ship_icon": "resistancetransport"
+        },
+        "lieutenantlehuse-evacuationofdqar": {
+            "name": "Lieutenant LeHuse", "ship": "Xi-class Light Shuttle", "ship_xws": "xiclasslightshuttle", "faction": "firstorder", "ship_icon": "xiclasslightshuttle"
+        },
+        "finchdallow-evacuationofdqar": {
+            "name": "Finch Dallow", "ship": "MG-100 StarFortress", "ship_xws": "mg100starfortress", "faction": "resistance", "ship_icon": "mg100starfortress"
+        },
+        # Armed and Dangerous
         "fennrau-armedanddangerous": {
-            "name": "Fenn Rau", "ship": "Fang Fighter", "ship_xws": "fangfighter", "faction": "Scum and Villainy", "ship_icon": "fangfighter"
+            "name": "Fenn Rau", "ship": "Fang Fighter", "ship_xws": "fangfighter", "faction": "scumandvillainy", "ship_icon": "fangfighter"
         },
         "themandalorian-armedanddangerous": {
-            "name": "The Mandalorian", "ship": "ST-70 Assault Ship", "ship_xws": "st70assaultship", "faction": "Scum and Villainy", "ship_icon": "st70assaultship"
+            "name": "The Mandalorian", "ship": "ST-70 Assault Ship", "ship_xws": "st70assaultship", "faction": "scumandvillainy", "ship_icon": "st70assaultship"
         },
         "dengar-armedanddangerous": {
-            "name": "Dengar", "ship": "JumpMaster 5000", "ship_xws": "jumpmaster5000", "faction": "Scum and Villainy", "ship_icon": "jumpmaster5000"
+            "name": "Dengar", "ship": "JumpMaster 5000", "ship_xws": "jumpmaster5000", "faction": "scumandvillainy", "ship_icon": "jumpmaster5000"
         },
         "bossk-armedanddangerous": {
-            "name": "Bossk", "ship": "YV-666", "ship_xws": "yv666lightfreighter", "faction": "Scum and Villainy", "ship_icon": "yv666lightfreighter"
+            "name": "Bossk", "ship": "YV-666", "ship_xws": "yv666lightfreighter", "faction": "scumandvillainy", "ship_icon": "yv666lightfreighter"
         },
         "cadbane-armedanddangerous": {
-            "name": "Cad Bane", "ship": "Rogue-class Starfighter", "ship_xws": "rogueclassstarfighter", "faction": "Scum and Villainy", "ship_icon": "rogueclassstarfighter"
+            "name": "Cad Bane", "ship": "Rogue-class Starfighter", "ship_xws": "rogueclassstarfighter", "faction": "scumandvillainy", "ship_icon": "rogueclassstarfighter"
+        },
+        "princexizor-armedanddangerous": {
+            "name": "Prince Xizor", "ship": "StarViper-class Attack Platform", "ship_xws": "starviperclassattackplatform", "faction": "scumandvillainy", "ship_icon": "starviperclassattackplatform"
+        },
+        "bobafett-armedanddangerous": {
+            "name": "Boba Fett", "ship": "Firespray-class Patrol Craft", "ship_xws": "firesprayclasspatrolcraft", "faction": "scumandvillainy", "ship_icon": "firesprayclasspatrolcraft"
+        },
+        "zuckuss-armedanddangerous": {
+            "name": "Zuckuss", "ship": "G-1A Starfighter", "ship_xws": "g1astarfighter", "faction": "scumandvillainy", "ship_icon": "g1astarfighter"
+        },
+        "hansolo-armedanddangerous": {
+            "name": "Han Solo", "ship": "Customized YT-1300 Light Freighter", "ship_xws": "customizedyt1300lightfreighter", "faction": "scumandvillainy", "ship_icon": "customizedyt1300lightfreighter"
+        },
+        "fennecshand-armedanddangerous": {
+            "name": "Fennec Shand", "ship": "Modified TIE/ln Fighter", "ship_xws": "modifiedtielnfighter", "faction": "scumandvillainy", "ship_icon": "modifiedtielnfighter"
+        },
+        "bokatankryze-armedanddangerous": {
+            "name": "Bo-Katan Kryze", "ship": "Gauntlet Fighter", "ship_xws": "gauntletfighter", "faction": "scumandvillainy", "ship_icon": "gauntletfighter"
         }
     }
     
@@ -109,15 +174,37 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
 
     return all_pilots
 
+PACK_SUFFIXES = [
+    "-armedanddangerous",
+    "-evacuationofdqar",
+    "-battleoverendor",
+    "-battleofyavin",
+    "-siegeofcoruscant",
+    "-alphastrike",
+    "-lsl",
+]
+
 def get_pilot_info(xws_pilot: str, source: DataSource = DataSource.XWA) -> dict | None:
     """Get full pilot info from XWS ID."""
     pilots = load_all_pilots(source)
-    return pilots.get(xws_pilot)
+    if xws_pilot in pilots:
+        return pilots[xws_pilot]
+
+    # Try fallback stripping of pack/variant suffixes
+    clean_id = xws_pilot
+    for suf in PACK_SUFFIXES:
+        if clean_id.endswith(suf):
+            clean_id = clean_id[:-len(suf)]
+    
+    if clean_id in pilots:
+        base_p = pilots[clean_id]
+        return {**base_p, "xws": xws_pilot}
+
+    return None
 
 def get_pilot_name(xws_pilot: str) -> str:
     """Get human-readable pilot name from XWS ID (uses Default XWA source for name lookup)."""
-    pilots = load_all_pilots()
-    pilot = pilots.get(xws_pilot)
+    pilot = get_pilot_info(xws_pilot)
     return pilot["name"] if pilot else xws_pilot
 
 def get_pilot_image(xws_pilot: str, source: DataSource = DataSource.XWA) -> str:
