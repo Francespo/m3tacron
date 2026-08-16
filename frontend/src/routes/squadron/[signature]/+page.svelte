@@ -108,6 +108,37 @@
         });
     });
 
+    // ------------------------------------------------------------------------
+    // Graceful display names for the top-lists pilot summary.
+    // ------------------------------------------------------------------------
+    // The enriched list payload references pilots/upgrades by XWS id only
+    // (`pilot.xws`, `upgrade.xws`); human-readable names come from the
+    // xwing-data manifest. Unmapped ids fall back to the raw XWS id rather
+    // than the literal string "unknown" (the squadron page already knows the
+    // faction, so "unknown" would be wrong). For the pathological case where
+    // the id itself is "unknown" we show a neutral placeholder instead.
+    function pilotDisplayName(pilot: any): string {
+        const xws = String(pilot?.xws ?? "").trim();
+        const name = xwingData.getPilot(xws)?.name || pilot?.name || xws;
+        return name.toLowerCase() === "unknown" ? "Unidentified Pilot" : name;
+    }
+
+    function upgradeDisplayName(upgrade: any): string {
+        const xws = String(upgrade?.xws ?? "").trim();
+        const name = xwingData.getUpgrade(xws)?.name || xws;
+        return name.toLowerCase() === "unknown" ? "Unidentified Upgrade" : name;
+    }
+
+    // The backend names unnamed lists "Unknown List"; render those with the
+    // same neutral "Untitled List" fallback used for missing names so the
+    // literal word "unknown" never appears on the page.
+    function listDisplayName(list: any): string {
+        const name = String(list?.name ?? "").trim();
+        return !name || name.toLowerCase() === "unknown list"
+            ? "Untitled List"
+            : name;
+    }
+
     // Derived from signature (e.g., "bwing,rz1awing,t65xwing")
     // Note: signature is the raw sorted string of ship chassis keys
     let shipsInSquadron = $derived(
@@ -331,7 +362,7 @@
                                 <CardHoverLink
                                     xws={p.pilot_xws}
                                     type="pilot"
-                                    name={pilotData?.name || p.name || p.pilot_xws}
+                                    name={pilotDisplayName({ xws: p.pilot_xws, name: p.name })}
                                     className="font-sans font-bold truncate"
                                 />
                             </div>
@@ -424,14 +455,15 @@
             {#if lists.length > 0}
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {#each sortedLists.slice(0, 12) as list}
+                        {@const factionXws = list.faction_xws || list.faction_key || ""}
                         {@const safeGames = Math.max(0, list.games ?? 0)}
                         {@const safeWins = Math.max(0, list.wins ?? 0)}
                         {@const wr = safeGames > 0
                             ? (safeWins / safeGames) * 100
                             : 0}
                         <div
-                            class="relative bg-terminal-panel border border-border-dark rounded-lg p-4 hover:border-secondary/40 transition-colors flex flex-col gap-4"
-                            style="border-left: 3px solid {getFactionColor(list.faction)};"
+                            class="relative bg-terminal-panel border border-border-dark rounded-lg p-4 hover:border-secondary/40 transition-colors flex flex-col gap-3"
+                            style="border-left: 3px solid {getFactionColor(factionXws)};"
                         >
                             <!-- Stretched link: clicking anywhere on the card
                                  (outside a pilot-name link) goes to the list page. -->
@@ -440,79 +472,90 @@
                                 class="absolute inset-0 z-0"
                                 aria-label="View list details"
                             ></a>
-                            <!-- Header: name + faction -->
-                            <div class="flex justify-between items-start gap-4">
-                                <h3
-                                    class="font-sans font-bold text-primary text-sm line-clamp-2 leading-tight"
-                                >
-                                    {list.name || "Untitled List"}
-                                </h3>
-                                <div class="flex items-center gap-2 flex-shrink-0">
+                            <!-- Header: name + faction label (left), win rate +
+                                 games · lists (right) — compact dashboard style. -->
+                            <div
+                                class="flex items-start justify-between gap-4 border-b border-border-dark/50 pb-3"
+                            >
+                                <div class="flex items-center gap-2 overflow-hidden min-w-0">
                                     <span
-                                        class="inline-block w-2.5 h-2.5 rounded-full"
+                                        class="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
                                         style="background: {getFactionColor(
-                                            list.faction,
+                                            factionXws,
                                         )}"
                                     ></span>
+                                    <div class="flex flex-col min-w-0">
+                                        <h3
+                                            class="font-sans font-bold text-primary text-sm line-clamp-2 leading-tight"
+                                            title={listDisplayName(list)}
+                                        >
+                                            {listDisplayName(list)}
+                                        </h3>
+                                        <span
+                                            class="text-[10px] text-secondary uppercase tracking-tighter opacity-70"
+                                            >{getFactionLabel(factionXws)}</span
+                                        >
+                                    </div>
+                                </div>
+                                <div class="flex flex-col items-end flex-shrink-0">
                                     <span
-                                        class="text-xs font-mono text-secondary whitespace-nowrap"
-                                        >{getFactionLabel(list.faction)}</span
+                                        class="text-sm font-mono font-bold"
+                                        style="color: {getWinRateColor(wr)};"
+                                    >
+                                        {wr.toFixed(1)}% WR
+                                    </span>
+                                    <span class="text-[11px] text-secondary"
+                                        >{safeGames} games</span
                                     >
                                 </div>
                             </div>
 
-                            <!-- Quick Stats -->
-                            <div
-                                class="flex flex-wrap gap-2 border-b border-border-dark/50 pb-3"
-                            >
-                                <span
-                                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
-                                    style="color: {getWinRateColor(wr)};"
-                                >
-                                    WR {wr.toFixed(1)}%
-                                </span>
-                                <span
-                                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
-                                >
-                                    GAMES {safeGames}
-                                </span>
-                                <span
-                                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
-                                >
-                                    WINS {safeWins}
-                                </span>
-                                <span
-                                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-emerald-400"
-                                >
-                                    PTS {list.points ?? 0}
-                                </span>
-                            </div>
-
-                            <!-- Pilot summary -->
-                            <div class="flex-1 flex flex-col justify-end">
-                                <div
-                                    class="text-xs font-mono text-secondary space-y-1.5"
-                                >
-                                    {#each list.pilots || [] as pilot}
-                                        {@const pilotName = xwingData.getPilot(
-                                            pilot.id,
-                                        )?.name || pilot.name || pilot.id}
-                                        <div
-                                            class="flex items-center gap-2 truncate relative z-10 pointer-events-auto"
-                                        >
-                                            <i
-                                                class="xwing-miniatures-ship xwing-miniatures-ship-{pilot.ship ||
-                                                    ''} text-[10px] opacity-70 flex-shrink-0"
-                                            ></i>
-                                            <CardHoverLink
-                                                xws={pilot.id}
-                                                type="pilot"
-                                                name={pilotName}
-                                                className="text-xs font-mono truncate"
-                                            />
+                            <!-- Pilot summary: one compact row per pilot, with
+                                 upgrades (or the Standard Loadout pack name in
+                                 italics) underneath. -->
+                            <div class="flex flex-col gap-1.5 w-full flex-grow">
+                                {#each list.pilots || [] as pilot}
+                                    {@const pilotData = xwingData.getPilot(
+                                        pilot.xws,
+                                    )}
+                                    {@const pilotShipXws = (pilotData?.ship ||
+                                        pilot.ship_xws ||
+                                        "").replace(/[^a-z0-9]/g, "")}
+                                    <div
+                                        class="flex items-start gap-2 min-w-0 relative z-10 pointer-events-auto"
+                                    >
+                                        <i
+                                            class="xwing-miniatures-ship xwing-miniatures-ship-{pilotShipXws} text-secondary text-sm w-5 text-center flex-shrink-0 mt-0.5"
+                                            aria-hidden="true"
+                                        ></i>
+                                        <div class="min-w-0 flex-1">
+                                            <div class="truncate">
+                                                <CardHoverLink
+                                                    xws={pilot.xws}
+                                                    type="pilot"
+                                                    name={pilotDisplayName(pilot)}
+                                                    className="text-xs font-mono"
+                                                />
+                                            </div>
+                                            {#if (pilot.upgrades || []).length > 0}
+                                                <div
+                                                    class="text-[11px] text-secondary/80 truncate"
+                                                >
+                                                    {(pilot.upgrades || [])
+                                                        .map((u: any) =>
+                                                            upgradeDisplayName(u),
+                                                        )
+                                                        .join(", ")}
+                                                </div>
+                                            {:else if pilotData?.caption}
+                                                <div
+                                                    class="text-[11px] text-secondary/80 italic truncate"
+                                                    >{pilotData.caption}</div
+                                                >
+                                            {/if}
                                         </div>
-                                    {/each}
-                                </div>
+                                    </div>
+                                {/each}
                             </div>
                         </div>
                     {/each}
