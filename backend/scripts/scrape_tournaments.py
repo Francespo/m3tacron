@@ -973,11 +973,10 @@ def main() -> int:
             logger.error(str(exc))
             return 1
 
-    if date_from is None or date_to is None:
-        # Should not happen: this branch is only reached when
-        # tournament_urls is empty and parse_time_range succeeded.
-        logger.error("Internal error: date range not set.")
-        return 1
+        if date_from is None or date_to is None:
+            # Should not happen: parse_time_range succeeded above.
+            logger.error("Internal error: date range not set.")
+            return 1
 
     logger.info(
         f"Date range: {date_from} -> {date_to} | "

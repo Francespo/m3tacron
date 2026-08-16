@@ -13,6 +13,10 @@ from datetime import date as date_type, datetime
 from sqlalchemy import JSON, Column, Computed, String
 from sqlalchemy.dialects.postgresql import JSONB
 
+# JSONB is Postgres-only; fall back to generic JSON on other backends
+# (SQLite) so the schema can be created for local/artifact databases.
+JSONB_VARIANT = JSONB().with_variant(JSON(), "sqlite")
+
 from .data_structures.formats import Format
 from .data_structures.source import Source
 from .data_structures.scenarios import Scenario
@@ -81,7 +85,7 @@ class List(SQLModel, table=True):
     points: int | None = None
     pilot_count: int | None = None
     ship_list: str  # sorted comma-joined: "btla4ywing,t65xwing,t65xwing"
-    list_json: dict = Field(sa_column=Column(JSONB))
+    list_json: dict = Field(sa_column=Column(JSONB_VARIANT))
     created_at: datetime | None = Field(default=None)
 
 
@@ -105,7 +109,7 @@ class PlayerStanding(SQLModel, table=True):
     cut_draws: int | None = Field(default=None)
     cut_event_points: int | None = Field(default=None)
     cut_tie_breaker_points: int | None = Field(default=None)
-    list_json: dict = Field(default={}, sa_column=Column(JSONB))
+    list_json: dict = Field(default={}, sa_column=Column(JSONB_VARIANT))
     list_id: int | None = Field(default=None, foreign_key="list.id", index=True)
     # Generated column: lower(replace(replace(list_json->>'faction', ' ', ''), '-', ''))
     # Mirrors the SQL GENERATED ALWAYS AS expression. Marked nullable since list_json
