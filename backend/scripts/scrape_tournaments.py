@@ -329,9 +329,13 @@ def _persist_list_rows(
     # jsonb in the `list` table). This is robust regardless of how the
     # canonical_signature is computed — as long as the row exists, we
     # can find it by its JSON content.
+    #
+    # NOTE: compare on list_json::text rather than list_json = ANY(:ljs);
+    # psycopg2 binds the Python list as a text[] array and Postgres has no
+    # jsonb = text operator.
     select_sql = text(
         "SELECT id, list_json::text FROM list "
-        "WHERE list_json = ANY(:ljs)"
+        "WHERE list_json::text = ANY(:ljs)"
     )
     rows = session.execute(
         select_sql, {"ljs": list(lj_json_to_lj.keys())}
