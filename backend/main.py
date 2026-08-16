@@ -130,15 +130,17 @@ def read_root():
 @app.get("/api/meta-snapshot", response_model=MetaSnapshotResponse)
 def get_snapshot(data_source: str = Query("xwa", description="Data source: xwa or legacy")):
     ds_enum = DataSource.XWA if data_source == "xwa" else DataSource.LEGACY
-
     def compute():
         # Runs the 5 aggregations + 2 count queries. Cached by data source,
         # so the dashboard (which hits this on every load / filter toggle)
         # only pays the cost once per data_version.
+        from .api.formatters import enrich_list_data
         snapshot = get_meta_snapshot(ds_enum, allowed_formats=None)
 
-        # Lists are already aggregated in correct format by lists.aggregate_list_stats
-        enriched_lists = snapshot.get("lists", [])
+        # Enrich list data with pilot/ship metadata (names, ship icons,
+        # pack captions, upgrade names) before serving to the dashboard.
+        raw_lists = snapshot.get("lists", [])
+        enriched_lists = [enrich_list_data(l, source=ds_enum) for l in raw_lists]
 
         total_tournaments = 0
         total_players = 0

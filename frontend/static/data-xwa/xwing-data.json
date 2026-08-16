@@ -15014,6 +15014,306 @@
         "name": "Versatile Frame",
         "text": "You can equip 1 [Torpedo] or [Missile] upgrade. While your revealed maneuver is blue, add white [Boost] to your action bar."
       }
+    },
+    "longshot-evacuationofdqar": {
+      "name": "Longshot",
+      "xws": "longshot-evacuationofdqar",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "tiefofighter",
+      "faction": "firstorder"
+    },
+    "scorch-evacuationofdqar": {
+      "name": "Scorch",
+      "xws": "scorch-evacuationofdqar",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "tiefofighter",
+      "faction": "firstorder"
+    },
+    "stomeronistarck-evacuationofdqar": {
+      "name": "Stomeroni Starck",
+      "xws": "stomeronistarck-evacuationofdqar",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "t70xwing",
+      "faction": "resistance"
+    },
+    "zizitlo-evacuationofdqar": {
+      "name": "Zizi Tlo",
+      "xws": "zizitlo-evacuationofdqar",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "rz2awing",
+      "faction": "resistance"
+    },
+    "caithrenalli-evacuationofdqar": {
+      "name": "C'ai Threnalli",
+      "xws": "caithrenalli-evacuationofdqar",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "t70xwing",
+      "faction": "resistance"
+    },
+    "ronithblario-evacuationofdqar": {
+      "name": "Ronith Blario",
+      "xws": "ronithblario-evacuationofdqar",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "rz2awing",
+      "faction": "resistance"
+    },
+    "poedameron-evacuationofdqar": {
+      "name": "Poe Dameron",
+      "xws": "poedameron-evacuationofdqar",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "t70xwing",
+      "faction": "resistance"
+    },
+    "vennie-evacuationofdqar": {
+      "name": "Vennie",
+      "xws": "vennie-evacuationofdqar",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "mg100starfortress",
+      "faction": "resistance"
+    },
+    "pettyofficerthanisson-evacuationofdqar": {
+      "name": "Petty Officer Thanisson",
+      "xws": "pettyofficerthanisson-evacuationofdqar",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "xiclasslightshuttle",
+      "faction": "firstorder"
+    },
+    "kyloren-evacuationofdqar": {
+      "name": "Kylo Ren",
+      "xws": "kyloren-evacuationofdqar",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "tievnsilencer",
+      "faction": "firstorder"
+    },
+    "midnight-evacuationofdqar": {
+      "name": "Midnight",
+      "xws": "midnight-evacuationofdqar",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "tiefofighter",
+      "faction": "firstorder"
+    },
+    "zeta5-evacuationofdqar": {
+      "name": "Zeta 5",
+      "xws": "zeta5-evacuationofdqar",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "tiefofighter",
+      "faction": "firstorder"
+    },
+    "omega2-evacuationofdqar": {
+      "name": "Omega 2",
+      "xws": "omega2-evacuationofdqar",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "tiefofighter",
+      "faction": "firstorder"
+    },
+    "theta3-evacuationofdqar": {
+      "name": "Theta 3",
+      "xws": "theta3-evacuationofdqar",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "tiefofighter",
+      "faction": "firstorder"
+    },
+    "theta4-evacuationofdqar": {
+      "name": "Theta 4",
+      "xws": "theta4-evacuationofdqar",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "tiefofighter",
+      "faction": "firstorder"
+    },
+    "jaycristubbs-evacuationofdqar": {
+      "name": "Jaycris Tubbs",
+      "xws": "jaycristubbs-evacuationofdqar",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "t70xwing",
+      "faction": "resistance"
+    },
+    "pammichnerrogoode-evacuationofdqar": {
+      "name": "Pammich Nerro Goode",
+      "xws": "pammichnerrogoode-evacuationofdqar",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "resistancetransport",
+      "faction": "resistance"
+    },
+    "lieutenantlehuse-evacuationofdqar": {
+      "name": "Lieutenant LeHuse",
+      "xws": "lieutenantlehuse-evacuationofdqar",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "xiclasslightshuttle",
+      "faction": "firstorder"
+    },
+    "finchdallow-evacuationofdqar": {
+      "name": "Finch Dallow",
+      "xws": "finchdallow-evacuationofdqar",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "mg100starfortress",
+      "faction": "resistance"
+    },
+    "fennrau-armedanddangerous": {
+      "name": "Fenn Rau",
+      "xws": "fennrau-armedanddangerous",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "fangfighter",
+      "faction": "scumandvillainy"
+    },
+    "themandalorian-armedanddangerous": {
+      "name": "The Mandalorian",
+      "xws": "themandalorian-armedanddangerous",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "st70assaultship",
+      "faction": "scumandvillainy"
+    },
+    "dengar-armedanddangerous": {
+      "name": "Dengar",
+      "xws": "dengar-armedanddangerous",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "jumpmaster5000",
+      "faction": "scumandvillainy"
+    },
+    "bossk-armedanddangerous": {
+      "name": "Bossk",
+      "xws": "bossk-armedanddangerous",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "yv666lightfreighter",
+      "faction": "scumandvillainy"
+    },
+    "cadbane-armedanddangerous": {
+      "name": "Cad Bane",
+      "xws": "cadbane-armedanddangerous",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "rogueclassstarfighter",
+      "faction": "scumandvillainy"
+    },
+    "princexizor-armedanddangerous": {
+      "name": "Prince Xizor",
+      "xws": "princexizor-armedanddangerous",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "starviperclassattackplatform",
+      "faction": "scumandvillainy"
+    },
+    "bobafett-armedanddangerous": {
+      "name": "Boba Fett",
+      "xws": "bobafett-armedanddangerous",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "firesprayclasspatrolcraft",
+      "faction": "scumandvillainy"
+    },
+    "zuckuss-armedanddangerous": {
+      "name": "Zuckuss",
+      "xws": "zuckuss-armedanddangerous",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "g1astarfighter",
+      "faction": "scumandvillainy"
+    },
+    "hansolo-armedanddangerous": {
+      "name": "Han Solo",
+      "xws": "hansolo-armedanddangerous",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "customizedyt1300lightfreighter",
+      "faction": "scumandvillainy"
+    },
+    "fennecshand-armedanddangerous": {
+      "name": "Fennec Shand",
+      "xws": "fennecshand-armedanddangerous",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "modifiedtielnfighter",
+      "faction": "scumandvillainy"
+    },
+    "bokatankryze-armedanddangerous": {
+      "name": "Bo-Katan Kryze",
+      "xws": "bokatankryze-armedanddangerous",
+      "initiative": 0,
+      "limited": 1,
+      "cost": 0,
+      "loadout": 0,
+      "ship": "gauntletfighter",
+      "faction": "scumandvillainy"
     }
   },
   "upgrades": {
@@ -26959,6 +27259,291 @@
                 "difficulty": "White"
               }
             }
+          ]
+        }
+      ]
+    },
+    "acceleratedsensorarray": {
+      "name": "Accelerated Sensor Array",
+      "xws": "acceleratedsensorarray",
+      "limited": 0,
+      "cost": 0,
+      "sides": [
+        {
+          "title": "Accelerated Sensor Array",
+          "type": "Tech",
+          "slots": [
+            "Tech"
+          ]
+        }
+      ]
+    },
+    "dedicatedgunners": {
+      "name": "Dedicated Gunners",
+      "xws": "dedicatedgunners",
+      "limited": 0,
+      "cost": 0,
+      "sides": [
+        {
+          "title": "Dedicated Gunners",
+          "type": "Gunner",
+          "slots": [
+            "Gunner"
+          ]
+        }
+      ]
+    },
+    "determination": {
+      "name": "Determination",
+      "xws": "determination",
+      "limited": 0,
+      "cost": 0,
+      "sides": [
+        {
+          "title": "Determination",
+          "type": "Talent",
+          "slots": [
+            "Talent"
+          ]
+        }
+      ]
+    },
+    "escortfighter": {
+      "name": "Escort Fighter",
+      "xws": "escortfighter",
+      "limited": 0,
+      "cost": 0,
+      "sides": [
+        {
+          "title": "Escort Fighter",
+          "type": "Talent",
+          "slots": [
+            "Talent"
+          ]
+        }
+      ]
+    },
+    "forthecause": {
+      "name": "For the Cause",
+      "xws": "forthecause",
+      "limited": 0,
+      "cost": 0,
+      "sides": [
+        {
+          "title": "For the Cause",
+          "type": "Talent",
+          "slots": [
+            "Talent"
+          ]
+        }
+      ]
+    },
+    "precisionholotargeter": {
+      "name": "Precision Holotargeter",
+      "xws": "precisionholotargeter",
+      "limited": 0,
+      "cost": 0,
+      "sides": [
+        {
+          "title": "Precision Holotargeter",
+          "type": "Tech",
+          "slots": [
+            "Tech"
+          ]
+        }
+      ]
+    },
+    "primedoverdrivethrusters": {
+      "name": "Primed Overdrive Thrusters",
+      "xws": "primedoverdrivethrusters",
+      "limited": 0,
+      "cost": 0,
+      "sides": [
+        {
+          "title": "Primed Overdrive Thrusters",
+          "type": "Tech",
+          "slots": [
+            "Tech"
+          ]
+        }
+      ]
+    },
+    "repulsorliftengines": {
+      "name": "Repulsorlift Engines",
+      "xws": "repulsorliftengines",
+      "limited": 0,
+      "cost": 0,
+      "sides": [
+        {
+          "title": "Repulsorlift Engines",
+          "type": "Modification",
+          "slots": [
+            "Modification"
+          ]
+        }
+      ]
+    },
+    "targetassistalgorithm": {
+      "name": "Target Assist Algorithm",
+      "xws": "targetassistalgorithm",
+      "limited": 0,
+      "cost": 0,
+      "sides": [
+        {
+          "title": "Target Assist Algorithm",
+          "type": "Tech",
+          "slots": [
+            "Tech"
+          ]
+        }
+      ]
+    },
+    "threatsensors": {
+      "name": "Threat Sensors",
+      "xws": "threatsensors",
+      "limited": 0,
+      "cost": 0,
+      "sides": [
+        {
+          "title": "Threat Sensors",
+          "type": "Tech",
+          "slots": [
+            "Tech"
+          ]
+        }
+      ]
+    },
+    "adaptablepowersystems": {
+      "name": "Adaptable Power Systems",
+      "xws": "adaptablepowersystems",
+      "limited": 0,
+      "cost": 0,
+      "sides": [
+        {
+          "title": "Adaptable Power Systems",
+          "type": "Modification",
+          "slots": [
+            "Modification"
+          ]
+        }
+      ]
+    },
+    "flechettecannons": {
+      "name": "Flechette Cannons",
+      "xws": "flechettecannons",
+      "limited": 0,
+      "cost": 0,
+      "sides": [
+        {
+          "title": "Flechette Cannons",
+          "type": "Cannon",
+          "slots": [
+            "Cannon"
+          ]
+        }
+      ]
+    },
+    "homingbeacon": {
+      "name": "Homing Beacon",
+      "xws": "homingbeacon",
+      "limited": 0,
+      "cost": 0,
+      "sides": [
+        {
+          "title": "Homing Beacon",
+          "type": "Sensor",
+          "slots": [
+            "Sensor"
+          ]
+        }
+      ]
+    },
+    "kinesoswitch": {
+      "name": "Kineso Switch",
+      "xws": "kinesoswitch",
+      "limited": 0,
+      "cost": 0,
+      "sides": [
+        {
+          "title": "Kineso Switch",
+          "type": "Illicit",
+          "slots": [
+            "Illicit"
+          ]
+        }
+      ]
+    },
+    "r2g8": {
+      "name": "R2-G8",
+      "xws": "r2g8",
+      "limited": 0,
+      "cost": 0,
+      "sides": [
+        {
+          "title": "R2-G8",
+          "type": "Astromech",
+          "slots": [
+            "Astromech"
+          ]
+        }
+      ]
+    },
+    "starboardthrusters": {
+      "name": "Starboard Thrusters",
+      "xws": "starboardthrusters",
+      "limited": 0,
+      "cost": 0,
+      "sides": [
+        {
+          "title": "Starboard Thrusters",
+          "type": "Modification",
+          "slots": [
+            "Modification"
+          ]
+        }
+      ]
+    },
+    "synchronizedhandling": {
+      "name": "Synchronized Handling",
+      "xws": "synchronizedhandling",
+      "limited": 0,
+      "cost": 0,
+      "sides": [
+        {
+          "title": "Synchronized Handling",
+          "type": "Tech",
+          "slots": [
+            "Tech"
+          ]
+        }
+      ]
+    },
+    "todo360": {
+      "name": "ToDo-360",
+      "xws": "todo360",
+      "limited": 0,
+      "cost": 0,
+      "sides": [
+        {
+          "title": "ToDo-360",
+          "type": "Crew",
+          "slots": [
+            "Crew"
+          ]
+        }
+      ]
+    },
+    "fennecshand": {
+      "name": "Fennec Shand",
+      "xws": "fennecshand",
+      "limited": 0,
+      "cost": 0,
+      "sides": [
+        {
+          "title": "Fennec Shand",
+          "type": "Gunner",
+          "slots": [
+            "Gunner"
           ]
         }
       ]
