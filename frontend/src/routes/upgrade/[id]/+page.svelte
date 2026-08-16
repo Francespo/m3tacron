@@ -1,5 +1,6 @@
 <script lang="ts">
     import { goto } from "$app/navigation";
+    import { invalidateAll } from "$app/navigation";
     import SortBy from "$lib/components/SortBy.svelte";
     import StatIcon from "$lib/components/StatIcon.svelte";
     import { getWinRateColor } from "$lib/data/factions";
@@ -9,6 +10,24 @@
     import BackLink from "$lib/components/BackLink.svelte";
 
     let { data } = $props();
+
+    // The loader streams the aggregate stats in via `statsPromise`
+    // (non-blocking navigation). The {#await} block in the template gates
+    // rendering on it; this state feeds the stat-derived values below.
+    let stats = $state<any>(null);
+    $effect(() => {
+        let cancelled = false;
+        data.statsPromise.then((s: any) => {
+            if (!cancelled) stats = s;
+        });
+        return () => {
+            cancelled = true;
+        };
+    });
+
+    function retry() {
+        invalidateAll();
+    }
 
     // Static upgrade metadata from the reactive xwing-data manifest.
     // Loaded client-side; falls back to a placeholder when the manifest
@@ -30,13 +49,13 @@
     // the same shape the /cards page already populates for UpgradeCard.
     // All counts are defensively clamped to >= 0 in case the backend
     // returns null/undefined (e.g. upgrade excluded by format filters).
-    const games = $derived(Math.max(0, Number(data.stats?.games_count ?? 0)));
-    const wins = $derived(Math.max(0, Number(data.stats?.wins ?? 0)));
+    const games = $derived(Math.max(0, Number(stats?.games_count ?? 0)));
+    const wins = $derived(Math.max(0, Number(stats?.wins ?? 0)));
     const listsCount = $derived(
-        Math.max(0, Number(data.stats?.list_count ?? 0)),
+        Math.max(0, Number(stats?.list_count ?? 0)),
     );
     const differentListsCount = $derived(
-        Math.max(0, Number(data.stats?.different_lists_count ?? 0)),
+        Math.max(0, Number(stats?.different_lists_count ?? 0)),
     );
     const wrPct = $derived(games > 0 ? (wins / games) * 100 : 0);
     const wrColor = $derived(getWinRateColor(wrPct));
@@ -94,7 +113,66 @@
         <BackLink href="/cards?tab=upgrades" ariaLabel="Back to Cards" />
     </div>
 
-    <!-- Header Section -->
+    {#await data.statsPromise}
+        <div class="text-center py-12">
+            <p class="text-secondary font-mono text-sm animate-pulse mb-6">
+                Loading…
+            </p>
+            <!-- Loading Skeleton (matches detail layout: header card with
+                 image + title, then the stats grid) -->
+            <div class="space-y-6 text-left">
+                <div
+                    class="flex flex-col md:flex-row gap-8 items-center bg-terminal-panel border border-border-dark rounded-lg p-6 md:p-8"
+                >
+                    <div
+                        class="animate-pulse bg-[#ffffff06] rounded-lg w-[220px] h-[300px] shrink-0"
+                    ></div>
+                    <div class="flex-1 w-full space-y-3">
+                        <div
+                            class="animate-pulse bg-[#ffffff06] rounded h-8 w-2/3"
+                        ></div>
+                        <div
+                            class="animate-pulse bg-[#ffffff06] rounded h-4 w-1/3"
+                        ></div>
+                        <div
+                            class="animate-pulse bg-[#ffffff06] rounded h-16 w-full"
+                        ></div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {#each Array(4) as _}
+                        <div
+                            class="animate-pulse bg-[#ffffff06] rounded-lg h-20"
+                        ></div>
+                    {/each}
+                </div>
+            </div>
+        </div>
+    {:then _resolved}
+        {#if !stats}
+            <!-- Visible failure: the loader resolved null (fetch failed or
+                 the upgrade is filtered out). Never fail silently. -->
+            <div
+                class="bg-red-950/30 border border-red-500/30 rounded-lg p-6 text-center space-y-3 mb-6"
+                role="alert"
+            >
+                <p class="text-red-400 font-sans font-bold text-base tracking-wide">
+                    No data found for this upgrade
+                </p>
+                <p class="text-red-300/80 font-mono text-sm">
+                    The upgrade may be excluded by the current format filters,
+                    or the query failed.
+                </p>
+                <button
+                    type="button"
+                    onclick={retry}
+                    class="px-4 py-1.5 text-xs font-mono border border-red-500/40 text-red-300 rounded-md hover:bg-red-500/10 active:bg-red-500/20 transition-colors"
+                >
+                    Try again
+                </button>
+            </div>
+        {/if}
+        <!-- Header Section -->
     <div
         class="flex flex-col md:flex-row gap-8 mb-10 items-center bg-terminal-panel border border-border-dark rounded-lg p-6 md:p-8 shadow-lg"
     >
@@ -283,4 +361,5 @@
             </p>
         </div>
     </section>
+    {/await}
 </div>

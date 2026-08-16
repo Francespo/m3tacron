@@ -239,6 +239,12 @@ const ROUTE_FIELDS: Record<RouteId, readonly FieldKey[]> = {
         'selectedFormats',
         'selectedFactions',
         'selectedShips',
+        'selectedSources',
+        'selectedContinents',
+        'selectedCountries',
+        'selectedCities',
+        'dateStart',
+        'dateEnd',
         'sortBy',
         'sortDirection',
     ],
@@ -248,6 +254,12 @@ const ROUTE_FIELDS: Record<RouteId, readonly FieldKey[]> = {
         'selectedFormats',
         'selectedFactions',
         'selectedShips',
+        'selectedSources',
+        'selectedContinents',
+        'selectedCountries',
+        'selectedCities',
+        'dateStart',
+        'dateEnd',
         'sortBy',
         'sortDirection',
     ],
@@ -257,6 +269,12 @@ const ROUTE_FIELDS: Record<RouteId, readonly FieldKey[]> = {
         'selectedFormats',
         'selectedFactions',
         'selectedShips',
+        'selectedSources',
+        'selectedContinents',
+        'selectedCountries',
+        'selectedCities',
+        'dateStart',
+        'dateEnd',
         'sortBy',
         'sortDirection',
     ],
@@ -301,6 +319,20 @@ const SINGLE_KEY: Record<FieldKey, string> = {
     selectedCountries: 'country',
     selectedCities: 'city',
     selectedBaseSizes: 'base_sizes',
+};
+
+/**
+ * URL key used for `selectedSources` per route. The lists/ships/cards/
+ * squadrons backends accept the `platforms` parameter; the tournaments
+ * backend accepts `sources`. Emitting the wrong key means the backend
+ * silently ignores the filter.
+ */
+const SOURCE_KEY_BY_ROUTE: Record<RouteId, string> = {
+    cards: 'platforms',
+    lists: 'platforms',
+    ships: 'platforms',
+    squadrons: 'platforms',
+    tournaments: 'sources',
 };
 
 /**
@@ -406,7 +438,7 @@ function toSearchParams(routeId: RouteId): URLSearchParams {
                 break;
             case 'selectedSources':
                 for (const p of selectedSources) {
-                    params.append(SINGLE_KEY.selectedSources, p);
+                    params.append(SOURCE_KEY_BY_ROUTE[routeId], p);
                 }
                 break;
             case 'selectedContinents':
@@ -566,7 +598,9 @@ function applyFromSearchParams(params: URLSearchParams): void {
     const ships = params.getAll('ships');
     if (ships.length > 0) selectedShips = ships;
     const sources = params.getAll('sources');
+    const platforms = params.getAll('platforms');
     if (sources.length > 0) selectedSources = sources;
+    else if (platforms.length > 0) selectedSources = platforms;
     const continents = params.getAll('continent');
     if (continents.length > 0) selectedContinents = continents;
     const countries = params.getAll('country');

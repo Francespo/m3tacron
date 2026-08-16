@@ -27,9 +27,9 @@
 </script>
 
 <label
-    class="inline-flex items-center justify-center rounded-[2px] border bg-black cursor-pointer transition-colors
+    class="inline-flex items-center justify-center rounded-[2px] border bg-black cursor-pointer select-none transition-[background-color,border-color,transform] active:scale-90
         {size === 'xs' ? 'w-3 h-3' : 'w-3.5 h-3.5'}
-        {checked ? 'border-primary' : 'border-border-dark hover:border-primary/50'}"
+        {checked ? 'border-primary' : 'border-border-dark hover:border-primary/50 active:border-primary'}"
     aria-label={ariaLabel}
 >
     {#if checked}

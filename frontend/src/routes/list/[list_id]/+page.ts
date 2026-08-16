@@ -5,15 +5,16 @@ export const load: PageLoad = async ({ params, fetch, url }) => {
     const listId = params.list_id;
     const ds = url.searchParams.get('data_source') || 'xwa';
 
-    const res = await fetch(`${API_BASE}/list/${encodeURIComponent(listId)}/stats?data_source=${ds}`);
-    let stats = null;
-
-    if (res.ok) {
-        stats = await res.json();
-    }
+    // Return a promise so SvelteKit navigates immediately and streams data in.
+    // This prevents navigation from blocking on slow API responses.
+    const statsPromise = fetch(
+        `${API_BASE}/list/${encodeURIComponent(listId)}/stats?data_source=${ds}`,
+    )
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null);
 
     return {
         listId,
-        stats
+        statsPromise,
     };
 };

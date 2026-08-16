@@ -4,10 +4,13 @@
     import MobileFilterTrigger from "$lib/components/MobileFilterTrigger.svelte";
     import SortBy from "$lib/components/SortBy.svelte";
     import ListRowCard from "$lib/components/ListRowCard.svelte";
+    import PendingIndicator from "$lib/components/PendingIndicator.svelte";
+    import ErrorPanel from "$lib/components/ErrorPanel.svelte";
     import {
         ALL_FACTIONS,
         getFactionLabel,
     } from "$lib/data/factions";
+    import { invalidateAll } from "$app/navigation";
     import { page as currentPage } from "$app/state";
     import { filters } from "$lib/stores/filters.svelte";
     import { scheduleSync } from "$lib/sync/urlSync.svelte";
@@ -24,7 +27,40 @@
     let minGames = $state(3);
 
     const size = 20;
-    let total = $state(0);
+
+    // The loader streams list rows in via `itemsPromise` (non-blocking
+    // navigation). `resolved` keeps the LAST good payload so filter/sort/
+    // page changes never blank the list: stale rows stay visible under a
+    // thin "Updating…" bar while the next query runs; only the first load
+    // shows the skeleton.
+    let resolved = $state<any>(null);
+    let pending = $state(true);
+    let failed = $state(false);
+    let lastPromise: any = null;
+    let generation = 0;
+    let total = $derived(resolved?.total ?? 0);
+
+    $effect(() => {
+        const p = data.itemsPromise;
+        if (p === lastPromise) return;
+        lastPromise = p;
+        const gen = ++generation;
+        pending = true;
+        failed = false;
+        p.then((r: any) => {
+            if (gen !== generation) return;
+            resolved = r;
+            pending = false;
+        }).catch(() => {
+            if (gen !== generation) return;
+            failed = true;
+            pending = false;
+        });
+    });
+
+    function retry() {
+        invalidateAll();
+    }
 
     // Sync route-local state FROM the URL so direct navigation (e.g. ?page=2)
     // works. Filter store fields (sortBy, sortDirection, selectedFactions)
@@ -34,13 +70,6 @@
         page = urlPage + 1; // URL is 0-indexed, state is 1-indexed
         const urlMinGames = currentPage.url.searchParams.get('min_games');
         if (urlMinGames) minGames = Number(urlMinGames);
-    });
-
-    // Track total from the latest promise resolution (for nextPage guard)
-    $effect(() => {
-        data.itemsPromise.then((resolved: any) => {
-            total = Number(resolved.total ?? 0);
-        });
     });
 
     // Re-fetch when local filters change
@@ -111,7 +140,7 @@
         <!-- Faction Checkboxes -->
         <div class="border-b border-border-dark mt-1">
             <button
-                class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary transition-colors"
+                class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
                 onclick={() => (factionOpen = !factionOpen)}
             >
                 <div class="flex items-center gap-2">
@@ -193,107 +222,147 @@
             List Browser
         </h1>
 
-        {#await data.itemsPromise}
-            <p class="text-secondary font-mono text-sm mb-6">Loading...</p>
+        {#if !resolved}
+            {#if failed}
+                <div class="mb-6">
+                    <ErrorPanel
+                        title="Failed to load lists"
+                        onRetry={retry}
+                    />
+                </div>
+            {:else}
+                <p class="text-secondary font-mono text-sm mb-6">Loading…</p>
 
-            <!-- Loading Skeleton -->
-            <div class="space-y-3">
-                {#each Array(5) as _}
-                    <div class="animate-pulse bg-[#ffffff06] rounded-lg h-24 border border-border-dark"></div>
-                {/each}
-            </div>
-        {:then resolved}
-            {@const resolvedTotal = Number(resolved.total ?? 0)}
-            {@const listItems = resolved.items ?? []}
+                <!-- Loading Skeleton (matches ListRowCard shape) -->
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    {#each Array(4) as _}
+                        <div
+                            class="bg-terminal-panel border border-border-dark border-l-[3px] rounded-lg p-3 md:p-4 space-y-3"
+                        >
+                            <div class="flex items-center justify-between gap-2">
+                                <div
+                                    class="animate-pulse bg-[#ffffff06] rounded h-4 w-2/5"
+                                ></div>
+                                <div
+                                    class="animate-pulse bg-[#ffffff06] rounded h-4 w-10"
+                                ></div>
+                            </div>
+                            <div
+                                class="animate-pulse bg-[#ffffff06] rounded h-3 w-3/5"
+                            ></div>
+                            <div class="flex gap-2">
+                                <div
+                                    class="animate-pulse bg-[#ffffff06] rounded h-12 w-full"
+                                ></div>
+                                <div
+                                    class="animate-pulse bg-[#ffffff06] rounded h-12 w-full"
+                                ></div>
+                            </div>
+                        </div>
+                    {/each}
+                </div>
+            {/if}
+        {:else}
+            {@const resolvedTotal = Number(resolved?.total ?? 0)}
+            {@const listItems = resolved?.items ?? []}
 
-            <!-- Result summary + sort indicator -->
+            <!-- Stale rows stay visible while a refetch runs: the list
+                 container dims while `pending` and smoothly returns to full
+                 opacity; the neutral inline tag next to the count says the
+                 update is in flight. -->
             <div
                 class="flex items-center justify-between flex-wrap gap-3 mb-6"
             >
-                <p class="text-secondary font-mono text-sm">
-                    {resolvedTotal} Lists Found
-                </p>
-
-                <SortBy
-                    value={filters.sortBy || "Games"}
-                    direction={filters.sortDirection}
-                    options={[
-                        { value: "Games", label: "Games" },
-                        { value: "Win Rate", label: "Win Rate" },
-                        { value: "Points Cost", label: "Points" },
-                    ]}
-                    onChange={(v, d) => {
-                        filters.sortBy = v;
-                        filters.sortDirection = d;
-                    }}
-                />
-            </div>
-
-            <!-- List Cards -->
-            {#if listItems.length > 0}
-                <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                    {#each listItems as list}
-                        <ListRowCard {list} />
-                    {/each}
-                </div>
-            {:else}
-                <!-- Empty state: no lists matched the current filters -->
-                <div
-                    class="bg-terminal-panel border border-border-dark rounded-lg p-8 text-center space-y-2"
-                >
-                    <p
-                        class="text-primary font-sans font-bold text-lg tracking-wide"
-                    >
-                        No lists found
-                    </p>
+                <div class="flex items-center gap-2.5">
                     <p class="text-secondary font-mono text-sm">
-                        Try adjusting your filters or lowering the minimum games
-                        threshold.
+                        {resolvedTotal} Lists Found
                     </p>
+                    <PendingIndicator
+                        active={pending}
+                        mode="tag"
+                        label="Updating…"
+                    />
                 </div>
-            {/if}
 
-            <!-- Pagination -->
-            {#if resolvedTotal > size}
-                <div
-                    class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
-                >
-                <button
-                    class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
-                    onclick={prevPage}
-                    disabled={page <= 1}
-                >
-                    ← Prev
-                </button>
-                <span class="text-xs font-mono text-secondary">Page {page}</span
-                >
-                <button
-                    class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
-                    onclick={nextPage}
-                    disabled={page * size >= resolvedTotal}
-                >
-                    Next →
-                </button>
+                    <SortBy
+                        value={filters.sortBy || "Games"}
+                        direction={filters.sortDirection}
+                        options={[
+                            { value: "Games", label: "Games" },
+                            { value: "Win Rate", label: "Win Rate" },
+                            { value: "Points Cost", label: "Points" },
+                        ]}
+                        onChange={(v, d) => {
+                            filters.sortBy = v;
+                            filters.sortDirection = d;
+                        }}
+                    />
                 </div>
-            {/if}
-        {:catch error}
-            <!-- Error state -->
-            <div
-                class="bg-red-950/30 border border-red-500/30 rounded-lg p-6 text-center space-y-2"
-                role="alert"
-            >
-                <p
-                    class="text-red-400 font-sans font-bold text-base tracking-wide"
+
+                <!-- Stale rows stay fully visible and clickable, dimmed
+                     while the refetch is in flight. -->
+                <div
+                    class="transition-opacity duration-200 {pending
+                        ? 'opacity-50'
+                        : 'opacity-100'}"
                 >
-                    Failed to load lists
-                </p>
-                <p class="text-red-300/80 font-mono text-sm">
-                    {error.message}
-                </p>
-                <p class="text-secondary font-mono text-xs mt-2">
-                    Try refreshing or clearing your filters.
-                </p>
+                <!-- List Cards -->
+                {#if listItems.length > 0}
+                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                        {#each listItems as list}
+                            <ListRowCard {list} />
+                        {/each}
+                    </div>
+                {:else}
+                    <!-- Empty state: no lists matched the current filters -->
+                    <div
+                        class="bg-terminal-panel border border-border-dark rounded-lg p-8 text-center space-y-2"
+                    >
+                        <p
+                            class="text-primary font-sans font-bold text-lg tracking-wide"
+                        >
+                            No lists found
+                        </p>
+                        <p class="text-secondary font-mono text-sm">
+                            Try adjusting your filters or lowering the minimum games
+                            threshold.
+                        </p>
+                        <div class="pt-2">
+                            <button
+                                type="button"
+                                onclick={retry}
+                                class="px-4 py-1.5 text-xs font-mono border border-border-dark text-secondary rounded-md hover:bg-[#ffffff08] hover:text-primary active:bg-[#ffffff14] transition-colors"
+                            >
+                                Try again
+                            </button>
+                        </div>
+                    </div>
+                {/if}
+
+                <!-- Pagination -->
+                {#if resolvedTotal > size}
+                    <div
+                        class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
+                    >
+                    <button
+                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        onclick={prevPage}
+                        disabled={page <= 1}
+                    >
+                        ← Prev
+                    </button>
+                    <span class="text-xs font-mono text-secondary">Page {page}</span
+                    >
+                    <button
+                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        onclick={nextPage}
+                        disabled={page * size >= resolvedTotal}
+                    >
+                        Next →
+                    </button>
+                    </div>
+                {/if}
             </div>
-        {/await}
+        {/if}
     </main>
 </div>
