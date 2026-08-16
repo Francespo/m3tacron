@@ -150,6 +150,11 @@ def aggregate_card_stats(
                 elif data_source == DataSource.LEGACY:
                     show_card = True
 
+            # Explicit "include epic" flag (e.g. a Huge ship's detail page):
+            # show the epic-flagged card regardless of the format selection.
+            if filters.get("include_epic") and is_epic:
+                show_card = True
+
             if not show_card:
                 continue
 
@@ -266,6 +271,11 @@ def aggregate_card_stats(
                     show_card = True
                 elif data_source == DataSource.LEGACY:
                     show_card = True
+
+            # Explicit "include epic" flag (e.g. a Huge ship's detail page):
+            # show the epic-flagged card regardless of the format selection.
+            if filters.get("include_epic") and is_epic:
+                show_card = True
 
             if not show_card:
                 continue

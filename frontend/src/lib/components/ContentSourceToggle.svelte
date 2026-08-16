@@ -39,15 +39,17 @@
      * Toggle the "include epic" flag and push it to the URL. When false
      * we DELETE the param rather than setting it to "false" so the URL
      * stays compact and matches the rest of the codebase's convention
-     * (absent = off).
+     * (absent = off). Uses the same `epic` key as the filters store's
+     * `toSearchParams` / `applyFromSearchParams` so the state round-trips
+     * through navigation.
      */
     async function setIncludeEpic(value: boolean) {
         filters.includeEpic = value;
         const next = new URL(page.url);
         if (value) {
-            next.searchParams.set('include_epic', 'true');
+            next.searchParams.set('epic', 'true');
         } else {
-            next.searchParams.delete('include_epic');
+            next.searchParams.delete('epic');
         }
         history.replaceState(history.state, '', next);
         await invalidateAll();

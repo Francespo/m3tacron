@@ -322,6 +322,7 @@ const SINGLE_KEY: Record<FieldKey, string> = {
 };
 
 /**
+<<<<<<< Updated upstream
  * URL key used for `selectedSources` per route. The lists/ships/cards/
  * squadrons backends accept the `platforms` parameter; the tournaments
  * backend accepts `sources`. Emitting the wrong key means the backend
@@ -334,6 +335,58 @@ const SOURCE_KEY_BY_ROUTE: Record<RouteId, string> = {
     squadrons: 'platforms',
     tournaments: 'sources',
 };
+=======
+ * Formats the "Include Epic" toggle adds, per route and data source.
+ *
+ * Browse pages (lists / squadrons / ships / tournaments) filter tournaments
+ * by `t.format`, so the epic variants are the larger squad-size tournament
+ * formats (`amg` for XWA, `legacy_xlc` for legacy). The cards page
+ * additionally filters the pilot/upgrade catalog by format-legality flags
+ * (`xwa_epic` / `legacy_epic`), which mark Epic-only (Huge ship) cards;
+ * the tournament variants are included too so those cards get real stats
+ * from the tournaments where they are actually flown.
+ */
+function epicFormatVariants(routeId: RouteId, source: 'xwa' | 'legacy'): string[] {
+    if (routeId === 'cards') {
+        return source === 'xwa' ? ['amg', 'xwa_epic'] : ['legacy_xlc', 'legacy_epic'];
+    }
+    return source === 'xwa' ? ['amg'] : ['legacy_xlc'];
+}
+
+/** Base formats for a data source (matching the `dataSource` setter). */
+function defaultFormatsForSource(source: 'xwa' | 'legacy'): string[] {
+    return source === 'xwa' ? ['xwa'] : ['legacy_x2po'];
+}
+
+/**
+ * Resolve the `formats` query params for the current route.
+ *
+ * The "Include Epic" toggle must actually change what the backend returns on
+ * every browse page. Formats therefore always include the source's base
+ * format(s) plus the epic variant(s) when `includeEpic` is on — even when
+ * the user hasn't explicitly selected formats (an empty `selectedFormats`
+ * means "use the source default", mirroring the `dataSource` setter).
+ * Explicit selections are respected and only gain / lose the epic variants.
+ */
+function resolveFormats(
+    routeId: RouteId,
+    source: 'xwa' | 'legacy',
+    selected: string[],
+    epic: boolean,
+): string[] {
+    const epicVariants = epicFormatVariants(routeId, source);
+    let formats = selected.length > 0 ? [...selected] : defaultFormatsForSource(source);
+    if (epic) {
+        for (const v of epicVariants) {
+            if (!formats.includes(v)) formats.push(v);
+        }
+    } else {
+        formats = formats.filter((f) => !epicVariants.includes(f));
+        if (formats.length === 0) formats = defaultFormatsForSource(source);
+    }
+    return formats;
+}
+>>>>>>> Stashed changes
 
 /**
  * Serialize the current filter state to a `URLSearchParams` containing ONLY
@@ -343,6 +396,8 @@ const SOURCE_KEY_BY_ROUTE: Record<RouteId, string> = {
  * `selectedFormats` is always written in full (even when it matches the
  * current `dataSource` default) so the URL round-trips cleanly with
  * `applyFromSearchParams` and multi-select stays stable across re-renders.
+ * When the "Include Epic" toggle is on, the route's epic format variant(s)
+ * are added to the emitted formats (see `resolveFormats`).
  */
 function toSearchParams(routeId: RouteId): URLSearchParams {
     const params = new URLSearchParams();
@@ -421,11 +476,13 @@ function toSearchParams(routeId: RouteId): URLSearchParams {
                 }
                 break;
             // Multi-value fields
-            case 'selectedFormats':
-                for (const f of selectedFormats) {
+            case 'selectedFormats': {
+                const resolved = resolveFormats(routeId, dataSource, selectedFormats, includeEpic);
+                for (const f of resolved) {
                     params.append(SINGLE_KEY.selectedFormats, f);
                 }
                 break;
+            }
             case 'selectedFactions':
                 for (const f of selectedFactions) {
                     params.append(SINGLE_KEY.selectedFactions, f);
