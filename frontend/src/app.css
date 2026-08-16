@@ -51,14 +51,6 @@ body {
 }
 
 @layer base {
-    /* Tailwind v4 preflight resets buttons to the native `cursor: default`.
-       Every control in this app is clickable, so restore pointer feedback
-       globally. Disabled controls keep the default cursor. */
-    button:not(:disabled),
-    [role="button"]:not(:disabled) {
-        cursor: pointer;
-    }
-
     /* Prevent horizontal scroll bleed on body */
     html, body {
         max-width: 100%;

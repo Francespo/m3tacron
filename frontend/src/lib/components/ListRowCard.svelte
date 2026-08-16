@@ -37,7 +37,7 @@
 
 <a
     href={listHref}
-    class="group flex bg-terminal-panel border border-border-dark border-l-[3px] rounded-lg overflow-hidden hover:border-primary/40 hover:bg-[#ffffff04] active:bg-[#ffffff08] transition-colors cursor-pointer block"
+    class="group flex bg-terminal-panel border border-border-dark border-l-[3px] rounded-lg overflow-hidden hover:border-primary/40 hover:bg-[#ffffff04] transition-colors cursor-pointer block"
     style="border-left: 3px solid {factionColor};"
 >
     <!-- Content -->

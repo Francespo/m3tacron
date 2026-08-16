@@ -65,7 +65,7 @@
 
 <div class="border-b border-border-dark mt-1">
     <button
-        class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
+        class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary transition-colors"
         onclick={() => (isOpen = !isOpen)}
     >
         <div class="flex items-center gap-2">
@@ -110,12 +110,8 @@
                 class="max-h-[180px] overflow-y-auto pr-1 space-y-1 chassis-scrollbar"
             >
                 {#if isLoading && ships.length === 0}
-                    <div class="space-y-1.5">
-                        {#each Array(3) as _}
-                            <div
-                                class="animate-pulse bg-[#ffffff06] rounded h-4 w-full"
-                            ></div>
-                        {/each}
+                    <div class="text-xs text-secondary font-mono">
+                        Loading...
                     </div>
                 {:else if filteredShips.length === 0}
                     <div class="text-xs text-secondary font-mono">

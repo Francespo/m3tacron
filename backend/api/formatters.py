@@ -108,11 +108,7 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
                         slot_xws=norm_slot
                     ))
         elif isinstance(upgrades_data, list):
-            for item in upgrades_data:
-                # _reformat_pilots emits [{"xws": ...}, ...] while raw
-                # list_json may be a flat list of id strings — handle both.
-                raw_id = item.get("xws") if isinstance(item, dict) else item
-                item_id = str(raw_id) if raw_id is not None else ""
+            for item_id in upgrades_data:
                 upg_info = get_upgrade_info(item_id, source=source) or {}
                 slot = get_upgrade_slot(item_id)
                 norm_slot = slot.lower()

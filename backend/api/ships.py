@@ -10,47 +10,29 @@ router = APIRouter(prefix="/api/ships", tags=["Ships"])
 
 
 def _compute_ships(
+    page: int,
+    size: int,
     data_source: str,
+    sort_metric: str,
+    sort_direction: str,
     filters: dict,
 ) -> list[dict]:
-    """Run the expensive ship aggregation.
-
-    The heavy SQL aggregation is sort-independent, so it always runs with a
-    neutral sort (Lists desc). The caller applies the requested sort to the
-    cached list before paginating — see _sort_ship_stats.
-    """
+    """Run the expensive ship aggregation. Returns the full sorted list (caller paginates)."""
     try:
         ds_enum = DataSource(data_source)
     except ValueError:
         ds_enum = DataSource.XWA
 
-    return aggregate_ship_stats(
-        filters,
-        SortingCriteria.LISTS,
-        SortDirection.DESCENDING,
-        ds_enum,
-    )
+    criteria_map = {
+        "Games": SortingCriteria.GAMES,
+        "Lists": SortingCriteria.LISTS,
+        "Unique Lists": SortingCriteria.UNIQUE_LISTS,
+        "Win Rate": SortingCriteria.WINRATE,
+    }
+    criteria = criteria_map.get(sort_metric, SortingCriteria.LISTS)
+    s_dir = SortDirection.DESCENDING if sort_direction == "desc" else SortDirection.ASCENDING
 
-
-def _sort_ship_stats(data: list[dict], sort_metric: str, sort_direction: str) -> list[dict]:
-    """Sort cached (unsorted-for-request) ship stats by the requested criteria.
-
-    Replicates the sort_key logic in analytics/ships.py. Applied AFTER the
-    cache lookup so the expensive aggregation is shared across sort orders.
-    Returns a new list — the cached list is never mutated.
-    """
-    def sort_key(item):
-        if sort_metric == "Unique Lists":
-            return (item["different_lists_count"], item["games_count"])
-        elif sort_metric == "Games":
-            return item["games_count"]
-        elif sort_metric == "Win Rate":
-            return item["wins"] / item["games_count"] if item["games_count"] > 0 else 0
-        elif sort_metric == "Name":
-            return item["xws"]
-        return (item["list_count"], item["games_count"])  # Lists (default)
-
-    return sorted(data, key=sort_key, reverse=(sort_direction == "desc"))
+    return aggregate_ship_stats(filters, criteria, s_dir, ds_enum)
 
 
 @router.get("/all")
@@ -114,28 +96,21 @@ def get_ships(
 
     # page/size excluded — pagination is done AFTER caching.
     cache_key = (
-        f"ships|{data_source}"
+        f"ships|{data_source}|{sort_metric}|{sort_direction}"
         f"|{','.join(sorted(formats or []))}"
         f"|{','.join(sorted(factions or []))}"
         f"|{','.join(sorted(ships or []))}"
         f"|{search or ''}"
-        f"|{','.join(sorted(platforms or []))}"
-        f"|{','.join(sorted(continent or []))}"
-        f"|{','.join(sorted(country or []))}"
-        f"|{','.join(sorted(city or []))}"
-        f"|{date_start or ''}|{date_end or ''}"
-        f"|{player_count_min}|{player_count_max}"
     )
 
     def compute():
         return _compute_ships(
-            data_source=data_source,
+            page=page, size=size, data_source=data_source,
+            sort_metric=sort_metric, sort_direction=sort_direction,
             filters=filters,
         )
 
     data = get_cached_or_compute(cache_key, compute)
-    # Sort AFTER the cache lookup — the heavy aggregation is sort-independent.
-    data = _sort_ship_stats(data, sort_metric, sort_direction)
     total = len(data)
     items = data[page * size : (page + 1) * size]
 

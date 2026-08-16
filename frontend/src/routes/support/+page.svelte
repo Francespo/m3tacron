@@ -3,7 +3,6 @@
   import EvolutionProgressBar from "$lib/components/EvolutionProgressBar.svelte";
   import HallOfHeroes from "$lib/components/HallOfHeroes.svelte";
   import { API_BASE } from "$lib/api";
-  import { cachedFetchJson } from "$lib/api/cache";
 
   let fundStatus = $state({ total_raised: 0, tiers: [] });
   let supporters = $state([]);
@@ -11,12 +10,12 @@
 
   async function fetchData() {
     try {
-      const [statusData, supportersData] = await Promise.all([
-        cachedFetchJson(`${API_BASE}/support/fund-status`),
-        cachedFetchJson(`${API_BASE}/support/supporters`),
+      const [statusRes, supportersRes] = await Promise.all([
+        fetch(`${API_BASE}/support/fund-status`),
+        fetch(`${API_BASE}/support/supporters`),
       ]);
-      fundStatus = statusData;
-      supporters = supportersData;
+      fundStatus = await statusRes.json();
+      supporters = await supportersRes.json();
     } catch (e) {
       console.error("Failed to fetch support data", e);
     } finally {

@@ -12,24 +12,19 @@ export const load: PageLoad = async ({ fetch, url }) => {
     if (!apiUrl.searchParams.has('page')) apiUrl.searchParams.set('page', '0');
     if (!apiUrl.searchParams.has('size')) apiUrl.searchParams.set('size', '20');
 
-    // Return a promise so SvelteKit navigates immediately and streams data in.
-    // This prevents navigation from blocking on slow API responses.
-    const itemsPromise = fetch(apiUrl.toString())
-        .then(async (response) => {
-            if (!response.ok) throw new Error(`Failed to fetch tournaments: ${response.status}`);
-            const data = await response.json();
-            return {
-                items: data?.items ?? [],
-                total: Number(data?.total ?? 0),
-                page: parseInt(data?.page) || 0,
-                size: parseInt(data?.size) || 20,
-                search,
-            };
-        })
-        .catch((e) => {
-            console.error('Fetch failed:', e);
-            return { items: [], total: 0, page: 0, size: 20, search };
-        });
-
-    return { itemsPromise, search };
+    try {
+        const response = await fetch(apiUrl.toString());
+        if (!response.ok) throw new Error('Failed to fetch tournaments');
+        const data = await response.json();
+        return {
+            items: data.items,
+            total: data.total,
+            page: parseInt(data.page),
+            size: parseInt(data.size),
+            search
+        };
+    } catch (e) {
+        console.error(e);
+        return { items: [], total: 0, page: 0, size: 20, search };
+    }
 };

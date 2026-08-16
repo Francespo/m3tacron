@@ -7,15 +7,12 @@
     import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
     import PilotCard from "$lib/components/PilotCard.svelte";
     import UpgradeCard from "$lib/components/UpgradeCard.svelte";
-    import PendingIndicator from "$lib/components/PendingIndicator.svelte";
-    import ErrorPanel from "$lib/components/ErrorPanel.svelte";
     import Toggle from "$lib/components/Toggle.svelte";
     import {
         getWinRateColor,
         ALL_FACTIONS,
         getFactionLabel,
     } from "$lib/data/factions";
-    import { invalidateAll } from "$app/navigation";
     import { filters } from "$lib/stores/filters.svelte";
     import { scheduleSync } from "$lib/sync/urlSync.svelte";
     import DebouncedTextInput from "$lib/components/DebouncedTextInput.svelte";
@@ -30,48 +27,19 @@
     let factionOpen = $state(false);
     const size = 20;
 
-    // The loader streams card rows in via `itemsPromise` (non-blocking
-    // navigation). `resolved` keeps the LAST good payload so filter/sort/
-    // page changes never blank the list: stale rows stay visible under a
-    // thin "Updating…" bar while the next query runs. Tab switches reset
-    // `resolved` because pilots vs upgrades are different content types —
-    // a skeleton is the honest feedback there.
-    let resolved = $state<any>(null);
-    let pending = $state(true);
-    let failed = $state(false);
-    let lastPromise: any = null;
-    let lastTab: string | undefined = undefined;
-    let generation = 0;
-    let total = $derived(Math.max(0, Math.floor(Number(resolved?.total ?? 0))));
+    let total = $state(0);
     let isXwa = $derived(filters.dataSource === "xwa");
 
     let isAdvanced = $state(false);
 
+    // Track total from the latest promise resolution (for nextPage guard).
+    // Clamp to a non-negative integer: backend already clamps (Phase 0) but
+    // a missing/garbage value should never produce a negative `total`.
     $effect(() => {
-        const p = data.itemsPromise;
-        if (p === lastPromise) return;
-        lastPromise = p;
-        if (lastTab !== data.tab) {
-            lastTab = data.tab;
-            resolved = null;
-        }
-        const gen = ++generation;
-        pending = true;
-        failed = false;
-        p.then((r: any) => {
-            if (gen !== generation) return;
-            resolved = r;
-            pending = false;
-        }).catch(() => {
-            if (gen !== generation) return;
-            failed = true;
-            pending = false;
+        data.itemsPromise.then((resolved: any) => {
+            total = Math.max(0, Math.floor(Number(resolved.total ?? 0)));
         });
     });
-
-    function retry() {
-        invalidateAll();
-    }
 
     // Default sort: when the store starts empty (no URL, no prior visit),
     // set a real metric so the SortBy in the main content header always
@@ -132,13 +100,13 @@
             <button
                 class="flex-1 py-1 text-xs font-mono text-center transition-colors {!isAdvanced
                     ? 'bg-[#ffffff14] text-primary'
-                    : 'text-secondary hover:text-primary active:bg-[#ffffff08]'}"
+                    : 'text-secondary hover:text-primary'}"
                 onclick={() => (isAdvanced = false)}>Basic</button
             >
             <button
                 class="flex-1 py-1 text-xs font-mono text-center transition-colors {isAdvanced
                     ? 'bg-[#ffffff14] text-primary'
-                    : 'text-secondary hover:text-primary active:bg-[#ffffff08]'}"
+                    : 'text-secondary hover:text-primary'}"
                 onclick={() => (isAdvanced = true)}>Advanced</button
             >
         </div>
@@ -171,7 +139,7 @@
         <!-- Faction -->
         <div class="border-b border-border-dark mt-1">
             <button
-                class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
+                class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary transition-colors"
                 onclick={() => (factionOpen = !factionOpen)}
             >
                 <div class="flex items-center gap-2">
@@ -264,7 +232,7 @@
                     class="text-lg font-sans font-bold transition-colors {data.tab ===
                     'pilots'
                         ? 'text-primary'
-                        : 'text-secondary hover:text-primary active:text-primary'}"
+                        : 'text-secondary hover:text-primary'}"
                     onclick={() => {
                         goto("?tab=pilots&page=0", {
                             keepFocus: true,
@@ -279,7 +247,7 @@
                     class="text-lg font-sans font-bold transition-colors {data.tab ===
                     'upgrades'
                         ? 'text-primary'
-                        : 'text-secondary hover:text-primary active:text-primary'}"
+                        : 'text-secondary hover:text-primary'}"
                     onclick={() => {
                         goto("?tab=upgrades&page=0", {
                             keepFocus: true,
@@ -311,44 +279,17 @@
         </div>
 
         <!-- Card Grid -->
-        {#if !resolved}
-            {#if failed}
-                <div class="mb-6">
-                    <ErrorPanel
-                        title="Failed to load cards"
-                        onRetry={retry}
-                    />
-                </div>
-            {:else}
-                <p class="text-secondary font-mono text-sm mb-6">Loading…</p>
-
-                <!-- Loading Skeleton (matches PilotCard / UpgradeCard shape) -->
-                <div
-                    class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6"
-                >
-                    {#each Array(6) as _}
-                        <div
-                            class="bg-terminal-panel border border-border-dark rounded-md p-4 h-48 flex flex-col gap-2"
-                        >
-                            <div
-                                class="animate-pulse bg-[#ffffff06] rounded h-16 w-full"
-                            ></div>
-                            <div
-                                class="animate-pulse bg-[#ffffff06] rounded h-3.5 w-3/4"
-                            ></div>
-                            <div
-                                class="animate-pulse bg-[#ffffff06] rounded h-3 w-1/2"
-                            ></div>
-                            <div
-                                class="mt-auto animate-pulse bg-[#ffffff06] rounded h-3 w-1/3"
-                            ></div>
-                        </div>
-                    {/each}
-                </div>
-            {/if}
-        {:else}
-            {@const resolvedTotal = Math.max(0, Math.floor(Number(resolved?.total ?? 0)))}
-            {@const cardItems = (resolved?.items ?? []).map((c: any) => ({
+        {#await data.itemsPromise}
+            <div
+                class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6"
+            >
+                {#each Array(6) as _}
+                    <div class="animate-pulse bg-[#ffffff06] rounded-md h-48 border border-border-dark"></div>
+                {/each}
+            </div>
+        {:then resolved}
+            {@const resolvedTotal = Math.max(0, Math.floor(Number(resolved.total ?? 0)))}
+            {@const cardItems = (resolved.items ?? []).map((c: any) => ({
                 // Sanitize numeric stats before passing into the card
                 // components. Phase 0 backend already clamps at the source,
                 // but defensive guards here mean a stale or out-of-band
@@ -362,91 +303,51 @@
                 ),
                 wins: Math.max(0, Number(c?.wins ?? 0)),
             }))}
-
-            <!-- Stale cards stay visible while a refetch runs: the grid
-                 container dims while `pending` and smoothly returns to full
-                 opacity; the neutral inline tag next to the count says the
-                 update is in flight. -->
-            <div class="flex items-center gap-2.5 mb-6">
-                <!-- Result count in the same "N x Found" style as squadrons,
-                     lists, ships, and tournaments listings. -->
-                <p class="text-secondary font-mono text-sm">
-                    {resolvedTotal} {data.tab === "pilots" ? "Pilots" : "Upgrades"} Found
-                </p>
-                <PendingIndicator
-                    active={pending}
-                    mode="tag"
-                    label="Updating…"
-                />
-            </div>
-
+            <!-- Result count in the same "N x Found" style as squadrons,
+                 lists, ships, and tournaments listings. -->
+            <p class="text-secondary font-mono text-sm mb-6">
+                {resolvedTotal} {data.tab === "pilots" ? "Pilots" : "Upgrades"} Found
+            </p>
             <div
-                class="transition-opacity duration-200 {pending
-                    ? 'opacity-50'
-                    : 'opacity-100'}"
+                class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6"
             >
-                {#if cardItems.length > 0}
-                    <div
-                        class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6"
+                {#each cardItems as card (card.xws)}
+                    <a
+                        href={`/${data.tab === "pilots" ? "pilot" : "upgrade"}/${card.xws}`}
+                        class="block h-full group"
                     >
-                        {#each cardItems as card (card.xws)}
-                            <a
-                                href={`/${data.tab === "pilots" ? "pilot" : "upgrade"}/${card.xws}`}
-                                class="block h-full group"
-                            >
-                                {#if data.tab === "pilots"}
-                                    <PilotCard pilot={card} />
-                                {:else}
-                                    <UpgradeCard upgrade={card} />
-                                {/if}
-                            </a>
-                        {/each}
-                    </div>
-                {:else}
-                    <!-- Empty state: no cards matched the current filters -->
-                    <div
-                        class="bg-terminal-panel border border-border-dark rounded-lg p-8 text-center space-y-2"
-                    >
-                        <p
-                            class="text-primary font-sans font-bold text-lg tracking-wide"
-                        >
-                            No {data.tab === "pilots" ? "pilots" : "upgrades"} found
-                        </p>
-                        <p class="text-secondary font-mono text-sm">
-                            Try adjusting your filters, or retry the query.
-                        </p>
-                        <div class="pt-2">
-                            <button
-                                type="button"
-                                onclick={retry}
-                                class="px-4 py-1.5 text-xs font-mono border border-border-dark text-secondary rounded-md hover:bg-[#ffffff08] hover:text-primary active:bg-[#ffffff14] transition-colors"
-                            >
-                                Try again
-                            </button>
-                        </div>
-                    </div>
-                {/if}
-
-                <!-- Pagination -->
-                {#if resolvedTotal > size}
-                    <div
-                        class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
-                    >
-                        <button
-                            class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                            onclick={prevPage}
-                            disabled={page <= 1}>← Prev</button
-                        >
-                        <span class="text-xs font-mono text-secondary">Page {page}</span
-                        >
-                        <button
-                            class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                            onclick={nextPage}
-                            disabled={page * size >= resolvedTotal}>Next →</button
-                        >
-                    </div>
-                {/if}
+                        {#if data.tab === "pilots"}
+                            <PilotCard pilot={card} />
+                        {:else}
+                            <UpgradeCard upgrade={card} />
+                        {/if}
+                    </a>
+                {/each}
             </div>
-        {/if}
+
+            <!-- Pagination -->
+            {#if resolvedTotal > size}
+                <div
+                    class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
+                >
+                    <button
+                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                        onclick={prevPage}
+                        disabled={page <= 1}>← Prev</button
+                    >
+                    <span class="text-xs font-mono text-secondary">Page {page}</span
+                    >
+                    <button
+                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
+                        onclick={nextPage}
+                        disabled={page * size >= resolvedTotal}>Next →</button
+                    >
+                </div>
+            {/if}
+        {:catch error}
+            <p class="text-red-400 font-mono text-sm">
+                Failed to load cards: {error.message}
+            </p>
+        {/await}
     </main>
 </div>

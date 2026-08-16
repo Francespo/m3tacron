@@ -9,14 +9,17 @@ router = APIRouter(prefix="/api/squadrons", tags=["Squadrons"])
 
 
 def _compute_squadrons(
+    page: int,
+    size: int,
     data_source: str,
+    sort_metric: str,
+    sort_direction: str,
     filters: dict,
 ) -> dict:
-    """Run the expensive aggregation + post-filter.
+    """Run the expensive aggregation + post-filter + sort.
 
-    Returns a dict with `filtered` (full list in neutral games-desc order)
-    and `total` for the caller to sort, paginate, and enrich. Sorting is
-    applied AFTER the cache lookup — see _sort_squadron_stats.
+    Returns a dict with `filtered` (full sorted list), `total`, and
+    `page`/`size` for the caller to paginate and enrich.
     """
     try:
         ds_enum = DataSource(data_source)
@@ -41,26 +44,19 @@ def _compute_squadrons(
             continue
         filtered_data.append(row)
 
-    total = len(filtered_data)
-
-    return {"filtered": filtered_data, "total": total}
-
-
-def _sort_squadron_stats(data: list[dict], sort_metric: str, sort_direction: str) -> list[dict]:
-    """Sort cached (unsorted-for-request) squadron rows by the requested criteria.
-
-    Replicates the sort logic previously embedded in _compute_squadrons.
-    Applied AFTER the cache lookup so the expensive aggregation is shared
-    across sort orders. Returns a new list — the cached list is never mutated.
-    """
     reverse = sort_direction == "desc"
     if sort_metric == "Win Rate":
-        return sorted(data, key=lambda x: x["win_rate"], reverse=reverse)
+        filtered_data.sort(key=lambda x: x["win_rate"], reverse=reverse)
     elif sort_metric == "Lists":
-        return sorted(data, key=lambda x: x.get("popularity", x.get("count", 0)), reverse=reverse)
+        filtered_data.sort(key=lambda x: x.get("popularity", x.get("count", 0)), reverse=reverse)
     elif sort_metric == "Unique Lists":
-        return sorted(data, key=lambda x: x.get("different_lists_count", 0), reverse=reverse)
-    return sorted(data, key=lambda x: x["games"], reverse=reverse)
+        filtered_data.sort(key=lambda x: x.get("different_lists_count", 0), reverse=reverse)
+    else:
+        filtered_data.sort(key=lambda x: x["games"], reverse=reverse)
+
+    total = len(filtered_data)
+
+    return {"filtered": filtered_data, "total": total, "page": page, "size": size}
 
 
 @router.get("")
@@ -74,14 +70,6 @@ def get_squadrons(
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
     ships: list[str] | None = Query(None),
-    platforms: list[str] | None = Query(None),
-    continent: list[str] | None = Query(None),
-    country: list[str] | None = Query(None),
-    city: list[str] | None = Query(None),
-    date_start: str | None = Query(None),
-    date_end: str | None = Query(None),
-    player_count_min: int | None = Query(None),
-    player_count_max: int | None = Query(None),
     min_games: int = Query(0, ge=0),
 ):
     filters: dict = {}
@@ -91,45 +79,29 @@ def get_squadrons(
         filters["factions"] = factions
     if ships:
         filters["ships"] = ships
-    filters["platforms"] = platforms
-    filters["continent"] = continent
-    filters["country"] = country
-    filters["city"] = city
-    filters["date_start"] = date_start
-    filters["date_end"] = date_end
-    filters["player_count_min"] = player_count_min
-    filters["player_count_max"] = player_count_max
     filters["min_games"] = min_games
 
     # Build a stable cache key from all inputs that affect the response.
     # page/size excluded — pagination is done AFTER caching.
-    # sort_metric/sort_direction excluded — sorting is done AFTER caching.
     cache_key = (
         f"squadrons|{data_source}|"
         f"{','.join(sorted(formats or []))}|"
         f"{','.join(sorted(factions or []))}|"
         f"{','.join(sorted(ships or []))}|"
-        f"{','.join(sorted(platforms or []))}|"
-        f"{','.join(sorted(continent or []))}|"
-        f"{','.join(sorted(country or []))}|"
-        f"{','.join(sorted(city or []))}|"
-        f"{date_start or ''}|{date_end or ''}|"
-        f"{player_count_min}|{player_count_max}|"
-        f"{min_games}"
+        f"{min_games}|{sort_metric}|{sort_direction}"
     )
 
     def compute():
         return _compute_squadrons(
-            data_source=data_source,
+            page=page, size=size, data_source=data_source,
+            sort_metric=sort_metric, sort_direction=sort_direction,
             filters=filters,
         )
 
     cached = get_cached_or_compute(cache_key, compute)
 
-    # Sort AFTER the cache lookup — the heavy aggregation is sort-independent.
-    filtered = _sort_squadron_stats(cached["filtered"], sort_metric, sort_direction)
-
     # Paginate + enrich AFTER cache (only enriches the current page slice)
+    filtered = cached["filtered"]
     total = cached["total"]
     items_raw = filtered[page * size : (page + 1) * size]
 

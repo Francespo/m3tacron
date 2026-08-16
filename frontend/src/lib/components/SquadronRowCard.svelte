@@ -70,7 +70,7 @@
 </script>
 
 <div
-    class="flex relative bg-terminal-panel border border-border-dark border-l-[3px] rounded-lg overflow-hidden group hover:bg-[#ffffff05] hover:border-primary/40 active:bg-[#ffffff08] transition-colors"
+    class="flex relative bg-terminal-panel border border-border-dark border-l-[3px] rounded-lg overflow-hidden group hover:bg-[#ffffff05] hover:border-primary/40 transition-colors"
     style="border-left: 3px solid {fColor};"
 >
     <!-- Stretched link covers the whole card so the rest of the area

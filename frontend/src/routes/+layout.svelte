@@ -3,73 +3,13 @@
 	import Sidebar from "$lib/components/Sidebar.svelte";
 	import MobileTopBar from "$lib/components/MobileTopBar.svelte";
 	import MobileNavDrawer from "$lib/components/MobileNavDrawer.svelte";
-	import PendingIndicator from "$lib/components/PendingIndicator.svelte";
 	import type { Snippet } from "svelte";
 	import { page } from "$app/state";
-	import {
-		onNavigate,
-		beforeNavigate,
-		afterNavigate,
-	} from "$app/navigation";
+	import { onNavigate } from "$app/navigation";
 	import { filters } from "$lib/stores/filters.svelte";
 	import { clearPendingSync } from "$lib/sync/urlSync.svelte";
 
 	let { children }: { children: Snippet } = $props();
-
-	// Global navigation progress: a thin bar across the top of the viewport
-	// that appears only when a navigation actually takes noticeable time
-	// (sidebar links, pagination, tab switches, filter-driven `goto`s) and
-	// hides the moment the new route is interactive. Fast navigations finish
-	// before the show-delay elapses, so the bar never flashes for them. On
-	// streamed loads the navigation completes as soon as the page shell is
-	// ready, so the route's own PendingIndicator keeps the "still updating"
-	// state visible after this bar hides.
-	const SHOW_DELAY_MS = 350;
-	let navActive = $state(false);
-	let navShowTimer: ReturnType<typeof setTimeout> | null = null;
-	let navSafetyTimer: ReturnType<typeof setTimeout> | null = null;
-
-	beforeNavigate(() => {
-		// Don't show the bar yet — wait SHOW_DELAY_MS so instant navigations
-		// never flash it. Restart the pending show timer on every navigation
-		// (rapid successive clicks cancel the previous pending one).
-		if (navShowTimer !== null) {
-			clearTimeout(navShowTimer);
-			navShowTimer = null;
-		}
-		if (navSafetyTimer !== null) {
-			clearTimeout(navSafetyTimer);
-			navSafetyTimer = null;
-		}
-		navShowTimer = setTimeout(() => {
-			navActive = true;
-			navShowTimer = null;
-		}, SHOW_DELAY_MS);
-		// Safety net: if the navigation never completes (cancelled, external
-		// link, unload), never leave the bar stuck on screen.
-		navSafetyTimer = setTimeout(() => {
-			navActive = false;
-			navShowTimer = null;
-			navSafetyTimer = null;
-		}, 10000);
-	});
-
-	afterNavigate(() => {
-		// The new route is interactive: cancel any pending show timer and
-		// clear the bar immediately. No lingering beat — instant navigations
-		// never show it, and slow ones disappear the moment the route is
-		// ready (the page-level pending indicators cover any still-streaming
-		// loads after this bar hides).
-		if (navShowTimer !== null) {
-			clearTimeout(navShowTimer);
-			navShowTimer = null;
-		}
-		if (navSafetyTimer !== null) {
-			clearTimeout(navSafetyTimer);
-			navSafetyTimer = null;
-		}
-		navActive = false;
-	});
 
 	// Mobile-only nav drawer state. Bound to MobileTopBar's hamburger (open)
 	// and to MobileNavDrawer's own close handlers (escape / backdrop / route
@@ -96,14 +36,6 @@
 <div
 	class="relative bg-terminal-bg h-screen text-primary overflow-hidden flex flex-col"
 >
-	<!-- Global navigation progress bar: instant feedback for every route
-	     change, regardless of how slow the backend query is. -->
-	{#if navActive}
-		<div class="fixed inset-x-0 top-0 z-[200] h-0.5">
-			<PendingIndicator active label="Loading" />
-		</div>
-	{/if}
-
 	<!-- Desktop Sidebar (md+). Rendered as a fixed-positioned component
 	     (see Sidebar.svelte) so it never scrolls with the page. -->
 	<Sidebar />

@@ -3,7 +3,6 @@
     import { filters } from "$lib/stores/filters.svelte";
     import { scheduleSync } from "$lib/sync/urlSync.svelte";
     import { API_BASE } from "$lib/api";
-    import { cachedFetchJson } from "$lib/api/cache";
     import { getFormatFullLabel } from "$lib/data/formats";
     import DebouncedTextInput from "./DebouncedTextInput.svelte";
     import Toggle from "./Toggle.svelte";
@@ -20,9 +19,10 @@
 
     onMount(async () => {
         try {
-            locationHierarchy = await cachedFetchJson(
-                `${API_BASE}/tournaments/locations`,
-            );
+            const res = await fetch(`${API_BASE}/tournaments/locations`);
+            if (res.ok) {
+                locationHierarchy = await res.json();
+            }
         } catch (e) {
             console.error("Failed to load locations", e);
         }
@@ -173,7 +173,7 @@
             </span>
             <button
                 type="button"
-                class="group relative inline-flex items-center justify-center w-4 h-4 rounded-full text-secondary hover:text-primary active:text-white focus:outline-none focus:ring-1 focus:ring-primary"
+                class="group relative inline-flex items-center justify-center w-4 h-4 rounded-full text-secondary hover:text-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 aria-label="How tournament filters work"
             >
                 <svg
@@ -206,7 +206,7 @@
     <!-- Date Range Accordion -->
     <div class="border-b border-border-dark">
         <button
-            class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
+            class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary transition-colors"
             onclick={() => (dateOpen = !dateOpen)}
         >
             <span class="text-xs font-mono font-bold tracking-wider"
@@ -246,7 +246,7 @@
     <!-- Location Accordion -->
     <div class="border-b border-border-dark">
         <button
-            class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
+            class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary transition-colors"
             onclick={() => (locationOpen = !locationOpen)}
         >
             <span class="text-xs font-mono font-bold tracking-wider"
@@ -369,7 +369,7 @@
     <!-- Format Accordion -->
     <div class="border-b border-border-dark">
         <button
-            class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
+            class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary transition-colors"
             onclick={() => (formatOpen = !formatOpen)}
         >
             <div class="flex items-center gap-2">
@@ -430,7 +430,7 @@
     <!-- Source Filter Section -->
     <div class="border-b border-border-dark">
         <button
-            class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
+            class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary transition-colors"
             onclick={() => (sourceOpen = !sourceOpen)}
         >
             <span class="text-xs font-mono font-bold tracking-wider"

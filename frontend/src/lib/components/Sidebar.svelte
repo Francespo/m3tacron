@@ -95,8 +95,8 @@
 						aria-pressed={filters.dataSource === "xwa"}
 						class="px-2 py-0.5 text-xs font-mono rounded transition-colors {filters.dataSource ===
 						'xwa'
-							? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50 active:bg-cyan-500/30'
-							: 'bg-transparent text-secondary border border-border-dark hover:text-primary active:bg-[#ffffff14]'}"
+							? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50'
+							: 'bg-transparent text-secondary border border-border-dark hover:text-primary'}"
 					>
 						XWA
 					</button>
@@ -106,8 +106,8 @@
 						aria-pressed={filters.dataSource === "legacy"}
 						class="px-2 py-0.5 text-xs font-mono rounded transition-colors {filters.dataSource ===
 						'legacy'
-							? 'bg-purple-500/20 text-purple-400 border border-purple-500/50 active:bg-purple-500/30'
-							: 'bg-transparent text-secondary border border-border-dark hover:text-primary active:bg-[#ffffff14]'}"
+							? 'bg-purple-500/20 text-purple-400 border border-purple-500/50'
+							: 'bg-transparent text-secondary border border-border-dark hover:text-primary'}"
 					>
 						LEGACY
 					</button>
@@ -134,8 +134,8 @@
 				href={link.href}
 				class="flex items-center py-2 px-4 w-full border-l-2 transition-all duration-200 {$page
 					.url.pathname === link.href
-					? 'bg-[rgba(255,255,255,0.05)] border-primary text-primary active:bg-[rgba(255,255,255,0.09)]'
-					: 'border-transparent text-secondary hover:bg-[rgba(255,255,255,0.03)] hover:text-primary active:bg-[rgba(255,255,255,0.08)]'} {collapsed
+					? 'bg-[rgba(255,255,255,0.05)] border-primary text-primary'
+					: 'border-transparent text-secondary hover:bg-[rgba(255,255,255,0.03)] hover:text-primary'} {collapsed
 					? 'justify-center'
 					: 'justify-start'}"
 			>

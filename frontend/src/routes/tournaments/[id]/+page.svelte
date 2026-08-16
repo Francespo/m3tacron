@@ -2,31 +2,11 @@
     import { getFormatFullLabel } from "$lib/data/formats";
     import { getSourceLabel } from "$lib/data/source";
     import BackLink from "$lib/components/BackLink.svelte";
-    import ErrorPanel from "$lib/components/ErrorPanel.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
-    import { invalidateAll } from "$app/navigation";
 
     let { data } = $props();
-
-    // The loader streams the detail payload in via `detailPromise`
-    // (non-blocking navigation). The {#await} block in the template gates
-    // rendering on it; this state only feeds the document title (non-
-    // rendering logic that needs the resolved payload).
-    let detail = $state<any>(null);
-    $effect(() => {
-        let cancelled = false;
-        data.detailPromise.then((d: any) => {
-            if (!cancelled) detail = d;
-        });
-        return () => {
-            cancelled = true;
-        };
-    });
-    const headTournament = $derived(detail?.tournament);
-
-    function retry() {
-        invalidateAll();
-    }
+    const t = $derived(data.detail?.tournament);
+    const matches = $derived(data.detail?.matches ?? []);
 
     // Shape of a single match row from the backend. The tournament detail
     // endpoint is untyped JSON, so we declare it locally for the bits the
@@ -90,9 +70,8 @@
 
     // Group matches by round, sorted ascending by round number. The backend
     // already orders matches by round, but grouping defensively keeps the
-    // UI correct even if that ever changes. Extracted as a plain function so
-    // the {#await} block can compute it from the streamed payload.
-    function groupByRound(matches: Match[]): [number, Match[]][] {
+    // UI correct even if that ever changes.
+    const roundGroups = $derived.by(() => {
         const groups = new Map<number, Match[]>();
         for (const m of matches as Match[]) {
             const r = m.round;
@@ -100,47 +79,16 @@
             groups.get(r)!.push(m);
         }
         return Array.from(groups.entries()).sort((a, b) => a[0] - b[0]);
-    }
+    });
 </script>
 
 <svelte:head>
-    <title>{headTournament ? headTournament.name : "Tournament"} | M3taCron</title>
+    <title>{t ? t.name : "Tournament"} | M3taCron</title>
 </svelte:head>
 
 <div class="p-6 md:p-8 max-w-[1400px] mx-auto">
-    {#await data.detailPromise}
-        <p class="text-secondary font-mono text-sm mb-6">Loading…</p>
-
-        <!-- Loading Skeleton (matches detail layout: title row, info grid,
-             location card, standings list) -->
-        <div class="space-y-6">
-            <div
-                class="animate-pulse bg-[#ffffff06] rounded-lg h-10 w-72 max-w-full"
-            ></div>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {#each Array(4) as _}
-                    <div
-                        class="animate-pulse bg-[#ffffff06] rounded-lg h-20"
-                    ></div>
-                {/each}
-            </div>
-            <div
-                class="animate-pulse bg-[#ffffff06] rounded-lg h-12"
-            ></div>
-            <div class="space-y-2">
-                {#each Array(6) as _}
-                    <div
-                        class="animate-pulse bg-[#ffffff06] rounded-md h-10"
-                    ></div>
-                {/each}
-            </div>
-        </div>
-    {:then detail}
-        {#if detail?.tournament}
-            {@const t = detail.tournament}
-            {@const matches = detail.matches ?? []}
-            {@const roundGroups = groupByRound(matches)}
-            <!-- Header -->
+    {#if t}
+        <!-- Header -->
         <div class="border-b border-border-dark pb-6 mb-6">
             <div class="flex items-center gap-3 mb-2">
                 <BackLink href="/tournaments" ariaLabel="Back to Tournaments" />
@@ -238,13 +186,13 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             <div class="flex flex-col gap-6">
                 <!-- Cut Standings -->
-                {#if detail.players_cut && detail.players_cut.length > 0}
+                {#if data.detail.players_cut && data.detail.players_cut.length > 0}
                     <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden">
                         <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3">
                             <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">CUT STANDINGS</h2>
                         </div>
                         <div class="flex flex-col">
-                            {#each detail.players_cut as p}
+                            {#each data.detail.players_cut as p}
                                 <div class="flex items-center gap-3 p-3 border-b border-border-dark last:border-0 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
                                     <span class="w-8 h-8 rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center font-mono text-sm">{p.rank}</span>
                                     <FactionIcon faction={p.faction} size="md" />
@@ -273,10 +221,10 @@
                 <!-- Swiss Standings -->
                 <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden">
                     <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3">
-                        <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">{detail.players_cut?.length > 0 ? "SWISS STANDINGS" : "STANDINGS"}</h2>
+                        <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">{data.detail.players_cut?.length > 0 ? "SWISS STANDINGS" : "STANDINGS"}</h2>
                     </div>
                     <div class="flex flex-col">
-                            {#each (detail.players_swiss || []) as p}
+                            {#each (data.detail.players_swiss || []) as p}
                                 <div class="flex items-center gap-3 p-3 border-b border-border-dark last:border-0 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
                                     <span class="w-8 h-8 rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center font-mono text-sm">{p.rank}</span>
                                     <FactionIcon faction={p.faction} size="md" />
@@ -346,22 +294,12 @@
             <p class="text-secondary text-sm mb-6">
                 Tournament detail was not found.
             </p>
-            <div class="flex items-center gap-3">
-                <a
-                    href="/tournaments"
-                    class="px-4 py-2 border border-border-dark rounded-md text-sm font-sans text-primary hover:bg-[rgba(255,255,255,0.05)] active:bg-[rgba(255,255,255,0.1)] transition-colors"
-                >
-                    ← Back to Tournaments
-                </a>
-                <button
-                    type="button"
-                    onclick={retry}
-                    class="px-4 py-2 border border-border-dark rounded-md text-sm font-sans text-primary hover:bg-[rgba(255,255,255,0.05)] active:bg-[rgba(255,255,255,0.1)] transition-colors"
-                >
-                    Try again
-                </button>
-            </div>
+            <a
+                href="/tournaments"
+                class="px-4 py-2 border border-border-dark rounded-md text-sm font-sans text-primary hover:bg-[rgba(255,255,255,0.05)] transition-colors"
+            >
+                ← Back to Tournaments
+            </a>
         </div>
-        {/if}
-    {/await}
+    {/if}
 </div>

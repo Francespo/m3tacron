@@ -5,9 +5,6 @@
     "servicePorts": { "range": "9000-9100" }
   },
   "scripts": {
-    "local": {
-      "command": "bash scripts/local_dev/up.sh"
-    },
     "launch": {
       "type": "service",
       "command": "bash scripts/local_dev/launch.sh",
@@ -16,33 +13,8 @@
     "seed": {
       "command": "bash scripts/local_dev/seed.sh"
     },
-    "reset": {
-      "command": "bash scripts/local_dev/reset.sh"
-    },
     "status": {
       "command": "bash scripts/local_dev/status.sh"
-    },
-    "test": {
-      "command": ". .venv/bin/activate && pytest"
-    },
-    "test:backend": {
-      "command": ". .venv/bin/activate && pytest backend/tests"
-    },
-    "lint": {
-      "command": "npm run check --prefix frontend"
-    },
-    "db": {
-      "command": "bash scripts/local_dev/db.sh"
-    },
-    "backend": {
-      "type": "service",
-      "command": "docker compose -f docker-compose.local.yml up --build --abort-on-container-exit postgres db-seed backend",
-      "port": 8890
-    },
-    "frontend": {
-      "type": "service",
-      "command": "VITE_API_BASE=\"http://localhost:$PASEO_SERVICE_BACKEND_PORT/api\" npm run dev --prefix frontend -- --host 0.0.0.0 --port $PASEO_PORT",
-      "port": 3335
     }
   }
 }

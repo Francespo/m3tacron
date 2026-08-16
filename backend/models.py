@@ -9,7 +9,7 @@ Defines:
 """
 import logging
 from sqlmodel import Field, Relationship, SQLModel
-from datetime import date as date_type, datetime
+from datetime import date, datetime
 from sqlalchemy import JSON, Column, Computed, String
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -28,15 +28,15 @@ class Tournament(SQLModel, table=True):
     """
     id: int | None = Field(default=None, primary_key=True)
     name: str
-    date: date_type = Field(index=True)
+    date: date
     location: Location | None = Field(default=Location(
         city="Unknown", country="Unknown", continent="Unknown"), sa_column=Column(LocationType))
     player_count: int = Field(default=0)
     team_count: int = Field(default=0)
     url: str
 
-    source: Source = Field(sa_column=Column(String, index=True))
-    format: Format | None = Field(default=None, sa_column=Column(String, index=True))
+    source: Source = Field(sa_column=Column(String))
+    format: Format | None = Field(default=None, sa_column=Column(String))
 
     standings: list["PlayerStanding"] = Relationship(
         back_populates="tournament")
@@ -90,7 +90,7 @@ class PlayerStanding(SQLModel, table=True):
     A player's performance in a tournament.
     """
     id: int | None = Field(default=None, primary_key=True)
-    tournament_id: int = Field(foreign_key="tournament.id", index=True)
+    tournament_id: int = Field(foreign_key="tournament.id")
     player_name: str = Field()
     team_id: int | None = Field(default=None, foreign_key="teamstanding.id")
     swiss_rank: int = Field(default=0)

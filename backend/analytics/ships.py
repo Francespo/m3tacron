@@ -37,17 +37,6 @@ def aggregate_ship_stats(
         where_clauses.append("t.player_count >= :pc_min"); params["pc_min"] = int(filters["player_count_min"])
     if filters.get("player_count_max") is not None:
         where_clauses.append("t.player_count <= :pc_max"); params["pc_max"] = int(filters["player_count_max"])
-    # Location filters — tournament.location is stored as JSON; access via
-    # JSONB ->> operator on the text representation of each sub-field.
-    filter_continents = filters.get("continent")
-    if filter_continents:
-        where_clauses.append("t.location->>'continent' = ANY(:continents)"); params["continents"] = list(filter_continents)
-    filter_countries = filters.get("country")
-    if filter_countries:
-        where_clauses.append("t.location->>'country' = ANY(:countries)"); params["countries"] = list(filter_countries)
-    filter_cities = filters.get("city")
-    if filter_cities:
-        where_clauses.append("t.location->>'city' = ANY(:cities)"); params["cities"] = list(filter_cities)
     fmts = filters.get("allowed_formats")
     if fmts:
         where_clauses.append("t.format = ANY(:formats)"); params["formats"] = list(fmts)

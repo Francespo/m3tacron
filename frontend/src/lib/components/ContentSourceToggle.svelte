@@ -93,10 +93,10 @@
         type="button"
         onclick={() => setDataSource('xwa')}
         aria-pressed={filters.dataSource === 'xwa'}
-        class="flex items-center gap-1.5 px-2.5 py-1 text-xs transition-colors border-r border-border-dark cursor-pointer select-none
+        class="flex items-center gap-1.5 px-2.5 py-1 text-xs transition-colors border-r border-border-dark cursor-pointer
             {filters.dataSource === 'xwa'
-                ? 'bg-cyan-500/15 text-cyan-400 active:bg-cyan-500/25'
-                : 'text-secondary hover:text-primary hover:bg-[#ffffff08] active:bg-[#ffffff14]'}"
+                ? 'bg-cyan-500/15 text-cyan-400'
+                : 'text-secondary hover:text-primary hover:bg-[#ffffff08]'}"
     >
         <span
             class="inline-block w-1.5 h-1.5 rounded-full transition-all
@@ -113,10 +113,10 @@
         type="button"
         onclick={() => setDataSource('legacy')}
         aria-pressed={filters.dataSource === 'legacy'}
-        class="flex items-center gap-1.5 px-2.5 py-1 text-xs transition-colors border-r border-border-dark cursor-pointer select-none
+        class="flex items-center gap-1.5 px-2.5 py-1 text-xs transition-colors border-r border-border-dark cursor-pointer
             {filters.dataSource === 'legacy'
-                ? 'bg-purple-500/15 text-purple-400 active:bg-purple-500/25'
-                : 'text-secondary hover:text-primary hover:bg-[#ffffff08] active:bg-[#ffffff14]'}"
+                ? 'bg-purple-500/15 text-purple-400'
+                : 'text-secondary hover:text-primary hover:bg-[#ffffff08]'}"
     >
         <span
             class="inline-block w-1.5 h-1.5 rounded-full transition-all
@@ -139,10 +139,10 @@
          on/off state matches the rest of the site, and the label reuses the
          same tinted-bg + colored-text pattern as the source buttons. -->
     <label
-        class="flex items-center gap-1.5 px-2.5 py-1 text-xs cursor-pointer select-none transition-colors
+        class="flex items-center gap-1.5 px-2.5 py-1 text-xs cursor-pointer transition-colors
             {filters.includeEpic
-                ? 'bg-amber-500/15 text-amber-400 active:bg-amber-500/25'
-                : 'text-secondary hover:text-primary hover:bg-[#ffffff08] active:bg-[#ffffff14]'}"
+                ? 'bg-amber-500/15 text-amber-400'
+                : 'text-secondary hover:text-primary hover:bg-[#ffffff08]'}"
     >
         <Toggle
             size="xs"

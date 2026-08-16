@@ -130,19 +130,8 @@ def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats:
     from .ships import aggregate_ship_stats
     ship_stats = aggregate_ship_stats(filters, data_source=data_source)
     
-    from .lists import aggregate_list_stats, fetch_list_pilots
+    from .lists import aggregate_list_stats
     list_stats = aggregate_list_stats(filters, data_source=data_source)
-
-    # Attach pilots lazily — aggregation returns empty pilots to avoid
-    # pulling list_json for every row; the snapshot only ships a handful
-    # of lists, so fetch pilots just for those.
-    list_signatures: list[str] = [l["signature"] for l in list_stats if l.get("signature")]
-    list_pilots = fetch_list_pilots(list_signatures) if list_signatures else {}
-    list_stats = [
-        {**l, "pilots": list_pilots.get(l["signature"], [])}
-        for l in list_stats
-        if l.get("signature")
-    ]
     
     from .core import aggregate_card_stats
     pilot_stats = aggregate_card_stats(filters, mode="pilots", data_source=data_source)
