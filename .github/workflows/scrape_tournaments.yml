@@ -96,7 +96,7 @@ jobs:
       - name: Start database tunnel
         if: inputs.environment == 'prod' || inputs.environment == 'staging' || inputs.environment == 'dev'
         run: |
-          ssh -f -N -L 5432:rdvq2p6xwxho16pbcyd40w0d:5432 \
+          ssh -f -N -L 5432:localhost:3000 \
             -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes \
             audit-bot@84.8.253.2
           echo "Waiting for tunnel..."
