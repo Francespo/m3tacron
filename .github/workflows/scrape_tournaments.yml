@@ -80,9 +80,18 @@ jobs:
 
       - name: Open SSH tunnel to database
         if: inputs.environment == 'prod' || inputs.environment == 'staging' || inputs.environment == 'dev'
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          # Sanitize the secret — copes with CR line endings / stray whitespace
+          # from paste that breaks ssh-add (error: "error in libcrypto").
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s' "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > /tmp/m3tacron_deploy_key
+          tail -c1 /tmp/m3tacron_deploy_key | read -r _ || echo >> /tmp/m3tacron_deploy_key
+          chmod 600 /tmp/m3tacron_deploy_key
+          eval $(ssh-agent -s)
+          ssh-add /tmp/m3tacron_deploy_key
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
+          rm -f /tmp/m3tacron_deploy_key
 
       - name: Start database tunnel
         if: inputs.environment == 'prod' || inputs.environment == 'staging' || inputs.environment == 'dev'
