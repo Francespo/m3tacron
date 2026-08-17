@@ -10543,5 +10543,40 @@
     "city": "Minas Gerais",
     "country": "Brazil",
     "continent": "South America"
+  },
+  "Leitura, Para\u00edba, BR": {
+    "city": "Unknown",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Mahwah NJ, US": {
+    "city": "Mahwah",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Rogue State Games, Mahwah NJ, US": {
+    "city": "Mahwah",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Fantasy Books & Games, Fairview Heights, Illinois, US": {
+    "city": "Unknown",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "SZ-Wing, lower saxony, DE": {
+    "city": "Unknown",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "Bacs-Kiskun, HU": {
+    "city": "Great Plain and North",
+    "country": "Hungary",
+    "continent": "Europe"
+  },
+  "tcg klub - Kecskem\u00e9t, B\u00e1cs-Kiskun , HU": {
+    "city": "Great Plain and North",
+    "country": "Hungary",
+    "continent": "Europe"
   }
 }
