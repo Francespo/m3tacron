@@ -52,6 +52,26 @@ class LongshanksScraper(BaseScraper):
         # member name (lower) -> team name, populated during get_participants
         # for team events so get_matches can resolve per-player games to teams.
         self.team_members: dict[str, str] = {}
+        # member display name (lower -> original casing)
+        self._member_display: dict[str, str] = {}
+        # team name (lower) -> team placeholder PlayerStanding (team record)
+        self._team_placeholders: dict[str, PlayerStanding] = {}
+        # member name (lower) -> member PlayerStanding
+        self._member_rows: dict[str, PlayerStanding] = {}
+
+    def _hide_cookie_popup(self, page) -> None:
+        """Best-effort cookie-popup hiding.
+
+        Never raises: Longshanks frequently triggers a JS navigation right
+        after the initial DOMContentLoaded, which destroys the page execution
+        context and makes add_style_tag throw. The popup is cosmetic — the
+        scrape must not fail because of it.
+        """
+        try:
+            page.add_style_tag(
+                content="#cookie_permission { display: none !important; }")
+        except Exception as exc:
+            logger.debug(f"Cookie-popup style injection skipped: {exc}")
 
     def _dismiss_cookie_popup(self, page) -> None:
         """Dismiss cookie consent popup if present."""
@@ -303,9 +323,8 @@ class LongshanksScraper(BaseScraper):
                 logger.info(f"Scraping participants from {url}")
                 self._goto_with_retry(page, url, wait_until="domcontentloaded", timeout=60000)
 
-                # Cookie cleanup
-                page.add_style_tag(
-                    content="#cookie_permission { display: none !important; }")
+                # Cookie cleanup (non-fatal)
+                self._hide_cookie_popup(page)
 
                 # The ranking tab can render slowly and Longshanks
                 # occasionally drops requests, so retry the parse when no
@@ -440,6 +459,12 @@ class LongshanksScraper(BaseScraper):
                                         if m_match:
                                             member_to_team[m_match.group(
                                                 1)] = team_name
+                                            # Also record the member's display name
+                                            member_disp = m_lnk.inner_text().strip() if m_lnk.count() > 0 else ""
+                                            if member_disp:
+                                                member_disp = re.sub(r"\s*#\d+$", "", member_disp).strip()
+                                                self._member_display[member_disp.lower()] = member_disp
+                                                self.team_members[member_disp.lower()] = team_name
                             else:
                                 # Individual View: extract PID
                                 user_link = el.locator(
@@ -591,12 +616,51 @@ class LongshanksScraper(BaseScraper):
                                     name = t_name
 
                                 if is_team_pass:
-                                    # Team view: only used to build the
-                                    # member->team maps (captured during
-                                    # extraction). Team identity rows are
-                                    # created by save_tournament_data from the
-                                    # member rows' team_name. Never emit team
-                                    # placeholder rows as players.
+                                    # Team view: one row per team. We record the
+                                    # team's aggregate record on a placeholder
+                                    # PlayerStanding (used only to derive the
+                                    # TeamStanding identity + team match winners)
+                                    # and create one member PlayerStanding per
+                                    # pop_user link (is_team_member=True, team_name
+                                    # set, zeroed standings) so per-player match
+                                    # FKs resolve. The team placeholder itself is
+                                    # NOT emitted as a player (analytics excludes
+                                    # non-members in team events).
+                                    key = name
+                                    team_placeholder = PlayerStanding(
+                                        tournament_id=int(tournament_id),
+                                        player_name=name,
+                                        list_json={},
+                                    )
+                                    team_placeholder.is_team_member = False
+                                    team_placeholder.team_name = name  # placeholder: links to its own teamstanding row
+                                    if current_section == "cut":
+                                        team_placeholder.cut_rank, team_placeholder.cut_wins, team_placeholder.cut_losses, team_placeholder.cut_draws = rank, wins, losses, draws
+                                        team_placeholder.cut_event_points, team_placeholder.cut_tie_breaker_points = final_ep, final_tb
+                                    else:
+                                        team_placeholder.swiss_rank, team_placeholder.swiss_wins, team_placeholder.swiss_losses, team_placeholder.swiss_draws = rank, wins, losses, draws
+                                        team_placeholder.swiss_event_points, team_placeholder.swiss_tie_breaker_points = final_ep, final_tb
+                                    # stash on the scraper so save_tournament_data
+                                    # can create TeamStanding identity rows
+                                    self._team_placeholders[name.lower().strip()] = team_placeholder
+
+                                    # Member rows (zeroed stats — Longshanks does
+                                    # not expose per-member standings, only names).
+                                    for m_name_lower, m_team in list(self.team_members.items()):
+                                        if m_team.lower().strip() != name.lower().strip():
+                                            continue
+                                        # Only create once (the team row may repeat
+                                        # in cut + swiss sections).
+                                        if m_name_lower in self._member_rows:
+                                            continue
+                                        member_pr = PlayerStanding(
+                                            tournament_id=int(tournament_id),
+                                            player_name=self._member_display.get(m_name_lower, m_name_lower),
+                                            list_json={},
+                                        )
+                                        member_pr.is_team_member = True
+                                        member_pr.team_name = m_team
+                                        self._member_rows[m_name_lower] = member_pr
                                     continue
 
                                 if team_results_only and not is_team_pass:
@@ -691,17 +755,20 @@ class LongshanksScraper(BaseScraper):
                                 traceback.print_exc()
 
                     participants = list(participants_dict.values())
-                    if participants:
+                    if participants or (self.is_team_event and self._member_rows):
                         break
                     logger.warning(
                         f"Ranking tab returned no players (attempt {attempt + 1}/3); reloading...")
                     participants_dict = {}
                     member_to_team = {}
                     self.player_team_map = {}
+                    self.team_members = {}
+                    self._member_display = {}
+                    self._team_placeholders = {}
+                    self._member_rows = {}
                     self._goto_with_retry(
                         page, url, wait_until="domcontentloaded", timeout=60000)
-                    page.add_style_tag(
-                        content="#cookie_permission { display: none !important; }")
+                    self._hide_cookie_popup(page)
                 if not team_results_only:
                     self._extract_lists_from_icons(
                         page, participants, tournament_id)
@@ -711,6 +778,13 @@ class LongshanksScraper(BaseScraper):
             finally:
                 browser.close()
 
+        # For team events, return BOTH the member rows (is_team_member=True,
+        # per-player match FKs resolve against them) AND the team placeholder
+        # rows (is_team_member=False, carrying the team's aggregate record).
+        # save_tournament_data builds TeamStanding identity from team_name on
+        # member rows and team_member edges; analytics excludes non-members.
+        if self.is_team_event:
+            return list(self._member_rows.values()) + list(self._team_placeholders.values())
         return participants
 
     def _fetch_lists_from_popups(self, page, participants, tournament_id):
@@ -967,9 +1041,7 @@ class LongshanksScraper(BaseScraper):
                             "Legacy format detected (from XWS). Forcing Scenario to NO_SCENARIO.")
 
                 self._goto_with_retry(page, url, wait_until="networkidle", timeout=60000)
-                page.add_style_tag(
-                    content="#cookie_permission { display: none !important; }"
-                )
+                self._hide_cookie_popup(page)
 
                 # Check Title/System for Legacy keywords if not already detected
                 if not is_legacy:

@@ -379,7 +379,9 @@ def save_tournament_data(
         tname = getattr(player, "team_name", None)
         if tname:
             player.team_id = team_id_map.get(tname.lower().strip())
-        if has_team_members and getattr(player, "team_name", None):
+        # Respect the scraper's is_team_member flag (True for members, False
+        # for team-placeholder rows). Never override an explicit False.
+        if has_team_members and getattr(player, "is_team_member", False) and getattr(player, "team_name", None):
             player.is_team_member = True
         session.add(player)
         if player.player_name:
@@ -406,9 +408,12 @@ def save_tournament_data(
 
     # --- Team membership edges: one row per (team, member). The member's
     # list_id/list_json mirror their playerstanding row for convenience.
+    # Only is_team_member rows get edges (team placeholders are NOT members).
     if team_id_map:
         from ..models import TeamMember
         for player in players:
+            if not getattr(player, "is_team_member", False):
+                continue
             tname = getattr(player, "team_name", None)
             if not tname:
                 continue
