@@ -134,6 +134,8 @@ def aggregate_list_stats(
     if ship_clause:
         where_clauses.append(ship_clause)
 
+    where_clauses.append("(NOT t.is_team_event OR ps.is_team_member)")
+
     where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
     with Session(engine) as session:

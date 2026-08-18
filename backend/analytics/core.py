@@ -412,6 +412,8 @@ def aggregate_card_stats(
         )
         params["filter_upgrade_id"] = filter_upgrade_id
 
+    where_clauses.append("(NOT t.is_team_event OR ps.is_team_member)")
+
     where_sql = " AND ".join(where_clauses)
 
     if mode == "pilots":

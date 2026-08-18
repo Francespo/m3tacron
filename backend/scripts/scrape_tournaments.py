@@ -192,7 +192,7 @@ def get_existing_urls(session: Session) -> set[str]:
 
 def _delete_existing_tournament(session: Session, url: str) -> None:
     from sqlmodel import delete
-    from ..models import Match, TeamMatch, PlayerStanding, TeamStanding, Tournament
+    from ..models import Match, TeamMatch, PlayerStanding, TeamStanding, Tournament, TeamMember
 
     existing_rows = session.exec(select(Tournament).where(
         Tournament.url == url)).all()
@@ -204,6 +204,11 @@ def _delete_existing_tournament(session: Session, url: str) -> None:
                 cast(Any, TeamMatch.tournament_id) == eid))
             session.exec(delete(Match).where(
                 cast(Any, Match.tournament_id) == eid))
+            session.exec(delete(TeamMember).where(
+                cast(Any, TeamMember.teamstanding_id).in_(
+                    select(TeamStanding.id).where(
+                        cast(Any, TeamStanding.tournament_id) == eid)
+                )))
             session.exec(delete(PlayerStanding).where(
                 cast(Any, PlayerStanding.tournament_id) == eid))
             session.exec(delete(TeamStanding).where(
@@ -323,10 +328,15 @@ def save_tournament_data(
     # Assign next tournament ID explicitly.
     max_t = session.exec(select(func.max(Tournament.id))).first()
     tournament.id = (max_t or 0) + 1
+    # Team events: set the flag from member rows / team names.
+    has_team_members = any(getattr(p, "team_name", None) for p in players)
+    if has_team_members:
+        tournament.is_team_event = True
     session.add(tournament)
     session.flush()  # Flush so player FKs can reference tournament.id
 
-    # --- Teams: build TeamStanding rows if team names are present in players
+    # --- Teams: build TeamStanding rows from member team_names (identity only).
+    # Team aggregate results live in teammatch; teamstanding carries identity.
     team_names: set[str] = set()
     for p in players:
         tname = getattr(p, "team_name", None)
@@ -369,6 +379,8 @@ def save_tournament_data(
         tname = getattr(player, "team_name", None)
         if tname:
             player.team_id = team_id_map.get(tname.lower().strip())
+        if has_team_members and getattr(player, "team_name", None):
+            player.is_team_member = True
         session.add(player)
         if player.player_name:
             player_id_map[player.player_name.lower().strip()] = player.id
@@ -391,6 +403,25 @@ def save_tournament_data(
 
     if players:
         session.flush()  # Flush so match FKs can reference player IDs
+
+    # --- Team membership edges: one row per (team, member). The member's
+    # list_id/list_json mirror their playerstanding row for convenience.
+    if team_id_map:
+        from ..models import TeamMember
+        for player in players:
+            tname = getattr(player, "team_name", None)
+            if not tname:
+                continue
+            tsid = team_id_map.get(tname.lower().strip())
+            if tsid is None or player.id is None:
+                continue
+            session.add(TeamMember(
+                teamstanding_id=tsid,
+                playerstanding_id=player.id,
+                list_id=player.list_id,
+                list_json=player.list_json,
+            ))
+        session.flush()
 
     # Assign match IDs from current max + offset.
     # Scrapers return match dicts; convert them to Match or TeamMatch objects here.

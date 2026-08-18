@@ -67,6 +67,8 @@ def aggregate_ship_stats(
     if search:
         where_clauses.append("psm.ship_xws ILIKE :search"); params["search"] = f"%{search}%"
 
+    where_clauses.append("(NOT t.is_team_event OR ps.is_team_member)")
+
     where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
     sql = text(f"""

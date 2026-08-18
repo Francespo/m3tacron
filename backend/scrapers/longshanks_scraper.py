@@ -49,6 +49,9 @@ class LongshanksScraper(BaseScraper):
         self.inferred_format = None
         self.is_team_event = False
         self.player_team_map = {}
+        # member name (lower) -> team name, populated during get_participants
+        # for team events so get_matches can resolve per-player games to teams.
+        self.team_members: dict[str, str] = {}
 
     def _dismiss_cookie_popup(self, page) -> None:
         """Dismiss cookie consent popup if present."""
@@ -330,8 +333,9 @@ class LongshanksScraper(BaseScraper):
                         # Team view first, then Individual view
                         passes = [True, False]
 
-                    participants_dict = {}  # (Name, is_team) -> PlayerStanding
+                    participants_dict = {}  # name -> PlayerStanding (members/individuals)
                     member_to_team = {}  # PID -> TeamName mapping
+                    self.team_members = {}  # member name (lower) -> team name
 
                     for is_team_pass in passes:
                         if is_team_event:
@@ -586,11 +590,69 @@ class LongshanksScraper(BaseScraper):
                                 if is_team_pass and t_name:
                                     name = t_name
 
-                                if team_results_only and not is_team_pass:
-                                    if t_name and name:
-                                        self.player_team_map[name.lower()] = t_name
+                                if is_team_pass:
+                                    # Team view: only used to build the
+                                    # member->team maps (captured during
+                                    # extraction). Team identity rows are
+                                    # created by save_tournament_data from the
+                                    # member rows' team_name. Never emit team
+                                    # placeholder rows as players.
                                     continue
 
+                                if team_results_only and not is_team_pass:
+                                    # Individual view in a team event: build the
+                                    # member->team map AND add a real member
+                                    # PlayerStanding row so per-player matches
+                                    # resolve. The team placeholder rows (added
+                                    # below from the team pass) carry the team's
+                                    # aggregate stats; members carry their own.
+                                    if t_name and name:
+                                        self.player_team_map[name.lower()] = t_name
+                                        self.team_members[name.lower()] = t_name
+                                    # Member rows: mark as team members, keep their
+                                    # individual standings.
+                                    if not t_name:
+                                        # No team mapping for this player — skip
+                                        # (shouldn't happen for team events).
+                                        continue
+                                    key = name
+                                    if key in participants_dict:
+                                        pr = participants_dict[key]
+                                        if current_section == "cut":
+                                            pr.cut_rank, pr.cut_wins, pr.cut_losses, pr.cut_draws = rank, wins, losses, draws
+                                            pr.cut_event_points, pr.cut_tie_breaker_points = final_ep, final_tb
+                                        else:
+                                            pr.swiss_rank, pr.swiss_wins, pr.swiss_losses, pr.swiss_draws = rank, wins, losses, draws
+                                            pr.swiss_event_points, pr.swiss_tie_breaker_points = final_ep, final_tb
+                                    else:
+                                        pr = PlayerStanding(
+                                            tournament_id=int(tournament_id),
+                                            player_name=name,
+                                            list_json={},
+                                        )
+                                        pr.is_team_member = True
+                                        pr.team_name = t_name
+                                        if current_section == "cut":
+                                            pr.cut_rank, pr.cut_wins, pr.cut_losses, pr.cut_draws = rank, wins, losses, draws
+                                            pr.cut_event_points, pr.cut_tie_breaker_points = final_ep, final_tb
+                                        else:
+                                            pr.swiss_rank, pr.swiss_wins, pr.swiss_losses, pr.swiss_draws = rank, wins, losses, draws
+                                            pr.swiss_event_points, pr.swiss_tie_breaker_points = final_ep, final_tb
+                                        participants_dict[key] = pr
+
+                                    if item.get('xws'):
+                                        try:
+                                            xws_json = json.loads(item['xws'])
+                                            participants_dict[key].list_json = xws_json
+                                            if not self.inferred_format:
+                                                from ..data_structures.formats import infer_format_from_xws
+                                                self.inferred_format = infer_format_from_xws(
+                                                    xws_json)
+                                        except:
+                                            pass
+                                    continue
+
+                                # Individual events: normal path (unchanged).
                                 key = name
                                 if key in participants_dict:
                                     pr = participants_dict[key]

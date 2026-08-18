@@ -89,6 +89,8 @@ def aggregate_squadron_stats(
     if ship_clause:
         where_clauses.append(ship_clause)
 
+    where_clauses.append("(NOT t.is_team_event OR ps.is_team_member)")
+
     where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
     # GROUP BY ship_list — no Python post-processing needed

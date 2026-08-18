@@ -10,7 +10,7 @@ Defines:
 import logging
 from sqlmodel import Field, Relationship, SQLModel
 from datetime import date as date_type, datetime
-from sqlalchemy import JSON, Column, Computed, String
+from sqlalchemy import JSON, Boolean, Column, Computed, String
 from sqlalchemy.dialects.postgresql import JSONB
 
 # JSONB is Postgres-only; fall back to generic JSON on other backends
@@ -42,6 +42,11 @@ class Tournament(SQLModel, table=True):
     source: Source = Field(sa_column=Column(String, index=True))
     format: Format | None = Field(default=None, sa_column=Column(String, index=True))
 
+    # True when the event is a team tournament (has TeamStanding/TeamMatch rows).
+    # Used by analytics to include only real member rows (is_team_member) and
+    # exclude legacy team-placeholder rows.
+    is_team_event: bool = Field(default=False, sa_column=Column("is_team_event", Boolean, index=True))
+
     standings: list["PlayerStanding"] = Relationship(
         back_populates="tournament")
     team_standings: list["TeamStanding"] = Relationship(
@@ -50,26 +55,44 @@ class Tournament(SQLModel, table=True):
 
 class TeamStanding(SQLModel, table=True):
     """
-    A team's performance in a tournament.
+    A team's identity in a tournament.
     """
     id: int | None = Field(default=None, primary_key=True)
     tournament_id: int = Field(foreign_key="tournament.id")
     team_name: str = Field()
-    swiss_rank: int = Field(default=0)
-    swiss_wins: int = Field(default=0)
-    swiss_losses: int = Field(default=0)
-    swiss_draws: int = Field(default=0)
-    swiss_event_points: int | None = Field(default=None)
-    swiss_tie_breaker_points: int | None = Field(default=None)
-    cut_rank: int | None = Field(default=None)
-    cut_wins: int | None = Field(default=None)
-    cut_losses: int | None = Field(default=None)
-    cut_draws: int | None = Field(default=None)
-    cut_event_points: int | None = Field(default=None)
-    cut_tie_breaker_points: int | None = Field(default=None)
 
     tournament: Tournament | None = Relationship(
         back_populates="team_standings")
+    members: list["TeamMember"] = Relationship(back_populates="team")
+
+
+class TeamMember(SQLModel, table=True):
+    """
+    Membership edge between a team and an individual player standing.
+
+    One row per (team, member) pair; a player standing belongs to at most one
+    team (enforced by the playerstanding_id unique constraint). The member's
+    own list is on their PlayerStanding row; list_id/list_json here mirror it
+    for convenience.
+    """
+    id: int | None = Field(default=None, primary_key=True)
+    teamstanding_id: int = Field(
+        foreign_key="teamstanding.id", index=True)
+    playerstanding_id: int = Field(
+        foreign_key="playerstanding.id", unique=True, index=True)
+    list_id: int | None = Field(default=None, foreign_key="list.id")
+    list_json: dict | None = Field(default=None, sa_column=Column(JSONB_VARIANT))
+
+    team: TeamStanding | None = Relationship(back_populates="members")
+    player: "PlayerStanding" = Relationship(back_populates="team_membership")
+
+    __table_args__ = (
+        # One membership edge per (team, member) pair.
+        __import__("sqlalchemy").UniqueConstraint(
+            "teamstanding_id", "playerstanding_id",
+            name="uq_team_member_team_player",
+        ),
+    )
 
 
 class List(SQLModel, table=True):
@@ -128,6 +151,16 @@ class PlayerStanding(SQLModel, table=True):
     tournament: Tournament | None = Relationship(back_populates="standings")
     team: TeamStanding | None = Relationship(
         sa_relationship_kwargs={"lazy": "select"})
+    # True when this standing row is a real individual member of a team event.
+    # False for solo-event players and for legacy team-placeholder rows (rows
+    # whose player_name is a team name — created by the pre-team_member scraper).
+    is_team_member: bool = Field(default=False, sa_column=Column("is_team_member", Boolean, index=True))
+    team_membership: "TeamMember" = Relationship(back_populates="player")
+
+    # Transient attribute (not a column): set by scrapers for team-event members
+    # to carry the team name to save_tournament_data, which builds TeamStanding
+    # identity rows and team_member edges.
+    team_name: str | None = None
 
 
 class Match(SQLModel, table=True):
