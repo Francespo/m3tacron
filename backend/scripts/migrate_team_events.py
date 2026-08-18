@@ -95,7 +95,7 @@ def _re_roster_event(session: Session, tid: int, url: str) -> dict:
     """Re-scrape a Longshanks team event's individual ranking tab and insert
     member PlayerStanding rows + team_member edges. Returns stats."""
     import re as _re
-    from ..utils.list_keys import get_list_key, get_ship_list
+    from ..utils.list_keys import get_list_key
     from ..scripts.scrape_tournaments import _persist_list_rows
 
     m = _re.search(r"/event/(\d+)/", url)
@@ -131,17 +131,26 @@ def _re_roster_event(session: Session, tid: int, url: str) -> dict:
     # Explicit IDs: max playerstanding id + offset
     max_p = session.execute(text("SELECT COALESCE(MAX(id),0) FROM playerstanding")).scalar() or 0
     next_pid = max_p + 1
+    # Avoid re-inserting members that already exist for this tournament
+    existing_members = set(session.execute(text(
+        "SELECT lower(player_name) FROM playerstanding WHERE tournament_id = :tid AND is_team_member = true"
+    ), {"tid": tid}).fetchall())
+    existing_members = {r[0] for r in existing_members}
+
     for i, member in enumerate(members):
+        mkey = member.player_name.lower().strip()
+        if mkey in existing_members:
+            continue
         member.id = next_pid + i
         member.tournament_id = tid
         tname = getattr(member, "team_name", None)
-        member.is_team_member = bool(tname)
+        member.is_team_member = True
         tsid = team_id_by_name.get((tname or "").lower().strip()) if tname else None
         if tsid:
             member.team_id = tsid
         session.add(member)
         inserted += 1
-        if tsid and member.player_name:
+        if tsid:
             session.execute(text(
                 "INSERT INTO team_member (teamstanding_id, playerstanding_id, list_id, list_json) "
                 "VALUES (:tsid, :pid, :lid, CAST(:lj AS jsonb)) "
@@ -150,7 +159,21 @@ def _re_roster_event(session: Session, tid: int, url: str) -> dict:
                 "lj": __import__("json").dumps(member.list_json) if member.list_json else "{}"})
             edge_rows += 1
     session.commit()
-    return {"members": inserted, "edges": edge_rows}
+
+    # Link the legacy team-named playerstanding rows (team records) to their
+    # teamstanding identity and mark them as NOT members.
+    linked_team_rows = session.execute(text("""
+        UPDATE playerstanding ps
+        SET team_id = ts.id, is_team_member = false
+        FROM teamstanding ts
+        WHERE ps.tournament_id = :tid
+          AND ts.tournament_id = :tid
+          AND lower(ps.player_name) = lower(ts.team_name)
+          AND ps.is_team_member = false
+    """), {"tid": tid})
+    session.commit()
+
+    return {"members": inserted, "edges": edge_rows, "linked_team_rows": linked_team_rows.rowcount or 0}
 
 
 def _re_link_matches(session: Session, tid: int) -> int:
@@ -165,26 +188,6 @@ def _re_link_matches(session: Session, tid: int) -> int:
     log.info(f"Tournament {tid}: match re-link is handled by re-scrape "
              f"(--tournament-url) with the team-aware scraper.")
     return 0
-
-
-def _delete_team_placeholders(session: Session, tid: int) -> int:
-    """Delete playerstanding rows whose player_name matches a team name in the
-    same tournament (legacy team-placeholder rows), AFTER members are linked.
-    """
-    res = session.execute(text("""
-        DELETE FROM playerstanding ps
-        USING teamstanding ts
-        WHERE ps.tournament_id = :tid
-          AND ts.tournament_id = :tid
-          AND lower(ps.player_name) = lower(ts.team_name)
-          AND NOT EXISTS (
-              SELECT 1 FROM match m
-              WHERE m.tournament_id = :tid
-                AND (m.player1_id = ps.id OR m.player2_id = ps.id OR m.winner_id = ps.id)
-          )
-    """), {"tid": tid})
-    session.commit()
-    return res.rowcount or 0
 
 
 def migrate(only_event_id: int | None = None, skip_reroaster: bool = False) -> None:
@@ -211,9 +214,8 @@ def migrate(only_event_id: int | None = None, skip_reroaster: bool = False) -> N
                 continue
             log.info(f"[{tid}] Re-roster: {stats}")
             _re_link_matches(session, tid)
-            deleted = _delete_team_placeholders(session, tid)
-            log.info(f"[{tid}] Deleted {deleted} team-placeholder rows.")
-            # set is_team_event explicitly
+            # Team-named playerstanding rows are kept as team records
+            # (is_team_member=false) — the re-roster links them to teamstanding.
             session.execute(text("UPDATE tournament SET is_team_event = true WHERE id = :tid"), {"tid": tid})
             session.commit()
 
