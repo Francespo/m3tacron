@@ -5,7 +5,7 @@ permissions:
 
 on:
   schedule:
-    # Run at 08:00 UTC every day
+    # Run at 08:00 UTC every day — writes to staging (promote via separate workflow)
     - cron: "0 8 * * *"
   workflow_dispatch:
     inputs:
@@ -34,9 +34,10 @@ on:
       environment:
         description: "Target database environment (use none for SQLite artifact only)"
         required: true
-        default: "prod"
+        default: "staging"
         type: choice
         options:
+          - staging
           - prod
           - dev
           - none
@@ -73,23 +74,81 @@ jobs:
         run: |
           playwright install chromium --with-deps
 
+      - name: Install PostgreSQL client (for pg_isready / psql)
+        if: inputs.environment == 'prod' || inputs.environment == 'staging' || inputs.environment == 'dev'
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Open SSH tunnel to database
+        if: inputs.environment == 'prod' || inputs.environment == 'staging' || inputs.environment == 'dev'
+        run: |
+          # Sanitize the secret — copes with CR line endings / stray whitespace
+          # from paste that breaks ssh-add (error: "error in libcrypto").
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s' "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > /tmp/m3tacron_deploy_key
+          tail -c1 /tmp/m3tacron_deploy_key | read -r _ || echo >> /tmp/m3tacron_deploy_key
+          chmod 600 /tmp/m3tacron_deploy_key
+          eval $(ssh-agent -s)
+          ssh-add /tmp/m3tacron_deploy_key
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
+          rm -f /tmp/m3tacron_deploy_key
+
+      - name: Start database tunnel
+        if: inputs.environment == 'prod' || inputs.environment == 'staging' || inputs.environment == 'dev'
+        run: |
+          ssh -f -N -L 5432:localhost:3000 \
+            -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes \
+            audit-bot@84.8.253.2
+          echo "Waiting for tunnel..."
+          for i in $(seq 1 15); do
+            if pg_isready -h localhost -p 5432 2>/dev/null | grep -q "accepting"; then
+              echo "Tunnel ready."
+              break
+            fi
+            sleep 1
+          done
+          pg_isready -h localhost -p 5432 || (echo "ERROR: DB tunnel failed" && exit 1)
+
       - name: Run Scraper
         env:
           PYTHONPATH: .
         run: |
-          # Use inputs if available, otherwise default to longshanks+rollbetter/yesterday
           PLATFORM="${{ inputs.platform }}"
           TIME_RANGE="${{ inputs.time_range }}"
           DB_ENV="${{ inputs.environment }}"
 
           if [ -z "$PLATFORM" ]; then PLATFORM="longshanks+rollbetter"; fi
           if [ -z "$TIME_RANGE" ]; then TIME_RANGE="yesterday"; fi
-          if [ -z "$DB_ENV" ]; then DB_ENV="prod"; fi
+          if [ -z "$DB_ENV" ]; then DB_ENV="staging"; fi
+
+          # Build DATABASE_URL from secrets via SSH tunnel.
+          # Secrets may be a full URL (postgres://user:pass@host/db) or just a password.
+          # We extract the password and reconstruct a localhost tunnel URL.
+          _extract_pass() {
+            local raw="$1"
+            if echo "$raw" | grep -q "://"; then
+              python3 -c "from urllib.parse import urlparse; import sys; u=urlparse(sys.argv[1]); print(u.password or '')" "$raw"
+            else
+              echo "$raw"
+            fi
+          }
 
           if [ "$DB_ENV" = "prod" ]; then
-            export DATABASE_URL="${{ secrets.PROD_DATABASE_URL }}"
+            RAW="${{ secrets.PROD_DATABASE_URL }}"
+            PASS=$(_extract_pass "$RAW")
+            export DATABASE_URL="postgres://postgres:${PASS}@localhost:5432/postgres"
+          elif [ "$DB_ENV" = "staging" ]; then
+            RAW="${{ secrets.PROD_DATABASE_URL }}"
+            PASS=$(_extract_pass "$RAW")
+            export DATABASE_URL="postgres://postgres:${PASS}@localhost:5432/m3tacron_staging"
           elif [ "$DB_ENV" = "dev" ]; then
-            export DATABASE_URL="${{ secrets.DEV_DATABASE_URL }}"
+            RAW="${{ secrets.DEV_DATABASE_URL }}"
+            PASS=$(_extract_pass "$RAW")
+            # Dev DB — if it lives on the same Postgres, use the tunnel.
+            # If your dev DB is elsewhere, override by setting DEV_DATABASE_URL to the full direct URL
+            # and uncomment the next line:
+            # export DATABASE_URL="$RAW"
+            export DATABASE_URL="postgres://postgres:${PASS}@localhost:5432/postgres"
           fi
 
           OVERWRITE_FLAG=""

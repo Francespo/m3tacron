@@ -134,6 +134,7 @@ def aggregate_list_stats(
     if ship_clause:
         where_clauses.append(ship_clause)
 
+    where_clauses.append("(NOT t.is_team_event OR ps.is_team_member)")
     if not filters.get("epic", False):
         huge_clause = huge_ships_exclusion_clause(False, data_source, params)
         if huge_clause:

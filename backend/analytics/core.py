@@ -141,7 +141,7 @@ def aggregate_card_stats(
                 if ("xwa_epic" in allowed_formats or "legacy_epic" in allowed_formats) and is_epic:
                     show_card = True
                 if data_source == DataSource.LEGACY:
-                    legacy_keys = {"legacy_x2po", "legacy_xlc", "ffg"}
+                    legacy_keys = {"legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum"}
                     if not legacy_keys.isdisjoint(allowed_formats) and is_legal:
                         show_card = True
             else:
@@ -263,7 +263,7 @@ def aggregate_card_stats(
                 if ("xwa_epic" in allowed_formats or "legacy_epic" in allowed_formats) and is_epic:
                     show_card = True
                 if data_source == DataSource.LEGACY:
-                    legacy_keys = {"legacy_x2po", "legacy_xlc", "ffg"}
+                    legacy_keys = {"legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum"}
                     if not legacy_keys.isdisjoint(allowed_formats) and is_legal:
                         show_card = True
             else:
@@ -421,6 +421,8 @@ def aggregate_card_stats(
             ")"
         )
         params["filter_upgrade_id"] = filter_upgrade_id
+
+    where_clauses.append("(NOT t.is_team_event OR ps.is_team_member)")
 
     where_sql = " AND ".join(where_clauses)
 

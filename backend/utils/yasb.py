@@ -27,6 +27,8 @@ def get_yasb_base_url(tournament_format: str | Format) -> str:
         return "https://yasb.app"
     elif tournament_format in [Format.LEGACY_XLC, "legacy_xlc"]:
         return "https://lorenzosanti359-beep.github.io/X-wing-builder-madness"
+    elif tournament_format in [Format.LEGACY_PANDORUM, "legacy_pandorum"]:
+        return "https://albogarelli.github.io/pandorumbuilder"
     else:
         # Legacy X2PO, FFG use xwing-legacy.com
         return "https://xwing-legacy.com"

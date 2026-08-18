@@ -1,0 +1,168 @@
+name: Database Repair
+
+# One-off / on-demand database maintenance for m3tacron.
+#
+# Currently implements the team-event migration (schema + re-roster of the
+# legacy team tournaments) against a target database (default staging), plus
+# a Legacy Pandorum format backfill for tournaments whose lists came from
+# albogarelli.github.io/pandorumbuilder.
+#
+# IMPORTANT: All DB writes are scoped to the `environment` input. Never run
+# this against `prod` without a backup + explicit confirmation.
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target database (staging recommended; prod requires backup)"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - prod
+      skip_reroaster:
+        description: "Schema + backfill only (no 41-event re-scrape). Safer first pass."
+        required: true
+        default: "false"
+        type: boolean
+      event_id:
+        description: "Only re-roster a single tournament id (optional, e.g. 11899)"
+        required: false
+        type: string
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Install Playwright browsers
+        run: |
+          playwright install chromium --with-deps
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Open SSH tunnel to database
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s' "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > /tmp/m3tacron_deploy_key
+          tail -c1 /tmp/m3tacron_deploy_key | read -r _ || echo >> /tmp/m3tacron_deploy_key
+          chmod 600 /tmp/m3tacron_deploy_key
+          eval $(ssh-agent -s)
+          ssh-add /tmp/m3tacron_deploy_key
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
+          rm -f /tmp/m3tacron_deploy_key
+
+      - name: Start database tunnel
+        run: |
+          ssh -f -N -L 5432:localhost:3000 \
+            -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes \
+            audit-bot@84.8.253.2
+          for i in $(seq 1 15); do
+            if pg_isready -h localhost -p 5432 2>/dev/null | grep -q "accepting"; then
+              echo "Tunnel ready."
+              break
+            fi
+            sleep 1
+          done
+          pg_isready -h localhost -p 5432 || (echo "ERROR: DB tunnel failed" && exit 1)
+
+      - name: Resolve DATABASE_URL
+        id: db
+        env:
+          RAW: ${{ secrets.PROD_DATABASE_URL }}
+        run: |
+          PASS=$(python3 -c "from urllib.parse import urlparse; import sys; u=urlparse(sys.argv[1]); print(u.password or sys.argv[1])" "$RAW")
+          echo "::add-mask::$PASS"
+          if [ "${{ inputs.environment }}" = "prod" ]; then
+            echo "url=postgres://postgres:${PASS}@localhost:5432/postgres" >> "$GITHUB_OUTPUT"
+          else
+            echo "url=postgres://postgres:${PASS}@localhost:5432/m3tacron_staging" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Team-event migration
+        env:
+          DATABASE_URL: ${{ steps.db.outputs.url }}
+          PYTHONPATH: .
+        run: |
+          EXTRA=""
+          if [ "${{ inputs.skip_reroaster }}" = "true" ]; then EXTRA="$EXTRA --skip-reroaster"; fi
+          if [ -n "${{ inputs.event_id }}" ]; then EXTRA="$EXTRA --event ${{ inputs.event_id }}"; fi
+          python -m backend.scripts.migrate_team_events $EXTRA
+
+      - name: Legacy Pandorum format backfill
+        env:
+          DATABASE_URL: ${{ steps.db.outputs.url }}
+        run: |
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+
+          engine = create_engine(os.environ["DATABASE_URL"])
+          with engine.begin() as conn:
+              # Detect tournaments whose lists come from the Pandorum builder.
+              rows = conn.execute(text("""
+                  SELECT DISTINCT ps.tournament_id
+                  FROM playerstanding ps
+                  WHERE ps.list_json->'vendor' ? 'yasb'
+                    AND (ps.list_json->'vendor'->'yasb'->>'builder_url') ILIKE '%pandorumbuilder%'
+              """)).fetchall()
+              ids = [r[0] for r in rows]
+              if not ids:
+                  print("No Pandorum tournaments detected.")
+              else:
+                  res = conn.execute(text(
+                      "UPDATE tournament SET format = 'legacy_pandorum' WHERE id = ANY(:ids)"
+                  ), {"ids": ids})
+                  print(f"Set legacy_pandorum on {res.rowcount} tournament(s): {ids}")
+
+              # Cache invalidation
+              row = conn.execute(text("SELECT value FROM scrape_meta WHERE key='data_version'")).first()
+              if row:
+                  try:
+                      new_val = str(int(row[0]) + 1)
+                  except (ValueError, TypeError):
+                      new_val = "1"
+                  conn.execute(text("UPDATE scrape_meta SET value=:v WHERE key='data_version'"), {"v": new_val})
+              else:
+                  conn.execute(text("INSERT INTO scrape_meta (key,value) VALUES ('data_version','1')"))
+              print("data_version bumped.")
+          PY
+
+      - name: Summary
+        env:
+          DATABASE_URL: ${{ steps.db.outputs.url }}
+        run: |
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+          engine = create_engine(os.environ["DATABASE_URL"])
+          with engine.connect() as conn:
+              for label, q in [
+                  ("tournaments", "SELECT count(*) FROM tournament"),
+                  ("team events", "SELECT count(*) FROM tournament WHERE is_team_event"),
+                  ("team_member rows", "SELECT count(*) FROM team_member"),
+                  ("members (is_team_member)", "SELECT count(*) FROM playerstanding WHERE is_team_member"),
+                  ("legacy_pandorum tournaments", "SELECT count(*) FROM tournament WHERE format='legacy_pandorum'"),
+                  ("null-FK team matches", "SELECT count(*) FROM match m JOIN tournament t ON t.id=m.tournament_id WHERE t.is_team_event AND (m.player1_id IS NULL OR m.player2_id IS NULL)"),
+              ]:
+                  print(f"{label}: {conn.execute(text(q)).scalar()}")
+          PY

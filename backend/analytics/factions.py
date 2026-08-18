@@ -51,7 +51,12 @@ def aggregate_faction_stats(
 
             if not apply_tournament_filters(tournament, filters):
                 continue
-                
+
+            # Team events: only include real member rows (never the legacy
+            # team-placeholder rows, whose player_name is a team name).
+            if tournament.is_team_event and not result.is_team_member:
+                continue
+
             xws = result.list_json
             if not xws or not isinstance(xws, dict):
                 continue
