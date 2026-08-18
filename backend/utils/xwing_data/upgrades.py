@@ -44,24 +44,91 @@ def load_all_upgrades(source: DataSource = DataSource.XWA) -> dict:
                     }
         except Exception:
             continue
-            
+
+    # Manual patches for missing scenario upgrades. These cards ship in
+    # scenario packs (Armed and Dangerous / Evacuation of D'QAR) and are
+    # absent from the vendored upstream data. Base XWS ids are injected so
+    # both the bare id and the "<id>-<pack>" variant resolve to a name.
+    MANUAL_UPGRADE_DATA = {
+        # Evacuation of D'QAR
+        "acceleratedsensorarray": {"name": "Accelerated Sensor Array", "slot": "Tech"},
+        "dedicatedgunners": {"name": "Dedicated Gunners", "slot": "Gunner"},
+        "determination": {"name": "Determination", "slot": "Talent"},
+        "escortfighter": {"name": "Escort Fighter", "slot": "Talent"},
+        "forthecause": {"name": "For the Cause", "slot": "Talent"},
+        "precisionholotargeter": {"name": "Precision Holotargeter", "slot": "Tech"},
+        "primedoverdrivethrusters": {"name": "Primed Overdrive Thrusters", "slot": "Tech"},
+        "repulsorliftengines": {"name": "Repulsorlift Engines", "slot": "Modification"},
+        "targetassistalgorithm": {"name": "Target Assist Algorithm", "slot": "Tech"},
+        "threatsensors": {"name": "Threat Sensors", "slot": "Tech"},
+        # Armed and Dangerous
+        "adaptablepowersystems": {"name": "Adaptable Power Systems", "slot": "Modification"},
+        "flechettecannons": {"name": "Flechette Cannons", "slot": "Cannon"},
+        "homingbeacon": {"name": "Homing Beacon", "slot": "Sensor"},
+        "kinesoswitch": {"name": "Kineso Switch", "slot": "Illicit"},
+        "r2g8": {"name": "R2-G8", "slot": "Astromech"},
+        "starboardthrusters": {"name": "Starboard Thrusters", "slot": "Modification"},
+        "synchronizedhandling": {"name": "Synchronized Handling", "slot": "Tech"},
+        "todo360": {"name": "ToDo-360", "slot": "Crew"},
+        "fennecshand": {"name": "Fennec Shand", "slot": "Gunner"},
+    }
+
+    for uid, udata in MANUAL_UPGRADE_DATA.items():
+        if uid not in all_upgrades:
+            slot = udata["slot"]
+            all_upgrades[uid] = {
+                "name": udata["name"],
+                "xws": uid,
+                "sides": [{"title": udata["name"], "type": slot, "slots": [slot]}],
+                "cost": {},
+                "limited": 0,
+                "slot_category": slot.lower(),
+                "valid_in_standard": True,
+                "wildspace": False,
+                "epic": False,
+                "image": "",
+                "artwork": "",
+            }
+
     return all_upgrades
+
+PACK_SUFFIXES = [
+    "-armedanddangerous",
+    "-evacuationofdqar",
+    "-battleoverendor",
+    "-battleofyavin",
+    "-siegeofcoruscant",
+    "-alphastrike",
+    "-lsl",
+]
 
 def get_upgrade_info(xws_upgrade: str, source: DataSource = DataSource.XWA) -> dict | None:
     """Get full upgrade info from XWS ID."""
     upgrades = load_all_upgrades(source)
-    return upgrades.get(xws_upgrade)
+    if not isinstance(xws_upgrade, str):
+        return None
+    if xws_upgrade in upgrades:
+        return upgrades[xws_upgrade]
+
+    clean_id = xws_upgrade
+    for suf in PACK_SUFFIXES:
+        if clean_id.endswith(suf):
+            clean_id = clean_id[:-len(suf)]
+
+    if isinstance(clean_id, str) and clean_id in upgrades:
+        base_u = upgrades[clean_id]
+        return {**base_u, "xws": xws_upgrade}
+
+    return None
 
 def get_upgrade_name(xws_upgrade: str) -> str:
     """Get human-readable upgrade name from XWS ID (uses Default XWA source)."""
-    upgrades = load_all_upgrades()
-    upgrade = upgrades.get(xws_upgrade)
+    upgrade = get_upgrade_info(xws_upgrade)
     return upgrade["name"] if upgrade else xws_upgrade
 
 def get_upgrade_slot(xws_upgrade: str) -> str:
     """Get the primary slot name for an upgrade XWS ID."""
-    upgrades = load_all_upgrades()
-    upgrade = upgrades.get(xws_upgrade)
+    upgrade = get_upgrade_info(xws_upgrade)
     if not upgrade:
         return "unknown"
     

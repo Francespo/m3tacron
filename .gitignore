@@ -66,8 +66,8 @@ local-data/
 issues.json
 temp_*.txt
 *-issue-*
-.slim/
 playwright-images/
 .playwright-mcp/
 verify*.png
 commit_message.json
+.vite/

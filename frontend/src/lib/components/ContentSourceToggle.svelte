@@ -1,57 +1,6 @@
 <script lang="ts">
-    import { invalidateAll } from '$app/navigation';
-    import { page } from '$app/state';
     import { filters } from '$lib/stores/filters.svelte';
-    import Toggle from "./Toggle.svelte";
-
-    /**
-     * Update the data source AND push it to the URL so the current route's
-     * `+page.ts` loader re-runs. Without the URL change, SvelteKit only
-     * re-runs loaders on URL changes; mutating the filter store alone is
-     * invisible to loaders on routes that read the data source from
-     * `url.searchParams` (e.g. pilot / ship / upgrade detail pages).
-     *
-     * Implementation: we use the browser's `history.replaceState` directly
-     * to update the URL bar (so the user sees the new state immediately)
-     * and then call `invalidateAll()` to force the loader to re-run with
-     * the new search params. We bypass SvelteKit's `goto` because some
-     * routes (e.g. the pilot detail page) have their own per-page
-     * `$effect` watchers that also call `goto`; running two `goto`s in
-     * the same microtask causes SvelteKit to abort both navigations
-     * (the tokens race and neither side calls `replaceState`).
-     */
-    async function setDataSource(value: 'xwa' | 'legacy') {
-        filters.dataSource = value;
-        // Build the next URL preserving pathname + other params
-        // (page, size, tab, sort, formats, …) and mutate just
-        // `data_source`.
-        const next = new URL(page.url);
-        next.searchParams.set('data_source', value);
-        // Update the URL bar directly. This is the same call SvelteKit
-        // itself makes under the hood; doing it ourselves avoids the
-        // race with per-page $effect watchers.
-        history.replaceState(history.state, '', next);
-        // Re-run the current route's loaders against the new URL.
-        await invalidateAll();
-    }
-
-    /**
-     * Toggle the "include epic" flag and push it to the URL. When false
-     * we DELETE the param rather than setting it to "false" so the URL
-     * stays compact and matches the rest of the codebase's convention
-     * (absent = off).
-     */
-    async function setIncludeEpic(value: boolean) {
-        filters.includeEpic = value;
-        const next = new URL(page.url);
-        if (value) {
-            next.searchParams.set('include_epic', 'true');
-        } else {
-            next.searchParams.delete('include_epic');
-        }
-        history.replaceState(history.state, '', next);
-        await invalidateAll();
-    }
+    import { setDataSource, setIncludeEpic } from '$lib/sync/contentSource';
 </script>
 
 <!--
@@ -135,21 +84,38 @@
         aria-hidden="true"
     ></div>
 
-    <!-- Epic modifier toggle. Uses the canonical Toggle component so the
-         on/off state matches the rest of the site, and the label reuses the
-         same tinted-bg + colored-text pattern as the source buttons. -->
-    <label
+    <!-- Epic modifier toggle. Uses a button so the on/off state toggles cleanly
+         and the label reuses the same tinted-bg + colored-text pattern as the source buttons. -->
+    <button
+        type="button"
+        onclick={() => setIncludeEpic(!filters.includeEpic)}
+        aria-pressed={filters.includeEpic}
         class="flex items-center gap-1.5 px-2.5 py-1 text-xs cursor-pointer select-none transition-colors
             {filters.includeEpic
                 ? 'bg-amber-500/15 text-amber-400 active:bg-amber-500/25'
                 : 'text-secondary hover:text-primary hover:bg-[#ffffff08] active:bg-[#ffffff14]'}"
     >
-        <Toggle
-            size="xs"
-            ariaLabel="Include epic content"
-            checked={filters.includeEpic}
-            onchange={(e) => setIncludeEpic((e.currentTarget as HTMLInputElement).checked)}
-        />
+        <span
+            class="inline-flex items-center justify-center rounded-[2px] border bg-black w-3 h-3 transition-[background-color,border-color,transform]
+                {filters.includeEpic ? 'border-primary' : 'border-border-dark hover:border-primary/50'}"
+            aria-hidden="true"
+        >
+            {#if filters.includeEpic}
+                <svg
+                    width="8"
+                    height="8"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="text-primary"
+                >
+                    <path d="M20 6 9 17l-5-5" />
+                </svg>
+            {/if}
+        </span>
         Epic
-    </label>
+    </button>
 </div>

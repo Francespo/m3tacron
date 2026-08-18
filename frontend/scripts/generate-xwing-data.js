@@ -96,6 +96,9 @@ function processSource(source) {
                 if (shipData) {
                     const shipXws = shipData.xws;
                     
+                    const pilots = shipData.pilots || [];
+                    const hasStandardPilots = pilots.some(p => p.standard === true || p.extended === true);
+
                     // Store Ship Info
                     if (!output.ships[shipXws]) {
                         output.ships[shipXws] = {
@@ -105,18 +108,25 @@ function processSource(source) {
                             icon: shipData.icon,
                             stats: shipData.stats,
                             actions: shipData.actions,
-                            factions: [faction] 
+                            factions: [faction],
+                            has_standard_pilots: hasStandardPilots,
+                            epic: !hasStandardPilots
                         };
                     } else {
                         // Add faction if not exists
                         if (!output.ships[shipXws].factions.includes(faction)) {
                             output.ships[shipXws].factions.push(faction);
                         }
+                        if (hasStandardPilots) {
+                            output.ships[shipXws].has_standard_pilots = true;
+                            output.ships[shipXws].epic = false;
+                        }
                     }
 
                     // Store Pilots
                     if (shipData.pilots) {
                         shipData.pilots.forEach(pilot => {
+                            const isStandardLegal = pilot.standard === true || pilot.extended === true;
                             output.pilots[pilot.xws] = {
                                 name: pilot.name,
                                 xws: pilot.xws,
@@ -131,7 +141,11 @@ function processSource(source) {
                                 upgrades: pilot.upgrades, // Slots
                                 caption: pilot.caption,
                                 ability: pilot.ability,
-                                shipAbility: pilot.shipAbility
+                                shipAbility: pilot.shipAbility,
+                                standard: pilot.standard ?? false,
+                                extended: pilot.extended ?? false,
+                                epic: pilot.epic ?? false,
+                                valid_in_standard: isStandardLegal
                             };
                         });
                     }
@@ -150,11 +164,16 @@ function processSource(source) {
                 // Upgrade files often contain multiple upgrades of the same Type
                 if (Array.isArray(upgradeData)) {
                     upgradeData.forEach(upgrade => {
+                         const isStandardLegal = upgrade.standard === true || upgrade.extended === true;
                          output.upgrades[upgrade.xws] = {
                             name: upgrade.name,
                             xws: upgrade.xws,
                             limited: upgrade.limited,
                             cost: upgrade.cost,
+                            standard: upgrade.standard ?? false,
+                            extended: upgrade.extended ?? false,
+                            epic: upgrade.epic ?? false,
+                            valid_in_standard: isStandardLegal,
                             sides: upgrade.sides.map(side => ({
                                 title: side.title,
                                 type: side.type,
@@ -171,6 +190,101 @@ function processSource(source) {
         });
     }
     
+    // 3. Inject manual patches for missing scenario pilots
+    const MANUAL_PILOTS = {
+        // Evacuation of D'QAR
+        "longshot-evacuationofdqar": { name: "Longshot", ship: "tiefofighter", faction: "firstorder" },
+        "scorch-evacuationofdqar": { name: "Scorch", ship: "tiefofighter", faction: "firstorder" },
+        "stomeronistarck-evacuationofdqar": { name: "Stomeroni Starck", ship: "t70xwing", faction: "resistance" },
+        "zizitlo-evacuationofdqar": { name: "Zizi Tlo", ship: "rz2awing", faction: "resistance" },
+        "caithrenalli-evacuationofdqar": { name: "C'ai Threnalli", ship: "t70xwing", faction: "resistance" },
+        "ronithblario-evacuationofdqar": { name: "Ronith Blario", ship: "rz2awing", faction: "resistance" },
+        "poedameron-evacuationofdqar": { name: "Poe Dameron", ship: "t70xwing", faction: "resistance" },
+        "vennie-evacuationofdqar": { name: "Vennie", ship: "mg100starfortress", faction: "resistance" },
+        "pettyofficerthanisson-evacuationofdqar": { name: "Petty Officer Thanisson", ship: "xiclasslightshuttle", faction: "firstorder" },
+        "kyloren-evacuationofdqar": { name: "Kylo Ren", ship: "tievnsilencer", faction: "firstorder" },
+        "midnight-evacuationofdqar": { name: "Midnight", ship: "tiefofighter", faction: "firstorder" },
+        "zeta5-evacuationofdqar": { name: "Zeta 5", ship: "tiefofighter", faction: "firstorder" },
+        "omega2-evacuationofdqar": { name: "Omega 2", ship: "tiefofighter", faction: "firstorder" },
+        "theta3-evacuationofdqar": { name: "Theta 3", ship: "tiefofighter", faction: "firstorder" },
+        "theta4-evacuationofdqar": { name: "Theta 4", ship: "tiefofighter", faction: "firstorder" },
+        "jaycristubbs-evacuationofdqar": { name: "Jaycris Tubbs", ship: "t70xwing", faction: "resistance" },
+        "pammichnerrogoode-evacuationofdqar": { name: "Pammich Nerro Goode", ship: "resistancetransport", faction: "resistance" },
+        "lieutenantlehuse-evacuationofdqar": { name: "Lieutenant LeHuse", ship: "xiclasslightshuttle", faction: "firstorder" },
+        "finchdallow-evacuationofdqar": { name: "Finch Dallow", ship: "mg100starfortress", faction: "resistance" },
+        // Armed and Dangerous
+        "fennrau-armedanddangerous": { name: "Fenn Rau", ship: "fangfighter", faction: "scumandvillainy" },
+        "themandalorian-armedanddangerous": { name: "The Mandalorian", ship: "st70assaultship", faction: "scumandvillainy" },
+        "dengar-armedanddangerous": { name: "Dengar", ship: "jumpmaster5000", faction: "scumandvillainy" },
+        "bossk-armedanddangerous": { name: "Bossk", ship: "yv666lightfreighter", faction: "scumandvillainy" },
+        "cadbane-armedanddangerous": { name: "Cad Bane", ship: "rogueclassstarfighter", faction: "scumandvillainy" },
+        "princexizor-armedanddangerous": { name: "Prince Xizor", ship: "starviperclassattackplatform", faction: "scumandvillainy" },
+        "bobafett-armedanddangerous": { name: "Boba Fett", ship: "firesprayclasspatrolcraft", faction: "scumandvillainy" },
+        "zuckuss-armedanddangerous": { name: "Zuckuss", ship: "g1astarfighter", faction: "scumandvillainy" },
+        "hansolo-armedanddangerous": { name: "Han Solo", ship: "customizedyt1300lightfreighter", faction: "scumandvillainy" },
+        "fennecshand-armedanddangerous": { name: "Fennec Shand", ship: "modifiedtielnfighter", faction: "scumandvillainy" },
+        "bokatankryze-armedanddangerous": { name: "Bo-Katan Kryze", ship: "gauntletfighter", faction: "scumandvillainy" }
+    };
+
+    Object.entries(MANUAL_PILOTS).forEach(([xws, patch]) => {
+        if (!output.pilots[xws]) {
+            output.pilots[xws] = {
+                name: patch.name,
+                xws: xws,
+                initiative: 0,
+                limited: 1,
+                cost: 0,
+                loadout: 0,
+                ship: patch.ship,
+                faction: patch.faction
+            };
+        }
+    });
+
+    // 4. Inject manual patches for missing scenario upgrades. These cards ship
+    //    in scenario packs (Armed and Dangerous / Evacuation of D'QAR) and are
+    //    absent from the vendored upstream data. The base XWS ids are injected
+    //    so both the bare id and the "<id>-<pack>" variant resolve to a name.
+    const MANUAL_UPGRADES = {
+        // Evacuation of D'QAR
+        "acceleratedsensorarray": { name: "Accelerated Sensor Array", slot: "Tech" },
+        "dedicatedgunners": { name: "Dedicated Gunners", slot: "Gunner" },
+        "determination": { name: "Determination", slot: "Talent" },
+        "escortfighter": { name: "Escort Fighter", slot: "Talent" },
+        "forthecause": { name: "For the Cause", slot: "Talent" },
+        "precisionholotargeter": { name: "Precision Holotargeter", slot: "Tech" },
+        "primedoverdrivethrusters": { name: "Primed Overdrive Thrusters", slot: "Tech" },
+        "repulsorliftengines": { name: "Repulsorlift Engines", slot: "Modification" },
+        "targetassistalgorithm": { name: "Target Assist Algorithm", slot: "Tech" },
+        "threatsensors": { name: "Threat Sensors", slot: "Tech" },
+        // Armed and Dangerous
+        "adaptablepowersystems": { name: "Adaptable Power Systems", slot: "Modification" },
+        "flechettecannons": { name: "Flechette Cannons", slot: "Cannon" },
+        "homingbeacon": { name: "Homing Beacon", slot: "Sensor" },
+        "kinesoswitch": { name: "Kineso Switch", slot: "Illicit" },
+        "r2g8": { name: "R2-G8", slot: "Astromech" },
+        "starboardthrusters": { name: "Starboard Thrusters", slot: "Modification" },
+        "synchronizedhandling": { name: "Synchronized Handling", slot: "Tech" },
+        "todo360": { name: "ToDo-360", slot: "Crew" },
+        "fennecshand": { name: "Fennec Shand", slot: "Gunner" }
+    };
+
+    Object.entries(MANUAL_UPGRADES).forEach(([xws, patch]) => {
+        if (!output.upgrades[xws]) {
+            output.upgrades[xws] = {
+                name: patch.name,
+                xws: xws,
+                limited: 0,
+                cost: 0,
+                sides: [{
+                    title: patch.name,
+                    type: patch.slot,
+                    slots: [patch.slot]
+                }]
+            };
+        }
+    });
+
     // Ensure output directory exists
     const outDir = path.dirname(source.output);
     if (!fs.existsSync(outDir)) {

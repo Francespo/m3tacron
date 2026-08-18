@@ -88,6 +88,26 @@ export interface XWingDataManifest {
     upgrades: Record<string, XWingUpgrade>;
 }
 
+export const PACK_INFO_MAP: Record<string, { pack: string }> = {
+    'armedanddangerous': { pack: 'Armed and Dangerous' },
+    'evacuationofdqar': { pack: 'Evacuation of D\'QAR' },
+    'battleoverendor': { pack: 'Battle Over Endor' },
+    'battleofyavin': { pack: 'Battle of Yavin' },
+    'siegeofcoruscant': { pack: 'Siege of Coruscant' },
+    'alphastrike': { pack: 'Alpha Strike' },
+};
+
+export function getPackNameFromXws(xws: string): string | null {
+    if (!xws) return null;
+    const lower = xws.toLowerCase();
+    for (const [key, info] of Object.entries(PACK_INFO_MAP)) {
+        if (lower.includes(key)) {
+            return info.pack;
+        }
+    }
+    return null;
+}
+
 class XwingDataStore {
     currentSource = $state<XWingSource>('xwa');
 
@@ -178,10 +198,61 @@ class XwingDataStore {
     /**
      * Get pilot details by XWS.
      */
-    getPilot(xws: string): XWingPilot | null {
+    getPilot(xws: string): (XWingPilot & { pack?: string }) | null {
         const d = this.getData();
         if (!d || !d.pilots) return null;
-        return d.pilots[xws] ?? null;
+        if (!xws) return null;
+
+        const pack = getPackNameFromXws(xws);
+
+        if (d.pilots[xws]) {
+            const p = d.pilots[xws];
+            return pack && !(p as any).pack ? { ...p, pack } : p;
+        }
+
+        const suffixes = [
+            '-armedanddangerous',
+            '-evacuationofdqar',
+            '-battleoverendor',
+            '-battleofyavin',
+            '-siegeofcoruscant',
+            '-alphastrike',
+            '-lsl'
+        ];
+
+        let cleanId = xws;
+        for (const suf of suffixes) {
+            if (cleanId.endsWith(suf)) {
+                cleanId = cleanId.slice(0, -suf.length);
+            }
+        }
+
+        if (d.pilots[cleanId]) {
+            const basePilot = d.pilots[cleanId];
+            return {
+                ...basePilot,
+                xws,
+                pack: pack ?? undefined
+            };
+        }
+
+        if (pack || xws.includes('-')) {
+            let namePart = cleanId.replace(/[^a-zA-Z0-9]/g, ' ');
+            namePart = namePart.replace(/\b\w/g, (c) => c.toUpperCase()).trim();
+            if (namePart) {
+                return {
+                    name: namePart,
+                    xws,
+                    initiative: 0,
+                    limited: 1,
+                    ship: '',
+                    faction: '',
+                    pack: pack ?? undefined
+                };
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -190,7 +261,50 @@ class XwingDataStore {
     getUpgrade(xws: string): XWingUpgrade | null {
         const d = this.getData();
         if (!d || !d.upgrades) return null;
-        return d.upgrades[xws] ?? null;
+        if (!xws) return null;
+
+        if (d.upgrades[xws]) {
+            return d.upgrades[xws];
+        }
+
+        const suffixes = [
+            '-armedanddangerous',
+            '-evacuationofdqar',
+            '-battleoverendor',
+            '-battleofyavin',
+            '-siegeofcoruscant',
+            '-alphastrike',
+            '-lsl'
+        ];
+
+        let cleanId = xws;
+        for (const suf of suffixes) {
+            if (cleanId.endsWith(suf)) {
+                cleanId = cleanId.slice(0, -suf.length);
+            }
+        }
+
+        if (d.upgrades[cleanId]) {
+            return {
+                ...d.upgrades[cleanId],
+                xws
+            };
+        }
+
+        if (xws.includes('-')) {
+            let namePart = cleanId.replace(/[^a-zA-Z0-9]/g, ' ');
+            namePart = namePart.replace(/\b\w/g, (c) => c.toUpperCase()).trim();
+            if (namePart) {
+                return {
+                    name: namePart,
+                    xws,
+                    limited: 0,
+                    sides: [{ title: namePart, type: 'upgrade' }]
+                };
+            }
+        }
+
+        return null;
     }
 
     /**

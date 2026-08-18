@@ -84,10 +84,22 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
         rich_upgrades = []
         upgrades_data = p.get("upgrades", {})
         
+        # The raw list_json may store upgrades either as a dict of slot -> ids,
+        # a flat list of id strings, or a flat list of {"xws": id} entries
+        # (the shape produced by `_reformat_pilots`). Normalize each entry so
+        # the per-card lookup below always receives an XWS string.
+        def _norm_upgrade_id(u):
+            if isinstance(u, dict):
+                return u.get("xws") or u.get("id") or u.get("name") or ""
+            return u
+
         if isinstance(upgrades_data, dict):
             for slot, items in upgrades_data.items():
                 if not isinstance(items, list): continue
-                for item_id in items:
+                for raw_item in items:
+                    item_id = _norm_upgrade_id(raw_item)
+                    if not item_id:
+                        continue
                     upg_info = get_upgrade_info(item_id, source=source) or {}
                     norm_slot = slot.lower()
                     if norm_slot == "configuration": norm_slot = "config"
@@ -108,11 +120,10 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
                         slot_xws=norm_slot
                     ))
         elif isinstance(upgrades_data, list):
-            for item in upgrades_data:
-                # _reformat_pilots emits [{"xws": ...}, ...] while raw
-                # list_json may be a flat list of id strings — handle both.
-                raw_id = item.get("xws") if isinstance(item, dict) else item
-                item_id = str(raw_id) if raw_id is not None else ""
+            for raw_item in upgrades_data:
+                item_id = _norm_upgrade_id(raw_item)
+                if not item_id:
+                    continue
                 upg_info = get_upgrade_info(item_id, source=source) or {}
                 slot = get_upgrade_slot(item_id)
                 norm_slot = slot.lower()
@@ -142,7 +153,7 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
             initiative=int(pilot_info.get("initiative") or 0),
             upgrades=rich_upgrades
         ))
-    
+
     f_key = stats.get("faction", "unknown")
     try:
         f_label = Faction.from_xws(f_key).label

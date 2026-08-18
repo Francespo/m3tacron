@@ -91,6 +91,7 @@ def _build_filters(
     player_count_min: int | None = None,
     player_count_max: int | None = None,
     upgrade_id: str | None = None,
+    epic: bool = False,
 ) -> dict:
     
     # Base sizes mapping
@@ -133,7 +134,7 @@ def _build_filters(
         "player_count_min": player_count_min,
         "player_count_max": player_count_max,
         "upgrade_id": upgrade_id,
-        "include_epic": False
+        "include_epic": epic,
     }
 
 
@@ -144,12 +145,14 @@ def get_pilots(
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Lists"),
     sort_direction: str = Query("desc"),
+    epic: bool = Query(False),
     
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
     ships: list[str] | None = Query(None),
     initiatives: list[int] | None = Query(None),
     search_text: str = Query(""),
+    search: str = Query(""),
     points_min: int | None = Query(None),
     points_max: int | None = Query(None),
     loadout_min: int | None = Query(None),
@@ -177,9 +180,10 @@ def get_pilots(
     player_count_min: int | None = Query(None),
     player_count_max: int | None = Query(None),
 ):
+    effective_search = search or search_text
     filters = _build_filters(
         formats=formats, factions=factions, ships=ships, initiatives=initiatives,
-        search_text=search_text, points_min=points_min, points_max=points_max,
+        search_text=effective_search, points_min=points_min, points_max=points_max,
         loadout_min=loadout_min, loadout_max=loadout_max, hull_min=hull_min,
         hull_max=hull_max, shields_min=shields_min, shields_max=shields_max,
         agility_min=agility_min, agility_max=agility_max, attack_min=attack_min,
@@ -187,7 +191,8 @@ def get_pilots(
         is_unique=is_unique, is_limited=is_limited, is_not_limited=is_not_limited,
         base_sizes=base_sizes, platforms=platforms, continent=continent, country=country, city=city,
         date_start=date_start, date_end=date_end,
-        player_count_min=player_count_min, player_count_max=player_count_max
+        player_count_min=player_count_min, player_count_max=player_count_max,
+        epic=epic,
     )
 
     cache_key = (
@@ -196,7 +201,7 @@ def get_pilots(
         f"|{','.join(sorted(factions or []))}"
         f"|{','.join(sorted(ships or []))}"
         f"|{','.join(sorted(str(i) for i in (initiatives or [])))}"
-        f"|{search_text or ''}"
+        f"|{effective_search or ''}"
         f"|{points_min}|{points_max}"
         f"|{loadout_min}|{loadout_max}"
         f"|{hull_min}|{hull_max}"
@@ -212,6 +217,7 @@ def get_pilots(
         f"|{','.join(sorted(city or []))}"
         f"|{date_start or ''}|{date_end or ''}"
         f"|{player_count_min}|{player_count_max}"
+        f"|{epic}"
     )
 
     def compute():
@@ -234,11 +240,13 @@ def get_upgrades(
     sort_metric: str = Query("Lists"),
     sort_direction: str = Query("desc"),
     upgrade_id: str | None = Query(None, description="Filter to lists containing this upgrade xws"),
+    epic: bool = Query(False),
 
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
     upgrade_types: list[str] | None = Query(None),
     search_text: str = Query(""),
+    search: str = Query(""),
     points_min: int | None = Query(None),
     points_max: int | None = Query(None),
     platforms: list[str] | None = Query(None),
@@ -250,13 +258,15 @@ def get_upgrades(
     player_count_min: int | None = Query(None),
     player_count_max: int | None = Query(None),
 ):
+    effective_search = search or search_text
     filters = _build_filters(
         formats=formats, factions=factions, upgrade_types=upgrade_types,
-        search_text=search_text, points_min=points_min, points_max=points_max,
+        search_text=effective_search, points_min=points_min, points_max=points_max,
         platforms=platforms, continent=continent, country=country, city=city,
         date_start=date_start, date_end=date_end,
         player_count_min=player_count_min, player_count_max=player_count_max,
         upgrade_id=upgrade_id,
+        epic=epic,
     )
 
     cache_key = (
@@ -264,7 +274,7 @@ def get_upgrades(
         f"|{','.join(sorted(formats or []))}"
         f"|{','.join(sorted(factions or []))}"
         f"|{','.join(sorted(upgrade_types or []))}"
-        f"|{search_text or ''}"
+        f"|{effective_search or ''}"
         f"|{points_min}|{points_max}"
         f"|{','.join(sorted(platforms or []))}"
         f"|{','.join(sorted(continent or []))}"
@@ -273,6 +283,7 @@ def get_upgrades(
         f"|{date_start or ''}|{date_end or ''}"
         f"|{player_count_min}|{player_count_max}"
         f"|{upgrade_id or ''}"
+        f"|{epic}"
     )
 
     def compute():

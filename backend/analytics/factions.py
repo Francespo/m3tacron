@@ -108,27 +108,30 @@ def aggregate_faction_stats(
         results.sort(key=lambda x: x["games_count"], reverse=True)
         return results
 
-def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats: list[str] | None = None) -> dict:
+def get_meta_snapshot(
+    data_source: DataSource = DataSource.XWA,
+    allowed_formats: list[str] | None = None,
+    include_epic: bool = False,
+) -> dict:
     """
-    Get a high-level summary of the current meta (last 90 days).
+    Get meta snapshot data for home page.
+    Combines aggregated statistics from factions, ships, lists, pilots, and upgrades.
     """
     from datetime import datetime, timedelta
     
-    # Use 90 day window
-    # But usually meta snapshot might check last sync or just be a fixed window
-    # The prompt implies "MetaSnapshotResponse"
-    
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=90)
-    date_str = start_date.strftime("%Y-%m-%d")
+    # 90 days range
+    days_back = 90
+    date_str = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
     
     filters = {
         "date_start": date_str,
+        "include_epic": include_epic,
+        "epic": include_epic,
     }
     if allowed_formats:
         filters["allowed_formats"] = get_active_formats(allowed_formats)
     else:
-        filters["allowed_formats"] = ["xwa", "amg"] if data_source == DataSource.XWA else ["legacy_x2po", "legacy_xlc"]
+        filters["allowed_formats"] = ["xwa"] if data_source == DataSource.XWA else ["legacy_x2po"]
     
     faction_stats = aggregate_faction_stats(filters, data_source)
     

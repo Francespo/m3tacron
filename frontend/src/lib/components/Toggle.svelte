@@ -26,11 +26,11 @@
     } = $props();
 </script>
 
-<label
+<span
     class="inline-flex items-center justify-center rounded-[2px] border bg-black cursor-pointer select-none transition-[background-color,border-color,transform] active:scale-90
         {size === 'xs' ? 'w-3 h-3' : 'w-3.5 h-3.5'}
         {checked ? 'border-primary' : 'border-border-dark hover:border-primary/50 active:border-primary'}"
-    aria-label={ariaLabel}
+    aria-hidden="true"
 >
     {#if checked}
         <svg
@@ -47,12 +47,12 @@
             <path d="M20 6 9 17l-5-5" />
         </svg>
     {/if}
-    <input
-        type="checkbox"
-        {checked}
-        {onchange}
-        class="sr-only"
-        aria-label={ariaLabel}
-        tabindex="0"
-    />
-</label>
+</span>
+<input
+    type="checkbox"
+    {checked}
+    {onchange}
+    class="sr-only"
+    aria-label={ariaLabel}
+    tabindex="0"
+/>

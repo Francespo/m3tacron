@@ -70,6 +70,7 @@ def get_squadrons(
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Games"),
     sort_direction: str = Query("desc"),
+    epic: bool = Query(False),
 
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
@@ -100,6 +101,7 @@ def get_squadrons(
     filters["player_count_min"] = player_count_min
     filters["player_count_max"] = player_count_max
     filters["min_games"] = min_games
+    filters["epic"] = epic
 
     # Build a stable cache key from all inputs that affect the response.
     # page/size excluded — pagination is done AFTER caching.
@@ -115,7 +117,7 @@ def get_squadrons(
         f"{','.join(sorted(city or []))}|"
         f"{date_start or ''}|{date_end or ''}|"
         f"{player_count_min}|{player_count_max}|"
-        f"{min_games}"
+        f"{min_games}|{epic}"
     )
 
     def compute():

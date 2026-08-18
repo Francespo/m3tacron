@@ -45,6 +45,7 @@ def get_ship_pilots(
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Lists"),
     sort_direction: str = Query("desc"),
+    epic: bool = Query(False),
 ):
     """Return pilot stats filtered to this ship."""
     ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
@@ -59,7 +60,10 @@ def get_ship_pilots(
 
     filters = {
         "ship": [ship_xws],
-        "include_epic": False,
+        # Huge-ship pilots are flagged `epic` in the manifest; the ships page
+        # only shows them when "Include Epic" is on, so their detail page must
+        # include them too or the pilot list comes back empty.
+        "include_epic": epic,
     }
     data = aggregate_card_stats(filters, criteria, direction, "pilots", ds)
     return {"pilots": data}
