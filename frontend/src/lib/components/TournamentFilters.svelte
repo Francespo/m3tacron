@@ -104,6 +104,7 @@
             formats: [
                 { id: "legacy_x2po", label: getFormatFullLabel("legacy_x2po") },
                 { id: "legacy_xlc", label: getFormatFullLabel("legacy_xlc") },
+                { id: "legacy_pandorum", label: getFormatFullLabel("legacy_pandorum") },
                 { id: "ffg", label: getFormatFullLabel("ffg") },
             ],
         },

@@ -899,7 +899,7 @@ class LongshanksScraper(BaseScraper):
                 if self.inferred_format:
                     fmt_val = self.inferred_format.value if hasattr(
                         self.inferred_format, "value") else self.inferred_format
-                    if fmt_val in [Format.LEGACY_XLC.value, Format.LEGACY_X2PO.value, Format.FFG.value]:
+                    if fmt_val in [Format.LEGACY_XLC.value, Format.LEGACY_X2PO.value, Format.FFG.value, Format.LEGACY_PANDORUM.value]:
                         is_legacy = True
                         logger.info(
                             "Legacy format detected (from XWS). Forcing Scenario to NO_SCENARIO.")

@@ -61,7 +61,7 @@
     /**
      * Map a `(dataSource, includeEpic)` pair to the list of `formats` the
      * tournaments endpoint should filter on. The XWA macro is `{xwa, amg}`
-     * and the Legacy macro is `{legacy_x2po, legacy_xlc}`; the Epic toggle
+     * and the Legacy macro is `{legacy_x2po, legacy_xlc, legacy_pandorum}`; the Epic toggle
      * controls whether the larger squad-size variant (amg / legacy_xlc) is
      * included.
      */
@@ -72,7 +72,7 @@
         if (source === "xwa") {
             return epic ? ["xwa", "amg"] : ["xwa"];
         }
-        return epic ? ["legacy_x2po", "legacy_xlc"] : ["legacy_x2po"];
+        return epic ? ["legacy_x2po", "legacy_xlc", "legacy_pandorum"] : ["legacy_x2po", "legacy_xlc", "legacy_pandorum"];
     }
 
     type SortKey = "lists" | "unique" | "winrate" | "games";

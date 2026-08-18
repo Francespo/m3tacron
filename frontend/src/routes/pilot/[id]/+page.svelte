@@ -85,8 +85,8 @@
             return includeEpic ? ["xwa", "xwa_epic"] : ["xwa"];
         }
         return includeEpic
-            ? ["legacy_x2po", "legacy_xlc", "ffg", "legacy_epic"]
-            : ["legacy_x2po", "legacy_xlc", "ffg"];
+            ? ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum", "legacy_epic"]
+            : ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum"];
     }
 
     $effect(() => {

@@ -12,7 +12,7 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
         ? formatsFromUrl
         : (ds === 'xwa'
             ? (includeEpic ? ['xwa', 'xwa_epic'] : ['xwa'])
-            : (includeEpic ? ['legacy_x2po', 'legacy_xlc', 'ffg', 'legacy_epic'] : ['legacy_x2po', 'legacy_xlc', 'ffg']));
+            : (includeEpic ? ['legacy_x2po', 'legacy_xlc', 'ffg', 'legacy_pandorum', 'legacy_epic'] : ['legacy_x2po', 'legacy_xlc', 'ffg', 'legacy_pandorum']));
 
     const formatQuery = formats.map((f) => `formats=${encodeURIComponent(f)}`).join('&');
     const formatSuffix = formatQuery ? `&${formatQuery}` : '';
