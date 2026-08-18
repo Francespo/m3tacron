@@ -57,10 +57,12 @@ function resolveBackendApiBase(url: URL): string {
 
 export async function GET({ url, fetch }) {
     const source = url.searchParams.get('data_source') || 'xwa';
+    const epic = url.searchParams.get('epic') === 'true';
     const backendApiBase = resolveBackendApiBase(url);
 
     try {
-        const res = await fetch(`${backendApiBase}/meta-snapshot?data_source=${source}`);
+        const epicQuery = epic ? '&epic=true' : '';
+        const res = await fetch(`${backendApiBase}/meta-snapshot?data_source=${source}${epicQuery}`);
         if (!res.ok) {
             throw new Error(`Backend error: ${res.status}`);
         }

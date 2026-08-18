@@ -84,8 +84,8 @@
             // Start with ALL ships from xwingData
             const merged: any[] = [];
             for (const [xws, ship] of Object.entries(xwingShips)) {
-                // Skip epic-only (Huge) ships unless includeEpic is on
-                if (!epic && ship.size === "Huge") continue;
+                // Skip epic-only ships (ships with no standard-legal pilots) unless includeEpic is on
+                if (!epic && ship.epic) continue;
                 // Skip ships not in the chassis filter (when one is active)
                 if (selectedShips.length > 0 && !selectedShips.includes(xws)) continue;
 

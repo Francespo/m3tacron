@@ -128,14 +128,19 @@ def read_root():
 
 
 @app.get("/api/meta-snapshot", response_model=MetaSnapshotResponse)
-def get_snapshot(data_source: str = Query("xwa", description="Data source: xwa or legacy")):
+def get_snapshot(
+    data_source: str = Query("xwa", description="Data source: xwa or legacy"),
+    epic: bool = Query(False, description="Include epic content"),
+):
     ds_enum = DataSource.XWA if data_source == "xwa" else DataSource.LEGACY
     def compute():
-        # Runs the 5 aggregations + 2 count queries. Cached by data source,
+        allowed_formats = ["xwa"] if ds_enum == DataSource.XWA else ["legacy_x2po"]
+
+        # Runs the 5 aggregations + 2 count queries. Cached by (data_source, epic),
         # so the dashboard (which hits this on every load / filter toggle)
         # only pays the cost once per data_version.
         from .api.formatters import enrich_list_data
-        snapshot = get_meta_snapshot(ds_enum, allowed_formats=None)
+        snapshot = get_meta_snapshot(ds_enum, allowed_formats=allowed_formats, include_epic=epic)
 
         # Enrich list data with pilot/ship metadata (names, ship icons,
         # pack captions, upgrade names) before serving to the dashboard.
@@ -149,11 +154,20 @@ def get_snapshot(data_source: str = Query("xwa", description="Data source: xwa o
             with Session(engine) as session:
                 start_date = datetime.now() - timedelta(days=90)
 
-                total_tournaments_query = select(func.count(Tournament.id)).where(Tournament.date >= start_date)
+                total_tournaments_query = (
+                    select(func.count(Tournament.id))
+                    .where(Tournament.date >= start_date)
+                    .where(Tournament.format.in_(allowed_formats))
+                )
                 res_tournaments = session.exec(total_tournaments_query).one_or_none()
                 total_tournaments = res_tournaments if res_tournaments else 0
 
-                total_players_query = select(func.count(PlayerStanding.id)).join(Tournament).where(Tournament.date >= start_date)
+                total_players_query = (
+                    select(func.count(PlayerStanding.id))
+                    .join(Tournament)
+                    .where(Tournament.date >= start_date)
+                    .where(Tournament.format.in_(allowed_formats))
+                )
                 res_players = session.exec(total_players_query).one_or_none()
                 total_players = res_players if res_players else 0
         except Exception as e:
@@ -172,5 +186,5 @@ def get_snapshot(data_source: str = Query("xwa", description="Data source: xwa o
             "total_players": total_players,
         }
 
-    cached = get_cached_or_compute(f"meta_snapshot|{ds_enum.value}", compute)
+    cached = get_cached_or_compute(f"meta_snapshot|{ds_enum.value}|{epic}", compute)
     return MetaSnapshotResponse(**cached)
