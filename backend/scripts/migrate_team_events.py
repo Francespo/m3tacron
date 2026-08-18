@@ -150,7 +150,16 @@ def _re_roster_event(session: Session, tid: int, url: str) -> dict:
             member.team_id = tsid
         session.add(member)
         inserted += 1
-        if tsid:
+    # Flush ALL member rows BEFORE inserting team_member edges so the
+    # playerstanding_id FK exists (raw SQL insert runs outside the ORM flush).
+    session.flush()
+    for member in members:
+        mkey = member.player_name.lower().strip()
+        if mkey in existing_members:
+            continue
+        tname = getattr(member, "team_name", None)
+        tsid = team_id_by_name.get((tname or "").lower().strip()) if tname else None
+        if tsid and member.id is not None:
             session.execute(text(
                 "INSERT INTO team_member (teamstanding_id, playerstanding_id, list_id, list_json) "
                 "VALUES (:tsid, :pid, :lid, CAST(:lj AS jsonb)) "
