@@ -322,7 +322,7 @@ const SINGLE_KEY: Record<FieldKey, string> = {
 };
 
 /**
-<<<<<<< Updated upstream
+
  * URL key used for `selectedSources` per route. The lists/ships/cards/
  * squadrons backends accept the `platforms` parameter; the tournaments
  * backend accepts `sources`. Emitting the wrong key means the backend
@@ -335,58 +335,12 @@ const SOURCE_KEY_BY_ROUTE: Record<RouteId, string> = {
     squadrons: 'platforms',
     tournaments: 'sources',
 };
-=======
- * Formats the "Include Epic" toggle adds, per route and data source.
- *
- * Browse pages (lists / squadrons / ships / tournaments) filter tournaments
- * by `t.format`, so the epic variants are the larger squad-size tournament
- * formats (`amg` for XWA, `legacy_xlc` for legacy). The cards page
- * additionally filters the pilot/upgrade catalog by format-legality flags
- * (`xwa_epic` / `legacy_epic`), which mark Epic-only (Huge ship) cards;
- * the tournament variants are included too so those cards get real stats
- * from the tournaments where they are actually flown.
- */
-function epicFormatVariants(routeId: RouteId, source: 'xwa' | 'legacy'): string[] {
-    if (routeId === 'cards') {
-        return source === 'xwa' ? ['amg', 'xwa_epic'] : ['legacy_xlc', 'legacy_epic'];
-    }
-    return source === 'xwa' ? ['amg'] : ['legacy_xlc'];
-}
 
 /** Base formats for a data source (matching the `dataSource` setter). */
 function defaultFormatsForSource(source: 'xwa' | 'legacy'): string[] {
     return source === 'xwa' ? ['xwa'] : ['legacy_x2po'];
 }
 
-/**
- * Resolve the `formats` query params for the current route.
- *
- * The "Include Epic" toggle must actually change what the backend returns on
- * every browse page. Formats therefore always include the source's base
- * format(s) plus the epic variant(s) when `includeEpic` is on — even when
- * the user hasn't explicitly selected formats (an empty `selectedFormats`
- * means "use the source default", mirroring the `dataSource` setter).
- * Explicit selections are respected and only gain / lose the epic variants.
- */
-function resolveFormats(
-    routeId: RouteId,
-    source: 'xwa' | 'legacy',
-    selected: string[],
-    epic: boolean,
-): string[] {
-    const epicVariants = epicFormatVariants(routeId, source);
-    let formats = selected.length > 0 ? [...selected] : defaultFormatsForSource(source);
-    if (epic) {
-        for (const v of epicVariants) {
-            if (!formats.includes(v)) formats.push(v);
-        }
-    } else {
-        formats = formats.filter((f) => !epicVariants.includes(f));
-        if (formats.length === 0) formats = defaultFormatsForSource(source);
-    }
-    return formats;
-}
->>>>>>> Stashed changes
 
 /**
  * Serialize the current filter state to a `URLSearchParams` containing ONLY
@@ -477,8 +431,8 @@ function toSearchParams(routeId: RouteId): URLSearchParams {
                 break;
             // Multi-value fields
             case 'selectedFormats': {
-                const resolved = resolveFormats(routeId, dataSource, selectedFormats, includeEpic);
-                for (const f of resolved) {
+                const formats = selectedFormats.length > 0 ? selectedFormats : defaultFormatsForSource(dataSource);
+                for (const f of formats) {
                     params.append(SINGLE_KEY.selectedFormats, f);
                 }
                 break;
@@ -531,15 +485,10 @@ function toSearchParams(routeId: RouteId): URLSearchParams {
  * `'true'`.
  */
 function applyFromSearchParams(params: URLSearchParams): void {
-    // Single-value fields
     const dataSourceVal = params.get('data_source');
-    if (dataSourceVal === 'xwa' || dataSourceVal === 'legacy') {
-        dataSource = dataSourceVal;
-    }
+    dataSource = dataSourceVal === 'legacy' ? 'legacy' : 'xwa';
 
-    if (params.has('epic')) {
-        includeEpic = params.get('epic') === 'true';
-    }
+    includeEpic = params.get('epic') === 'true';
     if (params.has('search')) {
         const v = params.get('search') ?? '';
         if (v) searchName = v;
@@ -683,7 +632,9 @@ export const filters = {
         }
     },
     get includeEpic() { return includeEpic; },
-    set includeEpic(v: boolean) { includeEpic = v; },
+    set includeEpic(v: boolean) {
+        includeEpic = v;
+    },
     get dateStart() { return dateStart; },
     set dateStart(v: string) { dateStart = v; },
     get dateEnd() { return dateEnd; },

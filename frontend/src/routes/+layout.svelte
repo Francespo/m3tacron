@@ -4,7 +4,7 @@
 	import MobileTopBar from "$lib/components/MobileTopBar.svelte";
 	import MobileNavDrawer from "$lib/components/MobileNavDrawer.svelte";
 	import PendingIndicator from "$lib/components/PendingIndicator.svelte";
-	import type { Snippet } from "svelte";
+	import { untrack, type Snippet } from "svelte";
 	import { page } from "$app/state";
 	import {
 		onNavigate,
@@ -30,33 +30,28 @@
 	let navSafetyTimer: ReturnType<typeof setTimeout> | null = null;
 
 	beforeNavigate(() => {
-		// Don't show the bar yet — wait SHOW_DELAY_MS so instant navigations
-		// never flash it. Restart the pending show timer on every navigation
-		// (rapid successive clicks cancel the previous pending one).
-		if (navShowTimer !== null) {
-			clearTimeout(navShowTimer);
-			navShowTimer = null;
-		}
-		if (navSafetyTimer !== null) {
-			clearTimeout(navSafetyTimer);
-			navSafetyTimer = null;
-		}
+		// Reset any previous timer
+		if (navShowTimer !== null) clearTimeout(navShowTimer);
+		if (navSafetyTimer !== null) clearTimeout(navSafetyTimer);
+
+		// Arm the show timer — if navigation finishes before 350ms,
+		// afterNavigate will cancel this and the bar will never render.
 		navShowTimer = setTimeout(() => {
 			navActive = true;
 			navShowTimer = null;
 		}, SHOW_DELAY_MS);
-		// Safety net: if the navigation never completes (cancelled, external
-		// link, unload), never leave the bar stuck on screen.
+
+		// Safety cap: if an upstream endpoint hangs indefinitely, drop the
+		// progress bar after 8 seconds so the UI never looks permanently
+		// stuck.
 		navSafetyTimer = setTimeout(() => {
 			navActive = false;
-			navShowTimer = null;
 			navSafetyTimer = null;
-		}, 10000);
+		}, 8000);
 	});
 
 	afterNavigate(() => {
-		// The new route is interactive: cancel any pending show timer and
-		// clear the bar immediately. No lingering beat — instant navigations
+		// Navigation finished. Fast routes clear the pending timer and
 		// never show it, and slow ones disappear the moment the route is
 		// ready (the page-level pending indicators cover any still-streaming
 		// loads after this bar hides).
@@ -82,7 +77,10 @@
 	// renders with the store's default values (no cross-request
 	// contamination from a module-level $state singleton).
 	$effect(() => {
-		filters.applyFromSearchParams(page.url.searchParams);
+		const searchParams = page.url.searchParams;
+		untrack(() => {
+			filters.applyFromSearchParams(searchParams);
+		});
 	});
 
 	// Cancel any pending debounced URL sync when the user navigates

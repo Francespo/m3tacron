@@ -11,7 +11,7 @@ from sqlalchemy import text
 from ..database import engine
 from ..data_structures.data_source import DataSource
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
-from .filter_helpers import format_filter_clause, ship_list_filter_clause
+from .filter_helpers import format_filter_clause, ship_list_filter_clause, huge_ships_exclusion_clause
 
 
 def aggregate_squadron_stats(
@@ -88,6 +88,11 @@ def aggregate_squadron_stats(
     )
     if ship_clause:
         where_clauses.append(ship_clause)
+
+    if not filters.get("epic", False):
+        huge_clause = huge_ships_exclusion_clause(False, data_source, params)
+        if huge_clause:
+            where_clauses.append(huge_clause)
 
     where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 

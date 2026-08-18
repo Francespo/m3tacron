@@ -142,12 +142,12 @@ def aggregate_card_stats(
                     show_card = True
                 if data_source == DataSource.LEGACY:
                     legacy_keys = {"legacy_x2po", "legacy_xlc", "ffg"}
-                    if not legacy_keys.isdisjoint(allowed_formats):
+                    if not legacy_keys.isdisjoint(allowed_formats) and is_legal:
                         show_card = True
             else:
                 if data_source == DataSource.XWA and is_legal:
                     show_card = True
-                elif data_source == DataSource.LEGACY:
+                elif data_source == DataSource.LEGACY and is_legal:
                     show_card = True
 
             # Explicit "include epic" flag (e.g. a Huge ship's detail page):
@@ -264,12 +264,12 @@ def aggregate_card_stats(
                     show_card = True
                 if data_source == DataSource.LEGACY:
                     legacy_keys = {"legacy_x2po", "legacy_xlc", "ffg"}
-                    if not legacy_keys.isdisjoint(allowed_formats):
+                    if not legacy_keys.isdisjoint(allowed_formats) and is_legal:
                         show_card = True
             else:
                 if data_source == DataSource.XWA and is_legal:
                     show_card = True
-                elif data_source == DataSource.LEGACY:
+                elif data_source == DataSource.LEGACY and is_legal:
                     show_card = True
 
             # Explicit "include epic" flag (e.g. a Huge ship's detail page):
