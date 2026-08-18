@@ -95,6 +95,9 @@ def _re_roster_event(session: Session, tid: int, url: str) -> dict:
     """Re-scrape a Longshanks team event's individual ranking tab and insert
     member PlayerStanding rows + team_member edges. Returns stats."""
     import re as _re
+    from ..utils.list_keys import get_list_key, get_ship_list
+    from ..scripts.scrape_tournaments import _persist_list_rows
+
     m = _re.search(r"/event/(\d+)/", url)
     if not m:
         return {"error": f"cannot parse event id from {url}"}
@@ -111,6 +114,17 @@ def _re_roster_event(session: Session, tid: int, url: str) -> dict:
         "SELECT id, team_name FROM teamstanding WHERE tournament_id = :tid"
     ), {"tid": tid}).fetchall()
     team_id_by_name = {r[1].lower().strip(): r[0] for r in team_rows}
+
+    # Populate the `list` table for the members' lists and link list_id.
+    list_jsons = [p.list_json for p in members if p.list_json]
+    lj_sig_to_lid = _persist_list_rows(session, list_jsons)
+    for member in members:
+        lj = member.list_json
+        if lj and isinstance(lj, dict) and lj.get("faction"):
+            sig = get_list_key(lj)
+            lid = lj_sig_to_lid.get(sig)
+            if lid is not None:
+                member.list_id = lid
 
     inserted = 0
     edge_rows = 0
@@ -173,7 +187,7 @@ def _delete_team_placeholders(session: Session, tid: int) -> int:
     return res.rowcount or 0
 
 
-def migrate(only_event_id: int | None = None) -> None:
+def migrate(only_event_id: int | None = None, skip_reroaster: bool = False) -> None:
     with Session(engine) as session:
         _ensure_schema(session)
         _backfill_is_team_event(session)
@@ -186,6 +200,9 @@ def migrate(only_event_id: int | None = None) -> None:
         for tid, url, source in events:
             if not _is_longshanks(url):
                 log.info(f"[{tid}] Skipping non-Longshanks team event ({source}).")
+                continue
+            if skip_reroaster:
+                # Schema/backfill only — do not touch data.
                 continue
             log.info(f"[{tid}] Re-rostering {url} ...")
             stats = _re_roster_event(session, tid, url)
@@ -205,6 +222,11 @@ def migrate(only_event_id: int | None = None) -> None:
 
 if __name__ == "__main__":
     only = None
-    if len(sys.argv) > 2 and sys.argv[1] == "--event":
-        only = int(sys.argv[2])
-    migrate(only_event_id=only)
+    skip = False
+    args = sys.argv[1:]
+    if "--event" in args:
+        i = args.index("--event")
+        only = int(args[i + 1])
+    if "--skip-reroaster" in args:
+        skip = True
+    migrate(only_event_id=only, skip_reroaster=skip)
