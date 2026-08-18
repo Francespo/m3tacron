@@ -49,7 +49,7 @@ from ..scrapers.base import BaseScraper
 from ..scrapers.listfortress_scraper import ListFortressScraper
 from ..scrapers.longshanks_scraper import LongshanksScraper
 from ..scrapers.rollbetter_scraper import RollbetterScraper
-from ..utils.list_keys import get_ship_list
+from ..utils.list_keys import get_list_key, get_ship_list
 
 logging.basicConfig(
     level=logging.INFO,
@@ -194,23 +194,22 @@ def _delete_existing_tournament(session: Session, url: str) -> None:
     from sqlmodel import delete
     from ..models import Match, TeamMatch, PlayerStanding, TeamStanding, Tournament
 
-    existing = session.exec(select(Tournament).where(
-        Tournament.url == url)).first()
-    if existing is not None:
+    existing_rows = session.exec(select(Tournament).where(
+        Tournament.url == url)).all()
+    for existing in existing_rows:
         eid = existing.id
-        assert eid is not None
-        logger.info(f"Deleting existing tournament data for {url}")
-        session.exec(delete(TeamMatch).where(
-            cast(Any, TeamMatch.tournament_id) == eid))
-        session.exec(delete(Match).where(
-            cast(Any, Match.tournament_id) == eid))
-        session.exec(delete(PlayerStanding).where(
-            cast(Any, PlayerStanding.tournament_id) == eid))
-        session.exec(delete(TeamStanding).where(
-            cast(Any, TeamStanding.tournament_id) == eid))
-        session.exec(delete(Tournament).where(
-            cast(Any, Tournament.id) == eid))
-        session.commit()
+        if eid is not None:
+            logger.info(f"Deleting existing tournament data (id={eid}) for {url}")
+            session.exec(delete(TeamMatch).where(
+                cast(Any, TeamMatch.tournament_id) == eid))
+            session.exec(delete(Match).where(
+                cast(Any, Match.tournament_id) == eid))
+            session.exec(delete(PlayerStanding).where(
+                cast(Any, PlayerStanding.tournament_id) == eid))
+            session.exec(delete(TeamStanding).where(
+                cast(Any, TeamStanding.tournament_id) == eid))
+            session.exec(delete(Tournament).where(
+                cast(Any, Tournament.id) == eid))
 
 
 def _normalize_faction(faction: str | None) -> str:
@@ -227,94 +226,65 @@ def _persist_list_rows(
     """Batch-insert unique list_json payloads into the `list` table.
 
     Returns:
-        Mapping of ``json.dumps(lj, sort_keys=True)`` → ``list_id`` for all
+        Mapping of ``canonical_signature`` → ``list_id`` for all
         payloads in the input (whether newly inserted or pre-existing).
-        The caller uses the same Python-side JSON canonicalisation to
-        look up the list_id for each player.
+        The caller uses get_list_key(player.list_json) to look up the list_id.
 
     Skips payloads that are empty (``{}``) or missing a 'faction' key, since
     those cannot be inserted (the schema requires `faction` and `ship_list`
     NOT NULL) and should leave list_id NULL on the playerstanding row.
 
-    The ``canonical_signature`` is computed in SQL via
-    ``md5(CAST(:lj AS jsonb)::text)`` so it matches the historical migration
-    at ``migrate_normalize_list.sql`` byte-for-byte. Computing the signature
-    in Python would not match because ``jsonb::text`` produces compact JSON
-    (``{"a":1}``) while ``json.dumps`` produces ``{"a": 1}`` (with spaces).
+    The ``canonical_signature`` is computed via ``get_list_key(lj)`` to match
+    the rest of the codebase and `migrate_normalize_list.py`.
 
     This function is Postgres-only (uses ``CAST(... AS jsonb)``,
     ``ON CONFLICT``, ``= ANY(...)``). SQLite does not support those
     constructs, so callers running against a SQLite engine (e.g. the
     ``_write_sqlite`` artifact path) skip list-table population entirely.
     """
-    # Bug 2: _write_sqlite calls save_tournament_data against a SQLite
-    # engine. The Postgres-specific constructs below (CAST AS jsonb, ON
-    # CONFLICT, = ANY) would crash. Skip list-table population for SQLite
-    # artifacts — the playerstanding rows still get written, just without
-    # a list_id (the artifact is a read-only convenience for analysis).
     if session.bind and session.bind.dialect.name == "sqlite":
         return {}
 
-    lj_json_to_lj: dict[str, dict] = {}
+    sig_to_data: dict[str, dict] = {}
     for lj in list_jsons:
         if not lj or not isinstance(lj, dict):
             continue
-        # Skip empty dicts and lists with no faction — these cannot be
-        # represented in the `list` table (NOT NULL constraints on
-        # faction / ship_list) and would fail INSERT.
         if not lj.get("faction"):
             continue
-        # Dedupe by Python-side canonical JSON so the batched INSERT has
-        # one row per list. (The canonical_signature hash is computed in
-        # SQL so it exactly matches jsonb::text.)
-        lj_json = json.dumps(lj, sort_keys=True, default=str)
-        lj_json_to_lj.setdefault(lj_json, lj)
+        sig = get_list_key(lj)
+        if not sig:
+            continue
+        sig_to_data.setdefault(sig, lj)
 
-    if not lj_json_to_lj:
+    if not sig_to_data:
         return {}
 
-    # Build a parameterised multi-row INSERT with named params so we can
-    # safely serialise arbitrary list_json via CAST(:lj AS jsonb).
-    # (Using `:lj::jsonb` directly fails because SQLAlchemy's text() parser
-    # treats the `::` cast as a nameless bind parameter.)
-    # The canonical_signature is computed in SQL as md5(CAST(:lj AS
-    # jsonb)::text) so it exactly matches the historical migration
-    # (migrate_normalize_list.sql) which uses md5(list_json::text).
     value_clauses: list[str] = []
     params: dict[str, object] = {}
-    for i, (lj_json, lj) in enumerate(lj_json_to_lj.items()):
+    for i, (sig, lj) in enumerate(sig_to_data.items()):
         value_clauses.append(
-            f"(md5(CAST(:lj_{i} AS jsonb)::text), :fac_{i}, :fn_{i}, :name_{i}, :pts_{i}, "
+            f"(:sig_{i}, :fac_{i}, :fn_{i}, :name_{i}, :pts_{i}, "
             f":pc_{i}, :sl_{i}, CAST(:lj_{i} AS jsonb))"
         )
         faction = lj.get("faction") or "unknown"
         pilots = lj.get("pilots") or []
-        # ship_list comes from get_ship_list() in backend/utils/list_keys.py
-        # — single source of truth shared with the rest of the codebase.
-        # Critically, get_ship_list filters out pilots with no ship, so we
-        # never get a leading comma (",t65xwing") for pilots with missing
-        # ship fields. The previous inline expression did not filter and
-        # produced inconsistent ship_list values.
         ship_list = get_ship_list(lj)
-        # `pilot_count` is the count of pilot entries.
         pilot_count = len(pilots) if isinstance(pilots, list) else None
-        # `points` is best-effort: only cast to int if the raw value is
-        # an integer-looking number. Anything else stays NULL.
         raw_points = lj.get("points")
         if isinstance(raw_points, bool):
-            # bool is a subclass of int; treat as non-numeric.
             points_val: int | None = None
         elif isinstance(raw_points, int):
             points_val = raw_points
         else:
             points_val = None
+        params[f"sig_{i}"] = sig
         params[f"fac_{i}"] = faction
         params[f"fn_{i}"] = _normalize_faction(faction)
         params[f"name_{i}"] = lj.get("name") or ""
         params[f"pts_{i}"] = points_val
         params[f"pc_{i}"] = pilot_count
         params[f"sl_{i}"] = ship_list
-        params[f"lj_{i}"] = lj_json
+        params[f"lj_{i}"] = json.dumps(lj)
 
     insert_sql = text(
         "INSERT INTO list "
@@ -325,22 +295,14 @@ def _persist_list_rows(
     )
     session.execute(insert_sql, params)
 
-    # Query back IDs by matching on list_json content (which is stored as
-    # jsonb in the `list` table). This is robust regardless of how the
-    # canonical_signature is computed — as long as the row exists, we
-    # can find it by its JSON content.
-    #
-    # NOTE: compare on list_json::text rather than list_json = ANY(:ljs);
-    # psycopg2 binds the Python list as a text[] array and Postgres has no
-    # jsonb = text operator.
     select_sql = text(
-        "SELECT id, list_json::text FROM list "
-        "WHERE list_json::text = ANY(:ljs)"
+        "SELECT id, canonical_signature FROM list "
+        "WHERE canonical_signature = ANY(:sigs)"
     )
     rows = session.execute(
-        select_sql, {"ljs": list(lj_json_to_lj.keys())}
+        select_sql, {"sigs": list(sig_to_data.keys())}
     ).all()
-    return {lj_text: lid for lid, lj_text in rows}
+    return {sig: lid for lid, sig in rows}
 
 
 def save_tournament_data(
@@ -416,14 +378,14 @@ def save_tournament_data(
     # player.list_id is set when the players are flushed (the FK is
     # enforced at flush time on Postgres).
     list_jsons = [p.list_json for p in players if p.list_json]
-    lj_json_to_lid = _persist_list_rows(session, list_jsons)
+    lj_sig_to_lid = _persist_list_rows(session, list_jsons)
     for player in players:
         lj = player.list_json
         if not lj or not isinstance(lj, dict) or not lj.get("faction"):
             # Skip — no list_id for empty/missing-faction lists.
             continue
-        lj_json = json.dumps(lj, sort_keys=True, default=str)
-        lid = lj_json_to_lid.get(lj_json)
+        sig = get_list_key(lj)
+        lid = lj_sig_to_lid.get(sig)
         if lid is not None:
             player.list_id = lid
 
@@ -853,7 +815,6 @@ def build_scrapers(
         scrapers.append(("rollbetter_amg", RollbetterScraper(game_id=5)))
         scrapers.append(("rollbetter_xwa", RollbetterScraper(game_id=17)))
         scrapers.append(("rollbetter_legacy", RollbetterScraper(game_id=4)))
-        scrapers.append(("rollbetter_legacy", RollbetterScraper(game_id=4)))
 
     if platform in ("listfortress", "all") or (
         platform == "longshanks+rollbetter" and include_listfortress
@@ -1136,7 +1097,20 @@ def main() -> int:
     # Bump data_version to invalidate API cache
     try:
         with engine.begin() as conn:
-            conn.execute(text("UPDATE scrape_meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'data_version'"))
+            row = conn.execute(text("SELECT value FROM scrape_meta WHERE key = 'data_version'")).first()
+            if row:
+                try:
+                    new_val = str(int(row[0]) + 1)
+                except (ValueError, TypeError):
+                    new_val = "1"
+                conn.execute(
+                    text("UPDATE scrape_meta SET value = :val WHERE key = 'data_version'"),
+                    {"val": new_val}
+                )
+            else:
+                conn.execute(
+                    text("INSERT INTO scrape_meta (key, value) VALUES ('data_version', '1')")
+                )
         print("[cache] data_version bumped — API cache will invalidate on next check")
     except Exception as e:
         print(f"[cache] WARNING: Could not bump data_version: {e}")

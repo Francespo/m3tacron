@@ -122,6 +122,19 @@ jobs:
           PASS="${{ steps.dbpass.outputs.pass }}"
           export PGPASSWORD="$PASS"
           psql -h localhost -p 5432 -U postgres -d postgres -c "
-            UPDATE scrape_meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'data_version';
+            DO \$\$
+            DECLARE
+              current_val text;
+              new_val int;
+            BEGIN
+              SELECT value INTO current_val FROM scrape_meta WHERE key = 'data_version';
+              BEGIN
+                new_val := current_val::integer + 1;
+              EXCEPTION WHEN OTHERS THEN
+                new_val := 1;
+              END;
+              INSERT INTO scrape_meta (key, value) VALUES ('data_version', new_val::text)
+              ON CONFLICT (key) DO UPDATE SET value = new_val::text;
+            END \$\$;
           " 2>&1 | tail -1
           echo "Cache invalidated."
