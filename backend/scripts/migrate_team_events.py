@@ -59,7 +59,52 @@ def _ensure_schema(session: Session) -> None:
     session.execute(text("""
         CREATE INDEX IF NOT EXISTS ix_team_member_teamstanding ON team_member(teamstanding_id)
     """))
+    # Drop the dead teamstanding standings columns from the pre-team-event
+    # schema. Team results live in teammatch; teamstanding is identity-only
+    # (id, tournament_id, team_name) in the current model. The old NOT NULL
+    # columns (swiss_rank, swiss_wins, ...) would otherwise violate the
+    # model's INSERT (NotNullViolation) on every team-event scrape.
+    _drop_teamstanding_columns(session)
     session.commit()
+
+
+def _drop_teamstanding_columns(session: Session) -> None:
+    """Drop the legacy teamstanding standings columns if they still exist."""
+    legacy_columns = [
+        "swiss_rank", "swiss_wins", "swiss_losses", "swiss_draws",
+        "swiss_event_points", "swiss_tie_breaker_points",
+        "cut_rank", "cut_wins", "cut_losses", "cut_draws",
+        "cut_event_points", "cut_tie_breaker_points",
+    ]
+    existing = {
+        row[0] for row in session.execute(text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'teamstanding'"
+        )).fetchall()
+    }
+    dropped = [c for c in legacy_columns if c in existing]
+    if dropped:
+        for col in dropped:
+            try:
+                session.execute(text(
+                    f'ALTER TABLE teamstanding DROP COLUMN IF EXISTS "{col}"'
+                ))
+            except Exception as exc:
+                log.warning(f"Could not drop teamstanding.{col}: {exc}")
+        log.info(f"Dropped legacy teamstanding columns: {', '.join(dropped)}")
+    else:
+        log.info("teamstanding already identity-only (no legacy columns to drop).")
+
+
+def ensure_team_event_schema() -> None:
+    """Idempotently bring the DB schema in line with the team-event models.
+
+    Safe to call from the scrape script before saving data: creates the
+    team_member table/columns if missing and drops the dead legacy
+    teamstanding standings columns so team inserts don't violate NOT NULL.
+    """
+    with Session(engine) as session:
+        _ensure_schema(session)
 
 
 def _backfill_is_team_event(session: Session) -> int:

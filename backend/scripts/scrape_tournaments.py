@@ -997,6 +997,14 @@ def main() -> int:
 
     if not args.dry_run:
         create_db_and_tables()
+        # Align the team-event schema (drop dead teamstanding standings
+        # columns, ensure team_member table) so team inserts don't violate
+        # NOT NULL constraints on pre-existing DBs.
+        from .migrate_team_events import ensure_team_event_schema
+        try:
+            ensure_team_event_schema()
+        except Exception as e:
+            logger.warning(f"team-event schema sync skipped: {e}")
 
     if tournament_urls:
         if args.dry_run:
