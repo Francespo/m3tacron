@@ -133,34 +133,49 @@ jobs:
             echo "url=postgres://postgres:${PASS}@localhost:5432/m3tacron_staging" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Preflight platform connectivity
-        if: inputs.skip_reroaster != 'true'
-        run: |
-          # GitHub runner egress to Longshanks is sometimes throttled; verify
-          # we can reach the platform before spending minutes scraping.
-          for host in https://xwing.longshanks.org/ https://xwing-legacy.longshanks.org/; do
-            ok=""
-            for i in 1 2 3 4 5; do
-              if curl -s -o /dev/null -w "%{http_code}" --max-time 20 "$host" | grep -q "200"; then
-                echo "$host reachable (attempt $i)"
-                ok=1
-                break
-              fi
-              echo "$host attempt $i failed; sleeping 10s..."
-              sleep 10
-            done
-            if [ -z "$ok" ]; then echo "ERROR: cannot reach $host from runner"; exit 1; fi
-          done
-
-      - name: Team-event migration
+      # --- Schema-only pass (no scraping): run on the runner via tunnel ---
+      - name: Team-event migration (schema only)
+        if: inputs.skip_reroaster == 'true'
         env:
           DATABASE_URL: ${{ steps.db.outputs.url }}
           PYTHONPATH: .
         run: |
+          python -m backend.scripts.migrate_team_events --skip-reroaster
+
+      # --- Re-roster pass: run ON THE SERVER via SSH ---
+      # GitHub-hosted runner egress cannot reliably reach xwing.longshanks.org,
+      # but the server (84.8.253.2) can. The GH workflow orchestrates; the
+      # migration executes where the platform is reachable.
+      - name: Team-event re-roster (on server via SSH)
+        if: inputs.skip_reroaster != 'true'
+        env:
+          RAW: ${{ secrets.PROD_DATABASE_URL }}
+        run: |
+          set -e
+          PASS=$(python3 -c "from urllib.parse import urlparse; import sys; u=urlparse(sys.argv[1]); print(u.password or sys.argv[1])" "$RAW")
+          echo "::add-mask::$PASS"
+
+          # 1. Sync the branch code to the server's catch-up checkout.
+          #    (The server copy is a plain file copy, not a git checkout.)
+          ssh -o StrictHostKeyChecking=no audit-bot@84.8.253.2 "mkdir -p /home/audit-bot/m3tacron-catchup"
+          rsync -az --delete \
+            --exclude '.git' --exclude '.venv' --exclude 'node_modules' --exclude 'frontend' --exclude 'external_data' \
+            ./backend/ ./requirements.txt ./pyproject.toml \
+            audit-bot@84.8.253.2:/home/audit-bot/m3tacron-catchup/
+
+          # 2. Ensure a venv with deps exists on the server.
+          ssh -o StrictHostKeyChecking=no audit-bot@84.8.253.2 "cd /home/audit-bot/m3tacron-catchup && \
+            if [ ! -d .venv ]; then python3 -m venv .venv; fi && \
+            ./.venv/bin/pip install --quiet -r requirements.txt playwright"
+
+          # 3. Run the migration on the server against staging (host port 3000).
           EXTRA=""
-          if [ "${{ inputs.skip_reroaster }}" = "true" ]; then EXTRA="$EXTRA --skip-reroaster"; fi
-          if [ -n "${{ inputs.event_id }}" ]; then EXTRA="$EXTRA --event ${{ inputs.event_id }}"; fi
-          python -m backend.scripts.migrate_team_events $EXTRA
+          if [ -n "${{ inputs.event_id }}" ]; then EXTRA="--event ${{ inputs.event_id }}"; fi
+          DBENV="${{ inputs.environment }}"
+          if [ "$DBENV" = "prod" ]; then DBNAME="postgres"; else DBNAME="m3tacron_staging"; fi
+          ssh -o StrictHostKeyChecking=no audit-bot@84.8.253.2 "cd /home/audit-bot/m3tacron-catchup && \
+            DATABASE_URL='postgresql://postgres:${PASS}@localhost:3000/${DBNAME}' \
+            PYTHONPATH=. ./.venv/bin/python -m backend.scripts.migrate_team_events ${EXTRA}"
 
       - name: Legacy Pandorum format backfill
         env:
