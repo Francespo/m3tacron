@@ -183,6 +183,18 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add backend/data/geocoding_cache.json
           if [ -f main.db ]; then git add main.db; fi
-          git diff --cached --quiet || git commit -m "Update tournament data and geocoding cache" || exit 0
-          git pull --rebase --autostash
-          git push
+          if git diff --cached --quiet; then
+            echo "No cache changes to commit."
+            exit 0
+          fi
+          git commit -m "Update tournament data and geocoding cache"
+          # main is a protected branch — direct push is rejected. Push the
+          # cache commit to a dedicated branch so it isn't lost; the job
+          # must NOT fail because of branch protection.
+          if git branch --show-current | grep -q '^main$'; then
+            CACHE_BRANCH="data/geocoding-cache"
+            git branch -f "$CACHE_BRANCH" HEAD
+            git push -f origin "$CACHE_BRANCH" 2>/dev/null || echo "Cache push to $CACHE_BRANCH failed (non-fatal)"
+          else
+            git push 2>/dev/null || echo "Cache push failed (non-fatal)"
+          fi
