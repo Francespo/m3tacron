@@ -33,14 +33,6 @@ on:
         description: "Only re-roster a single tournament id (optional, e.g. 11899)"
         required: false
         type: string
-      smoke_event_id:
-        description: "If set, run a runner-side Longshanks scraper smoke test for this event (no DB writes)"
-        required: false
-        type: string
-      smoke_subdomain:
-        description: "Subdomain for smoke test (xwing or xwing-legacy)"
-        required: false
-        type: string
 
 jobs:
   repair:
@@ -87,31 +79,6 @@ jobs:
           done
           # Verify the browser actually got installed and can launch.
           timeout 60 python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); b=p.chromium.launch(headless=True, args=['--no-sandbox']); b.close(); p.stop(); print('chromium OK')"
-
-      - name: Runner-side scraper smoke test (no DB writes)
-        if: inputs.smoke_event_id != ''
-        env:
-          PYTHONPATH: .
-        run: |
-          python - <<'PY'
-          import logging
-          logging.basicConfig(level=logging.INFO, format="%(message)s")
-          from backend.scrapers.longshanks_scraper import LongshanksScraper
-
-          event = "${{ inputs.smoke_event_id }}"
-          sub = "${{ inputs.smoke_subdomain }}"
-          s = LongshanksScraper(subdomain=sub)
-          out = s.get_participants(event)
-          members = [p for p in out if p.is_team_member]
-          teams = [p for p in out if not p.is_team_member]
-          print(f"event={event} subdomain={sub} is_team_event={s.is_team_event} members={len(members)} teams={len(teams)}")
-          for m in members[:8]:
-              print(f"  member: {m.player_name!r} -> team={getattr(m,'team_name',None)!r}")
-          for t in teams[:4]:
-              print(f"  team row: {t.player_name!r}")
-          if not members:
-              raise SystemExit("FAIL: no members scraped on runner")
-          PY
 
       - name: Open SSH tunnel to database
         run: |
