@@ -668,8 +668,30 @@ class LongshanksScraper(BaseScraper):
                                     # member->team map AND add a real member
                                     # PlayerStanding row so per-player matches
                                     # resolve. The team placeholder rows (added
-                                    # below from the team pass) carry the team's
+                                    # from the team pass) carry the team's
                                     # aggregate stats; members carry their own.
+                                    #
+                                    # IMPORTANT: when the tab_player click times
+                                    # out (cookie overlay / slow JS), the ranking
+                                    # tab still shows TEAM rows — name == team
+                                    # name. Those rows must NOT become members
+                                    # (they'd duplicate the team placeholder with
+                                    # is_team_member=true). Skip any row whose
+                                    # name is a known team name, and only create
+                                    # member rows for names found in the team
+                                    # pass's pop_user member map.
+                                    team_names_lower = {
+                                        tn.lower().strip()
+                                        for tn in self._team_placeholders
+                                    }
+                                    if name.lower().strip() in team_names_lower:
+                                        # Team row shown in the (stuck) team view —
+                                        # not an individual. Record its team link
+                                        # but do NOT emit a member row.
+                                        if t_name and name:
+                                            self.player_team_map[name.lower()] = t_name
+                                            self.team_members.setdefault(name.lower(), t_name)
+                                        continue
                                     if t_name and name:
                                         self.player_team_map[name.lower()] = t_name
                                         self.team_members[name.lower()] = t_name
