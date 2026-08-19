@@ -155,32 +155,29 @@ jobs:
           PASS=$(python3 -c "from urllib.parse import urlparse; import sys; u=urlparse(sys.argv[1]); print(u.password or sys.argv[1])" "$RAW")
           echo "::add-mask::$PASS"
 
-          # 1. Sync the branch code to the server's catch-up checkout.
-          #    (The server copy is a plain file copy, not a git checkout.
-          #    Use tar-over-ssh — rsync isn't installed on GH runners.
-          #    Avoid rm -rf on backend: it contains root-owned __pycache__;
-          #    mv the old dir aside instead.)
-          ssh -o StrictHostKeyChecking=no audit-bot@84.8.253.2 \
-            "cd /home/audit-bot/m3tacron-catchup && rm -rf backend.old 2>/dev/null; mv backend backend.old 2>/dev/null; mkdir -p backend"
+          # 1. Sync the branch code to the server's prod backend container.
+          #    The container runs as root with working Playwright chromium
+          #    (headless shell + X libs installed) and reaches postgres by
+          #    docker network name — this is the only environment on the
+          #    server that can both reach Longshanks AND run a browser.
           tar -C backend -czf - . \
             | ssh -o StrictHostKeyChecking=no audit-bot@84.8.253.2 \
-              "cd /home/audit-bot/m3tacron-catchup && tar -xzf - -C backend"
-          scp -o StrictHostKeyChecking=no requirements.txt pyproject.toml \
-            audit-bot@84.8.253.2:/home/audit-bot/m3tacron-catchup/
+              "docker exec -i backend-d1237bghfe3rxgm7ahj00z8l-212035540797 sh -c 'cat > /tmp/backend.tgz && cd /app && rm -rf backend.new && mkdir -p backend.new && tar -xzf /tmp/backend.tgz -C backend.new && mv backend backend.old 2>/dev/null; mv backend.new backend && rm -f /tmp/backend.tgz'"
+          scp -o StrictHostKeyChecking=no requirements.txt \
+            audit-bot@84.8.253.2:/tmp/requirements.txt
+          ssh -o StrictHostKeyChecking=no audit-bot@84.8.253.2 \
+            "docker cp /tmp/requirements.txt backend-d1237bghfe3rxgm7ahj00z8l-212035540797:/tmp/requirements.txt && docker exec backend-d1237bghfe3rxgm7ahj00z8l-212035540797 sh -c 'pip install --quiet -r /tmp/requirements.txt 2>/dev/null || true'"
 
-          # 2. Ensure a venv with deps exists on the server.
-          ssh -o StrictHostKeyChecking=no audit-bot@84.8.253.2 "cd /home/audit-bot/m3tacron-catchup && \
-            if [ ! -d .venv ]; then python3 -m venv .venv; fi && \
-            ./.venv/bin/pip install --quiet -r requirements.txt playwright"
-
-          # 3. Run the migration on the server against staging (host port 3000).
+          # 2. Run the migration inside the container against staging (or prod).
           EXTRA=""
           if [ -n "${{ inputs.event_id }}" ]; then EXTRA="--event ${{ inputs.event_id }}"; fi
           DBENV="${{ inputs.environment }}"
           if [ "$DBENV" = "prod" ]; then DBNAME="postgres"; else DBNAME="m3tacron_staging"; fi
-          ssh -o StrictHostKeyChecking=no audit-bot@84.8.253.2 "cd /home/audit-bot/m3tacron-catchup && \
-            DATABASE_URL='postgresql://postgres:${PASS}@localhost:3000/${DBNAME}' \
-            PYTHONPATH=. ./.venv/bin/python -m backend.scripts.migrate_team_events ${EXTRA}"
+          ssh -o StrictHostKeyChecking=no audit-bot@84.8.253.2 \
+            "docker exec -e DATABASE_URL='postgresql://postgres:${PASS}@rdvq2p6xwxho16pbcyd40w0d:5432/${DBNAME}' \
+              -e PYTHONPATH=/app \
+              backend-d1237bghfe3rxgm7ahj00z8l-212035540797 \
+              python -m backend.scripts.migrate_team_events ${EXTRA}"
 
       - name: Legacy Pandorum format backfill
         env:
