@@ -137,6 +137,27 @@ def _re_roster_event(session: Session, tid: int, url: str) -> dict:
     ), {"tid": tid}).fetchall())
     existing_members = {r[0] for r in existing_members}
 
+    # Self-heal: remove any WRONG team-named member rows (is_team_member rows
+    # whose name == a team name — produced by earlier buggy scraper versions)
+    # so they don't linger as fake members.
+    bad_rows = session.execute(text("""
+        SELECT ps.id FROM playerstanding ps
+        WHERE ps.tournament_id = :tid AND ps.is_team_member = true
+          AND EXISTS (SELECT 1 FROM teamstanding ts
+                      WHERE ts.tournament_id = ps.tournament_id
+                        AND lower(ts.team_name) = lower(ps.player_name))
+    """), {"tid": tid}).fetchall()
+    if bad_rows:
+        bad_ids = [r[0] for r in bad_rows]
+        session.execute(text(
+            "DELETE FROM team_member WHERE playerstanding_id = ANY(:ids)"
+        ), {"ids": bad_ids})
+        session.execute(text(
+            "DELETE FROM playerstanding WHERE id = ANY(:ids)"
+        ), {"ids": bad_ids})
+        session.commit()
+        log.info(f"[{tid}] Removed {len(bad_ids)} stale team-named member rows.")
+
     for i, member in enumerate(members):
         mkey = member.player_name.lower().strip()
         if mkey in existing_members:

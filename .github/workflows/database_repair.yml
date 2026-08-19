@@ -168,9 +168,9 @@ jobs:
           ssh -o StrictHostKeyChecking=no audit-bot@84.8.253.2 \
             "docker cp /tmp/backend.tgz backend-d1237bghfe3rxgm7ahj00z8l-212035540797:/tmp/backend.tgz && \
              docker exec backend-d1237bghfe3rxgm7ahj00z8l-212035540797 sh -c 'cd /app && \
-               rm -rf backend.new && mkdir -p backend.new && \
+               rm -rf backend.new backend.old && mkdir -p backend.new && \
                tar -xzf /tmp/backend.tgz -C backend.new && \
-               mv backend backend.old 2>/dev/null; mv backend.new backend; \
+               mv backend backend.old && mv backend.new backend && \
                rm -f /tmp/backend.tgz' && \
              rm -f /tmp/backend.tgz"
 
