@@ -112,12 +112,12 @@ class LongshanksScraper(BaseScraper):
         return False
 
     def _goto_with_retry(self, page, url: str, wait_until="domcontentloaded",
-                         timeout: int = 30000, tries: int = 3) -> None:
+                         timeout: int = 30000, tries: int = 5) -> None:
         """Navigate a page with retries.
 
-        Transient network errors (e.g. ERR_NETWORK_CHANGED) occasionally
-        abort page loads; a couple of retries make the long paginated
-        listing runs far more robust.
+        Transient network errors (e.g. ERR_NETWORK_CHANGED, runner egress
+        timeouts) occasionally abort page loads; a few retries with growing
+        backoff make the long paginated runs and re-roster far more robust.
         """
         last_exc: Exception | None = None
         for attempt in range(tries):
@@ -128,7 +128,7 @@ class LongshanksScraper(BaseScraper):
                 last_exc = exc
                 logger.warning(
                     f"Navigation attempt {attempt + 1}/{tries} failed for {url}: {exc}")
-                page.wait_for_timeout(1500 * (attempt + 1))
+                page.wait_for_timeout(3000 * (attempt + 1))
         raise last_exc or RuntimeError(f"Navigation failed: {url}")
 
     def _parse_faction(self, value: str) -> str | None:

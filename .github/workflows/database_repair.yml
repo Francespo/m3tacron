@@ -133,6 +133,25 @@ jobs:
             echo "url=postgres://postgres:${PASS}@localhost:5432/m3tacron_staging" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Preflight platform connectivity
+        if: inputs.skip_reroaster != 'true'
+        run: |
+          # GitHub runner egress to Longshanks is sometimes throttled; verify
+          # we can reach the platform before spending minutes scraping.
+          for host in https://xwing.longshanks.org/ https://xwing-legacy.longshanks.org/; do
+            ok=""
+            for i in 1 2 3 4 5; do
+              if curl -s -o /dev/null -w "%{http_code}" --max-time 20 "$host" | grep -q "200"; then
+                echo "$host reachable (attempt $i)"
+                ok=1
+                break
+              fi
+              echo "$host attempt $i failed; sleeping 10s..."
+              sleep 10
+            done
+            if [ -z "$ok" ]; then echo "ERROR: cannot reach $host from runner"; exit 1; fi
+          done
+
       - name: Team-event migration
         env:
           DATABASE_URL: ${{ steps.db.outputs.url }}
@@ -151,7 +170,7 @@ jobs:
           import os
           from sqlalchemy import create_engine, text
 
-          engine = create_engine(os.environ["DATABASE_URL"])
+          engine = create_engine(os.environ["DATABASE_URL"].replace("postgres://", "postgresql://", 1))
           with engine.begin() as conn:
               # Detect tournaments whose lists come from the Pandorum builder.
               rows = conn.execute(text("""
@@ -189,7 +208,7 @@ jobs:
           python - <<'PY'
           import os
           from sqlalchemy import create_engine, text
-          engine = create_engine(os.environ["DATABASE_URL"])
+          engine = create_engine(os.environ["DATABASE_URL"].replace("postgres://", "postgresql://", 1))
           with engine.connect() as conn:
               for label, q in [
                   ("tournaments", "SELECT count(*) FROM tournament"),
