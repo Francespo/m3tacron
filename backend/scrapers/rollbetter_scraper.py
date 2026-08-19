@@ -206,6 +206,15 @@ class RollbetterScraper(BaseScraper):
                                             if (p.swiss_event_points is None or p.swiss_event_points <= 0) and s.get("points", 0) > 0:
                                                 p.swiss_event_points = s["points"]
 
+                                        # UI-only tie-breaker / affiliation data
+                                        # (the LF JSON export does not carry these).
+                                        if s.get("sos") is not None and (p.swiss_tie_breaker_points is None or p.swiss_tie_breaker_points <= 0):
+                                            p.swiss_tie_breaker_points = s["sos"]
+                                        if s.get("mission_points") is not None:
+                                            p.mission_points = s["mission_points"]
+                                        if s.get("affiliation"):
+                                            p.affiliation = s["affiliation"]
+
                             # The LF JSON export already carries full round
                             # data; only fall back to the UI tables when the
                             # JSON had no rounds.
@@ -368,6 +377,11 @@ class RollbetterScraper(BaseScraper):
         Rollbetter's standings tab is called "Ladder"; its columns are
         ``# | Player | List | EP | SOS | MP | W/D/L | Affiliation`` where the
         W/D/L cell uses a slash format (e.g. "3/0/0" = wins/draws/losses).
+
+        The UI is the ONLY source for SOS / MP / Affiliation — the ListFortress
+        JSON export does not carry them. We capture them onto the
+        PlayerStanding as best-effort attributes (transient, non-column):
+        ``sos``, ``mission_points``, ``affiliation``.
         """
         players = []
         try:
@@ -399,6 +413,9 @@ class RollbetterScraper(BaseScraper):
             idx_name = _col_idx("player")
             idx_ep = _col_idx("ep", "event points")
             idx_wdl = _col_idx("w/d/l", "w-l", "wl")
+            idx_sos = _col_idx("sos")
+            idx_mp = _col_idx("mp", "mission points")
+            idx_aff = _col_idx("affiliation", "team", "squadron")
             if idx_name < 0 or idx_wdl < 0:
                 logger.warning(
                     f"Unexpected ladder columns: {header_texts}")
@@ -439,17 +456,33 @@ class RollbetterScraper(BaseScraper):
                     if etxt.isdigit():
                         points = int(etxt)
 
-                players.append(
-                    PlayerStanding(
-                        player_name=name,
-                        swiss_rank=rank,
-                        swiss_wins=wins,
-                        swiss_losses=losses,
-                        swiss_draws=draws,
-                        swiss_event_points=points,
-                        swiss_tie_breaker_points=-1,
-                    )
+                ps = PlayerStanding(
+                    player_name=name,
+                    swiss_rank=rank,
+                    swiss_wins=wins,
+                    swiss_losses=losses,
+                    swiss_draws=draws,
+                    swiss_event_points=points,
+                    swiss_tie_breaker_points=-1,
                 )
+
+                # UI-only fields: SOS, Mission Points, Affiliation.
+                if 0 <= idx_sos < len(cells):
+                    sos_txt = cells[idx_sos].inner_text().strip()
+                    try:
+                        ps.sos = float(sos_txt)
+                    except ValueError:
+                        ps.sos = None
+                if 0 <= idx_mp < len(cells):
+                    mp_txt = cells[idx_mp].inner_text().strip()
+                    if mp_txt.isdigit():
+                        ps.mission_points = int(mp_txt)
+                if 0 <= idx_aff < len(cells):
+                    aff = cells[idx_aff].inner_text().strip()
+                    if aff:
+                        ps.affiliation = aff
+
+                players.append(ps)
         except Exception as exc:
             logger.warning(f"Standings UI player scrape failed: {exc}")
 
@@ -763,6 +796,33 @@ class RollbetterScraper(BaseScraper):
     def _extract_location(self, page) -> dict | None:
         from ..utils.geocoding import resolve_location
         from ..data_structures.location import Location
+
+        # Helper: parse "North America: Eastern" / "Europe: Western" style
+        # strings that Rollbetter shows when only a timezone-region is set.
+        def _continent_from_region(text: str) -> str | None:
+            known = {
+                "north america": "North America",
+                "south america": "South America",
+                "europe": "Europe",
+                "asia": "Asia",
+                "oceania": "Oceania",
+                "australia": "Oceania",
+                "africa": "Africa",
+                "antarctica": "Antarctica",
+            }
+            if not text:
+                return None
+            low = text.lower().strip()
+            # Scan the whole string AND each line: the region may sit on its
+            # own line inside a multi-line metadata block.
+            for chunk in [low, *low.splitlines()]:
+                # "North America: Eastern" -> "North America"
+                region = chunk.split(":")[0].strip()
+                for k, v in known.items():
+                    if region == k or region.startswith(k) or k in region:
+                        return v
+            return None
+
         location_data = None
 
         # Strategy 0: Scoped Metadata Check (Avoids matching "Online" in description)
@@ -790,6 +850,19 @@ class RollbetterScraper(BaseScraper):
                     logger.info(
                         "Found 'In Person' in metadata. Avoiding Virtual override.")
                     # Continue to Strategy 1 (standard location resolution)
+
+                # NEW: the metadata row itself often carries the only location
+                # hint — e.g. "North America: Eastern". If it contains a
+                # recognized continent/region but no city/country, build a
+                # continent-only Location instead of returning None.
+                meta_text = meta_row.inner_text()
+                continent = _continent_from_region(meta_text)
+                if continent and not location_data:
+                    loc = Location.create(
+                        city="Unknown", country="Unknown", continent=continent)
+                    logger.info(
+                        f"Derived continent-only location from metadata: {continent}")
+                    location_data = loc
         except Exception as e:
             logger.debug(f"Metadata scoped check failed: {e}")
 
@@ -817,8 +890,17 @@ class RollbetterScraper(BaseScraper):
         if loc_icon.count() > 0:
             full_text = loc_icon.locator("..").inner_text().strip()
             if full_text:
-                # Use new geocoding logic
-                location_data = resolve_location(full_text)
+                # If the icon's text is just a continent/region (no city),
+                # derive the continent directly instead of hitting Nominatim.
+                cont = _continent_from_region(full_text)
+                if cont:
+                    logger.info(
+                        f"Geo icon shows region '{full_text}' -> continent {cont}")
+                    location_data = Location.create(
+                        city="Unknown", country="Unknown", continent=cont)
+                else:
+                    # Use new geocoding logic
+                    location_data = resolve_location(full_text)
 
         # Strategy 2: Fallback to text blocks
         if not location_data:
@@ -841,6 +923,14 @@ class RollbetterScraper(BaseScraper):
                     continue
 
                 if len(text) < 100:
+                    # A region-only string like "North America: Eastern"
+                    cont = _continent_from_region(text)
+                    if cont:
+                        logger.info(
+                            f"Text block region '{text}' -> continent {cont}")
+                        location_data = Location.create(
+                            city="Unknown", country="Unknown", continent=cont)
+                        break
                     # Try to resolve any short text block that might be a location
                     loc = resolve_location(text)
                     if loc:
@@ -1039,8 +1129,9 @@ class RollbetterScraper(BaseScraper):
 
     def _scrape_standings_ui(self, page) -> dict[str, dict]:
         """
-        Scrape W/L/D and Points from the Ladder (standings) UI tab.
-        Returns a map: normalized_name -> {wins, losses, draws, points, rank}
+        Scrape W/L/D, Points, SOS, MP and Affiliation from the Ladder UI tab.
+        Returns a map: normalized_name -> {wins, losses, draws, points, rank,
+        sos, mission_points, affiliation}
         """
         stats_map = {}
         try:
@@ -1052,6 +1143,9 @@ class RollbetterScraper(BaseScraper):
                     "draws": p.swiss_draws,
                     "points": p.swiss_event_points if p.swiss_event_points is not None else 0,
                     "rank": p.swiss_rank,
+                    "sos": getattr(p, "sos", None),
+                    "mission_points": getattr(p, "mission_points", None),
+                    "affiliation": getattr(p, "affiliation", None),
                 }
         except Exception as e:
             logger.warning(f"UI Standings scrape failed: {e}")
