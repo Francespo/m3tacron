@@ -41,3 +41,22 @@ def test_resolve_country_code():
     assert loc is not None
     assert loc.country == "United Kingdom"
     assert loc.continent == "Europe"
+
+
+def test_lookup_country_name():
+    from backend.utils.geocoding import _lookup_country_name
+    assert _lookup_country_name("Germany") == "Germany"
+    assert _lookup_country_name("Brasil") == "Brazil"
+    assert _lookup_country_name("USA") == "United States"
+    assert _lookup_country_name("gb") == "United Kingdom"
+    assert _lookup_country_name("The Outpost, Sheffield, UK") is None
+
+
+def test_venue_query_no_country_shortcircuit():
+    # A comma-joined venue string must NOT be treated as country-only.
+    loc = resolve_location("Rogue State Games, Mahwah NJ, US")
+    assert loc is not None
+    # Nominatim may or may not resolve; but if it does, city should be Mahwah
+    # or the whole thing falls through to Photon. We assert it never returns
+    # the venue string AS the country.
+    assert "Rogue State Games" not in (loc.country or "")

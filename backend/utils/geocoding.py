@@ -83,6 +83,70 @@ CONTINENT_ALIASES = {
 }
 
 
+# Common country-name aliases that Nominatim / the scrapers may return.
+COUNTRY_ALIASES_BY_NAME = {
+    "brasil": "Brazil",
+    "brazil": "Brazil",
+    "usa": "United States",
+    "united states of america": "United States",
+    "america": "United States",
+    "uk": "United Kingdom",
+    "united kingdom": "United Kingdom",
+    "england": "United Kingdom",
+    "scotland": "United Kingdom",
+    "wales": "United Kingdom",
+    "south korea": "South Korea",
+    "korea": "South Korea",
+    "russia": "Russia",
+    "czechia": "Czech Republic",
+    "turkiye": "Turkey",
+    "viet nam": "Vietnam",
+    "taiwan": "Taiwan",
+    "hong kong": "Hong Kong",
+    "uae": "United Arab Emirates",
+    "saudi arabia": "Saudi Arabia",
+    "the netherlands": "Netherlands",
+    "holland": "Netherlands",
+    "iran": "Iran",
+    "iraq": "Iraq",
+    "syria": "Syria",
+    "congo": "Democratic Republic of the Congo",
+    "czech republic": "Czech Republic",
+    "dominican republic": "Dominican Republic",
+    "north macedonia": "North Macedonia",
+    "bosnia and herzegovina": "Bosnia and Herzegovina",
+    "trinidad and tobago": "Trinidad and Tobago",
+    "new zealand": "New Zealand",
+}
+
+
+def _lookup_country_name(text: str) -> str | None:
+    """Return the canonical country name if ``text`` is (essentially) a
+    country name or code, else None.
+
+    Used to decide whether a query is 'country-only' (and can be resolved
+    offline) vs. a venue/address string that needs a geocoder.
+    """
+    if not text:
+        return None
+    low = text.lower().strip()
+
+    # Direct code (GB, US, DE, ...)
+    if low in COUNTRY_CODE_TO_NAME:
+        return COUNTRY_CODE_TO_NAME[low]
+
+    # Full name or alias
+    if low in COUNTRY_ALIASES_BY_NAME:
+        return COUNTRY_ALIASES_BY_NAME[low]
+
+    # Exact full-name match against the map (normalized)
+    for code, full_name in COUNTRY_CODE_TO_NAME.items():
+        if low == full_name.lower():
+            return full_name
+
+    return None
+
+
 def _continent_from_region(text: str | None) -> str | None:
     """Extract a continent from a partial region string.
 
@@ -177,18 +241,12 @@ def _get_continent_from_country(country: str | None) -> str | None:
         return COUNTRY_TO_CONTINENT[country_lower]
 
     # Common country-name aliases that Nominatim / the scrapers may return.
-    COUNTRY_ALIASES = {
-        "brasil": "br", "brazil": "br", "usa": "us",
-        "united states of america": "us", "america": "us",
-        "uk": "gb", "united kingdom": "gb", "england": "gb",
-        "south korea": "kr", "korea": "kr", "russia": "ru",
-        "czechia": "cz", "turkiye": "tr", "viet nam": "vn",
-        "taiwan": "tw", "hong kong": "hk", "uae": "ae",
-        "saudi arabia": "sa", "the netherlands": "nl", "holland": "nl",
-    }
-    if country_lower in COUNTRY_ALIASES:
-        code = COUNTRY_ALIASES[country_lower]
-        return COUNTRY_TO_CONTINENT.get(code)
+    if country_lower in COUNTRY_ALIASES_BY_NAME:
+        canonical = COUNTRY_ALIASES_BY_NAME[country_lower]
+        for code, full_name in COUNTRY_CODE_TO_NAME.items():
+            if full_name.lower() == canonical.lower():
+                return COUNTRY_TO_CONTINENT.get(code)
+        return None
 
     # Try to find by partial name match
     for code, continent in COUNTRY_TO_CONTINENT.items():
@@ -224,6 +282,53 @@ def _dedupe_candidates(candidates: list[str]) -> list[str]:
         seen.add(key)
         ordered.append(item)
     return ordered
+
+
+def _geocode_photon(candidate: str) -> dict | None:
+    """Geocode via Photon (Komoot) — a free, keyless Nominatim-compatible API.
+
+    Photon is significantly better than Nominatim at resolving *venue*
+    queries ("Rogue State Games, Mahwah NJ, US" -> Mahwah, New Jersey) because
+    it indexes OSM shop/amenity nodes and their addresses. Used as a fallback
+    when Nominatim returns no city for a venue+city query.
+
+    Returns a dict {city, country, continent} or None.
+    """
+    try:
+        url = "https://photon.komoot.io/api/?"
+        params = {"q": candidate, "limit": 1, "lang": "en"}
+        # Photon rejects requests without a User-Agent (403).
+        headers = {"User-Agent": USER_AGENT}
+        response = httpx.get(url, params=params, headers=headers, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+        features = data.get("features") or []
+        if not features:
+            logger.info(f"Photon: No results for '{candidate}'")
+            return None
+
+        props = features[0].get("properties", {})
+        city = (props.get("city") or props.get("town") or
+                props.get("village") or props.get("county") or
+                props.get("state"))
+        country = props.get("country")
+        country_code = (props.get("countrycode") or "").lower()
+
+        if not country and not city:
+            return None
+
+        continent = _get_continent_from_country(country_code)
+        if not continent and country:
+            continent = _get_continent_from_country(country)
+
+        return {
+            "city": city or "Unknown",
+            "country": country or "Unknown",
+            "continent": continent or "Unknown",
+        }
+    except Exception as e:
+        logger.debug(f"Photon geocode error for '{candidate}': {e}")
+        return None
 
 
 def resolve_location(query: str) -> Location | None:
@@ -326,11 +431,19 @@ def resolve_location(query: str) -> Location | None:
 
         # Country-name-only (full or partial, e.g. "Germany", "United States",
         # "Brasil" → "Brazil") — derive continent without an API call.
+        # Guard: only when the candidate is *essentially* a country name —
+        # a comma-joined venue string ("The Outpost, Sheffield, UK") must not
+        # short-circuit here, and must not contain digits.
         country_continent = _get_continent_from_country(candidate_lower)
-        if country_continent and len(candidate_lower) > 3 and not any(
-            ch.isdigit() for ch in candidate_lower
+        country_lookup = _lookup_country_name(candidate_lower)
+        if (
+            country_continent
+            and len(candidate_lower) > 3
+            and not any(ch.isdigit() for ch in candidate_lower)
+            and "," not in candidate_lower
+            and country_lookup is not None
         ):
-            country_name = candidate.strip()
+            country_name = country_lookup
             loc_dict = {"city": "Unknown",
                         "country": country_name, "continent": country_continent}
             _GEO_CACHE[candidate] = loc_dict
@@ -375,6 +488,20 @@ def resolve_location(query: str) -> Location | None:
 
             if not data:
                 logger.info(f"Nominatim: No results for '{candidate}'")
+                # Nominatim failed on a venue+city query → fall back to
+                # Photon, which indexes shops/venues and their addresses.
+                photon_loc = _geocode_photon(candidate)
+                if photon_loc:
+                    _GEO_CACHE[candidate] = photon_loc
+                    _GEO_CACHE[query] = photon_loc
+                    _save_cache(_GEO_CACHE)
+                    logger.info(
+                        f"Photon fallback resolved '{candidate}' -> {photon_loc}")
+                    return Location.create(
+                        city=photon_loc["city"],
+                        country=photon_loc["country"],
+                        continent=photon_loc["continent"],
+                    )
                 continue
 
             result = data[0]
@@ -414,7 +541,51 @@ def resolve_location(query: str) -> Location | None:
                 if not city:
                     logger.warning(
                         f"Nominatim returned result but no City/Country for '{candidate}'")
+                    # No country AND no city — the venue failed to resolve to a
+                    # place; try Photon before giving up on this candidate.
+                    photon_loc = _geocode_photon(candidate)
+                    if photon_loc:
+                        _GEO_CACHE[candidate] = photon_loc
+                        _GEO_CACHE[query] = photon_loc
+                        _save_cache(_GEO_CACHE)
+                        logger.info(
+                            f"Photon fallback resolved '{candidate}' -> {photon_loc}")
+                        return Location.create(
+                            city=photon_loc["city"],
+                            country=photon_loc["country"],
+                            continent=photon_loc["continent"],
+                        )
                     continue
+
+            # NEW: Nominatim found a result but the city is missing/obscure
+            # while the venue is named in the query — Photon's venue index
+            # often recovers the real city ("Rogue State Games" -> Mahwah).
+            # Only fall back when the query actually contains a venue-like
+            # token (a comma-separated first part) to avoid double lookups
+            # on plain city queries. Also treat "city == state" as a
+            # no-real-city signal (Nominatim fell back to state/county).
+            state = address.get("state") or ""
+            county = address.get("county") or ""
+            city_is_just_region = (
+                city is not None
+                and state and city.lower() == state.lower()
+            ) or (
+                city is not None
+                and county and city.lower() == county.lower()
+            )
+            if (not city or city_is_just_region) and "," in candidate:
+                photon_loc = _geocode_photon(candidate)
+                if photon_loc and photon_loc["city"] != "Unknown":
+                    _GEO_CACHE[candidate] = photon_loc
+                    _GEO_CACHE[query] = photon_loc
+                    _save_cache(_GEO_CACHE)
+                    logger.info(
+                        f"Photon fallback resolved venue '{candidate}' -> {photon_loc}")
+                    return Location.create(
+                        city=photon_loc["city"],
+                        country=photon_loc["country"],
+                        continent=photon_loc["continent"],
+                    )
 
             loc_dict = {
                 "city": city or "Unknown",
