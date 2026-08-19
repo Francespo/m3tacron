@@ -93,23 +93,31 @@ jobs:
           rm -f /tmp/m3tacron_deploy_key
 
       - name: Start database tunnel
+        env:
+          RAW: ${{ secrets.PROD_DATABASE_URL }}
         run: |
           ssh -f -N -L 5432:localhost:3000 \
             -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes \
             audit-bot@84.8.253.2
           # Wait for the tunnel using psycopg2 (installed via requirements) —
           # avoids the apt-get postgresql-client install that stalls runners.
+          # Auth: use the DB password from PROD_DATABASE_URL (same instance).
           python - <<'PY'
-          import time, psycopg2
-          for i in range(20):
+          import os, time
+          from urllib.parse import urlparse
+          import psycopg2
+          raw = os.environ.get("RAW", "")
+          passwd = urlparse(raw).password if "://" in raw else raw
+          for i in range(25):
               try:
-                  psycopg2.connect(host="localhost", port=5432, user="postgres", connect_timeout=2).close()
+                  psycopg2.connect(host="localhost", port=5432, user="postgres",
+                                   password=passwd, connect_timeout=3).close()
                   print("Tunnel ready.")
                   break
-              except Exception:
+              except Exception as exc:
                   time.sleep(1)
-          else:
-              raise SystemExit("ERROR: DB tunnel failed")
+                  if i == 24:
+                      raise SystemExit(f"ERROR: DB tunnel failed: {exc}")
           PY
 
       - name: Resolve DATABASE_URL
