@@ -160,13 +160,19 @@ jobs:
           #    (headless shell + X libs installed) and reaches postgres by
           #    docker network name — this is the only environment on the
           #    server that can both reach Longshanks AND run a browser.
-          tar -C backend -czf - . \
-            | ssh -o StrictHostKeyChecking=no audit-bot@84.8.253.2 \
-              "docker exec -i backend-d1237bghfe3rxgm7ahj00z8l-212035540797 sh -c 'cat > /tmp/backend.tgz && cd /app && rm -rf backend.new && mkdir -p backend.new && tar -xzf /tmp/backend.tgz -C backend.new && mv backend backend.old 2>/dev/null; mv backend.new backend && rm -f /tmp/backend.tgz'"
-          scp -o StrictHostKeyChecking=no requirements.txt \
-            audit-bot@84.8.253.2:/tmp/requirements.txt
+          #    Flow: tar locally -> scp to server /tmp -> docker cp into
+          #    container -> extract over /app/backend.
+          tar -C backend -czf /tmp/backend.tgz .
+          scp -o StrictHostKeyChecking=no /tmp/backend.tgz \
+            audit-bot@84.8.253.2:/tmp/backend.tgz
           ssh -o StrictHostKeyChecking=no audit-bot@84.8.253.2 \
-            "docker cp /tmp/requirements.txt backend-d1237bghfe3rxgm7ahj00z8l-212035540797:/tmp/requirements.txt && docker exec backend-d1237bghfe3rxgm7ahj00z8l-212035540797 sh -c 'pip install --quiet -r /tmp/requirements.txt 2>/dev/null || true'"
+            "docker cp /tmp/backend.tgz backend-d1237bghfe3rxgm7ahj00z8l-212035540797:/tmp/backend.tgz && \
+             docker exec backend-d1237bghfe3rxgm7ahj00z8l-212035540797 sh -c 'cd /app && \
+               rm -rf backend.new && mkdir -p backend.new && \
+               tar -xzf /tmp/backend.tgz -C backend.new && \
+               mv backend backend.old 2>/dev/null; mv backend.new backend; \
+               rm -f /tmp/backend.tgz' && \
+             rm -f /tmp/backend.tgz"
 
           # 2. Run the migration inside the container against staging (or prod).
           EXTRA=""
