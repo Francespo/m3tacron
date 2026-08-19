@@ -52,9 +52,30 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
+      # Cache the Playwright browser so repeat runs don't cold-download
+      # chromium (~180MB) from the CDN — which is what was stalling runs.
+      - name: Cache Playwright browsers
+        if: inputs.skip_reroaster != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-chromium-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
       - name: Install Playwright browsers
+        if: inputs.skip_reroaster != 'true'
         run: |
-          playwright install chromium --with-deps
+          set -e
+          # Retry: the CDN download occasionally stalls; give it 3 attempts.
+          for i in 1 2 3; do
+            echo "playwright install attempt $i"
+            if timeout 300 playwright install chromium --with-deps; then
+              break
+            fi
+            echo "attempt $i failed; retrying..."
+            sleep 5
+          done
+          # Verify the browser actually got installed.
+          timeout 60 python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); b=p.chromium.launch(headless=True); b.close(); p.stop(); print('chromium OK')"
 
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
