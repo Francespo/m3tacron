@@ -91,6 +91,30 @@ def _is_longshanks(url: str) -> bool:
     return "longshanks.org" in url
 
 
+def _clean_team_named_members(session: Session, tid: int) -> int:
+    """Remove is_team_member rows whose player_name equals a team name in the
+    same tournament (stale output from earlier buggy scraper versions)."""
+    bad_rows = session.execute(text("""
+        SELECT ps.id FROM playerstanding ps
+        WHERE ps.tournament_id = :tid AND ps.is_team_member = true
+          AND EXISTS (SELECT 1 FROM teamstanding ts
+                      WHERE ts.tournament_id = ps.tournament_id
+                        AND lower(ts.team_name) = lower(ps.player_name))
+    """), {"tid": tid}).fetchall()
+    if not bad_rows:
+        return 0
+    bad_ids = [r[0] for r in bad_rows]
+    session.execute(text(
+        "DELETE FROM team_member WHERE playerstanding_id = ANY(:ids)"
+    ), {"ids": bad_ids})
+    session.execute(text(
+        "DELETE FROM playerstanding WHERE id = ANY(:ids)"
+    ), {"ids": bad_ids})
+    session.commit()
+    log.info(f"[{tid}] Removed {len(bad_ids)} stale team-named member rows.")
+    return len(bad_ids)
+
+
 def _re_roster_event(session: Session, tid: int, url: str) -> dict:
     """Re-scrape a Longshanks team event's individual ranking tab and insert
     member PlayerStanding rows + team_member edges. Returns stats."""
@@ -108,6 +132,20 @@ def _re_roster_event(session: Session, tid: int, url: str) -> dict:
     members = scraper.get_participants(event_id)
     if not members:
         return {"error": "no members scraped"}
+
+    # Guard: only re-roster events the scraper ACTUALLY detects as team
+    # events (has a team tab). Some tournaments have teamstanding/teammatch
+    # rows in the DB but render as SOLO events on the platform (leagues, etc.)
+    # — re-rostering those would create fake team-named members. For them we
+    # clear is_team_event and leave the (already correct) individual data.
+    if not scraper.is_team_event:
+        # Clean any stale team-named member rows first.
+        _clean_team_named_members(session, tid)
+        session.execute(text(
+            "UPDATE tournament SET is_team_event = false WHERE id = :tid"
+        ), {"tid": tid})
+        session.commit()
+        return {"skipped": "not a real team event on the platform; is_team_event cleared"}
 
     # Build team name -> teamstanding id (identity rows exist from old scrape)
     team_rows = session.execute(text(
@@ -137,6 +175,11 @@ def _re_roster_event(session: Session, tid: int, url: str) -> dict:
     ), {"tid": tid}).fetchall())
     existing_members = {r[0] for r in existing_members}
 
+    # Self-heal: remove any WRONG team-named member rows (is_team_member rows
+    # whose name == a team name — produced by earlier buggy scraper versions)
+    # so they don't linger as fake members.
+    _clean_team_named_members(session, tid)
+
     for i, member in enumerate(members):
         mkey = member.player_name.lower().strip()
         if mkey in existing_members:
@@ -150,7 +193,16 @@ def _re_roster_event(session: Session, tid: int, url: str) -> dict:
             member.team_id = tsid
         session.add(member)
         inserted += 1
-        if tsid:
+    # Flush ALL member rows BEFORE inserting team_member edges so the
+    # playerstanding_id FK exists (raw SQL insert runs outside the ORM flush).
+    session.flush()
+    for member in members:
+        mkey = member.player_name.lower().strip()
+        if mkey in existing_members:
+            continue
+        tname = getattr(member, "team_name", None)
+        tsid = team_id_by_name.get((tname or "").lower().strip()) if tname else None
+        if tsid and member.id is not None:
             session.execute(text(
                 "INSERT INTO team_member (teamstanding_id, playerstanding_id, list_id, list_json) "
                 "VALUES (:tsid, :pid, :lid, CAST(:lj AS jsonb)) "
@@ -212,12 +264,41 @@ def migrate(only_event_id: int | None = None, skip_reroaster: bool = False) -> N
             if stats.get("error"):
                 log.warning(f"[{tid}] Re-roster failed: {stats['error']}")
                 continue
+            if "skipped" in stats:
+                log.info(f"[{tid}] {stats['skipped']}")
+                continue
             log.info(f"[{tid}] Re-roster: {stats}")
             _re_link_matches(session, tid)
             # Team-named playerstanding rows are kept as team records
             # (is_team_member=false) — the re-roster links them to teamstanding.
             session.execute(text("UPDATE tournament SET is_team_event = true WHERE id = :tid"), {"tid": tid})
             session.commit()
+
+    # Final safety net: no is_team_member row may ever share its name with a
+    # team in the same tournament (stale buggy output). Whatever the scraper's
+    # team-event detection did, clean these up across the whole DB.
+    if not skip_reroaster:
+        log.info("Final cleanup: removing any team-named member rows...")
+        with Session(engine) as clean_session:
+            bad = clean_session.execute(text("""
+                SELECT ps.id FROM playerstanding ps
+                WHERE ps.is_team_member = true
+                  AND EXISTS (SELECT 1 FROM teamstanding ts
+                              WHERE ts.tournament_id = ps.tournament_id
+                                AND lower(ts.team_name) = lower(ps.player_name))
+            """)).fetchall()
+            if bad:
+                bad_ids = [r[0] for r in bad]
+                clean_session.execute(text(
+                    "DELETE FROM team_member WHERE playerstanding_id = ANY(:ids)"
+                ), {"ids": bad_ids})
+                clean_session.execute(text(
+                    "DELETE FROM playerstanding WHERE id = ANY(:ids)"
+                ), {"ids": bad_ids})
+                clean_session.commit()
+                log.info(f"Final cleanup removed {len(bad_ids)} team-named member rows.")
+            else:
+                log.info("Final cleanup: none found.")
 
     log.info("Migration complete!")
 
