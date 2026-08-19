@@ -175,15 +175,28 @@ jobs:
              rm -f /tmp/backend.tgz"
 
           # 2. Run the migration inside the container against staging (or prod).
+          #    Use nohup + logfile + poll so a dropped SSH session (exit 255)
+          #    does NOT kill the long-running migration. The migration is
+          #    idempotent, so a re-dispatch resumes where it left off.
           EXTRA=""
           if [ -n "${{ inputs.event_id }}" ]; then EXTRA="--event ${{ inputs.event_id }}"; fi
           DBENV="${{ inputs.environment }}"
           if [ "$DBENV" = "prod" ]; then DBNAME="postgres"; else DBNAME="m3tacron_staging"; fi
-          ssh -o StrictHostKeyChecking=no audit-bot@84.8.253.2 \
-            "docker exec -e DATABASE_URL='postgresql://postgres:${PASS}@rdvq2p6xwxho16pbcyd40w0d:5432/${DBNAME}' \
+          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=6 \
+            audit-bot@84.8.253.2 \
+            "docker exec -d -e DATABASE_URL='postgresql://postgres:${PASS}@rdvq2p6xwxho16pbcyd40w0d:5432/${DBNAME}' \
               -e PYTHONPATH=/app \
               backend-d1237bghfe3rxgm7ahj00z8l-212035540797 \
-              python -m backend.scripts.migrate_team_events ${EXTRA}"
+              sh -c 'nohup python -m backend.scripts.migrate_team_events ${EXTRA} > /tmp/migrate_team.log 2>&1 &'"
+          # Poll the container log until the migration finishes or a timeout.
+          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=6 \
+            audit-bot@84.8.253.2 \
+            "for i in \$(seq 1 240); do \
+               if ! docker exec backend-d1237bghfe3rxgm7ahj00z8l-212035540797 sh -c 'pgrep -f migrate_team_events >/dev/null'; then break; fi; \
+               sleep 30; \
+             done; \
+             echo '=== migration log ==='; \
+             docker exec backend-d1237bghfe3rxgm7ahj00z8l-212035540797 sh -c 'tail -60 /tmp/migrate_team.log 2>/dev/null' || echo '(no log)'"
 
       - name: Legacy Pandorum format backfill
         env:
