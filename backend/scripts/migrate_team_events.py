@@ -274,6 +274,32 @@ def migrate(only_event_id: int | None = None, skip_reroaster: bool = False) -> N
             session.execute(text("UPDATE tournament SET is_team_event = true WHERE id = :tid"), {"tid": tid})
             session.commit()
 
+    # Final safety net: no is_team_member row may ever share its name with a
+    # team in the same tournament (stale buggy output). Whatever the scraper's
+    # team-event detection did, clean these up across the whole DB.
+    if not skip_reroaster:
+        log.info("Final cleanup: removing any team-named member rows...")
+        with Session(engine) as clean_session:
+            bad = clean_session.execute(text("""
+                SELECT ps.id FROM playerstanding ps
+                WHERE ps.is_team_member = true
+                  AND EXISTS (SELECT 1 FROM teamstanding ts
+                              WHERE ts.tournament_id = ps.tournament_id
+                                AND lower(ts.team_name) = lower(ps.player_name))
+            """)).fetchall()
+            if bad:
+                bad_ids = [r[0] for r in bad]
+                clean_session.execute(text(
+                    "DELETE FROM team_member WHERE playerstanding_id = ANY(:ids)"
+                ), {"ids": bad_ids})
+                clean_session.execute(text(
+                    "DELETE FROM playerstanding WHERE id = ANY(:ids)"
+                ), {"ids": bad_ids})
+                clean_session.commit()
+                log.info(f"Final cleanup removed {len(bad_ids)} team-named member rows.")
+            else:
+                log.info("Final cleanup: none found.")
+
     log.info("Migration complete!")
 
 
