@@ -147,7 +147,7 @@ class LongshanksScraper(BaseScraper):
         url = f"{self.base_url}/event/{tournament_id}/"
 
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
             page = browser.new_page()
             try:
                 self._goto_with_retry(page, url, wait_until="networkidle", timeout=30000)
@@ -317,7 +317,7 @@ class LongshanksScraper(BaseScraper):
         url = f"{self.base_url}/event/{tournament_id}/?tab=ranking"
 
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
             page = browser.new_page()
             try:
                 logger.info(f"Scraping participants from {url}")
@@ -1027,7 +1027,7 @@ class LongshanksScraper(BaseScraper):
         url = f"{self.base_url}/event/{tournament_id}/?tab=games"
 
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
             page = browser.new_page()
             try:
                 # Check for Legacy format first
@@ -1404,7 +1404,7 @@ class LongshanksScraper(BaseScraper):
         logger.info(f"Scraping Longshanks history: {history_url}")
 
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
             page = browser.new_page()
             try:
                 self._goto_with_retry(page, history_url, timeout=30000)

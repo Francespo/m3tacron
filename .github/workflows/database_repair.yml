@@ -65,17 +65,20 @@ jobs:
         if: inputs.skip_reroaster != 'true'
         run: |
           set -e
-          # Retry: the CDN download occasionally stalls; give it 3 attempts.
+          # Ubuntu-latest already ships the chromium system libraries, so skip
+          # --with-deps (its apt phase is what kept stalling). Install the
+          # headless shell only — it's ~115MB vs ~300MB for full chromium and
+          # is what headless=True uses.
           for i in 1 2 3; do
             echo "playwright install attempt $i"
-            if timeout 300 playwright install chromium --with-deps; then
+            if timeout 240 playwright install chromium-headless-shell; then
               break
             fi
             echo "attempt $i failed; retrying..."
             sleep 5
           done
-          # Verify the browser actually got installed.
-          timeout 60 python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); b=p.chromium.launch(headless=True); b.close(); p.stop(); print('chromium OK')"
+          # Verify the browser actually got installed and can launch.
+          timeout 60 python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); b=p.chromium.launch(headless=True, args=['--no-sandbox']); b.close(); p.stop(); print('chromium OK')"
 
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
