@@ -9,6 +9,7 @@ export const FORMAT_LABELS: Record<string, string> = {
     ffg: 'FFG',
     legacy_x2po: 'X2PO',
     legacy_xlc: 'XLC',
+    legacy_pandorum: 'PAND',
     other: 'UNK'
 };
 
@@ -18,6 +19,7 @@ export const FORMAT_FULL_LABELS: Record<string, string> = {
     ffg: 'FFG',
     legacy_x2po: 'Legacy X2PO',
     legacy_xlc: 'Legacy XLC',
+    legacy_pandorum: 'Legacy Pandorum',
     other: 'Unknown'
 };
 
@@ -30,6 +32,7 @@ export const FORMAT_COLORS: Record<string, string> = {
     ffg: '#a855f7',         // Purple 500
     legacy_x2po: '#7c3aed', // Violet 600
     legacy_xlc: '#6d28d9',  // Violet 700
+    legacy_pandorum: '#9333ea', // Violet 500 (Pandorum, distinct hue)
 
     // Low importance/Non-stats
     other: '#475569'         // Slate 600 (Gisio/Dead)
@@ -49,6 +52,6 @@ export function getFormatColor(formatXws: string): string {
 
 export function getMacroFormat(formatXws: string): string {
     if (['amg', 'xwa'].includes(formatXws)) return '2.5';
-    if (['ffg', 'legacy_x2po', 'legacy_xlc'].includes(formatXws)) return '2.0';
+    if (['ffg', 'legacy_x2po', 'legacy_xlc', 'legacy_pandorum'].includes(formatXws)) return '2.0';
     return '';
 }
