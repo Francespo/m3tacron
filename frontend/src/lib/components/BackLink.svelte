@@ -45,7 +45,7 @@
     {href}
     aria-label={ariaLabel}
     onclick={handleClick}
-    class="inline-flex items-center justify-center w-9 h-9 rounded-md text-secondary hover:text-primary hover:bg-[#ffffff08] transition-colors border border-border-dark"
+    class="inline-flex items-center justify-center w-9 h-9 rounded-md text-secondary hover:text-primary hover:bg-[#ffffff08] active:bg-[#ffffff14] transition-colors border border-border-dark"
 >
     <svg
         xmlns="http://www.w3.org/2000/svg"

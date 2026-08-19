@@ -2,7 +2,9 @@
   "worktree": {
     "setup": "bash scripts/local_dev/worktree_setup.sh",
     "teardown": "bash scripts/local_dev/up.sh --stop 2>/dev/null || true\nrm -rf .venv frontend/node_modules .pytest_cache local-data",
-    "servicePorts": { "range": "9000-9100" }
+    "servicePorts": {
+      "range": "9000-9100"
+    }
   },
   "scripts": {
     "launch": {
@@ -13,8 +15,16 @@
     "seed": {
       "command": "bash scripts/local_dev/seed.sh"
     },
+    "reset": {
+      "command": "bash scripts/local_dev/reset.sh"
+    },
     "status": {
       "command": "bash scripts/local_dev/status.sh"
+    }
+  },
+  "metadataGeneration": {
+    "commitMessage": {
+      "instructions": "Use Conventional Commits with a scope"
     }
   }
 }

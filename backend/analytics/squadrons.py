@@ -11,7 +11,7 @@ from sqlalchemy import text
 from ..database import engine
 from ..data_structures.data_source import DataSource
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
-from .filter_helpers import format_filter_clause, ship_list_filter_clause
+from .filter_helpers import format_filter_clause, ship_list_filter_clause, huge_ships_exclusion_clause
 
 
 def aggregate_squadron_stats(
@@ -48,6 +48,21 @@ def aggregate_squadron_stats(
         where_clauses.append("t.player_count <= :pc_max")
         params["pc_max"] = int(filters["player_count_max"])
 
+    # Location filters — tournament.location is stored as JSON; access via
+    # JSONB ->> operator on the text representation of each sub-field.
+    filter_continents = filters.get("continent")
+    if filter_continents:
+        where_clauses.append("t.location->>'continent' = ANY(:continents)")
+        params["continents"] = list(filter_continents)
+    filter_countries = filters.get("country")
+    if filter_countries:
+        where_clauses.append("t.location->>'country' = ANY(:countries)")
+        params["countries"] = list(filter_countries)
+    filter_cities = filters.get("city")
+    if filter_cities:
+        where_clauses.append("t.location->>'city' = ANY(:cities)")
+        params["cities"] = list(filter_cities)
+
     fmt_clause = format_filter_clause(filters.get("allowed_formats"), params, leading_and=False)
     if fmt_clause:
         where_clauses.append(fmt_clause)
@@ -73,6 +88,12 @@ def aggregate_squadron_stats(
     )
     if ship_clause:
         where_clauses.append(ship_clause)
+
+    where_clauses.append("(NOT t.is_team_event OR ps.is_team_member)")
+    if not filters.get("epic", False):
+        huge_clause = huge_ships_exclusion_clause(False, data_source, params)
+        if huge_clause:
+            where_clauses.append(huge_clause)
 
     where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 

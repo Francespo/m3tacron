@@ -10503,5 +10503,45 @@
     "city": "Montana",
     "country": "United States",
     "continent": "North America"
+  },
+  "Brazil": {
+    "city": "Unknown",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Minas Gerais,\u00a0Brazil": {
+    "city": "Minas Gerais",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Savage, Maryland, US": {
+    "city": "Maryland",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Bras\u00edlia, Distrito Federal,\u00a0Brazil": {
+    "city": "Bras\u00edlia",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Curitiba, Paran\u00e1,\u00a0Brazil": {
+    "city": "Curitiba",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Belgium": {
+    "city": "Unknown",
+    "country": "Belgium",
+    "continent": "Europe"
+  },
+  "Mechelen, Brussels,\u00a0Belgium": {
+    "city": "Unknown",
+    "country": "Belgium",
+    "continent": "Europe"
+  },
+  "Minas Gerais, Brazil": {
+    "city": "Minas Gerais",
+    "country": "Brazil",
+    "continent": "South America"
   }
 }

@@ -72,3 +72,4 @@ playwright-images/
 verify*.png
 commit_message.json
 .opencode/
+.vite/

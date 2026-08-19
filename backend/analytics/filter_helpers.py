@@ -76,3 +76,50 @@ def format_filter_clause(
         prefix = " AND " if leading_and else ""
         return f"{prefix}{table_alias}.format = ANY(:formats)"
     return ""
+
+
+def epic_ships_exclusion_clause(
+    include_epic: bool,
+    source,
+    params: dict,
+    column: str = "l.ship_list",
+) -> str:
+    """
+    Build a WHERE-clause fragment to exclude lists/squadrons containing Epic-only
+    ships (ships that have no standard-legal pilots) when include_epic is False.
+    """
+    if include_epic:
+        return ""
+
+    from ..utils.xwing_data.ships import load_all_ships
+    from ..utils.xwing_data.pilots import load_all_pilots
+    ships = load_all_ships(source)
+    pilots = load_all_pilots(source)
+
+    epic_ships = []
+    for xws in ships:
+        ship_pilots = [p for p in pilots.values() if p.get("ship_xws") == xws]
+        if not any(p.get("valid_in_standard") for p in ship_pilots):
+            epic_ships.append(xws)
+
+    if not epic_ships:
+        return ""
+
+    parts = []
+    for i, s in enumerate(epic_ships):
+        key = f"epic_ship_{i}"
+        parts.append(
+            f"({column} = :{key} "
+            f"OR {column} LIKE :{key}_start "
+            f"OR {column} LIKE :{key}_mid "
+            f"OR {column} LIKE :{key}_end)"
+        )
+        params[key] = s
+        params[f"{key}_start"] = f"{s},%"
+        params[f"{key}_mid"] = f"%,{s},%"
+        params[f"{key}_end"] = f"%,{s}"
+
+    return "NOT (" + " OR ".join(parts) + ")"
+
+
+huge_ships_exclusion_clause = epic_ships_exclusion_clause

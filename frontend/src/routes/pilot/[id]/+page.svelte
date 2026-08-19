@@ -85,8 +85,8 @@
             return includeEpic ? ["xwa", "xwa_epic"] : ["xwa"];
         }
         return includeEpic
-            ? ["legacy_x2po", "legacy_xlc", "ffg", "legacy_epic"]
-            : ["legacy_x2po", "legacy_xlc", "ffg"];
+            ? ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum", "legacy_epic"]
+            : ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum"];
     }
 
     $effect(() => {
@@ -94,7 +94,13 @@
         if (data.ds === "legacy" || data.ds === "xwa") {
             filters.dataSource = data.ds;
         }
-        filters.includeEpic = !!data.includeEpic;
+        // Only sync the epic flag from the URL when the URL explicitly
+        // carries it. A plain navigation from another page (e.g. a card
+        // link) drops the query string, and the store must keep its value
+        // so the toggle stays consistent across routes.
+        if (data.hasEpicParam) {
+            filters.includeEpic = !!data.includeEpic;
+        }
         initialized = true;
     });
 
@@ -103,7 +109,7 @@
 
         const params = new URLSearchParams();
         params.set("data_source", filters.dataSource);
-        if (filters.includeEpic) params.set("include_epic", "true");
+        if (filters.includeEpic) params.set("epic", "true");
         for (const f of getDefaultFormats(filters.dataSource, filters.includeEpic)) {
             params.append("formats", f);
         }

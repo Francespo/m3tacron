@@ -11,6 +11,7 @@
     import CardHoverLink from "$lib/components/CardHoverLink.svelte";
     import SortBy from "$lib/components/SortBy.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
+    import { invalidateAll } from "$app/navigation";
     import type { PageData } from "./$types";
 
     export let data: PageData;
@@ -27,7 +28,19 @@
     // another page has loaded it.
     xwingData.setSource(filters.dataSource as any);
 
-    $: stats = data.stats;
+    // The loader streams the stats in via `statsPromise` (non-blocking
+    // navigation). Resolve it into reactive state; the {#await} in the
+    // template shows a skeleton while it loads. `stats` stays null until
+    // resolved so the derived values below have safe defaults.
+    let stats: any = null;
+    data.statsPromise.then((s: any) => {
+        stats = s;
+    });
+
+    function retry() {
+        invalidateAll();
+    }
+
     $: isXwa = filters.dataSource === "xwa";
     $: win_rate = stats
         ? (stats.games > 0 ? ((stats.wins / stats.games) * 100).toFixed(1) : "0.0")
@@ -117,15 +130,72 @@
          mobile nav drawer; removed from this page header. -->
     <BackLink href="/lists" ariaLabel="Back to Lists" />
 
-    {#if !stats}
+    {#await data.statsPromise}
+        <div class="text-center py-12">
+            <p class="text-secondary font-mono text-sm animate-pulse mb-6">
+                Loading…
+            </p>
+            <!-- Loading Skeleton (matches detail layout: header card with
+                 metrics, then pilot/composition rows) -->
+            <div class="space-y-6 text-left">
+                <div
+                    class="bg-terminal-panel border border-border-dark rounded-lg p-6 md:p-8 space-y-4"
+                >
+                    <div
+                        class="animate-pulse bg-[#ffffff06] rounded h-5 w-28"
+                    ></div>
+                    <div
+                        class="animate-pulse bg-[#ffffff06] rounded h-10 w-3/4 max-w-md"
+                    ></div>
+                    <div class="flex gap-2 flex-wrap">
+                        {#each Array(4) as _}
+                            <div
+                                class="animate-pulse bg-[#ffffff06] rounded-md h-6 w-16"
+                            ></div>
+                        {/each}
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    {#each Array(3) as _}
+                        <div
+                            class="bg-terminal-panel border border-border-dark rounded-lg p-5 flex gap-4"
+                        >
+                            <div
+                                class="animate-pulse bg-[#ffffff06] rounded-lg w-24 h-24 shrink-0 hidden md:block"
+                            ></div>
+                            <div class="flex-1 space-y-2">
+                                <div
+                                    class="animate-pulse bg-[#ffffff06] rounded h-5 w-1/3"
+                                ></div>
+                                <div
+                                    class="animate-pulse bg-[#ffffff06] rounded h-3 w-1/2"
+                                ></div>
+                                <div
+                                    class="animate-pulse bg-[#ffffff06] rounded h-12 w-full mt-2"
+                                ></div>
+                            </div>
+                        </div>
+                    {/each}
+                </div>
+            </div>
+        </div>
+    {:then _resolved}
+        {#if !stats}
         <div class="text-center py-12">
             <h2 class="text-xl font-sans font-bold text-primary mb-2">
                 List Not Found
             </h2>
-            <p class="text-secondary font-mono text-sm">
+            <p class="text-secondary font-mono text-sm mb-6">
                 We couldn't find data for this list (or it has no recorded games
                 in the current filters).
             </p>
+            <button
+                type="button"
+                onclick={retry}
+                class="px-4 py-2 border border-border-dark rounded-md text-sm font-sans text-primary hover:bg-[rgba(255,255,255,0.05)] active:bg-[rgba(255,255,255,0.1)] transition-colors"
+            >
+                Try again
+            </button>
         </div>
     {:else}
         <!-- Header Section -->
@@ -484,5 +554,6 @@
                 {/each}
             </div>
         </div>
-    {/if}
+        {/if}
+    {/await}
 </div>

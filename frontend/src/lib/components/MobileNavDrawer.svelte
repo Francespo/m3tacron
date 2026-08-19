@@ -6,8 +6,8 @@
 	 */
 	import { page } from "$app/state";
 	import { filters } from "$lib/stores/filters.svelte";
+	import { setDataSource, setIncludeEpic } from "$lib/sync/contentSource";
 	import { NAV_LINKS } from "./Sidebar.svelte";
-	import Toggle from "./Toggle.svelte";
 
 	let { open = $bindable(false) }: { open: boolean } = $props();
 
@@ -125,37 +125,55 @@
 			<div class="flex items-center gap-1 mt-1.5">
 				<button
 					type="button"
-					onclick={() => (filters.dataSource = "xwa")}
+					onclick={() => setDataSource("xwa")}
 					aria-pressed={filters.dataSource === "xwa"}
 					class="px-2 py-0.5 text-xs font-mono rounded transition-colors {filters.dataSource ===
 					'xwa'
-						? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50'
-						: 'bg-transparent text-secondary border border-border-dark hover:text-primary'}"
+						? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50 active:bg-cyan-500/30'
+						: 'bg-transparent text-secondary border border-border-dark hover:text-primary active:bg-[#ffffff14]'}"
 				>
 					XWA
 				</button>
 				<button
 					type="button"
-					onclick={() => (filters.dataSource = "legacy")}
+					onclick={() => setDataSource("legacy")}
 					aria-pressed={filters.dataSource === "legacy"}
 					class="px-2 py-0.5 text-xs font-mono rounded transition-colors {filters.dataSource ===
 					'legacy'
-						? 'bg-purple-500/20 text-purple-400 border border-purple-500/50'
-						: 'bg-transparent text-secondary border border-border-dark hover:text-primary'}"
+						? 'bg-purple-500/20 text-purple-400 border border-purple-500/50 active:bg-purple-500/30'
+						: 'bg-transparent text-secondary border border-border-dark hover:text-primary active:bg-[#ffffff14]'}"
 				>
 					LEGACY
 				</button>
-				<label
-					class="flex items-center gap-1 ml-1 text-xs text-secondary font-mono cursor-pointer hover:text-primary"
+				<button
+					type="button"
+					onclick={() => setIncludeEpic(!filters.includeEpic)}
+					aria-pressed={filters.includeEpic}
+					class="flex items-center gap-1 ml-1 text-xs font-mono cursor-pointer transition-colors {filters.includeEpic ? 'text-amber-400' : 'text-secondary hover:text-primary'}"
 				>
-					<Toggle
-						size="xs"
-						ariaLabel="Include epic content"
-						checked={filters.includeEpic}
-						onchange={(e) => (filters.includeEpic = (e.currentTarget as HTMLInputElement).checked)}
-					/>
+					<span
+						class="inline-flex items-center justify-center rounded-[2px] border bg-black w-3 h-3 transition-[background-color,border-color,transform]
+							{filters.includeEpic ? 'border-primary' : 'border-border-dark hover:border-primary/50'}"
+						aria-hidden="true"
+					>
+						{#if filters.includeEpic}
+							<svg
+								width="8"
+								height="8"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="3.5"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								class="text-primary"
+							>
+								<path d="M20 6 9 17l-5-5" />
+							</svg>
+						{/if}
+					</span>
 					Epic
-				</label>
+				</button>
 			</div>
 		</div>
 		<button
@@ -190,8 +208,8 @@
 				href={link.href}
 				aria-current={active ? "page" : undefined}
 				class="flex items-center min-h-11 px-4 w-full border-l-2 transition-colors duration-150 {active
-					? 'bg-[rgba(255,255,255,0.05)] border-primary text-primary'
-					: 'border-transparent text-secondary hover:bg-[rgba(255,255,255,0.03)] hover:text-primary'}"
+					? 'bg-[rgba(255,255,255,0.05)] border-primary text-primary active:bg-[rgba(255,255,255,0.09)]'
+					: 'border-transparent text-secondary hover:bg-[rgba(255,255,255,0.03)] hover:text-primary active:bg-[rgba(255,255,255,0.08)]'}"
 			>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"

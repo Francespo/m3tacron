@@ -1,3 +1,10 @@
+---
+name: performance-suite
+description: Run the M3tacron local Docker performance test suite — k6, Lighthouse, Playwright Web Vitals, pytest-benchmark, Docker stats, report generation/validation. Supports local and live targets, DB validation, and CI regression signals.
+---
+
+> **Note:** Moved from `PERFORMANCE_PROTOCOL.md` at the repository root for repo cleanliness — content unchanged, now discoverable as a skill.
+
 # M3tacron Performance Suite Protocol
 
 ## Overview

@@ -51,7 +51,12 @@ def aggregate_faction_stats(
 
             if not apply_tournament_filters(tournament, filters):
                 continue
-                
+
+            # Team events: only include real member rows (never the legacy
+            # team-placeholder rows, whose player_name is a team name).
+            if tournament.is_team_event and not result.is_team_member:
+                continue
+
             xws = result.list_json
             if not xws or not isinstance(xws, dict):
                 continue
@@ -103,35 +108,49 @@ def aggregate_faction_stats(
         results.sort(key=lambda x: x["games_count"], reverse=True)
         return results
 
-def get_meta_snapshot(data_source: DataSource = DataSource.XWA, allowed_formats: list[str] | None = None) -> dict:
+def get_meta_snapshot(
+    data_source: DataSource = DataSource.XWA,
+    allowed_formats: list[str] | None = None,
+    include_epic: bool = False,
+) -> dict:
     """
-    Get a high-level summary of the current meta (last 90 days).
+    Get meta snapshot data for home page.
+    Combines aggregated statistics from factions, ships, lists, pilots, and upgrades.
     """
     from datetime import datetime, timedelta
     
-    # Use 90 day window
-    # But usually meta snapshot might check last sync or just be a fixed window
-    # The prompt implies "MetaSnapshotResponse"
-    
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=90)
-    date_str = start_date.strftime("%Y-%m-%d")
+    # 90 days range
+    days_back = 90
+    date_str = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
     
     filters = {
         "date_start": date_str,
+        "include_epic": include_epic,
+        "epic": include_epic,
     }
     if allowed_formats:
         filters["allowed_formats"] = get_active_formats(allowed_formats)
     else:
-        filters["allowed_formats"] = ["xwa", "amg"] if data_source == DataSource.XWA else ["legacy_x2po", "legacy_xlc"]
+        filters["allowed_formats"] = ["xwa"] if data_source == DataSource.XWA else ["legacy_x2po"]
     
     faction_stats = aggregate_faction_stats(filters, data_source)
     
     from .ships import aggregate_ship_stats
     ship_stats = aggregate_ship_stats(filters, data_source=data_source)
     
-    from .lists import aggregate_list_stats
+    from .lists import aggregate_list_stats, fetch_list_pilots
     list_stats = aggregate_list_stats(filters, data_source=data_source)
+
+    # Attach pilots lazily — aggregation returns empty pilots to avoid
+    # pulling list_json for every row; the snapshot only ships a handful
+    # of lists, so fetch pilots just for those.
+    list_signatures: list[str] = [l["signature"] for l in list_stats if l.get("signature")]
+    list_pilots = fetch_list_pilots(list_signatures) if list_signatures else {}
+    list_stats = [
+        {**l, "pilots": list_pilots.get(l["signature"], [])}
+        for l in list_stats
+        if l.get("signature")
+    ]
     
     from .core import aggregate_card_stats
     pilot_stats = aggregate_card_stats(filters, mode="pilots", data_source=data_source)

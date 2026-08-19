@@ -214,8 +214,8 @@ class BaseScraper(ABC):
                     p2.swiss_draws += 1
 
         # Points calculation
-        pt_win = 3 if fmt != Format.LEGACY_X2PO else 1
-        pt_draw = 1 if fmt != Format.LEGACY_X2PO else 0
+        pt_win = 3 if fmt not in (Format.LEGACY_X2PO, Format.LEGACY_PANDORUM) else 1
+        pt_draw = 1 if fmt not in (Format.LEGACY_X2PO, Format.LEGACY_PANDORUM) else 0
 
         for p in players:
             if p.swiss_event_points is None or p.swiss_event_points <= 0:

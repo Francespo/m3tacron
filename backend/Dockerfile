@@ -41,4 +41,4 @@ EXPOSE 8888
 
 ENV PYTHONUNBUFFERED=1
 
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8888"]
+CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port 8888 --workers ${UVICORN_WORKERS:-2}"]
