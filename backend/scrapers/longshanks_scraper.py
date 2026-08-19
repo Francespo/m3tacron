@@ -485,6 +485,14 @@ class LongshanksScraper(BaseScraper):
                                             pid = re.sub(
                                                 r"[^0-9]", "", txt.split('#')[-1])
 
+                            # A row is a TEAM row (not an individual) iff it
+                            # carries a pop_team link. In the individual pass,
+                            # team rows appear when the tab_player click timed
+                            # out and the (team) ranking view is still shown —
+                            # they must never become members.
+                            has_team_link = el.locator(
+                                "a[onclick*='pop_team']").count() > 0
+
                             data_dump.append({
                                 'type': 'player',
                                 'nameRaw': name_raw,
@@ -495,7 +503,8 @@ class LongshanksScraper(BaseScraper):
                                 'stats': stats_items,
                                 'xws': xws_raw,
                                 'pid': pid,
-                                'team_name': team_name if is_team_pass else member_to_team.get(pid)
+                                'team_name': team_name if is_team_pass else member_to_team.get(pid),
+                                'has_team_link': has_team_link,
                             })
 
                         # Process data_dump for this pass
@@ -673,21 +682,11 @@ class LongshanksScraper(BaseScraper):
                                     #
                                     # IMPORTANT: when the tab_player click times
                                     # out (cookie overlay / slow JS), the ranking
-                                    # tab still shows TEAM rows — name == team
-                                    # name. Those rows must NOT become members
-                                    # (they'd duplicate the team placeholder with
-                                    # is_team_member=true). Skip any row whose
-                                    # name is a known team name, and only create
-                                    # member rows for names found in the team
-                                    # pass's pop_user member map.
-                                    team_names_lower = {
-                                        tn.lower().strip()
-                                        for tn in self._team_placeholders
-                                    }
-                                    if name.lower().strip() in team_names_lower:
-                                        # Team row shown in the (stuck) team view —
-                                        # not an individual. Record its team link
-                                        # but do NOT emit a member row.
+                                    # tab still shows TEAM rows. Those rows carry
+                                    # a pop_team link — skip them so they never
+                                    # become members (they'd duplicate the team
+                                    # placeholder with is_team_member=true).
+                                    if item.get('has_team_link'):
                                         if t_name and name:
                                             self.player_team_map[name.lower()] = t_name
                                             self.team_members.setdefault(name.lower(), t_name)
