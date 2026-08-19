@@ -15,6 +15,16 @@
 
     let { data }: { data: PageData } = $props();
 
+    // Alternative-design toggle: `?upg=realsize` renders upgrades at "real
+    // card size" (as large as the vertical pilot cards), one per row in a
+    // vertical list. Default (no param) = the compact 2-column design.
+    let upgradeStyle = $derived(
+        typeof window !== "undefined" &&
+            new URLSearchParams(window.location.search).get("upg") === "realsize"
+            ? "realsize"
+            : "compact",
+    );
+
     // Client-side sort state for the Composition section.
     let pilotSortKey = $state<"name" | "cost" | "initiative">("name");
     let pilotSortDir = $state<"asc" | "desc">("asc");
@@ -29,28 +39,21 @@
         xwingData.setSource(filters.dataSource as any);
     });
 
-<<<<<<< Updated upstream
     // The loader streams the stats in via `statsPromise` (non-blocking
     // navigation). Resolve it into reactive state; the {#await} in the
     // template shows a skeleton while it loads. `stats` stays null until
     // resolved so the derived values below have safe defaults.
-    let stats: any = null;
-    data.statsPromise.then((s: any) => {
-        stats = s;
+    let stats = $state<any>(null);
+    $effect(() => {
+        data.statsPromise.then((s: any) => {
+            stats = s;
+        });
     });
 
     function retry() {
         invalidateAll();
     }
 
-    $: isXwa = filters.dataSource === "xwa";
-    $: win_rate = stats
-        ? (stats.games > 0 ? ((stats.wins / stats.games) * 100).toFixed(1) : "0.0")
-        : "NA";
-    $: faction = stats?.faction_xws || "unknown";
-    $: factionLabel = getFactionLabel(faction);
-=======
-    let stats = $derived(data.stats);
     let isXwa = $derived(filters.dataSource === "xwa");
     let win_rate = $derived(
         stats
@@ -61,7 +64,6 @@
     );
     let faction = $derived(stats?.faction_xws || "unknown");
     let factionLabel = $derived(getFactionLabel(faction));
->>>>>>> Stashed changes
 
     // Group upgrades by their slot_xws field.
     // Falls back to resolving the slot from the upgrade manifest
@@ -345,44 +347,46 @@
                     {@const pilotName = pilotData?.name || pilot.xws}
                     {@const hasUpgrades = (pilot.upgrades ?? []).length > 0}
                     {@const isLandscape = !!pilotImg && pilotImg.includes("/quickbuilds/")}
+                    <div class="p-1.5 md:p-2.5">
                     <div
-                        class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden flex flex-col md:flex-row"
+                        class="group bg-terminal-panel border border-border-dark rounded-lg flex flex-col md:flex-row relative"
                     >
-                        <!-- Pilot image — no inner square/frame. The card art runs
-                             edge to edge and fills almost the entire capsule
-                             height. Landscape (Standard Loadout) cards get a
-                             large share of the capsule width; portrait cards get
-                             a narrow column that spans the full height. Clicking
-                             the image navigates to /pilot/[id]. -->
-                        <a
-                            href="/pilot/{pilot.xws}"
-                            class="group/image relative block w-full overflow-hidden {isLandscape
-                                ? 'aspect-[16/9] md:aspect-auto md:w-3/5 md:h-72 lg:h-80'
-                                : 'aspect-[3/4] md:aspect-auto md:w-44 lg:w-52 md:shrink-0 md:self-stretch'}"
-                            title="View {pilotName} details"
-                            aria-label="View {pilotName} details"
+                        <!-- Image stage: the card art floats directly in the
+                             capsule — NO container/box/border behind it. The halo
+                             is a drop-shadow applied to the art itself. On hover
+                             the art scales up and its z-index rises so the halo
+                             extends OUTSIDE the capsule, overlaying nearby
+                             content as a higher layer. -->
+                        <div
+                            class="relative md:shrink-0 bg-[#050505] flex items-center justify-center p-3 md:p-4 border-b md:border-b-0 md:border-r border-border-dark w-full md:w-auto"
                         >
-                            {#if pilotImg}
-                                <img
-                                    src={pilotImg}
-                                    alt={pilotName}
-                                    class="w-full h-full object-cover transition-transform duration-300 group-hover/image:scale-[1.03]"
-                                    loading="lazy"
-                                />
-                            {:else}
-                                <div
-                                    class="w-full h-full flex items-center justify-center bg-[#0a0a0a]/50"
-                                >
-                                    <i
-                                        class="xwing-miniatures-ship xwing-miniatures-ship-{(pilotData?.ship || pilot.ship_xws || "unknown").replace(/[^a-z0-9]/g, "")} opacity-70"
-                                        style="color: {getFactionColor(faction)}; font-size: 5rem; line-height: 1;"
-                                    ></i>
-                                </div>
-                            {/if}
-                            <div
-                                class="absolute inset-0 bg-black/0 group-hover/image:bg-black/25 transition-colors pointer-events-none"
-                            ></div>
-                        </a>
+                            <a
+                                href="/pilot/{pilot.xws}"
+                                class="group/image relative block transition-transform duration-300 hover:scale-[1.05] hover:z-30 {isLandscape
+                                    ? 'md:h-72 lg:h-80 w-full md:w-auto max-w-full aspect-[1275/739]'
+                                    : 'h-72 lg:h-80 w-auto max-w-full aspect-[617/874]'}"
+                                title="View {pilotName} details"
+                                aria-label="View {pilotName} details"
+                            >
+                                {#if pilotImg}
+                                    <img
+                                        src={pilotImg}
+                                        alt={pilotName}
+                                        class="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.1)] transition-all duration-300 hover:drop-shadow-[0_0_36px_rgba(255,255,255,0.35)]"
+                                        loading="lazy"
+                                    />
+                                {:else}
+                                    <div
+                                        class="w-full h-full flex items-center justify-center"
+                                    >
+                                        <i
+                                            class="xwing-miniatures-ship xwing-miniatures-ship-{(pilotData?.ship || pilot.ship_xws || "unknown").replace(/[^a-z0-9]/g, "")} opacity-70"
+                                            style="color: {getFactionColor(faction)}; font-size: 4rem; line-height: 1;"
+                                        ></i>
+                                    </div>
+                                {/if}
+                            </a>
+                        </div>
 
                         <!-- Info column: name / ship chassis / ship size / cost
                              (kept as before), plus upgrades for portrait pilots. -->
@@ -404,18 +408,20 @@
                                              Click still navigates to /pilot/[id]. -->
                                         <a
                                             href="/pilot/{pilot.xws}"
-                                            class="text-2xl md:text-3xl font-sans font-bold break-words text-primary hover:text-accent transition-colors border-b border-transparent hover:border-accent/50"
+                                            class="text-2xl md:text-3xl font-sans font-bold break-words leading-snug text-primary hover:text-accent transition-colors border-b border-transparent hover:border-accent/50"
                                         >
                                             {pilotName}
                                         </a>
-                                        {#if pilot.initiative !== undefined && pilot.initiative !== null && pilot.initiative > 0}
-                                            <span
-                                                class="text-xs font-mono bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-md border border-orange-500/30 shrink-0"
-                                                title="Initiative"
-                                            >
-                                                I{pilot.initiative}
-                                            </span>
-                                        {/if}
+                                        <!-- Cost capsule (initiative is already on
+                                             the card art, so it's not shown here).
+                                             Cost sits next to the name, beside the
+                                             loadout value. -->
+                                        <span
+                                            class="text-xs font-mono bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-md border border-emerald-500/30 shrink-0"
+                                            title="Cost"
+                                        >
+                                            {Math.max(0, pilot.cost ?? 0)} PT
+                                        </span>
                                         {#if isXwa && loadout}
                                             <span
                                                 class="text-xs font-mono bg-violet-500/20 text-violet-300 px-2 py-0.5 rounded-md border border-violet-500/30 shrink-0"
@@ -455,29 +461,11 @@
                                         {/if}
                                     </div>
                                 </div>
-
-                                <!-- Cost -->
-                                <div class="text-right shrink-0">
-                                    <div
-                                        class="text-[10px] font-mono text-secondary uppercase tracking-wider"
-                                    >
-                                        Cost
-                                    </div>
-                                    <div
-                                        class="text-3xl md:text-4xl font-mono text-green-400 font-bold leading-none"
-                                    >
-                                        {Math.max(0, pilot.cost ?? 0)}
-                                        <span
-                                            class="text-sm text-secondary/60 font-normal"
-                                            >PT</span
-                                        >
-                                    </div>
-                                </div>
                             </div>
 
                             <!-- Upgrades — bipartite capsules (horizontal card
                                  image half + name/cost half, no inner square),
-                                 3 columns. Each capsule clicks through to
+                                 2 columns. Each capsule clicks through to
                                  /upgrade/[id]. -->
                             {#if hasUpgrades}
                                 <div
@@ -489,8 +477,13 @@
                                         Upgrades
                                     </div>
                                     {#if Object.keys(upgradeGroups).length > 0}
+                                        <!-- Each upgrade capsule has a FIXED height (98px) regardless of how
+                                             many lines its name wraps to, so upgrade rows never stretch the
+                                             pilot card. All upgrades remain visible. -->
                                         <div
-                                            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3"
+                                            class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 {upgradeStyle === 'realsize'
+                                                ? '!grid-cols-1'
+                                                : ''}"
                                         >
                                             {#each Object.entries(upgradeGroups) as [slot, upgrades]}
                                                 {@const slotIcon = getSlotIcon(slot)}
@@ -534,55 +527,75 @@
                                                                 upgrade.xws}
                                                             {@const upgCost = upgData
                                                                 ?.cost?.value}
-                                                            <a
-                                                                href="/upgrade/{upgXws}"
-                                                                class="group/upg flex items-stretch bg-terminal-panel border border-border-dark rounded-lg overflow-hidden min-w-0 hover:border-accent/40 hover:bg-[#ffffff05] transition-colors"
-                                                                title="View {upgName} details"
-                                                            >
-                                                                <div
-                                                                    class="w-1/2 shrink-0 relative aspect-[4/3] overflow-hidden"
+                                                            <div class="p-1">
+                                                                <a
+                                                                    href="/upgrade/{upgXws}"
+                                                                    class="group/upg flex items-stretch bg-terminal-panel border border-border-dark rounded-lg min-w-0 relative"
+                                                                    title="View {upgName} details"
                                                                 >
-                                                                    {#if upgImg}
-                                                                        <img
-                                                                            src={upgImg}
-                                                                            alt={upgName}
-                                                                            class="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover/upg:scale-[1.05]"
-                                                                            loading="lazy"
-                                                                        />
-                                                                    {:else}
+                                                                    <!-- Image half: the upgrade art floats directly in the capsule
+                                                                         with NO container/border behind it. Compact style: ~25%
+                                                                         taller than before (h-36/40). Realsize style: as tall as the
+                                                                         vertical pilot cards (h-72/80). On hover the art scales up
+                                                                         and its z-index rises so the halo extends OUTSIDE. -->
+                                                                    <div
+                                                                        class="w-1/2 shrink-0 relative flex items-center justify-center p-2 md:p-2.5 {upgradeStyle === 'realsize'
+                                                                            ? 'h-72 lg:h-80'
+                                                                            : 'h-36 md:h-40'}"
+                                                                    >
                                                                         <div
-                                                                            class="w-full h-full flex items-center justify-center bg-[#0a0a0a]/60"
+                                                                            class="relative w-full h-full flex items-center justify-center transition-transform duration-300 hover:scale-[1.1] hover:z-30"
                                                                         >
-                                                                            <i
-                                                                                class="xwing-miniatures-ship text-2xl opacity-60"
-                                                                            ></i>
+                                                                            {#if upgImg}
+                                                                                <img
+                                                                                    src={upgImg}
+                                                                                    alt={upgName}
+                                                                                    class="w-full h-full object-contain drop-shadow-[0_0_10px_rgba(255,255,255,0.1)] transition-all duration-300 hover:drop-shadow-[0_0_26px_rgba(255,255,255,0.3)]"
+                                                                                    loading="lazy"
+                                                                                />
+                                                                            {:else}
+                                                                                <div
+                                                                                    class="w-full h-full flex items-center justify-center"
+                                                                                >
+                                                                                    <i
+                                                                                        class="xwing-miniatures-ship text-2xl opacity-60"
+                                                                                    ></i>
+                                                                                </div>
+                                                                            {/if}
                                                                         </div>
-                                                                    {/if}
-                                                                </div>
-                                                                <div
-                                                                    class="flex-1 min-w-0 p-2.5 md:p-3 flex flex-col justify-center gap-1"
-                                                                >
-                                                                    <div
-                                                                        class="text-sm md:text-base font-sans font-semibold text-primary truncate group-hover/upg:text-accent transition-colors"
-                                                                    >
-                                                                        {upgName}
                                                                     </div>
+                                                                    <!-- Text half: fixed height matching the image half so every
+                                                                         capsule is identical regardless of name line count. -->
                                                                     <div
-                                                                        class="text-[10px] md:text-xs font-mono text-secondary/70"
+                                                                        class="flex-1 min-w-0 p-2.5 md:p-3 flex flex-col justify-center overflow-hidden {upgradeStyle === 'realsize'
+                                                                            ? 'h-72 lg:h-80'
+                                                                            : 'h-36 md:h-40'}"
                                                                     >
-                                                                        {#if upgCost !== undefined && upgCost !== null}
-                                                                            <span
-                                                                                class="text-emerald-400"
-                                                                                >{upgCost}pt</span
-                                                                            >
-                                                                        {:else}
-                                                                            <span
-                                                                                >—</span
-                                                                            >
-                                                                        {/if}
+                                                                        <div
+                                                                            class="text-sm md:text-base font-sans font-semibold text-primary transition-colors leading-snug line-clamp-2 break-words"
+                                                                        >
+                                                                            {upgName}
+                                                                        </div>
+                                                                        <div
+                                                                            class="flex items-center gap-2 shrink-0 mt-1.5"
+                                                                        >
+                                                                            {#if upgCost !== undefined && upgCost !== null}
+                                                                                <span
+                                                                                    class="text-xs font-mono bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-md border border-emerald-500/30"
+                                                                                    title="Cost"
+                                                                                >
+                                                                                    {upgCost} PT
+                                                                                </span>
+                                                                            {:else}
+                                                                                <span
+                                                                                    class="text-xs font-mono text-secondary/70"
+                                                                                    >—</span
+                                                                                >
+                                                                            {/if}
+                                                                        </div>
                                                                     </div>
-                                                                </div>
-                                                            </a>
+                                                                </a>
+                                                            </div>
                                                         {/each}
                                                     </div>
                                                 </div>
@@ -592,6 +605,7 @@
                                 </div>
                             {/if}
                         </div>
+                    </div>
                     </div>
                 {/each}
             </div>
