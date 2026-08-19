@@ -109,6 +109,18 @@ def _re_roster_event(session: Session, tid: int, url: str) -> dict:
     if not members:
         return {"error": "no members scraped"}
 
+    # Guard: only re-roster events the scraper ACTUALLY detects as team
+    # events (has a team tab). Some tournaments have teamstanding/teammatch
+    # rows in the DB but render as SOLO events on the platform (leagues, etc.)
+    # — re-rostering those would create fake team-named members. For them we
+    # clear is_team_event and leave the (already correct) individual data.
+    if not scraper.is_team_event:
+        session.execute(text(
+            "UPDATE tournament SET is_team_event = false WHERE id = :tid"
+        ), {"tid": tid})
+        session.commit()
+        return {"skipped": "not a real team event on the platform; is_team_event cleared"}
+
     # Build team name -> teamstanding id (identity rows exist from old scrape)
     team_rows = session.execute(text(
         "SELECT id, team_name FROM teamstanding WHERE tournament_id = :tid"
