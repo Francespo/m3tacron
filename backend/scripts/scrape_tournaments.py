@@ -200,10 +200,23 @@ def _delete_existing_tournament(session: Session, url: str) -> None:
         eid = existing.id
         if eid is not None:
             logger.info(f"Deleting existing tournament data (id={eid}) for {url}")
+            # Delete in dependency order so no FK violation:
+            # 1. matches (reference playerstanding)
+            # 2. team_member edges (reference BOTH teamstanding AND playerstanding —
+            #    delete by the playerstanding side so members whose team_id is
+            #    NULL are still cleaned)
+            # 3. playerstanding (referenced by match + team_member — both gone)
+            # 4. teamstanding (referenced by team_member — gone)
+            # 5. tournament
             session.exec(delete(TeamMatch).where(
                 cast(Any, TeamMatch.tournament_id) == eid))
             session.exec(delete(Match).where(
                 cast(Any, Match.tournament_id) == eid))
+            session.exec(delete(TeamMember).where(
+                cast(Any, TeamMember.playerstanding_id).in_(
+                    select(PlayerStanding.id).where(
+                        cast(Any, PlayerStanding.tournament_id) == eid)
+                )))
             session.exec(delete(TeamMember).where(
                 cast(Any, TeamMember.teamstanding_id).in_(
                     select(TeamStanding.id).where(
