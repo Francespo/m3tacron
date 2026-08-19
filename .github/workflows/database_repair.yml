@@ -156,11 +156,13 @@ jobs:
           echo "::add-mask::$PASS"
 
           # 1. Sync the branch code to the server's catch-up checkout.
-          #    (The server copy is a plain file copy, not a git checkout.)
+          #    (The server copy is a plain file copy, not a git checkout.
+          #    Use tar-over-ssh — rsync isn't installed on GH runners.)
           ssh -o StrictHostKeyChecking=no audit-bot@84.8.253.2 "mkdir -p /home/audit-bot/m3tacron-catchup"
-          rsync -az --delete \
-            --exclude '.git' --exclude '.venv' --exclude 'node_modules' --exclude 'frontend' --exclude 'external_data' \
-            ./backend/ ./requirements.txt ./pyproject.toml \
+          tar -C backend -czf - . \
+            | ssh -o StrictHostKeyChecking=no audit-bot@84.8.253.2 \
+              "cd /home/audit-bot/m3tacron-catchup && rm -rf backend && mkdir -p backend && tar -xzf - -C backend"
+          scp -o StrictHostKeyChecking=no requirements.txt pyproject.toml \
             audit-bot@84.8.253.2:/home/audit-bot/m3tacron-catchup/
 
           # 2. Ensure a venv with deps exists on the server.
