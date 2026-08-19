@@ -116,6 +116,10 @@ class PlayerStanding(SQLModel, table=True):
     """
     A player's performance in a tournament.
     """
+    # Allow transient (non-column) attributes like `team_name` to be attached
+    # by scrapers without SQLModel trying to map them to columns.
+    model_config = {"extra": "allow"}
+
     id: int | None = Field(default=None, primary_key=True)
     tournament_id: int = Field(foreign_key="tournament.id", index=True)
     player_name: str = Field()
@@ -157,10 +161,11 @@ class PlayerStanding(SQLModel, table=True):
     is_team_member: bool = Field(default=False, sa_column=Column("is_team_member", Boolean, index=True))
     team_membership: "TeamMember" = Relationship(back_populates="player")
 
-    # Transient attribute (not a column): set by scrapers for team-event members
-    # to carry the team name to save_tournament_data, which builds TeamStanding
-    # identity rows and team_member edges.
-    team_name: str | None = None
+    # NOTE: do NOT declare `team_name` here — SQLModel maps every annotated
+    # class attribute to a table column, and `team_name` is not a real column
+    # on playerstanding. Scrapers attach it dynamically as a transient
+    # instance attribute (setattr) so save_tournament_data / migrations can
+    # read it without SQLAlchemy trying to persist it.
 
 
 class Match(SQLModel, table=True):
