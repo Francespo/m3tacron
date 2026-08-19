@@ -80,9 +80,6 @@ jobs:
           # Verify the browser actually got installed and can launch.
           timeout 60 python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); b=p.chromium.launch(headless=True, args=['--no-sandbox']); b.close(); p.stop(); print('chromium OK')"
 
-      - name: Install PostgreSQL client
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
-
       - name: Open SSH tunnel to database
         run: |
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
@@ -100,14 +97,20 @@ jobs:
           ssh -f -N -L 5432:localhost:3000 \
             -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes \
             audit-bot@84.8.253.2
-          for i in $(seq 1 15); do
-            if pg_isready -h localhost -p 5432 2>/dev/null | grep -q "accepting"; then
-              echo "Tunnel ready."
-              break
-            fi
-            sleep 1
-          done
-          pg_isready -h localhost -p 5432 || (echo "ERROR: DB tunnel failed" && exit 1)
+          # Wait for the tunnel using psycopg2 (installed via requirements) —
+          # avoids the apt-get postgresql-client install that stalls runners.
+          python - <<'PY'
+          import time, psycopg2
+          for i in range(20):
+              try:
+                  psycopg2.connect(host="localhost", port=5432, user="postgres", connect_timeout=2).close()
+                  print("Tunnel ready.")
+                  break
+              except Exception:
+                  time.sleep(1)
+          else:
+              raise SystemExit("ERROR: DB tunnel failed")
+          PY
 
       - name: Resolve DATABASE_URL
         id: db
