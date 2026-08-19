@@ -74,7 +74,14 @@ class TeamMember(SQLModel, table=True):
     team (enforced by the playerstanding_id unique constraint). The member's
     own list is on their PlayerStanding row; list_id/list_json here mirror it
     for convenience.
+
+    NOTE: explicit __tablename__ = "team_member" — SQLModel would otherwise
+    derive "teammember", which does not match the migration-created table
+    ("team_member") and would make create_all try to recreate it, colliding
+    with the existing unique constraint name.
     """
+    __tablename__ = "team_member"
+
     id: int | None = Field(default=None, primary_key=True)
     teamstanding_id: int = Field(
         foreign_key="teamstanding.id", index=True)
