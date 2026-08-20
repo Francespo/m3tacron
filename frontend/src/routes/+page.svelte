@@ -61,7 +61,7 @@
     /**
      * Map a `(dataSource, includeEpic)` pair to the list of `formats` the
      * tournaments endpoint should filter on. The XWA macro is `{xwa, amg}`
-     * and the Legacy macro is `{legacy_x2po, legacy_xlc}`; the Epic toggle
+     * and the Legacy macro is `{legacy_x2po, legacy_xlc, legacy_pandorum}`; the Epic toggle
      * controls whether the larger squad-size variant (amg / legacy_xlc) is
      * included.
      */
@@ -72,7 +72,7 @@
         if (source === "xwa") {
             return epic ? ["xwa", "amg"] : ["xwa"];
         }
-        return epic ? ["legacy_x2po", "legacy_xlc"] : ["legacy_x2po"];
+        return epic ? ["legacy_x2po", "legacy_xlc", "legacy_pandorum"] : ["legacy_x2po", "legacy_xlc", "legacy_pandorum"];
     }
 
     type SortKey = "lists" | "unique" | "winrate" | "games";
@@ -456,6 +456,7 @@
             shipName: ship?.name || pilot?.ship || "Unknown Ship",
             faction: pilot?.faction || "unknown",
             shipXws: pilot?.ship || "",
+            pack: (pilot as any)?.pack,
         };
     }
 
@@ -1230,7 +1231,7 @@
                                         >{wr.toFixed(1)}% WR</span
                                     >
                                     <span class="text-[11px] text-secondary"
-                                        >{list.games} games · {list.count ?? 0} lists</span
+                                        >{list.games} games</span
                                     >
                                 </div>
                             </div>
@@ -1248,7 +1249,11 @@
                                             <div class="text-sm text-secondary truncate">
                                                 {p.name}
                                             </div>
-                                            {#if pilot.upgrades?.length}
+                                            {#if p.pack}
+                                                <div class="text-[11px] text-secondary/80 italic truncate">
+                                                    {p.pack}
+                                                </div>
+                                            {:else if pilot.upgrades?.length}
                                                 <div class="text-[11px] text-secondary/80 truncate">
                                                     {pilot.upgrades
                                                         .slice(0, 3)

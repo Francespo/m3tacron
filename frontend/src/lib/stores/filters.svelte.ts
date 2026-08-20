@@ -322,6 +322,7 @@ const SINGLE_KEY: Record<FieldKey, string> = {
 };
 
 /**
+
  * URL key used for `selectedSources` per route. The lists/ships/cards/
  * squadrons backends accept the `platforms` parameter; the tournaments
  * backend accepts `sources`. Emitting the wrong key means the backend
@@ -335,6 +336,12 @@ const SOURCE_KEY_BY_ROUTE: Record<RouteId, string> = {
     tournaments: 'sources',
 };
 
+/** Base formats for a data source (matching the `dataSource` setter). */
+function defaultFormatsForSource(source: 'xwa' | 'legacy'): string[] {
+    return source === 'xwa' ? ['xwa'] : ['legacy_x2po'];
+}
+
+
 /**
  * Serialize the current filter state to a `URLSearchParams` containing ONLY
  * the fields the given route supports. Default values are omitted, multi-
@@ -343,6 +350,8 @@ const SOURCE_KEY_BY_ROUTE: Record<RouteId, string> = {
  * `selectedFormats` is always written in full (even when it matches the
  * current `dataSource` default) so the URL round-trips cleanly with
  * `applyFromSearchParams` and multi-select stays stable across re-renders.
+ * When the "Include Epic" toggle is on, the route's epic format variant(s)
+ * are added to the emitted formats (see `resolveFormats`).
  */
 function toSearchParams(routeId: RouteId): URLSearchParams {
     const params = new URLSearchParams();
@@ -421,11 +430,13 @@ function toSearchParams(routeId: RouteId): URLSearchParams {
                 }
                 break;
             // Multi-value fields
-            case 'selectedFormats':
-                for (const f of selectedFormats) {
+            case 'selectedFormats': {
+                const formats = selectedFormats.length > 0 ? selectedFormats : defaultFormatsForSource(dataSource);
+                for (const f of formats) {
                     params.append(SINGLE_KEY.selectedFormats, f);
                 }
                 break;
+            }
             case 'selectedFactions':
                 for (const f of selectedFactions) {
                     params.append(SINGLE_KEY.selectedFactions, f);
@@ -474,15 +485,10 @@ function toSearchParams(routeId: RouteId): URLSearchParams {
  * `'true'`.
  */
 function applyFromSearchParams(params: URLSearchParams): void {
-    // Single-value fields
     const dataSourceVal = params.get('data_source');
-    if (dataSourceVal === 'xwa' || dataSourceVal === 'legacy') {
-        dataSource = dataSourceVal;
-    }
+    dataSource = dataSourceVal === 'legacy' ? 'legacy' : 'xwa';
 
-    if (params.has('epic')) {
-        includeEpic = params.get('epic') === 'true';
-    }
+    includeEpic = params.get('epic') === 'true';
     if (params.has('search')) {
         const v = params.get('search') ?? '';
         if (v) searchName = v;
@@ -626,7 +632,9 @@ export const filters = {
         }
     },
     get includeEpic() { return includeEpic; },
-    set includeEpic(v: boolean) { includeEpic = v; },
+    set includeEpic(v: boolean) {
+        includeEpic = v;
+    },
     get dateStart() { return dateStart; },
     set dateStart(v: string) { dateStart = v; },
     get dateEnd() { return dateEnd; },

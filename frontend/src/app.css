@@ -116,6 +116,27 @@ body {
     font-weight: normal !important;
 }
 
+/*
+ * X-Wing Miniatures icon fonts are FAUX fonts: their glyphs are icons, not
+ * text, and must be treated as such. The fonts themselves are shipped with
+ * symmetric vertical metrics (see scripts/fix-xwing-font-metrics.py) so every
+ * glyph's ink centre sits exactly on the em-box centre. These rules make the
+ * rendered box equal to the em (`line-height: 1`) and neutralise inline
+ * baseline alignment, so the glyph ink lands dead-centre in the box on every
+ * platform (Linux/macOS/Windows, DOM and canvas) — no per-element hacks.
+ */
+i.xwing-miniatures-ship,
+i.xwing-miniatures-font,
+.xwing-miniatures-ship,
+.xwing-miniatures-font {
+    display: inline-block;
+    line-height: 1;
+    vertical-align: middle;
+    font-weight: normal !important;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
 .xwing-icon {
     display: inline-flex;
     align-items: center;

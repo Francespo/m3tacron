@@ -8,45 +8,62 @@
     import { filters } from "$lib/stores/filters.svelte";
     import { getSlotIcon } from "$lib/data/slots";
     import BackLink from "$lib/components/BackLink.svelte";
-    import CardHoverLink from "$lib/components/CardHoverLink.svelte";
     import SortBy from "$lib/components/SortBy.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
     import { invalidateAll } from "$app/navigation";
     import type { PageData } from "./$types";
 
-    export let data: PageData;
+    let { data }: { data: PageData } = $props();
+
+    // Alternative-design toggle: `?upg=realsize` renders upgrades at "real
+    // card size" (as large as the vertical pilot cards), one per row in a
+    // vertical list. Default (no param) = the compact 2-column design.
+    let upgradeStyle = $derived(
+        typeof window !== "undefined" &&
+            new URLSearchParams(window.location.search).get("upg") === "realsize"
+            ? "realsize"
+            : "compact",
+    );
 
     // Client-side sort state for the Composition section.
-    // Plain `let` + reassign works in this file's legacy-mode (Svelte 4
-    // `export let` + `$:`) reactivity; the SortBy onChange callback
-    // reassigns these and the `$:` derived `sortedPilots` recomputes.
-    let pilotSortKey: "name" | "cost" | "initiative" = "name";
-    let pilotSortDir: "asc" | "desc" = "asc";
+    let pilotSortKey = $state<"name" | "cost" | "initiative">("name");
+    let pilotSortDir = $state<"asc" | "desc">("asc");
 
-    // Eagerly ensure xwingData is loaded (synchronously kick the fetch).
-    // The xwingData store is shared across the app, so this no-ops once
-    // another page has loaded it.
-    xwingData.setSource(filters.dataSource as any);
+    // Ensure xwingData manifest is loaded so getPilot/getShip/getUpgrade
+    // return real human-readable names and card images. Safe to call
+    // repeatedly; setSource is a no-op when the requested source is
+    // already active and initialized. Wrapped in $effect (same pattern as
+    // the squadron detail page) so the initial render subscribes to the
+    // store and re-renders once the manifest arrives.
+    $effect(() => {
+        xwingData.setSource(filters.dataSource as any);
+    });
 
     // The loader streams the stats in via `statsPromise` (non-blocking
     // navigation). Resolve it into reactive state; the {#await} in the
     // template shows a skeleton while it loads. `stats` stays null until
     // resolved so the derived values below have safe defaults.
-    let stats: any = null;
-    data.statsPromise.then((s: any) => {
-        stats = s;
+    let stats = $state<any>(null);
+    $effect(() => {
+        data.statsPromise.then((s: any) => {
+            stats = s;
+        });
     });
 
     function retry() {
         invalidateAll();
     }
 
-    $: isXwa = filters.dataSource === "xwa";
-    $: win_rate = stats
-        ? (stats.games > 0 ? ((stats.wins / stats.games) * 100).toFixed(1) : "0.0")
-        : "NA";
-    $: faction = stats?.faction_xws || "unknown";
-    $: factionLabel = getFactionLabel(faction);
+    let isXwa = $derived(filters.dataSource === "xwa");
+    let win_rate = $derived(
+        stats
+            ? (stats.games > 0
+                  ? ((stats.wins / stats.games) * 100).toFixed(1)
+                  : "0.0")
+            : "NA",
+    );
+    let faction = $derived(stats?.faction_xws || "unknown");
+    let factionLabel = $derived(getFactionLabel(faction));
 
     // Group upgrades by their slot_xws field.
     // Falls back to resolving the slot from the upgrade manifest
@@ -95,7 +112,7 @@
     // `cost` and `initiative` are numeric and read straight from the
     // pilot payload. Undefined values are coerced to a sort-friendly
     // sentinel (-Infinity) so they sink on desc and float on asc.
-    $: sortedPilots = (() => {
+    let sortedPilots = $derived.by(() => {
         const pilots = (stats && stats.pilots) || [];
         const dir = pilotSortDir === "asc" ? 1 : -1;
         const valueFor = (p: any): number | string => {
@@ -121,7 +138,7 @@
             }
             return ((va as number) - (vb as number)) * dir;
         });
-    })();
+    });
 </script>
 
 <div class="max-w-6xl mx-auto space-y-8">
@@ -317,8 +334,8 @@
                 />
             </div>
 
-            <div class="flex flex-col gap-5">
-                {#each sortedPilots as pilot (pilot.xws)}
+            <div class="flex flex-col gap-6">
+                {#each sortedPilots as pilot, i (pilot.xws + ":" + i)}
                     {@const pilotData = xwingData.getPilot(pilot.xws)}
                     {@const shipData = xwingData.getShip(pilot.ship_xws)}
                     {@const pilotImg = pilotData?.image}
@@ -327,218 +344,257 @@
                     {@const shipClassLabel = getShipClassLabel(pilot.ship_xws)}
                     {@const loadout = pilotData?.loadout}
                     {@const upgradeGroups = groupUpgrades(pilot.upgrades ?? [])}
+                    {@const pilotName = pilotData?.name || pilot.xws}
+                    {@const hasUpgrades = (pilot.upgrades ?? []).length > 0}
+                    {@const isLandscape = !!pilotImg && pilotImg.includes("/quickbuilds/")}
+                    <div class="p-1.5 md:p-2.5">
                     <div
-                        class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden"
+                        class="group bg-terminal-panel border border-border-dark rounded-lg flex flex-col md:flex-row relative"
                     >
-                        <div class="flex flex-col md:flex-row">
-                            <!-- Pilot Image Column -->
-                            <div
-                                class="md:w-40 md:shrink-0 p-5 md:p-6 flex items-center justify-center bg-[#0a0a0a]/40 border-b md:border-b-0 md:border-r border-border-dark"
+                        <!-- Image stage: the card art floats directly in the
+                             capsule — NO container/box/border behind it. The halo
+                             is a drop-shadow applied to the art itself. On hover
+                             the art scales up and its z-index rises so the halo
+                             extends OUTSIDE the capsule, overlaying nearby
+                             content as a higher layer. -->
+                        <div
+                            class="relative md:shrink-0 bg-[#050505] flex items-center justify-center p-3 md:p-4 border-b md:border-b-0 md:border-r border-border-dark w-full md:w-auto"
+                        >
+                            <a
+                                href="/pilot/{pilot.xws}"
+                                class="group/image relative block transition-transform duration-300 hover:scale-[1.05] hover:z-30 {isLandscape
+                                    ? 'md:h-72 lg:h-80 w-full md:w-auto max-w-full aspect-[1275/739]'
+                                    : 'h-72 lg:h-80 w-auto max-w-full aspect-[617/874]'}"
+                                title="View {pilotName} details"
+                                aria-label="View {pilotName} details"
                             >
-                                <div
-                                    class="w-28 h-28 md:w-32 md:h-32 rounded-lg bg-[#0a0a0a] border border-border-dark flex items-center justify-center overflow-hidden shrink-0"
-                                >
-                                    {#if pilotImg}
-                                        <img
-                                            src={pilotImg}
-                                            alt={pilotData?.name ?? ""}
-                                            class="w-full h-full object-contain"
-                                            loading="lazy"
-                                        />
-                                    {:else}
+                                {#if pilotImg}
+                                    <img
+                                        src={pilotImg}
+                                        alt={pilotName}
+                                        class="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.1)] transition-all duration-300 hover:drop-shadow-[0_0_36px_rgba(255,255,255,0.35)]"
+                                        loading="lazy"
+                                    />
+                                {:else}
+                                    <div
+                                        class="w-full h-full flex items-center justify-center"
+                                    >
                                         <i
-                                            class="xwing-miniatures-ship xwing-miniatures-ship-{(pilotData?.ship || pilot.ship_xws || "unknown").replace(/[^a-z0-9]/g, "")} text-6xl opacity-70"
-                                            style="color: {getFactionColor(faction)}"
+                                            class="xwing-miniatures-ship xwing-miniatures-ship-{(pilotData?.ship || pilot.ship_xws || "unknown").replace(/[^a-z0-9]/g, "")} opacity-70"
+                                            style="color: {getFactionColor(faction)}; font-size: 4rem; line-height: 1;"
                                         ></i>
-                                    {/if}
+                                    </div>
+                                {/if}
+                            </a>
+                        </div>
+
+                        <!-- Info column: name / ship chassis / ship size / cost
+                             (kept as before), plus upgrades for portrait pilots. -->
+                        <div
+                            class="flex-1 p-5 md:p-6 space-y-4 min-w-0 {isLandscape && !hasUpgrades
+                                ? 'flex flex-col justify-center'
+                                : ''}"
+                        >
+                            <!-- Pilot Header -->
+                            <div
+                                class="flex items-start justify-between gap-4 flex-wrap"
+                            >
+                                <div class="space-y-2 min-w-0 flex-1">
+                                    <div
+                                        class="flex items-center gap-2 flex-wrap"
+                                    >
+                                        <!-- Pilot name link (no hover tooltip —
+                                             the card image sits right next to it).
+                                             Click still navigates to /pilot/[id]. -->
+                                        <a
+                                            href="/pilot/{pilot.xws}"
+                                            class="text-2xl md:text-3xl font-sans font-bold break-words leading-snug text-primary hover:text-accent transition-colors border-b border-transparent hover:border-accent/50"
+                                        >
+                                            {pilotName}
+                                        </a>
+                                        <!-- Cost capsule (initiative is already on
+                                             the card art, so it's not shown here).
+                                             Cost sits next to the name, beside the
+                                             loadout value. -->
+                                        <span
+                                            class="text-xs font-mono bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-md border border-emerald-500/30 shrink-0"
+                                            title="Cost"
+                                        >
+                                            {Math.max(0, pilot.cost ?? 0)} PT
+                                        </span>
+                                        {#if isXwa && loadout}
+                                            <span
+                                                class="text-xs font-mono bg-violet-500/20 text-violet-300 px-2 py-0.5 rounded-md border border-violet-500/30 shrink-0"
+                                                title="Loadout value"
+                                            >
+                                                LV {loadout}
+                                            </span>
+                                        {/if}
+                                    </div>
+
+                                    <!-- Ship row -->
+                                    <div
+                                        class="flex items-center gap-2 text-sm flex-wrap"
+                                    >
+                                        {#if shipIcon}
+                                            <img
+                                                src={shipIcon}
+                                                alt={shipName}
+                                                class="w-5 h-5 object-contain opacity-90 shrink-0"
+                                                loading="lazy"
+                                            />
+                                        {:else if pilot.ship_xws}
+                                            <i
+                                                class="xwing-miniatures-ship xwing-miniatures-ship-{pilot.ship_xws.replace(/[^a-z0-9]/g, "")} text-base opacity-80 shrink-0"
+                                                style="color: {getFactionColor(faction)}"
+                                            ></i>
+                                        {/if}
+                                        <span
+                                            class="font-mono text-secondary uppercase tracking-wider font-semibold"
+                                            >{shipName}</span
+                                        >
+                                        {#if shipClassLabel}
+                                            <span
+                                                class="font-mono text-secondary/60 text-xs"
+                                                >{shipClassLabel}</span
+                                            >
+                                        {/if}
+                                    </div>
                                 </div>
                             </div>
 
-                            <!-- Info + Upgrades Column -->
-                            <div
-                                class="flex-1 p-5 md:p-6 space-y-4 min-w-0"
-                            >
-                                <!-- Pilot Header -->
+                            <!-- Upgrades — bipartite capsules (horizontal card
+                                 image half + name/cost half, no inner square),
+                                 2 columns. Each capsule clicks through to
+                                 /upgrade/[id]. -->
+                            {#if hasUpgrades}
                                 <div
-                                    class="flex items-start justify-between gap-4 flex-wrap"
+                                    class="pt-4 border-t border-border-dark space-y-3"
                                 >
-                                    <div class="space-y-2 min-w-0 flex-1">
-                                        <div
-                                            class="flex items-center gap-2 flex-wrap"
-                                        >
-                                            <CardHoverLink
-                                                xws={pilot.xws}
-                                                type="pilot"
-                                                name={pilotData?.name ||
-                                                    pilot.xws}
-                                                className="text-xl md:text-2xl font-sans font-bold break-words"
-                                            />
-                                            {#if pilot.initiative !== undefined && pilot.initiative !== null && pilot.initiative > 0}
-                                                <span
-                                                    class="text-xs font-mono bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-md border border-orange-500/30 shrink-0"
-                                                    title="Initiative"
-                                                >
-                                                    I{pilot.initiative}
-                                                </span>
-                                            {/if}
-                                            {#if isXwa && loadout}
-                                                <span
-                                                    class="text-xs font-mono bg-violet-500/20 text-violet-300 px-2 py-0.5 rounded-md border border-violet-500/30 shrink-0"
-                                                    title="Loadout value"
-                                                >
-                                                    LV {loadout}
-                                                </span>
-                                            {/if}
-                                        </div>
-
-                                        <!-- Ship row -->
-                                        <div
-                                            class="flex items-center gap-2 text-sm flex-wrap"
-                                        >
-                                            {#if shipIcon}
-                                                <img
-                                                    src={shipIcon}
-                                                    alt={shipName}
-                                                    class="w-5 h-5 object-contain opacity-90 shrink-0"
-                                                    loading="lazy"
-                                                />
-                                            {:else if pilot.ship_xws}
-                                                <i
-                                                    class="xwing-miniatures-ship xwing-miniatures-ship-{pilot.ship_xws.replace(/[^a-z0-9]/g, "")} text-base opacity-80 shrink-0"
-                                                    style="color: {getFactionColor(faction)}"
-                                                ></i>
-                                            {/if}
-                                            <span
-                                                class="font-mono text-secondary uppercase tracking-wider font-semibold"
-                                                >{shipName}</span
-                                            >
-                                            {#if shipClassLabel}
-                                                <span
-                                                    class="font-mono text-secondary/60 text-xs"
-                                                    >{shipClassLabel}</span
-                                                >
-                                            {/if}
-                                        </div>
-                                    </div>
-
-                                    <!-- Cost -->
-                                    <div class="text-right shrink-0">
-                                        <div
-                                            class="text-[10px] font-mono text-secondary uppercase tracking-wider"
-                                        >
-                                            Cost
-                                        </div>
-                                        <div
-                                            class="text-2xl md:text-3xl font-mono text-green-400 font-bold leading-none"
-                                        >
-                                            {Math.max(0, pilot.cost ?? 0)}
-                                            <span
-                                                class="text-sm text-secondary/60 font-normal"
-                                                >PT</span
-                                            >
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Upgrades -->
-                                {#if pilot.upgrades && pilot.upgrades.length > 0}
                                     <div
-                                        class="pt-4 border-t border-border-dark space-y-3"
+                                        class="text-[10px] font-mono text-secondary uppercase tracking-[0.2em] font-semibold"
                                     >
+                                        Upgrades
+                                    </div>
+                                    {#if Object.keys(upgradeGroups).length > 0}
+                                        <!-- Each upgrade capsule has a FIXED height (98px) regardless of how
+                                             many lines its name wraps to, so upgrade rows never stretch the
+                                             pilot card. All upgrades remain visible. -->
                                         <div
-                                            class="text-[10px] font-mono text-secondary uppercase tracking-[0.2em] font-semibold"
+                                            class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 {upgradeStyle === 'realsize'
+                                                ? '!grid-cols-1'
+                                                : ''}"
                                         >
-                                            Upgrades
-                                        </div>
-                                        {#if Object.keys(upgradeGroups).length > 0}
-                                            <div
-                                                class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3"
-                                            >
-                                                {#each Object.entries(upgradeGroups) as [slot, upgrades]}
-                                                    {@const slotIcon = getSlotIcon(slot)}
-                                                    <div class="space-y-2">
-                                                        <!-- Slot header -->
-                                                        <div
-                                                            class="flex items-center gap-1.5"
+                                            {#each Object.entries(upgradeGroups) as [slot, upgrades]}
+                                                {@const slotIcon = getSlotIcon(slot)}
+                                                <div class="space-y-2">
+                                                    <!-- Slot header -->
+                                                    <div
+                                                        class="flex items-center gap-1.5"
+                                                    >
+                                                        <span
+                                                            class="font-xwing text-violet-400 text-base leading-none w-4 text-center"
+                                                            title={formatSlotName(
+                                                                slot,
+                                                            )}
                                                         >
-                                                            <span
-                                                                class="font-xwing text-violet-400 text-base leading-none w-4 text-center"
-                                                                title={formatSlotName(
-                                                                    slot,
-                                                                )}
-                                                            >
-                                                                {slotIcon}
-                                                            </span>
-                                                            <span
-                                                                class="text-[10px] font-mono text-secondary uppercase tracking-wider font-semibold"
-                                                            >
-                                                                {formatSlotName(
-                                                                    slot,
-                                                                )}
-                                                            </span>
-                                                        </div>
-                                                        <!-- Upgrades list -->
-                                                        <div
-                                                            class="flex flex-col gap-1.5"
+                                                            {slotIcon}
+                                                        </span>
+                                                        <span
+                                                            class="text-[10px] font-mono text-secondary uppercase tracking-wider font-semibold"
                                                         >
-                                                            {#each upgrades as upgrade}
-                                                                {@const upgXws = upgrade.xws}
-                                                                {@const upgData = upgXws
-                                                                    ? xwingData.getUpgrade(
-                                                                          upgXws,
-                                                                      )
-                                                                    : null}
-                                                                {@const upgImg = upgData
-                                                                    ?.sides?.[0]
-                                                                        ?.image}
-                                                                {@const upgName = upgData
-                                                                    ?.name ||
-                                                                    upgrade.xws}
-                                                                {@const upgCost = upgData
-                                                                    ?.cost?.value}
-                                                                <div
-                                                                    class="flex items-center gap-2 bg-terminal-panel border border-border-dark rounded-md px-2 py-1.5 min-w-0"
+                                                            {formatSlotName(
+                                                                slot,
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                    <!-- Upgrades list -->
+                                                    <div
+                                                        class="flex flex-col gap-2"
+                                                    >
+                                                        {#each upgrades as upgrade}
+                                                            {@const upgXws = upgrade.xws}
+                                                            {@const upgData = upgXws
+                                                                ? xwingData.getUpgrade(
+                                                                      upgXws,
+                                                                  )
+                                                                : null}
+                                                            {@const upgImg = upgData
+                                                                ?.sides?.[0]
+                                                                    ?.image}
+                                                            {@const upgName = upgData
+                                                                ?.name ||
+                                                                upgrade.xws}
+                                                            {@const upgCost = upgData
+                                                                ?.cost?.value}
+                                                            <div class="p-1">
+                                                                <a
+                                                                    href="/upgrade/{upgXws}"
+                                                                    class="group/upg flex items-stretch bg-terminal-panel border border-border-dark rounded-lg min-w-0 relative"
+                                                                    title="View {upgName} details"
                                                                 >
+                                                                    <!-- Image half: the upgrade art floats directly in the capsule
+                                                                         with NO container/border behind it. Compact style: ~25%
+                                                                         taller than before (h-36/40). Realsize style: as tall as the
+                                                                         vertical pilot cards (h-72/80). On hover the art scales up
+                                                                         and its z-index rises so the halo extends OUTSIDE. -->
                                                                     <div
-                                                                        class="w-8 h-8 shrink-0 rounded-md bg-[#0a0a0a] border border-border-dark flex items-center justify-center overflow-hidden"
+                                                                        class="w-1/2 shrink-0 relative flex items-center justify-center p-2 md:p-2.5 {upgradeStyle === 'realsize'
+                                                                            ? 'h-72 lg:h-80'
+                                                                            : 'h-36 md:h-40'}"
                                                                     >
-                                                                        {#if upgImg}
-                                                                            <img
-                                                                                src={upgImg}
-                                                                                alt={upgName}
-                                                                                class="w-full h-full object-contain"
-                                                                                loading="lazy"
-                                                                            />
-                                                                        {:else}
-                                                                            <i
-                                                                                class="xwing-miniatures-ship text-base opacity-60"
-                                                                            ></i>
-                                                                        {/if}
+                                                                        <div
+                                                                            class="relative w-full h-full flex items-center justify-center transition-transform duration-300 hover:scale-[1.1] hover:z-30"
+                                                                        >
+                                                                            {#if upgImg}
+                                                                                <img
+                                                                                    src={upgImg}
+                                                                                    alt={upgName}
+                                                                                    class="w-full h-full object-contain drop-shadow-[0_0_10px_rgba(255,255,255,0.1)] transition-all duration-300 hover:drop-shadow-[0_0_26px_rgba(255,255,255,0.3)]"
+                                                                                    loading="lazy"
+                                                                                />
+                                                                            {:else}
+                                                                                <div
+                                                                                    class="w-full h-full flex items-center justify-center"
+                                                                                >
+                                                                                    <i
+                                                                                        class="xwing-miniatures-ship text-2xl opacity-60"
+                                                                                    ></i>
+                                                                                </div>
+                                                                            {/if}
+                                                                        </div>
                                                                     </div>
-                                                                <div
-                                                                    class="min-w-0 flex-1"
-                                                                >
-                                                                    <CardHoverLink
-                                                                        xws={upgXws}
-                                                                        type="upgrade"
-                                                                        name={upgName}
-                                                                        className="text-sm font-sans truncate"
-                                                                    />
+                                                                    <!-- Text half: fixed height matching the image half so every
+                                                                         capsule is identical regardless of name line count. -->
                                                                     <div
-                                                                        class="text-[10px] font-mono text-secondary/70"
+                                                                        class="flex-1 min-w-0 p-2.5 md:p-3 flex flex-col justify-center overflow-hidden {upgradeStyle === 'realsize'
+                                                                            ? 'h-72 lg:h-80'
+                                                                            : 'h-36 md:h-40'}"
                                                                     >
-                                                                        {#if upgCost !== undefined && upgCost !== null}
-                                                                            <span
-                                                                                class="text-emerald-400"
-                                                                                >{upgCost}pt</span
-                                                                            >
-                                                                        {:else}
-                                                                            <span
-                                                                                >—</span
-                                                                            >
-                                                                        {/if}
+                                                                        <div
+                                                                            class="text-sm md:text-base font-sans font-semibold text-primary transition-colors leading-snug line-clamp-2 break-words"
+                                                                        >
+                                                                            {upgName}
+                                                                        </div>
+                                                                        <div
+                                                                            class="flex items-center gap-2 shrink-0 mt-1.5"
+                                                                        >
+                                                                            {#if upgCost !== undefined && upgCost !== null}
+                                                                                <span
+                                                                                    class="text-xs font-mono bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-md border border-emerald-500/30"
+                                                                                    title="Cost"
+                                                                                >
+                                                                                    {upgCost} PT
+                                                                                </span>
+                                                                            {:else}
+                                                                                <span
+                                                                                    class="text-xs font-mono text-secondary/70"
+                                                                                    >—</span
+                                                                                >
+                                                                            {/if}
+                                                                        </div>
                                                                     </div>
-                                                                </div>
+                                                                </a>
                                                             </div>
                                                         {/each}
                                                     </div>
