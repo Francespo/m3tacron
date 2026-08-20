@@ -56,6 +56,12 @@ jobs:
   scrape:
     runs-on: ubuntu-latest
 
+    # True when the job needs the database SSH tunnel: the scheduled daily
+    # run always targets staging, and workflow_dispatch targets whatever
+    # environment was chosen (none = SQLite artifact only, no DB).
+    env:
+      NEEDS_DB: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.environment != 'none') }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -75,11 +81,11 @@ jobs:
           playwright install chromium --with-deps
 
       - name: Install PostgreSQL client (for pg_isready / psql)
-        if: inputs.environment == 'prod' || inputs.environment == 'staging' || inputs.environment == 'dev'
+        if: env.NEEDS_DB == 'true'
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
       - name: Open SSH tunnel to database
-        if: inputs.environment == 'prod' || inputs.environment == 'staging' || inputs.environment == 'dev'
+        if: env.NEEDS_DB == 'true'
         run: |
           # Sanitize the secret — copes with CR line endings / stray whitespace
           # from paste that breaks ssh-add (error: "error in libcrypto").
@@ -94,7 +100,7 @@ jobs:
           rm -f /tmp/m3tacron_deploy_key
 
       - name: Start database tunnel
-        if: inputs.environment == 'prod' || inputs.environment == 'staging' || inputs.environment == 'dev'
+        if: env.NEEDS_DB == 'true'
         run: |
           ssh -f -N -L 5432:localhost:3000 \
             -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes \
@@ -177,7 +183,7 @@ jobs:
           retention-days: 30
 
       - name: Commit and Push Changes
-        if: inputs.environment != 'none'
+        if: env.NEEDS_DB == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
