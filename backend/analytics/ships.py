@@ -19,6 +19,12 @@ The SQL below guarantees these rules: the ``ship_lists`` CTE collapses the
 pilots-array join to DISTINCT (playerstanding, ship) pairs before any
 record values are summed, so a duplicated ship in a list can never
 multiply games/wins/list counts.
+
+Faction attribution: each (playerstanding, ship) pair is attributed to the
+PILOT's faction (``pilot_ship_mapping.faction``), not the list's faction.
+Cross-faction squads therefore attribute each ship to the faction it
+actually played as, and the per-faction stats always sum exactly to the
+ship's total.
 """
 from sqlmodel import Session
 from sqlalchemy import text
@@ -93,11 +99,18 @@ def aggregate_ship_stats(
     # pilots-array join to DISTINCT (playerstanding, ship) pairs BEFORE any
     # record values are summed. Without this, a list containing the same ship
     # twice (e.g. 4 T-65s) would join once per pilot and multiply games/wins.
+    #
+    # The faction comes from the PILOT (pilot_ship_mapping.faction), not from
+    # the list's faction: cross-faction squads (e.g. "battle of" lists mixing
+    # Republic + Rebel + Empire ships) must attribute each ship's appearances
+    # to the faction the ship itself played as. Using list.faction would dump
+    # those mixed lists into "unknown" and make the per-faction stats not sum
+    # to the ship's total (the ARC-170 case: 460 + 2166 + 2 != 2628).
     sql = text(f"""
         WITH ship_lists AS (
             SELECT DISTINCT
                 ps.id AS ps_id,
-                l.faction AS faction,
+                COALESCE(NULLIF(psm.faction, ''), 'unknown') AS faction,
                 psm.ship_xws AS ship_xws
             FROM playerstanding ps
             JOIN tournament t ON t.id = ps.tournament_id

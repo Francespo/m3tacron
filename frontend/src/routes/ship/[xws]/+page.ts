@@ -16,12 +16,39 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
         url.searchParams.get('epic') === 'true' ||
         (browser && filters.includeEpic);
 
+    // Optional faction scoping: /ships?faction=rebelalliance carries the
+    // selected faction from the ships-page pill into this detail page.
+    // When set, pilots/lists/squadrons/stats (and the page accent) restrict
+    // to that faction.
+    const factionParam = url.searchParams.get('faction') || '';
+
+    const pilotsUrl = new URL(`${API_BASE}/ship/${shipXws}/pilots`, url.origin);
+    pilotsUrl.searchParams.set('data_source', ds);
+    pilotsUrl.searchParams.set('epic', String(includeEpic));
+    if (factionParam && factionParam !== 'all') {
+        pilotsUrl.searchParams.set('faction', factionParam);
+    }
+
+    const listsUrl = new URL(`${API_BASE}/ship/${shipXws}/lists`, url.origin);
+    listsUrl.searchParams.set('data_source', ds);
+    listsUrl.searchParams.set('limit', '10');
+    if (factionParam && factionParam !== 'all') {
+        listsUrl.searchParams.set('faction', factionParam);
+    }
+
+    const squadronsUrl = new URL(`${API_BASE}/ship/${shipXws}/squadrons`, url.origin);
+    squadronsUrl.searchParams.set('data_source', ds);
+    squadronsUrl.searchParams.set('limit', '10');
+    if (factionParam && factionParam !== 'all') {
+        squadronsUrl.searchParams.set('faction', factionParam);
+    }
+
     // Fetch all endpoints in parallel
     const [infoRes, pilotsRes, listsRes, squadronsRes] = await Promise.allSettled([
-        fetch(`${API_BASE}/ship/${shipXws}?data_source=${ds}`),
-        fetch(`${API_BASE}/ship/${shipXws}/pilots?data_source=${ds}&epic=${includeEpic}`),
-        fetch(`${API_BASE}/ship/${shipXws}/lists?data_source=${ds}&limit=10`),
-        fetch(`${API_BASE}/ship/${shipXws}/squadrons?data_source=${ds}&limit=10`),
+        fetch(`${API_BASE}/ship/${shipXws}?data_source=${ds}&epic=${includeEpic}${factionParam && factionParam !== 'all' ? `&faction=${factionParam}` : ''}`),
+        fetch(pilotsUrl.toString()),
+        fetch(listsUrl.toString()),
+        fetch(squadronsUrl.toString()),
     ]);
 
     const shipData = infoRes.status === 'fulfilled' && infoRes.value.ok
@@ -43,5 +70,6 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
         pilots: pilotsData.pilots || [],
         lists: listsData.lists || [],
         squadrons: squadronsData.squadrons || [],
+        faction: factionParam || 'all',
     };
 };

@@ -42,6 +42,7 @@ def populate() -> None:
                     "pilot_xws": pilot_xws,
                     "source": source_key,
                     "ship_xws": pilot_info.get("ship_xws", "") or "",
+                    "faction": pilot_info.get("faction", "") or "",
                 }
                 for pilot_xws, pilot_info in pilots.items()
                 if pilot_info.get("ship_xws")
@@ -52,11 +53,15 @@ def populate() -> None:
                 continue
 
             # Bulk insert with ON CONFLICT DO NOTHING for idempotency.
+            # faction may be missing on old rows; refresh it when present.
             stmt = text(
                 """
-                INSERT INTO pilot_ship_mapping (pilot_xws, source, ship_xws)
-                VALUES (:pilot_xws, :source, :ship_xws)
-                ON CONFLICT (pilot_xws, source) DO NOTHING
+                INSERT INTO pilot_ship_mapping (pilot_xws, source, ship_xws, faction)
+                VALUES (:pilot_xws, :source, :ship_xws, :faction)
+                ON CONFLICT (pilot_xws, source) DO UPDATE
+                SET ship_xws = EXCLUDED.ship_xws,
+                    faction = CASE WHEN EXCLUDED.faction = '' THEN pilot_ship_mapping.faction
+                                   ELSE EXCLUDED.faction END
                 """
             )
             conn.execute(stmt, rows)

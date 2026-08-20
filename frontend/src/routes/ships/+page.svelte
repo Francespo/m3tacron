@@ -22,7 +22,11 @@
     let { data } = $props();
 
     let filterOpen = $state(false);
-    let page = $state(1);
+    // Initialize page from URL (?page=0 -> UI page 1, ?page=1 -> UI page 2)
+    // so direct navigation/refresh on ?page=2 preserves the page number.
+    let page = $state(typeof window !== 'undefined'
+        ? Math.max(1, Number(new URLSearchParams(window.location.search).get('page') || 0) + 1)
+        : 1);
     let factionOpen = $state(false);
     const size = 50;
 
@@ -400,19 +404,35 @@
                         ? `linear-gradient(to right, ${cardFactions.map((f: string, i: number) => `${getFactionColor(f)} ${((i * 100) / cardFactions.length).toFixed(2)}% ${(((i + 1) * 100) / cardFactions.length).toFixed(2)}%`).join(', ')})`
                         : ''}
 
-                    <a href="/ship/{ship.xws}" class="block group relative" class:ship-card-halo={cardMulti} style="--glow-alpha: {glowOpacity}; --halo-gradient: {factionGradient};">
+                    <!-- Clicking the capsule opens the ship detail page. When a
+                         specific faction is selected on this card, carry it over
+                         as ?faction=X so the detail page shows that faction's
+                         pilots and accent color. "all" (default) carries nothing. -->
+                    {@const shipHref = activeFaction
+                        ? `/ship/${ship.xws}?faction=${activeFaction}`
+                        : `/ship/${ship.xws}`}
+
+                    <a href={shipHref} class="block group relative" style="--glow-alpha: {glowOpacity};">
                         <div
-                            class="ship-card relative z-[1] bg-terminal-panel border border-border-dark rounded-lg p-4 flex flex-col items-center gap-2 hover:border-secondary/50 group-hover:scale-[1.03] group-hover:-translate-y-1 transition-all duration-200"
-                            style="--faction: {factionColor}; --faction-gradient: {factionGradient}; --wr: {wrColor};"
+                            class="ship-card relative z-[1] bg-terminal-panel border border-border-dark rounded-lg p-4 flex flex-col items-center gap-2 hover:border-secondary/50 transition-all duration-200"
+                            style="--faction: {cardMulti ? '#888' : factionColor}; --wr: {wrColor};"
                             class:ship-card--multi={cardMulti}
                         >
+                            <!-- Ship Icon (from X-Wing ship font via CSS pseudo-element).
+                                 Single-faction: colored by --faction. Multi-faction:
+                                 multi-color horizontal gradient stripes. -->
+                            <i
+                                class="ship-icon xwing-miniatures-ship xwing-miniatures-ship-{ship.xws ? ship.xws.replace(/[^a-z0-9]/g, '') : ''} transition-transform"
+                                style="--icon-faction: {factionColor}; --icon-gradient: {factionGradient};"
+                                class:ship-icon--multi={cardMulti}
+                            ></i>
                             <!-- Faction pill (top-right corner of EVERY card).
                                  Multi-faction ships: one clickable icon per faction
                                  + a circled "A" (All factions) toggle. Single-faction
                                  ships: a non-clickable badge with the faction icon. -->
                             <div class="absolute top-2 right-2">
                                 <div
-                                    class="flex items-center gap-1 rounded-full border border-border-dark bg-[#0d0d14]/90 px-1.5 py-0.5"
+                                    class="flex items-center gap-1 rounded-full border border-border-dark bg-[#0d0d14]/90 p-0.5"
                                 >
                                     {#if realCount > 0}
                                         {#each realFactions as f}
@@ -421,7 +441,7 @@
                                                     type="button"
                                                     title={getFactionLabel(f)}
                                                     aria-label={`Show ${getFactionLabel(f)} stats`}
-                                                    class="flex items-center rounded-full p-0.5 transition-opacity {activeFaction === f
+                                                    class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full leading-none transition-opacity {activeFaction === f
                                                         ? 'opacity-100 ring-1 ring-white/40'
                                                         : 'opacity-50 hover:opacity-100'}"
                                                     onclick={(e) => {
@@ -430,21 +450,21 @@
                                                         selectShipFaction(ship.xws, f);
                                                     }}
                                                 >
-                                                    <FactionIcon faction={f} size="xs" />
+                                                    <FactionIcon faction={f} size="xs" className="leading-none" />
                                                 </button>
                                             {:else}
                                                 <span
-                                                    class="flex items-center p-0.5 opacity-80"
+                                                    class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full leading-none opacity-80"
                                                     title={getFactionLabel(f)}
                                                 >
-                                                    <FactionIcon faction={f} size="xs" />
+                                                    <FactionIcon faction={f} size="xs" className="leading-none" />
                                                 </span>
                                             {/if}
                                         {/each}
                                     {:else}
                                         <!-- No canonical factions: neutral unknown badge -->
-                                        <span class="flex items-center p-0.5 opacity-80" title="Unknown faction">
-                                            <FactionIcon faction="unknown" size="xs" />
+                                        <span class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full leading-none opacity-80" title="Unknown faction">
+                                            <FactionIcon faction="unknown" size="xs" className="leading-none" />
                                         </span>
                                     {/if}
 
@@ -453,9 +473,9 @@
                                             type="button"
                                             title="All factions"
                                             aria-label="Show stats across all factions"
-                                            class="flex h-4 w-4 items-center justify-center rounded-full border font-sans text-[10px] font-bold transition-colors {activeFaction === null
-                                                ? 'border-primary bg-white/10 text-primary'
-                                                : 'border-secondary/60 text-secondary hover:border-primary hover:text-primary'}"
+                                            class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full font-sans text-[10px] font-bold leading-none transition-colors {activeFaction === null
+                                                ? 'border border-primary bg-white/10 text-primary'
+                                                : 'border border-transparent text-secondary hover:text-primary'}"
                                             onclick={(e) => {
                                                 e.preventDefault();
                                                 e.stopPropagation();
@@ -467,15 +487,6 @@
                                     {/if}
                                 </div>
                             </div>
-
-                            <!-- Ship Icon (from X-Wing ship font via CSS pseudo-element).
-                                 Multi-faction ships render the glyph with a multi-color
-                                 horizontal gradient (one stripe per faction); a selected
-                                 faction renders the glyph in that faction's color. -->
-                            <i
-                                class="ship-icon xwing-miniatures-ship xwing-miniatures-ship-{ship.xws ? ship.xws.replace(/[^a-z0-9]/g, '') : ''} transition-transform"
-                                class:ship-icon--multi={cardMulti}
-                            ></i>
 
                             <!-- Ship Name -->
                             <span
@@ -629,7 +640,7 @@
         border-color: color-mix(in srgb, var(--faction) 30%, transparent);
     }
     .ship-icon {
-        color: var(--faction);
+        color: var(--icon-faction, var(--faction, #888));
         opacity: 0.9;
         font-size: clamp(3rem, 18vw, 8rem);
         line-height: 1;
@@ -647,7 +658,7 @@
        keeps the rest of the card untouched. */
     .ship-icon--multi {
         color: transparent;
-        background: var(--faction-gradient, var(--faction));
+        background: var(--icon-gradient, var(--icon-faction, var(--faction)));
         -webkit-background-clip: text;
         background-clip: text;
         -webkit-text-fill-color: transparent;
@@ -655,63 +666,26 @@
         filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.6));
     }
 
-    /* Multi-faction cards: a 1px gradient border that respects rounded-md.
-       We layer a `::before` over the border area, then mask out the
-       interior so the underlying panel shows through. */
+    /* Multi-faction cards: GRAY border + halo (like single-faction ships
+       with no data), while the multi-color gradient stays on the icon.
+       The gray is set inline via `--faction: #888` on the card. */
     .ship-card--multi {
-        border-color: transparent;
-        /* The offset-box-shadow split halo is gone: box-shadow can only
-           offset whole layers horizontally, so the top/bottom edges ended
-           up blending every faction color together. The halo now lives on
-           the card wrapper (`.ship-card-halo::before`) as a blurred
-           gradient ring, which keeps the color split clean all the way
-           around the card — top and bottom included. */
-        box-shadow: none;
+        /* (no --faction here: it comes inline; this class exists to keep
+           the selector semantics explicit) */
     }
 
-    /* Multi-faction halo: a ring painted with the same horizontal faction
-       gradient as the card border/icon, blurred into a glow. Because the
-       ring's background is the full gradient, every point of the ring —
-       left, right, top, and bottom — shows the color of the stripe at
-       that horizontal position, so the split reads cleanly all around
-       instead of blending at the top/bottom. */
-    .ship-card-halo::before {
-        content: '';
-        position: absolute;
-        inset: -12px;
-        border-radius: 20px;
-        padding: 12px;
-        background: var(--halo-gradient, var(--faction, #888));
-        -webkit-mask:
-            linear-gradient(#000 0 0) content-box,
-            linear-gradient(#000 0 0);
-        mask:
-            linear-gradient(#000 0 0) content-box,
-            linear-gradient(#000 0 0);
-        -webkit-mask-composite: xor;
-        mask-composite: exclude;
-        filter: blur(12px);
-        opacity: calc(var(--glow-alpha, 0) * 1.6);
-        pointer-events: none;
-        z-index: 0;
+    /* All cards scale up on hover (single- and multi-faction alike). The
+       transform lives on the wrapper so the glow moves in sync with the
+       card expansion. */
+    a.block.group.relative {
+        transition: transform 0.2s;
     }
-    .ship-card--multi::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        padding: 1px;
-        border-radius: inherit;
-        background: var(--faction-gradient, var(--faction));
-        /* Mask trick: the first linear-gradient is the "hole" that reveals
-           the panel underneath; the second is the "border" itself. */
-        -webkit-mask:
-            linear-gradient(#000 0 0) content-box,
-            linear-gradient(#000 0 0);
-        mask:
-            linear-gradient(#000 0 0) content-box,
-            linear-gradient(#000 0 0);
-        -webkit-mask-composite: xor;
-        mask-composite: exclude;
-        pointer-events: none;
+    a.block.group.relative:hover {
+        transform: scale(1.03) translateY(-0.25rem);
     }
+
+    /* The multi-faction halo/border uses the plain gray box-shadow and
+       border from `.ship-card` (via --faction: #888) — same neutral look as
+       single-faction ships. The multi-color gradient lives on the icon only
+       (--icon-gradient). No extra pseudo-elements needed. */
 </style>
