@@ -64,6 +64,7 @@ def _build_filters(
     initiatives: list[int] | None = None,
     upgrade_types: list[str] | None = None,
     search_text: str = "",
+    text: str = "",
     points_min: int | None = None,
     points_max: int | None = None,
     loadout_min: int | None = None,
@@ -80,7 +81,7 @@ def _build_filters(
     init_max: int | None = None,
     is_unique: bool = False,
     is_limited: bool = False,
-    is_not_limited: bool = False,
+    is_standard_legal: bool = False,
     base_sizes: list[str] | None = None,
     platforms: list[str] | None = None,
     continent: list[str] | None = None,
@@ -92,6 +93,26 @@ def _build_filters(
     player_count_max: int | None = None,
     upgrade_id: str | None = None,
     epic: bool = False,
+    # Advanced cards-page filters
+    slots: list[str] | None = None,
+    keywords: list[str] | None = None,
+    actions: list[str] | None = None,
+    linked_actions: list[str] | None = None,
+    arcs: list[str] | None = None,
+    double_slot: bool = False,
+    charges_min: int | None = None,
+    charges_max: int | None = None,
+    is_recurring: bool = False,
+    force_min: int | None = None,
+    force_max: int | None = None,
+    games_min: int | None = None,
+    games_max: int | None = None,
+    lists_min: int | None = None,
+    lists_max: int | None = None,
+    unique_lists_min: int | None = None,
+    unique_lists_max: int | None = None,
+    win_rate_min: int | None = None,
+    win_rate_max: int | None = None,
 ) -> dict:
     
     # Base sizes mapping
@@ -102,7 +123,7 @@ def _build_filters(
 
     return {
         "allowed_formats": formats,
-        "search_text": search_text,
+        "search_text": search_text or text,
         "faction": factions,
         "ship": ships,
         "initiative": initiatives,
@@ -123,7 +144,7 @@ def _build_filters(
         "init_max": init_max,
         "is_unique": is_unique,
         "is_limited": is_limited,
-        "is_not_limited": is_not_limited,
+        "is_standard_legal": is_standard_legal,
         "base_sizes": sizes_dict,
         "platforms": platforms,
         "continent": continent,
@@ -135,6 +156,25 @@ def _build_filters(
         "player_count_max": player_count_max,
         "upgrade_id": upgrade_id,
         "include_epic": epic,
+        "slots": slots,
+        "keywords": keywords,
+        "actions": actions,
+        "linked_actions": linked_actions,
+        "arcs": arcs,
+        "double_slot": double_slot,
+        "charges_min": charges_min,
+        "charges_max": charges_max,
+        "is_recurring": is_recurring,
+        "force_min": force_min,
+        "force_max": force_max,
+        "games_min": games_min,
+        "games_max": games_max,
+        "lists_min": lists_min,
+        "lists_max": lists_max,
+        "unique_lists_min": unique_lists_min,
+        "unique_lists_max": unique_lists_max,
+        "win_rate_min": win_rate_min,
+        "win_rate_max": win_rate_max,
     }
 
 
@@ -153,6 +193,7 @@ def get_pilots(
     initiatives: list[int] | None = Query(None),
     search_text: str = Query(""),
     search: str = Query(""),
+    text: str = Query(""),
     points_min: int | None = Query(None),
     points_max: int | None = Query(None),
     loadout_min: int | None = Query(None),
@@ -169,7 +210,7 @@ def get_pilots(
     init_max: int | None = Query(None),
     is_unique: bool = Query(False),
     is_limited: bool = Query(False),
-    is_not_limited: bool = Query(False),
+    is_standard_legal: bool = Query(False),
     base_sizes: list[str] | None = Query(None),
     platforms: list[str] | None = Query(None),
     continent: list[str] | None = Query(None),
@@ -179,20 +220,41 @@ def get_pilots(
     date_end: str | None = Query(None),
     player_count_min: int | None = Query(None),
     player_count_max: int | None = Query(None),
+    # Advanced cards-page filters (pilots)
+    slots: list[str] | None = Query(None),
+    keywords: list[str] | None = Query(None),
+    actions: list[str] | None = Query(None),
+    linked_actions: list[str] | None = Query(None),
+    arcs: list[str] | None = Query(None),
+    # Post-aggregation stat ranges
+    games_min: int | None = Query(None, ge=0),
+    games_max: int | None = Query(None, ge=0),
+    lists_min: int | None = Query(None, ge=0),
+    lists_max: int | None = Query(None, ge=0),
+    unique_lists_min: int | None = Query(None, ge=0),
+    unique_lists_max: int | None = Query(None, ge=0),
+    win_rate_min: int | None = Query(None, ge=0),
+    win_rate_max: int | None = Query(None, ge=0),
 ):
     effective_search = search or search_text
     filters = _build_filters(
         formats=formats, factions=factions, ships=ships, initiatives=initiatives,
-        search_text=effective_search, points_min=points_min, points_max=points_max,
+        search_text=effective_search, text=text, points_min=points_min, points_max=points_max,
         loadout_min=loadout_min, loadout_max=loadout_max, hull_min=hull_min,
         hull_max=hull_max, shields_min=shields_min, shields_max=shields_max,
         agility_min=agility_min, agility_max=agility_max, attack_min=attack_min,
         attack_max=attack_max, init_min=init_min, init_max=init_max,
-        is_unique=is_unique, is_limited=is_limited, is_not_limited=is_not_limited,
+        is_unique=is_unique, is_limited=is_limited, is_standard_legal=is_standard_legal,
         base_sizes=base_sizes, platforms=platforms, continent=continent, country=country, city=city,
         date_start=date_start, date_end=date_end,
         player_count_min=player_count_min, player_count_max=player_count_max,
         epic=epic,
+        slots=slots, keywords=keywords, actions=actions,
+        linked_actions=linked_actions, arcs=arcs,
+        games_min=games_min, games_max=games_max,
+        lists_min=lists_min, lists_max=lists_max,
+        unique_lists_min=unique_lists_min, unique_lists_max=unique_lists_max,
+        win_rate_min=win_rate_min, win_rate_max=win_rate_max,
     )
 
     cache_key = (
@@ -209,7 +271,7 @@ def get_pilots(
         f"|{agility_min}|{agility_max}"
         f"|{attack_min}|{attack_max}"
         f"|{init_min}|{init_max}"
-        f"|{is_unique}|{is_limited}|{is_not_limited}"
+        f"|{is_unique}|{is_limited}|{is_standard_legal}"
         f"|{','.join(sorted(base_sizes or []))}"
         f"|{','.join(sorted(platforms or []))}"
         f"|{','.join(sorted(continent or []))}"
@@ -218,6 +280,15 @@ def get_pilots(
         f"|{date_start or ''}|{date_end or ''}"
         f"|{player_count_min}|{player_count_max}"
         f"|{epic}"
+        f"|{','.join(sorted(slots or []))}"
+        f"|{','.join(sorted(keywords or []))}"
+        f"|{','.join(sorted(actions or []))}"
+        f"|{','.join(sorted(linked_actions or []))}"
+        f"|{','.join(sorted(arcs or []))}"
+        f"|{games_min}|{games_max}"
+        f"|{lists_min}|{lists_max}"
+        f"|{unique_lists_min}|{unique_lists_max}"
+        f"|{win_rate_min}|{win_rate_max}"
     )
 
     def compute():
@@ -247,6 +318,7 @@ def get_upgrades(
     upgrade_types: list[str] | None = Query(None),
     search_text: str = Query(""),
     search: str = Query(""),
+    text: str = Query(""),
     points_min: int | None = Query(None),
     points_max: int | None = Query(None),
     platforms: list[str] | None = Query(None),
@@ -257,16 +329,42 @@ def get_upgrades(
     date_end: str | None = Query(None),
     player_count_min: int | None = Query(None),
     player_count_max: int | None = Query(None),
+    # Advanced cards-page filters (upgrades)
+    is_unique: bool = Query(False),
+    is_limited: bool = Query(False),
+    is_standard_legal: bool = Query(False),
+    double_slot: bool = Query(False),
+    charges_min: int | None = Query(None, ge=0),
+    charges_max: int | None = Query(None, ge=0),
+    is_recurring: bool = Query(False),
+    force_min: int | None = Query(None, ge=0),
+    force_max: int | None = Query(None, ge=0),
+    # Post-aggregation stat ranges
+    games_min: int | None = Query(None, ge=0),
+    games_max: int | None = Query(None, ge=0),
+    lists_min: int | None = Query(None, ge=0),
+    lists_max: int | None = Query(None, ge=0),
+    unique_lists_min: int | None = Query(None, ge=0),
+    unique_lists_max: int | None = Query(None, ge=0),
+    win_rate_min: int | None = Query(None, ge=0),
+    win_rate_max: int | None = Query(None, ge=0),
 ):
     effective_search = search or search_text
     filters = _build_filters(
         formats=formats, factions=factions, upgrade_types=upgrade_types,
-        search_text=effective_search, points_min=points_min, points_max=points_max,
+        search_text=effective_search, text=text, points_min=points_min, points_max=points_max,
         platforms=platforms, continent=continent, country=country, city=city,
         date_start=date_start, date_end=date_end,
         player_count_min=player_count_min, player_count_max=player_count_max,
         upgrade_id=upgrade_id,
         epic=epic,
+        is_unique=is_unique, is_limited=is_limited, is_standard_legal=is_standard_legal,
+        double_slot=double_slot, charges_min=charges_min, charges_max=charges_max,
+        is_recurring=is_recurring, force_min=force_min, force_max=force_max,
+        games_min=games_min, games_max=games_max,
+        lists_min=lists_min, lists_max=lists_max,
+        unique_lists_min=unique_lists_min, unique_lists_max=unique_lists_max,
+        win_rate_min=win_rate_min, win_rate_max=win_rate_max,
     )
 
     cache_key = (
@@ -284,6 +382,12 @@ def get_upgrades(
         f"|{player_count_min}|{player_count_max}"
         f"|{upgrade_id or ''}"
         f"|{epic}"
+        f"|{is_unique}|{is_limited}|{is_standard_legal}"
+        f"|{double_slot}|{charges_min}|{charges_max}|{is_recurring}|{force_min}|{force_max}"
+        f"|{games_min}|{games_max}"
+        f"|{lists_min}|{lists_max}"
+        f"|{unique_lists_min}|{unique_lists_max}"
+        f"|{win_rate_min}|{win_rate_max}"
     )
 
     def compute():

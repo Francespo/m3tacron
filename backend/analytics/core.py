@@ -18,6 +18,42 @@ from .filters import filter_query, get_active_formats, apply_tournament_filters
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
 
 
+def _norm_set(values) -> set:
+    """Normalize a str/list of values to a lowercase set for matching."""
+    if not values:
+        return set()
+    if isinstance(values, str):
+        values = [values]
+    return {v.lower() for v in values if v}
+
+
+def _upgrade_charges(u_info: dict) -> tuple[int | None, int | None]:
+    """Return (value, recovers) for the first upgraded side that has charges."""
+    for side in u_info.get("sides", []):
+        c = side.get("charges")
+        if c and "value" in c:
+            return int(c.get("value", 0)), int(c.get("recovers", 0))
+    return None, None
+
+
+def _upgrade_force(u_info: dict) -> int | None:
+    """Return the force value for the first upgraded side that grants Force."""
+    for side in u_info.get("sides", []):
+        f = side.get("force")
+        if f and "value" in f:
+            return int(f.get("value", 0))
+    return None
+
+
+def _is_double_slot(u_info: dict) -> bool:
+    """True if any upgraded side occupies the same slot type twice (double-slot)."""
+    for side in u_info.get("sides", []):
+        slots = side.get("slots", [])
+        if slots and len(slots) != len(set(slots)):
+            return True
+    return False
+
+
 def aggregate_card_stats(
     filters: dict,
     sort_criteria: SortingCriteria = SortingCriteria.LISTS,
@@ -108,8 +144,31 @@ def aggregate_card_stats(
 
     is_unique = filters.get("is_unique", False)
     is_limited = filters.get("is_limited", False)
-    is_not_limited = filters.get("is_not_limited", False)
+    is_standard_legal = filters.get("is_standard_legal", False)
     base_sizes = filters.get("base_sizes", {})
+
+    # Advanced catalog filters (cards page)
+    allowed_slots = _norm_set(filters.get("slots"))
+    allowed_keywords = _norm_set(filters.get("keywords"))
+    allowed_actions = _norm_set(filters.get("actions"))
+    allowed_linked_actions = _norm_set(filters.get("linked_actions"))
+    allowed_arcs = _norm_set(filters.get("arcs"))
+    double_slot = filters.get("double_slot", False)
+    is_recurring = filters.get("is_recurring", False)
+    charges_min = _int_or(filters.get("charges_min"), None)
+    charges_max = _int_or(filters.get("charges_max"), None)
+    force_min = _int_or(filters.get("force_min"), None)
+    force_max = _int_or(filters.get("force_max"), None)
+
+    # Post-aggregation stat ranges (Data group / basic min-games/min-decks)
+    games_min = _int_or(filters.get("games_min"), None)
+    games_max = _int_or(filters.get("games_max"), None)
+    lists_min = _int_or(filters.get("lists_min"), None)
+    lists_max = _int_or(filters.get("lists_max"), None)
+    unique_lists_min = _int_or(filters.get("unique_lists_min"), None)
+    unique_lists_max = _int_or(filters.get("unique_lists_max"), None)
+    winrate_min = _int_or(filters.get("win_rate_min"), None)
+    winrate_max = _int_or(filters.get("win_rate_max"), None)
 
     # --- PHASE 1: Filter the in-memory catalog -------------------------------
     # Builds the `stats` dict with zeroed counts for eligible cards.
@@ -174,6 +233,28 @@ def aggregate_card_stats(
             if p_attack < attack_min or p_attack > attack_max:
                 continue
             if p_init < init_min or p_init > init_max:
+                continue
+
+            # Uniqueness / legality toggles
+            p_limited = int(p_info.get("limited", 0) or 0)
+            if is_unique and p_limited != 1:
+                continue
+            if is_limited and p_limited < 1:
+                continue
+            if is_standard_legal and not is_legal:
+                continue
+
+            # Advanced catalog filters: slots / keywords / actions /
+            # linked actions / arc icons
+            if allowed_slots and not (allowed_slots & _norm_set(p_info.get("slots"))):
+                continue
+            if allowed_keywords and not (allowed_keywords & _norm_set(p_info.get("keywords"))):
+                continue
+            if allowed_actions and not (allowed_actions & _norm_set(p_info.get("actions"))):
+                continue
+            if allowed_linked_actions and not (allowed_linked_actions & _norm_set(p_info.get("linked_actions"))):
+                continue
+            if allowed_arcs and not (allowed_arcs & _norm_set(p_info.get("arcs"))):
                 continue
 
             # Base Size
@@ -292,6 +373,31 @@ def aggregate_card_stats(
                     types.add(u_info["type"].lower())
 
             if allowed_types and types.isdisjoint(allowed_types):
+                continue
+
+            # Uniqueness / legality toggles
+            u_limited = int(u_info.get("limited", 0) or 0)
+            if is_unique and u_limited != 1:
+                continue
+            if is_limited and u_limited < 1:
+                continue
+            if is_standard_legal and not is_legal:
+                continue
+
+            # Slot / charge / force filters
+            if double_slot and not _is_double_slot(u_info):
+                continue
+            c_value, c_recovers = _upgrade_charges(u_info)
+            if charges_min is not None and (c_value is None or c_value < charges_min):
+                continue
+            if charges_max is not None and (c_value is None or c_value > charges_max):
+                continue
+            if is_recurring and (c_value is None or c_recovers is None or c_recovers < 1):
+                continue
+            f_value = _upgrade_force(u_info)
+            if force_min is not None and (f_value is None or f_value < force_min):
+                continue
+            if force_max is not None and (f_value is None or f_value > force_max):
                 continue
 
             # Text Filter
@@ -524,6 +630,41 @@ def aggregate_card_stats(
     # finalize step doesn't try to compute len() on it.
     for xws_id, s_data in stats.items():
         s_data.pop("_signatures", None)
+
+    # Post-aggregation stat ranges (Data group, plus the basic-mode
+    # "min games" / "min decks" single-minimum fields). Stats can never
+    # go below zero, so min bounds are implicitly >= 0.
+    stat_range_set = (
+        games_min is not None or games_max is not None
+        or lists_min is not None or lists_max is not None
+        or unique_lists_min is not None or unique_lists_max is not None
+        or winrate_min is not None or winrate_max is not None
+    )
+    if stat_range_set:
+        drop: list[str] = []
+        for xws_id, s_data in stats.items():
+            games = s_data["games_count"]
+            lists = s_data["list_count"]
+            unique_lists = s_data["different_lists_count"]
+            winrate = (s_data["wins"] / games * 100.0) if games > 0 else 0.0
+            if games_min is not None and games < games_min:
+                drop.append(xws_id); continue
+            if games_max is not None and games > games_max:
+                drop.append(xws_id); continue
+            if lists_min is not None and lists < lists_min:
+                drop.append(xws_id); continue
+            if lists_max is not None and lists > lists_max:
+                drop.append(xws_id); continue
+            if unique_lists_min is not None and unique_lists < unique_lists_min:
+                drop.append(xws_id); continue
+            if unique_lists_max is not None and unique_lists > unique_lists_max:
+                drop.append(xws_id); continue
+            if winrate_min is not None and winrate < winrate_min:
+                drop.append(xws_id); continue
+            if winrate_max is not None and winrate > winrate_max:
+                drop.append(xws_id); continue
+        for xws_id in drop:
+            stats.pop(xws_id, None)
 
     return _finalize_results(stats, sort_criteria, sort_direction)
 

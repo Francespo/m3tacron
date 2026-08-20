@@ -70,6 +70,9 @@ playwright-images/
 .playwright-mcp/
 verify*.png
 commit_message.json
+.opencode/
+test.db*
+m3tacron.egg-info/
 .vite/
 # Font-centering verification screenshots (local review evidence, not for GitHub)
 .verify-font-centering/

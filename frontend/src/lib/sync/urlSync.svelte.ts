@@ -132,6 +132,13 @@ export function scheduleSync(delayMs: number = 0, overlay?: URLSearchParams): vo
                 'country',
                 'city',
                 'base_sizes',
+                // Cards-page advanced filter multi-selects:
+                'slots',
+                'keywords',
+                'actions',
+                'linked_actions',
+                'arcs',
+                'upgrade_types',
             ]);
             for (const [k, v] of overlay) {
                 if (MULTI_VALUE_KEYS.has(k)) continue;

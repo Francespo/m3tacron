@@ -42,6 +42,9 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                 for pilot in ship_data.get("pilots", []):
                     xws_id = pilot.get("xws", "")
                     if xws_id:
+                        # Actions come from the ship, unless the pilot
+                        # overrides them via `shipActions` (common in Legacy).
+                        pilot_actions = pilot.get("shipActions") or ship_data.get("actions", [])
                         all_pilots[xws_id] = {
                             "name": pilot.get("name", xws_id),
                             "caption": pilot.get("caption", ""),
@@ -62,6 +65,20 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                             "attack": stats_flat.get("attack"),
                             "size": ship_size,
                             "limited": pilot.get("limited", 0),
+                            # Advanced-filter fields (cards page)
+                            "slots": pilot.get("slots", []),
+                            "keywords": pilot.get("keywords", []),
+                            "actions": [a.get("type", "") for a in pilot_actions],
+                            "linked_actions": [
+                                a["linked"].get("type", "")
+                                for a in pilot_actions
+                                if isinstance(a.get("linked"), dict) and a["linked"].get("type")
+                            ],
+                            "arcs": sorted({
+                                s.get("arc", "")
+                                for s in ship_data.get("stats", [])
+                                if s.get("type") == "attack" and s.get("arc")
+                            }),
                             # Formats
                             "valid_in_standard": pilot.get("standard", False) or pilot.get("extended", False),
                             "wildspace": pilot.get("wildspace", False),

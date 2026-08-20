@@ -9,25 +9,17 @@
     import UpgradeCard from "$lib/components/UpgradeCard.svelte";
     import PendingIndicator from "$lib/components/PendingIndicator.svelte";
     import ErrorPanel from "$lib/components/ErrorPanel.svelte";
-    import Toggle from "$lib/components/Toggle.svelte";
-    import {
-        getWinRateColor,
-        ALL_FACTIONS,
-        getFactionLabel,
-    } from "$lib/data/factions";
     import { invalidateAll } from "$app/navigation";
     import { filters } from "$lib/stores/filters.svelte";
     import { scheduleSync } from "$lib/sync/urlSync.svelte";
     import DebouncedTextInput from "$lib/components/DebouncedTextInput.svelte";
     import { xwingData } from "$lib/stores/xwingData.svelte";
     import { goto } from "$app/navigation";
-    import FactionIcon from "$lib/components/FactionIcon.svelte";
 
     let { data } = $props();
 
     let filterOpen = $state(false);
     let page = $state(1);
-    let factionOpen = $state(false);
     const size = 20;
 
     // The loader streams card rows in via `itemsPromise` (non-blocking
@@ -104,14 +96,23 @@
         if (page * size < total) page++;
     }
 
-    function toggleFaction(f: string) {
-        if (filters.selectedFactions.includes(f)) {
-            filters.selectedFactions = filters.selectedFactions.filter(
-                (x) => x !== f,
-            );
-        } else {
-            filters.selectedFactions = [...filters.selectedFactions, f];
+    // Basic-mode min games / min decks share gamesMin/listsMin with the
+    // advanced "Data" group. Minimums are locked at 0 (stats never go
+    // below zero — negative entries are clamped/refused).
+    function clampNonNegative(e: Event): string {
+        const input = e.currentTarget as HTMLInputElement;
+        const raw = input.value.trim();
+        if (raw === "") return "";
+        const n = Number(raw);
+        if (Number.isNaN(n)) {
+            input.value = "";
+            return "";
         }
+        if (n < 0) {
+            input.value = "0";
+            return "0";
+        }
+        return raw;
     }
 </script>
 
@@ -158,9 +159,9 @@
                 >Text Search</span
             >
             <DebouncedTextInput
-                value={filters.searchName}
+                value={filters.cardText}
                 onDebouncedChange={(v) => {
-                    filters.searchName = v;
+                    filters.cardText = v;
                     scheduleSync(250);
                 }}
                 placeholder="Search card text"
@@ -168,61 +169,40 @@
             />
         </div>
 
-        <!-- Faction -->
-        <div class="border-b border-border-dark mt-1">
-            <button
-                class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
-                onclick={() => (factionOpen = !factionOpen)}
-            >
-                <div class="flex items-center gap-2">
-                    <span class="text-xs font-mono font-bold tracking-wider">
-                        Faction
-                    </span>
-                    {#if filters.selectedFactions.length > 0}
-                        <span
-                            class="text-[10px] bg-white/10 text-secondary px-1.5 rounded-full font-mono"
-                        >
-                            {filters.selectedFactions.length}
-                        </span>
-                    {/if}
+        {#if !isAdvanced}
+            <!-- Basic search: single minimums for games / decks.
+                 Shared with the advanced "Data" group (gamesMin / listsMin). -->
+            <div class="flex items-center gap-4 pt-1">
+                <div class="space-y-1">
+                    <span
+                        class="text-xs font-mono font-bold tracking-wider text-secondary"
+                        >Min Games</span
+                    >
+                    <input
+                        type="number"
+                        min="0"
+                        value={filters.gamesMin}
+                        oninput={(e) => (filters.gamesMin = clampNonNegative(e))}
+                        placeholder="0"
+                        class="w-[70px] bg-black border border-border-dark rounded px-2 py-1.5 text-xs font-mono text-primary placeholder:text-[#555] focus:border-primary focus:outline-none"
+                    />
                 </div>
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="transition-transform {factionOpen
-                        ? 'rotate-180'
-                        : ''}"><path d="m6 9 6 6 6-6" /></svg
-                >
-            </button>
-
-            {#if factionOpen}
-                <div
-                    class="pb-3 space-y-1 max-h-[180px] overflow-y-auto custom-scrollbar pl-2"
-                >
-                    {#each ALL_FACTIONS as f}
-                        <label
-                            class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
-                        >
-                            <Toggle
-                                size="xs"
-                                ariaLabel={`Toggle faction ${getFactionLabel(f)}`}
-                                checked={filters.selectedFactions.includes(f)}
-                                onchange={() => toggleFaction(f)}
-                            />
-                            <FactionIcon faction={f} size="sm" />
-                            <span class="font-mono">{getFactionLabel(f)}</span>
-                        </label>
-                    {/each}
+                <div class="space-y-1">
+                    <span
+                        class="text-xs font-mono font-bold tracking-wider text-secondary"
+                        >Min Decks</span
+                    >
+                    <input
+                        type="number"
+                        min="0"
+                        value={filters.listsMin}
+                        oninput={(e) => (filters.listsMin = clampNonNegative(e))}
+                        placeholder="0"
+                        class="w-[70px] bg-black border border-border-dark rounded px-2 py-1.5 text-xs font-mono text-primary placeholder:text-[#555] focus:border-primary focus:outline-none"
+                    />
                 </div>
-            {/if}
-        </div>
+            </div>
+        {/if}
 
         {#if data.tab === "pilots"}
             <ShipChassisFilter selectedFactions={filters.selectedFactions} />

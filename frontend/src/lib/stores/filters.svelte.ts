@@ -41,13 +41,19 @@ let sortBy = $state<string>('');
 let sortDirection = $state<'asc' | 'desc'>('desc');
 
 // Advanced Filters (Cards Page)
+// NOTE FOR THE FILTERPANEL RESTRUCTURE LANE: these fields are owned by the
+// cards-page workstream. They are named to be cards-scoped and distinct from
+// the global/tournament fields above (`searchName` = tournament-name search,
+// URL key `search`; `cardText` = card text search, URL key `text`). When you
+// restructure the global FilterPanel, keep these names as-is.
+let cardText = $state(''); // Card text search — decoupled from searchName.
 let pointsMin = $state('');
 let pointsMax = $state('');
 let loadoutMin = $state('');
 let loadoutMax = $state('');
 let isUnique = $state(false);
 let isLimited = $state(false);
-let isGeneric = $state(false);
+let isStandardLegal = $state(false); // Replaces the old "Generic" (is_not_limited) toggle.
 let selectedBaseSizes = $state<string[]>([]);
 let initMin = $state('');
 let initMax = $state('');
@@ -59,6 +65,33 @@ let agilityMin = $state('');
 let agilityMax = $state('');
 let attackMin = $state('');
 let attackMax = $state('');
+
+// Advanced — Ships & Pilots (pilots tab)
+let selectedSlots = $state<string[]>([]); // upgrade slots on the pilot
+let selectedKeywords = $state<string[]>([]);
+let selectedActions = $state<string[]>([]);
+let selectedLinkedActions = $state<string[]>([]);
+let selectedArcs = $state<string[]>([]); // attack arc icons
+
+// Advanced — Upgrades (upgrades tab)
+let selectedUpgradeTypes = $state<string[]>([]); // "used slot" multi-select
+let isDoubleSlot = $state(false);
+let isRecurring = $state(false);
+let chargesMin = $state('');
+let chargesMax = $state('');
+let forceMin = $state('');
+let forceMax = $state('');
+
+// Advanced — Data (stat ranges, both tabs; basic-mode "min games" / "min
+// decks" share gamesMin / listsMin).
+let gamesMin = $state('');
+let gamesMax = $state('');
+let listsMin = $state('');
+let listsMax = $state('');
+let uniqueListsMin = $state('');
+let uniqueListsMax = $state('');
+let winRateMin = $state('');
+let winRateMax = $state('');
 
 // ---------------------------------------------------------------------------
 // Derived: active filter chips
@@ -89,13 +122,14 @@ function buildActiveChips(): FilterChip[] {
     }
 
     if (searchName) chips.push({ key: 'search', label: `"${searchName}"` });
+    if (cardText) chips.push({ key: 'text', label: `Text: "${cardText}"` });
 
     // Advanced Chips
     if (pointsMin || pointsMax) chips.push({ key: 'points', label: `Pts: ${pointsMin || 0}-${pointsMax || '∞'}` });
     if (loadoutMin || loadoutMax) chips.push({ key: 'loadout', label: `LV: ${loadoutMin || 0}-${loadoutMax || '∞'}` });
     if (isUnique) chips.push({ key: 'isUnique', label: 'Unique' });
     if (isLimited) chips.push({ key: 'isLimited', label: 'Limited' });
-    if (isGeneric) chips.push({ key: 'isGeneric', label: 'Generic' });
+    if (isStandardLegal) chips.push({ key: 'isStandardLegal', label: 'Standard-legal' });
     for (const b of selectedBaseSizes) chips.push({ key: `base:${b}`, label: `Base: ${b}` });
 
     if (initMin || initMax) chips.push({ key: 'init', label: `Init: ${initMin || 0}-${initMax || 6}` });
@@ -104,6 +138,24 @@ function buildActiveChips(): FilterChip[] {
     if (agilityMin || agilityMax) chips.push({ key: 'agility', label: `Agility: ${agilityMin || 0}-${agilityMax || 3}` });
     if (attackMin || attackMax) chips.push({ key: 'attack', label: `Attack: ${attackMin || 0}-${attackMax || '∞'}` });
 
+    // Ships & Pilots / Upgrades
+    for (const s of selectedSlots) chips.push({ key: `slot:${s}`, label: `Slot: ${s}` });
+    for (const k of selectedKeywords) chips.push({ key: `keyword:${k}`, label: `Keyword: ${k}` });
+    for (const a of selectedActions) chips.push({ key: `action:${a}`, label: `Action: ${a}` });
+    for (const l of selectedLinkedActions) chips.push({ key: `linked:${l}`, label: `Linked: ${l}` });
+    for (const a of selectedArcs) chips.push({ key: `arc:${a}`, label: `Arc: ${a}` });
+    for (const t of selectedUpgradeTypes) chips.push({ key: `upgradeType:${t}`, label: `Slot: ${t}` });
+    if (isDoubleSlot) chips.push({ key: 'isDoubleSlot', label: 'Double-slot' });
+    if (isRecurring) chips.push({ key: 'isRecurring', label: 'Recurring charges' });
+    if (chargesMin || chargesMax) chips.push({ key: 'charges', label: `Charges: ${chargesMin || 0}-${chargesMax || '∞'}` });
+    if (forceMin || forceMax) chips.push({ key: 'force', label: `Force: ${forceMin || 0}-${forceMax || '∞'}` });
+
+    // Data group
+    if (gamesMin || gamesMax) chips.push({ key: 'games', label: `Games: ${gamesMin || 0}-${gamesMax || '∞'}` });
+    if (listsMin || listsMax) chips.push({ key: 'lists', label: `Lists: ${listsMin || 0}-${listsMax || '∞'}` });
+    if (uniqueListsMin || uniqueListsMax) chips.push({ key: 'uniqueLists', label: `Unique lists: ${uniqueListsMin || 0}-${uniqueListsMax || '∞'}` });
+    if (winRateMin || winRateMax) chips.push({ key: 'winRate', label: `Win rate: ${winRateMin || 0}-${winRateMax || '∞'}%` });
+
     return chips;
 }
 
@@ -111,16 +163,37 @@ function removeChip(key: string) {
     if (key === 'dateStart') dateStart = '';
     else if (key === 'dateEnd') dateEnd = '';
     else if (key === 'search') searchName = '';
+    else if (key === 'text') cardText = '';
     else if (key === 'points') { pointsMin = ''; pointsMax = ''; }
     else if (key === 'loadout') { loadoutMin = ''; loadoutMax = ''; }
     else if (key === 'isUnique') isUnique = false;
     else if (key === 'isLimited') isLimited = false;
-    else if (key === 'isGeneric') isGeneric = false;
+    else if (key === 'isStandardLegal') isStandardLegal = false;
     else if (key === 'init') { initMin = ''; initMax = ''; }
     else if (key === 'hull') { hullMin = ''; hullMax = ''; }
     else if (key === 'shields') { shieldsMin = ''; shieldsMax = ''; }
     else if (key === 'agility') { agilityMin = ''; agilityMax = ''; }
     else if (key === 'attack') { attackMin = ''; attackMax = ''; }
+    else if (key === 'isDoubleSlot') isDoubleSlot = false;
+    else if (key === 'isRecurring') isRecurring = false;
+    else if (key === 'charges') { chargesMin = ''; chargesMax = ''; }
+    else if (key === 'force') { forceMin = ''; forceMax = ''; }
+    else if (key === 'games') { gamesMin = ''; gamesMax = ''; }
+    else if (key === 'lists') { listsMin = ''; listsMax = ''; }
+    else if (key === 'uniqueLists') { uniqueListsMin = ''; uniqueListsMax = ''; }
+    else if (key === 'winRate') { winRateMin = ''; winRateMax = ''; }
+    else if (key.startsWith('slot:'))
+        selectedSlots = selectedSlots.filter(s => s !== key.slice(5));
+    else if (key.startsWith('keyword:'))
+        selectedKeywords = selectedKeywords.filter(k => k !== key.slice(8));
+    else if (key.startsWith('action:'))
+        selectedActions = selectedActions.filter(a => a !== key.slice(7));
+    else if (key.startsWith('linked:'))
+        selectedLinkedActions = selectedLinkedActions.filter(l => l !== key.slice(7));
+    else if (key.startsWith('arc:'))
+        selectedArcs = selectedArcs.filter(a => a !== key.slice(4));
+    else if (key.startsWith('upgradeType:'))
+        selectedUpgradeTypes = selectedUpgradeTypes.filter(t => t !== key.slice(12));
     else if (key.startsWith('base:'))
         selectedBaseSizes = selectedBaseSizes.filter(b => b !== key.slice(5));
     else if (key.startsWith('continent:'))
@@ -159,15 +232,30 @@ function resetAll() {
     }
 
     searchName = '';
+    cardText = '';
     pointsMin = ''; pointsMax = '';
     loadoutMin = ''; loadoutMax = '';
-    isUnique = false; isLimited = false; isGeneric = false;
+    isUnique = false; isLimited = false; isStandardLegal = false;
     selectedBaseSizes = [];
     initMin = ''; initMax = '';
     hullMin = ''; hullMax = '';
     shieldsMin = ''; shieldsMax = '';
     agilityMin = ''; agilityMax = '';
     attackMin = ''; attackMax = '';
+    selectedSlots = [];
+    selectedKeywords = [];
+    selectedActions = [];
+    selectedLinkedActions = [];
+    selectedArcs = [];
+    selectedUpgradeTypes = [];
+    isDoubleSlot = false;
+    isRecurring = false;
+    chargesMin = ''; chargesMax = '';
+    forceMin = ''; forceMax = '';
+    gamesMin = ''; gamesMax = '';
+    listsMin = ''; listsMax = '';
+    uniqueListsMin = ''; uniqueListsMax = '';
+    winRateMin = ''; winRateMax = '';
 }
 
 // ---------------------------------------------------------------------------
@@ -197,14 +285,35 @@ type FieldKey =
     | 'dateStart'
     | 'dateEnd'
     | 'searchName'
+    | 'cardText'
     | 'pointsMin'
     | 'pointsMax'
     | 'loadoutMin'
     | 'loadoutMax'
     | 'isUnique'
     | 'isLimited'
-    | 'isGeneric'
+    | 'isStandardLegal'
     | 'selectedBaseSizes'
+    | 'selectedSlots'
+    | 'selectedKeywords'
+    | 'selectedActions'
+    | 'selectedLinkedActions'
+    | 'selectedArcs'
+    | 'selectedUpgradeTypes'
+    | 'isDoubleSlot'
+    | 'isRecurring'
+    | 'chargesMin'
+    | 'chargesMax'
+    | 'forceMin'
+    | 'forceMax'
+    | 'gamesMin'
+    | 'gamesMax'
+    | 'listsMin'
+    | 'listsMax'
+    | 'uniqueListsMin'
+    | 'uniqueListsMax'
+    | 'winRateMin'
+    | 'winRateMax'
     | 'sortBy'
     | 'sortDirection';
 
@@ -221,15 +330,35 @@ const ROUTE_FIELDS: Record<RouteId, readonly FieldKey[]> = {
         'selectedCities',
         'dateStart',
         'dateEnd',
-        'searchName',
+        'cardText',
         'pointsMin',
         'pointsMax',
         'loadoutMin',
         'loadoutMax',
         'isUnique',
         'isLimited',
-        'isGeneric',
+        'isStandardLegal',
         'selectedBaseSizes',
+        'selectedSlots',
+        'selectedKeywords',
+        'selectedActions',
+        'selectedLinkedActions',
+        'selectedArcs',
+        'selectedUpgradeTypes',
+        'isDoubleSlot',
+        'isRecurring',
+        'chargesMin',
+        'chargesMax',
+        'forceMin',
+        'forceMax',
+        'gamesMin',
+        'gamesMax',
+        'listsMin',
+        'listsMax',
+        'uniqueListsMin',
+        'uniqueListsMax',
+        'winRateMin',
+        'winRateMax',
         'sortBy',
         'sortDirection',
     ],
@@ -299,6 +428,7 @@ const SINGLE_KEY: Record<FieldKey, string> = {
     dataSource: 'data_source',
     includeEpic: 'epic',
     searchName: 'search',
+    cardText: 'text',
     dateStart: 'date_start',
     dateEnd: 'date_end',
     pointsMin: 'points_min',
@@ -307,7 +437,21 @@ const SINGLE_KEY: Record<FieldKey, string> = {
     loadoutMax: 'loadout_max',
     isUnique: 'is_unique',
     isLimited: 'is_limited',
-    isGeneric: 'is_not_limited',
+    isStandardLegal: 'is_standard_legal',
+    isDoubleSlot: 'double_slot',
+    isRecurring: 'is_recurring',
+    chargesMin: 'charges_min',
+    chargesMax: 'charges_max',
+    forceMin: 'force_min',
+    forceMax: 'force_max',
+    gamesMin: 'games_min',
+    gamesMax: 'games_max',
+    listsMin: 'lists_min',
+    listsMax: 'lists_max',
+    uniqueListsMin: 'unique_lists_min',
+    uniqueListsMax: 'unique_lists_max',
+    winRateMin: 'win_rate_min',
+    winRateMax: 'win_rate_max',
     sortBy: 'sort_metric',
     sortDirection: 'sort_direction',
     // Multi-value fields — these use `params.append` and a fixed URL key:
@@ -319,6 +463,12 @@ const SINGLE_KEY: Record<FieldKey, string> = {
     selectedCountries: 'country',
     selectedCities: 'city',
     selectedBaseSizes: 'base_sizes',
+    selectedSlots: 'slots',
+    selectedKeywords: 'keywords',
+    selectedActions: 'actions',
+    selectedLinkedActions: 'linked_actions',
+    selectedArcs: 'arcs',
+    selectedUpgradeTypes: 'upgrade_types',
 };
 
 /**
@@ -374,6 +524,11 @@ function toSearchParams(routeId: RouteId): URLSearchParams {
                     params.set(SINGLE_KEY.searchName, searchName);
                 }
                 break;
+            case 'cardText':
+                if (cardText) {
+                    params.set(SINGLE_KEY.cardText, cardText);
+                }
+                break;
             case 'dateStart':
                 if (dateStart) {
                     params.set(SINGLE_KEY.dateStart, dateStart);
@@ -414,9 +569,79 @@ function toSearchParams(routeId: RouteId): URLSearchParams {
                     params.set(SINGLE_KEY.isLimited, 'true');
                 }
                 break;
-            case 'isGeneric':
-                if (isGeneric) {
-                    params.set(SINGLE_KEY.isGeneric, 'true');
+            case 'isStandardLegal':
+                if (isStandardLegal) {
+                    params.set(SINGLE_KEY.isStandardLegal, 'true');
+                }
+                break;
+            case 'isDoubleSlot':
+                if (isDoubleSlot) {
+                    params.set(SINGLE_KEY.isDoubleSlot, 'true');
+                }
+                break;
+            case 'isRecurring':
+                if (isRecurring) {
+                    params.set(SINGLE_KEY.isRecurring, 'true');
+                }
+                break;
+            case 'chargesMin':
+                if (chargesMin) {
+                    params.set(SINGLE_KEY.chargesMin, chargesMin);
+                }
+                break;
+            case 'chargesMax':
+                if (chargesMax) {
+                    params.set(SINGLE_KEY.chargesMax, chargesMax);
+                }
+                break;
+            case 'forceMin':
+                if (forceMin) {
+                    params.set(SINGLE_KEY.forceMin, forceMin);
+                }
+                break;
+            case 'forceMax':
+                if (forceMax) {
+                    params.set(SINGLE_KEY.forceMax, forceMax);
+                }
+                break;
+            case 'gamesMin':
+                if (gamesMin) {
+                    params.set(SINGLE_KEY.gamesMin, gamesMin);
+                }
+                break;
+            case 'gamesMax':
+                if (gamesMax) {
+                    params.set(SINGLE_KEY.gamesMax, gamesMax);
+                }
+                break;
+            case 'listsMin':
+                if (listsMin) {
+                    params.set(SINGLE_KEY.listsMin, listsMin);
+                }
+                break;
+            case 'listsMax':
+                if (listsMax) {
+                    params.set(SINGLE_KEY.listsMax, listsMax);
+                }
+                break;
+            case 'uniqueListsMin':
+                if (uniqueListsMin) {
+                    params.set(SINGLE_KEY.uniqueListsMin, uniqueListsMin);
+                }
+                break;
+            case 'uniqueListsMax':
+                if (uniqueListsMax) {
+                    params.set(SINGLE_KEY.uniqueListsMax, uniqueListsMax);
+                }
+                break;
+            case 'winRateMin':
+                if (winRateMin) {
+                    params.set(SINGLE_KEY.winRateMin, winRateMin);
+                }
+                break;
+            case 'winRateMax':
+                if (winRateMax) {
+                    params.set(SINGLE_KEY.winRateMax, winRateMax);
                 }
                 break;
             case 'sortBy':
@@ -472,6 +697,36 @@ function toSearchParams(routeId: RouteId): URLSearchParams {
                     params.append(SINGLE_KEY.selectedBaseSizes, b);
                 }
                 break;
+            case 'selectedSlots':
+                for (const s of selectedSlots) {
+                    params.append(SINGLE_KEY.selectedSlots, s);
+                }
+                break;
+            case 'selectedKeywords':
+                for (const k of selectedKeywords) {
+                    params.append(SINGLE_KEY.selectedKeywords, k);
+                }
+                break;
+            case 'selectedActions':
+                for (const a of selectedActions) {
+                    params.append(SINGLE_KEY.selectedActions, a);
+                }
+                break;
+            case 'selectedLinkedActions':
+                for (const l of selectedLinkedActions) {
+                    params.append(SINGLE_KEY.selectedLinkedActions, l);
+                }
+                break;
+            case 'selectedArcs':
+                for (const a of selectedArcs) {
+                    params.append(SINGLE_KEY.selectedArcs, a);
+                }
+                break;
+            case 'selectedUpgradeTypes':
+                for (const t of selectedUpgradeTypes) {
+                    params.append(SINGLE_KEY.selectedUpgradeTypes, t);
+                }
+                break;
         }
     }
 
@@ -492,6 +747,10 @@ function applyFromSearchParams(params: URLSearchParams): void {
     if (params.has('search')) {
         const v = params.get('search') ?? '';
         if (v) searchName = v;
+    }
+    if (params.has('text')) {
+        const v = params.get('text') ?? '';
+        if (v) cardText = v;
     }
     if (params.has('date_start')) {
         const v = params.get('date_start') ?? '';
@@ -523,8 +782,62 @@ function applyFromSearchParams(params: URLSearchParams): void {
     if (params.has('is_limited')) {
         isLimited = params.get('is_limited') === 'true';
     }
-    if (params.has('is_not_limited')) {
-        isGeneric = params.get('is_not_limited') === 'true';
+    if (params.has('is_standard_legal')) {
+        isStandardLegal = params.get('is_standard_legal') === 'true';
+    }
+    if (params.has('double_slot')) {
+        isDoubleSlot = params.get('double_slot') === 'true';
+    }
+    if (params.has('is_recurring')) {
+        isRecurring = params.get('is_recurring') === 'true';
+    }
+    if (params.has('charges_min')) {
+        const v = params.get('charges_min') ?? '';
+        if (v) chargesMin = v;
+    }
+    if (params.has('charges_max')) {
+        const v = params.get('charges_max') ?? '';
+        if (v) chargesMax = v;
+    }
+    if (params.has('force_min')) {
+        const v = params.get('force_min') ?? '';
+        if (v) forceMin = v;
+    }
+    if (params.has('force_max')) {
+        const v = params.get('force_max') ?? '';
+        if (v) forceMax = v;
+    }
+    if (params.has('games_min')) {
+        const v = params.get('games_min') ?? '';
+        if (v) gamesMin = v;
+    }
+    if (params.has('games_max')) {
+        const v = params.get('games_max') ?? '';
+        if (v) gamesMax = v;
+    }
+    if (params.has('lists_min')) {
+        const v = params.get('lists_min') ?? '';
+        if (v) listsMin = v;
+    }
+    if (params.has('lists_max')) {
+        const v = params.get('lists_max') ?? '';
+        if (v) listsMax = v;
+    }
+    if (params.has('unique_lists_min')) {
+        const v = params.get('unique_lists_min') ?? '';
+        if (v) uniqueListsMin = v;
+    }
+    if (params.has('unique_lists_max')) {
+        const v = params.get('unique_lists_max') ?? '';
+        if (v) uniqueListsMax = v;
+    }
+    if (params.has('win_rate_min')) {
+        const v = params.get('win_rate_min') ?? '';
+        if (v) winRateMin = v;
+    }
+    if (params.has('win_rate_max')) {
+        const v = params.get('win_rate_max') ?? '';
+        if (v) winRateMax = v;
     }
     if (params.has('sort_metric')) {
         const v = params.get('sort_metric') ?? '';
@@ -615,6 +928,18 @@ function applyFromSearchParams(params: URLSearchParams): void {
     if (cities.length > 0) selectedCities = cities;
     const baseSizes = params.getAll('base_sizes');
     if (baseSizes.length > 0) selectedBaseSizes = baseSizes;
+    const slots = params.getAll('slots');
+    if (slots.length > 0) selectedSlots = slots;
+    const keywords = params.getAll('keywords');
+    if (keywords.length > 0) selectedKeywords = keywords;
+    const actions = params.getAll('actions');
+    if (actions.length > 0) selectedActions = actions;
+    const linkedActions = params.getAll('linked_actions');
+    if (linkedActions.length > 0) selectedLinkedActions = linkedActions;
+    const arcs = params.getAll('arcs');
+    if (arcs.length > 0) selectedArcs = arcs;
+    const upgradeTypes = params.getAll('upgrade_types');
+    if (upgradeTypes.length > 0) selectedUpgradeTypes = upgradeTypes;
 }
 
 // ---------------------------------------------------------------------------
@@ -649,6 +974,9 @@ export const filters = {
     set selectedFormats(v: string[]) { selectedFormats = v; },
     get searchName() { return searchName; },
     set searchName(v: string) { searchName = v; },
+    // Card text search (cards page) — decoupled from searchName on purpose.
+    get cardText() { return cardText; },
+    set cardText(v: string) { cardText = v; },
     get selectedSources() { return selectedSources; },
     set selectedSources(v: string[]) { selectedSources = v; },
     get selectedShips() { return selectedShips; },
@@ -666,7 +994,7 @@ export const filters = {
     get loadoutMax() { return loadoutMax; }, set loadoutMax(v: string) { loadoutMax = v; },
     get isUnique() { return isUnique; }, set isUnique(v: boolean) { isUnique = v; },
     get isLimited() { return isLimited; }, set isLimited(v: boolean) { isLimited = v; },
-    get isGeneric() { return isGeneric; }, set isGeneric(v: boolean) { isGeneric = v; },
+    get isStandardLegal() { return isStandardLegal; }, set isStandardLegal(v: boolean) { isStandardLegal = v; },
     get selectedBaseSizes() { return selectedBaseSizes; }, set selectedBaseSizes(v: string[]) { selectedBaseSizes = v; },
     get initMin() { return initMin; }, set initMin(v: string) { initMin = v; },
     get initMax() { return initMax; }, set initMax(v: string) { initMax = v; },
@@ -678,6 +1006,29 @@ export const filters = {
     get agilityMax() { return agilityMax; }, set agilityMax(v: string) { agilityMax = v; },
     get attackMin() { return attackMin; }, set attackMin(v: string) { attackMin = v; },
     get attackMax() { return attackMax; }, set attackMax(v: string) { attackMax = v; },
+    // Ships & Pilots (pilots tab)
+    get selectedSlots() { return selectedSlots; }, set selectedSlots(v: string[]) { selectedSlots = v; },
+    get selectedKeywords() { return selectedKeywords; }, set selectedKeywords(v: string[]) { selectedKeywords = v; },
+    get selectedActions() { return selectedActions; }, set selectedActions(v: string[]) { selectedActions = v; },
+    get selectedLinkedActions() { return selectedLinkedActions; }, set selectedLinkedActions(v: string[]) { selectedLinkedActions = v; },
+    get selectedArcs() { return selectedArcs; }, set selectedArcs(v: string[]) { selectedArcs = v; },
+    // Upgrades (upgrades tab)
+    get selectedUpgradeTypes() { return selectedUpgradeTypes; }, set selectedUpgradeTypes(v: string[]) { selectedUpgradeTypes = v; },
+    get isDoubleSlot() { return isDoubleSlot; }, set isDoubleSlot(v: boolean) { isDoubleSlot = v; },
+    get isRecurring() { return isRecurring; }, set isRecurring(v: boolean) { isRecurring = v; },
+    get chargesMin() { return chargesMin; }, set chargesMin(v: string) { chargesMin = v; },
+    get chargesMax() { return chargesMax; }, set chargesMax(v: string) { chargesMax = v; },
+    get forceMin() { return forceMin; }, set forceMin(v: string) { forceMin = v; },
+    get forceMax() { return forceMax; }, set forceMax(v: string) { forceMax = v; },
+    // Data (stat ranges)
+    get gamesMin() { return gamesMin; }, set gamesMin(v: string) { gamesMin = v; },
+    get gamesMax() { return gamesMax; }, set gamesMax(v: string) { gamesMax = v; },
+    get listsMin() { return listsMin; }, set listsMin(v: string) { listsMin = v; },
+    get listsMax() { return listsMax; }, set listsMax(v: string) { listsMax = v; },
+    get uniqueListsMin() { return uniqueListsMin; }, set uniqueListsMin(v: string) { uniqueListsMin = v; },
+    get uniqueListsMax() { return uniqueListsMax; }, set uniqueListsMax(v: string) { uniqueListsMax = v; },
+    get winRateMin() { return winRateMin; }, set winRateMin(v: string) { winRateMin = v; },
+    get winRateMax() { return winRateMax; }, set winRateMax(v: string) { winRateMax = v; },
     // End Adv
     /** Memoized chip descriptors for every non-default filter. */
     get activeChips() { return activeChips; },
