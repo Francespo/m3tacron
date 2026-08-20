@@ -93,7 +93,7 @@
             {#each list.pilots || [] as pilotEntry}
                 {@const pilotXws = normalizeXws(pilotEntry.xws)}
                 {@const pilot = xwingData.getPilot(pilotXws)}
-                {@const pilotSubtitle = pilot?.caption || pilot?.shipAbility?.name}
+                {@const pilotSubtitle = pilot?.caption}
                 <div
                     class="bg-[#ffffff05] border border-[#ffffff08] rounded-md p-2.5 min-w-[220px] flex-1 space-y-1.5"
                 >
