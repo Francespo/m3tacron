@@ -71,3 +71,5 @@ playwright-images/
 verify*.png
 commit_message.json
 .vite/
+# Font-centering verification screenshots (local review evidence, not for GitHub)
+.verify-font-centering/
