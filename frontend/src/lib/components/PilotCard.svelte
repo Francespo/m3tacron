@@ -128,24 +128,36 @@
             <!-- Stats Badges -->
             {#if showStats}
                 <div class="flex flex-wrap gap-1.5 mt-auto">
+                    <!-- Squadrons -->
+                    <span
+                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
+                    >
+                        SQ {pilot.squadron_count ?? 0}
+                    </span>
+                    <!-- Lists -->
+                    <span
+                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
+                    >
+                        LISTS {listsCount}
+                    </span>
+                    <!-- Entries -->
+                    <span
+                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary"
+                    >
+                        ENTRIES {pilot.entries_count ?? listsCount}
+                    </span>
+                    <!-- Games -->
+                    <span
+                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary"
+                    >
+                        GAMES {games}
+                    </span>
                     <!-- WR -->
                     <span
                         class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
                         style="color: {wrColor};"
                     >
                         WR {isNaN(wr) ? "NA" : wr.toFixed(1) + "%"}
-                    </span>
-                    <!-- Games -->
-                    <span
-                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
-                    >
-                        GAMES {games}
-                    </span>
-                    <!-- Lists + Unique Lists -->
-                    <span
-                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
-                    >
-                        LISTS {listsCount} (UNIQUE {differentListsCount})
                     </span>
                     <!-- Points -->
                     <span

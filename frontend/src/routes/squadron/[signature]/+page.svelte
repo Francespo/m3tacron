@@ -501,6 +501,33 @@
                                 </div>
                             </div>
 
+                            <!-- Quick Stats: entries→games→winrate→points -->
+                            <div
+                                class="flex flex-wrap gap-2 border-b border-border-dark/50 pb-3"
+                            >
+                                <span
+                                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
+                                >
+                                    ENTRIES {list.count ?? list.popularity ?? 1}
+                                </span>
+                                <span
+                                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
+                                >
+                                    GAMES {safeGames}
+                                </span>
+                                <span
+                                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
+                                    style="color: {getWinRateColor(wr)};"
+                                >
+                                    WR {wr.toFixed(1)}%
+                                </span>
+                                <span
+                                    class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-mono font-bold"
+                                >
+                                    PTS {list.points ?? 0}
+                                </span>
+                            </div>
+
                             <!-- Pilot summary: one compact row per pilot, with
                                  upgrades (or the Standard Loadout pack name in
                                  italics) underneath. -->

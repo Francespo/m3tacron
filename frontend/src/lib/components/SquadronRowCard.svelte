@@ -100,7 +100,12 @@
                 <span
                     class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
                 >
-                    LISTS {list.count} (UNIQUE {list.count})
+                    LISTS {list.different_lists_count ?? list.count}
+                </span>
+                <span
+                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary"
+                >
+                    ENTRIES {list.count}
                 </span>
                 <span
                     class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"

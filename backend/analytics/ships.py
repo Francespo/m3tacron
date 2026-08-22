@@ -75,11 +75,12 @@ def aggregate_ship_stats(
         SELECT
             psm.ship_xws,
             array_remove(array_agg(DISTINCT l.faction), NULL) as factions,
-            COUNT(DISTINCT ps.id) as list_count,
+            COUNT(DISTINCT ps.id) as entries_count,
             SUM(GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0))) as wins,
             SUM(GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.swiss_losses, 0)) + GREATEST(0, COALESCE(ps.swiss_draws, 0))
                 + GREATEST(0, COALESCE(ps.cut_wins, 0)) + GREATEST(0, COALESCE(ps.cut_losses, 0)) + GREATEST(0, COALESCE(ps.cut_draws, 0))) as games,
-            COUNT(DISTINCT ps.list_id) as different_lists_count
+            COUNT(DISTINCT ps.list_id) as different_lists_count,
+            COUNT(DISTINCT l.ship_list) as squadron_count
         FROM playerstanding ps
         JOIN tournament t ON t.id = ps.tournament_id
         JOIN list l ON l.id = ps.list_id
@@ -101,10 +102,11 @@ def aggregate_ship_stats(
     for row in result:
         ship_xws = row[0]
         factions = row[1] or ["unknown"]
-        list_count = row[2] or 0
+        entries_count = row[2] or 0
         wins = row[3] or 0
         games = row[4] or 0
         different_lists = row[5] or 0
+        squadron_count = row[6] or 0
 
         # Use first faction for display, store all factions
         primary_faction = factions[0] if factions else "unknown"
@@ -118,8 +120,10 @@ def aggregate_ship_stats(
             "faction_xws": faction_enum,
             "factions": factions,
             "games_count": games,
-            "list_count": list_count,
+            "list_count": different_lists,
             "different_lists_count": different_lists,
+            "entries_count": entries_count,
+            "squadron_count": squadron_count,
             "wins": wins,
         })
 

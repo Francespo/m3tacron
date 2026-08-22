@@ -199,6 +199,7 @@ def aggregate_list_stats(
             "wins": wins,
             "games": games,
             "win_rate": win_rate,
+            "count": int(row[5] or 0),
         })
 
     final_list.sort(key=lambda x: x["games"], reverse=True)

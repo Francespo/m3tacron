@@ -75,6 +75,11 @@
                     {/if}
                 </span>
                 <span
+                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary"
+                >
+                    ENTRIES {list.count ?? 1}
+                </span>
+                <span
                     class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
                     style="color: {wrColor};"
                 >

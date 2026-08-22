@@ -33,22 +33,18 @@ def _compute_ships(
 
 
 def _sort_ship_stats(data: list[dict], sort_metric: str, sort_direction: str) -> list[dict]:
-    """Sort cached (unsorted-for-request) ship stats by the requested criteria.
-
-    Replicates the sort_key logic in analytics/ships.py. Applied AFTER the
-    cache lookup so the expensive aggregation is shared across sort orders.
-    Returns a new list — the cached list is never mutated.
-    """
     def sort_key(item):
-        if sort_metric == "Unique Lists":
-            return (item["different_lists_count"], item["games_count"])
+        if sort_metric == "Squadrons":
+            return (item.get("squadron_count", 0), item.get("games_count", 0))
+        elif sort_metric == "Entries":
+            return (item.get("entries_count", 0), item.get("games_count", 0))
         elif sort_metric == "Games":
-            return item["games_count"]
+            return item.get("games_count", 0)
         elif sort_metric == "Win Rate":
-            return item["wins"] / item["games_count"] if item["games_count"] > 0 else 0
+            return item["wins"] / item["games_count"] if item.get("games_count", 0) > 0 else 0
         elif sort_metric == "Name":
-            return item["xws"]
-        return (item["list_count"], item["games_count"])  # Lists (default)
+            return item.get("xws", "")
+        return (item.get("list_count", 0), item.get("games_count", 0))
 
     return sorted(data, key=sort_key, reverse=(sort_direction == "desc"))
 

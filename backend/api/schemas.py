@@ -55,6 +55,8 @@ class PilotStats(BaseModel):
     games_count: int
     list_count: int
     different_lists_count: int
+    entries_count: int = 0
+    squadron_count: int = 0
     wins: int
 
 
@@ -63,6 +65,8 @@ class UpgradeStats(BaseModel):
     games_count: int
     list_count: int
     different_lists_count: int
+    entries_count: int = 0
+    squadron_count: int = 0
     wins: int
 
 
@@ -73,6 +77,8 @@ class ShipStats(BaseModel):
     games_count: int
     list_count: int
     different_lists_count: int
+    entries_count: int = 0
+    squadron_count: int = 0
     wins: int
 
 
