@@ -3,7 +3,7 @@ from sqlalchemy import event
 from sqlmodel import create_engine, SQLModel
 
 # Explicitly import models to ensure they are registered with SQLModel.metadata
-from .models import Tournament, PlayerStanding, TeamStanding, Match, TeamMatch, ScrapeMeta, Supporter, Contribution
+from .models import Tournament, PlayerStanding, TeamStanding, Match, TeamMatch, ScrapeMeta, Supporter, Contribution, PilotShipMapping
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -52,3 +52,52 @@ if DATABASE_URL.startswith("sqlite"):
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
+    # Self-heal pilot_ship_mapping for fresh or legacy databases:
+    #  - Table is declared in models.PilotShipMapping so create_all above
+    #    creates it on fresh DBs.
+    #  - Existing DBs (restored from dumps taken before the faction column
+    #    existed) will have the 3-column table without `faction`; create_all
+    #    does NOT add missing columns, so we patch the column and backfill.
+    try:
+        from sqlalchemy import text as _text
+        from sqlmodel import Session as _Session
+
+        with engine.begin() as conn:
+            try:
+                conn.execute(_text("ALTER TABLE pilot_ship_mapping ADD COLUMN IF NOT EXISTS faction TEXT"))
+            except Exception:
+                # SQLite < 3.?? has no IF NOT EXISTS for ADD COLUMN – check PRAGMA then add.
+                try:
+                    cols = [r[1] for r in conn.execute(_text("PRAGMA table_info(pilot_ship_mapping)")).fetchall()]
+                    if "faction" not in cols:
+                        conn.execute(_text("ALTER TABLE pilot_ship_mapping ADD COLUMN faction TEXT"))
+                except Exception:
+                    pass
+
+        # Backfill missing factions from the vendored xwing manifests (idempotent).
+        try:
+            with _Session(engine) as session:
+                try:
+                    total = session.execute(_text("SELECT COUNT(*) FROM pilot_ship_mapping")).scalar() or 0
+                    nulls = session.execute(_text("SELECT COUNT(*) FROM pilot_ship_mapping WHERE faction IS NULL OR faction = ''")).scalar() or 0
+                except Exception:
+                    total = 0
+                    nulls = 0
+                if total == 0 or nulls > 0:
+                    # Import lazily to avoid circular import at module load.
+                    try:
+                        from .scripts.populate_pilot_ship_mapping import populate as _populate_psm
+
+                        _populate_psm()
+                    except Exception as exc:
+                        print(f"[startup] pilot_ship_mapping backfill failed: {exc}")
+                # Normalize any legacy faction values that still contain spaces/caps
+                try:
+                    session.execute(_text("UPDATE pilot_ship_mapping SET faction = lower(replace(replace(faction, ' ', ''), '-', '')) WHERE faction IS NOT NULL AND faction != lower(replace(replace(faction, ' ', ''), '-', ''))"))
+                    session.commit()
+                except Exception:
+                    pass
+        except Exception as exc:
+            print(f"[startup] pilot_ship_mapping ensure skipped: {exc}")
+    except Exception as exc:
+        print(f"[startup] create_db_and_tables self-heal skipped: {exc}")

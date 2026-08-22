@@ -45,51 +45,6 @@ def load_all_upgrades(source: DataSource = DataSource.XWA) -> dict:
         except Exception:
             continue
 
-    # Manual patches for missing scenario upgrades. These cards ship in
-    # scenario packs (Armed and Dangerous / Evacuation of D'QAR) and are
-    # absent from the vendored upstream data. Base XWS ids are injected so
-    # both the bare id and the "<id>-<pack>" variant resolve to a name.
-    MANUAL_UPGRADE_DATA = {
-        # Evacuation of D'QAR
-        "acceleratedsensorarray": {"name": "Accelerated Sensor Array", "slot": "Tech"},
-        "dedicatedgunners": {"name": "Dedicated Gunners", "slot": "Gunner"},
-        "determination": {"name": "Determination", "slot": "Talent"},
-        "escortfighter": {"name": "Escort Fighter", "slot": "Talent"},
-        "forthecause": {"name": "For the Cause", "slot": "Talent"},
-        "precisionholotargeter": {"name": "Precision Holotargeter", "slot": "Tech"},
-        "primedoverdrivethrusters": {"name": "Primed Overdrive Thrusters", "slot": "Tech"},
-        "repulsorliftengines": {"name": "Repulsorlift Engines", "slot": "Modification"},
-        "targetassistalgorithm": {"name": "Target Assist Algorithm", "slot": "Tech"},
-        "threatsensors": {"name": "Threat Sensors", "slot": "Tech"},
-        # Armed and Dangerous
-        "adaptablepowersystems": {"name": "Adaptable Power Systems", "slot": "Modification"},
-        "flechettecannons": {"name": "Flechette Cannons", "slot": "Cannon"},
-        "homingbeacon": {"name": "Homing Beacon", "slot": "Sensor"},
-        "kinesoswitch": {"name": "Kineso Switch", "slot": "Illicit"},
-        "r2g8": {"name": "R2-G8", "slot": "Astromech"},
-        "starboardthrusters": {"name": "Starboard Thrusters", "slot": "Modification"},
-        "synchronizedhandling": {"name": "Synchronized Handling", "slot": "Tech"},
-        "todo360": {"name": "ToDo-360", "slot": "Crew"},
-        "fennecshand": {"name": "Fennec Shand", "slot": "Gunner"},
-    }
-
-    for uid, udata in MANUAL_UPGRADE_DATA.items():
-        if uid not in all_upgrades:
-            slot = udata["slot"]
-            all_upgrades[uid] = {
-                "name": udata["name"],
-                "xws": uid,
-                "sides": [{"title": udata["name"], "type": slot, "slots": [slot]}],
-                "cost": {},
-                "limited": 0,
-                "slot_category": slot.lower(),
-                "valid_in_standard": True,
-                "wildspace": False,
-                "epic": False,
-                "image": "",
-                "artwork": "",
-            }
-
     return all_upgrades
 
 PACK_SUFFIXES = [

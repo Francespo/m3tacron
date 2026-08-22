@@ -50,8 +50,13 @@
     // ships show everything by default, gray theme).
     let selectedFaction = $state(
         (() => {
-            const urlFaction = data.faction && data.faction !== "all" ? data.faction : null;
+            const urlFaction = (data as any).faction && (data as any).faction !== "all" ? (data as any).faction : null;
             if (urlFaction) return urlFaction;
+            // Also check actual URL for SSR hydration where data.faction may be missing
+            if (typeof window !== 'undefined') {
+                const qsFaction = new URLSearchParams(window.location.search).get('faction');
+                if (qsFaction && qsFaction !== 'all') return qsFaction;
+            }
             const factions = (data.info?.factions ?? []).filter(
                 (f: string) => f && f !== "unknown",
             );
@@ -107,24 +112,45 @@
         if (fetchedFaction === faction) return;
         fetchedFaction = faction;
         const ds = filters.dataSource || "xwa";
-        // Pilots
-        const pilotsUrl = new URL(`${API_BASE}/ship/${data.shipXws}/pilots`, window.location.origin);
-        pilotsUrl.searchParams.set("data_source", ds);
-        if (faction && faction !== "all") pilotsUrl.searchParams.set("faction", faction);
-        // Lists
-        const listsUrl = new URL(`${API_BASE}/ship/${data.shipXws}/lists`, window.location.origin);
-        listsUrl.searchParams.set("data_source", ds);
-        listsUrl.searchParams.set("limit", "10");
-        if (faction && faction !== "all") listsUrl.searchParams.set("faction", faction);
-        // Squadrons
-        const squadronsUrl = new URL(`${API_BASE}/ship/${data.shipXws}/squadrons`, window.location.origin);
-        squadronsUrl.searchParams.set("data_source", ds);
-        squadronsUrl.searchParams.set("limit", "10");
-        if (faction && faction !== "all") squadronsUrl.searchParams.set("faction", faction);
-        // Stats (key metrics)
-        const statsUrl = new URL(`${API_BASE}/ship/${data.shipXws}`, window.location.origin);
-        statsUrl.searchParams.set("data_source", ds);
-        if (faction && faction !== "all") statsUrl.searchParams.set("faction", faction);
+
+        function buildUrl(path: string, extra?: Record<string, string>) {
+            const u = new URL(`${API_BASE}${path}`, window.location.origin);
+            // Carry forward every global filter currently in the page URL
+            // (formats, date range, location, platforms, player counts,
+            // data_source, epic, search, etc.) so the refetch stays
+            // consistent with the ships overview the user came from. Skip
+            // page/size/sort which are ships-list-specific.
+            for (const [k, v] of new URLSearchParams(window.location.search).entries()) {
+                if (k === 'page' || k === 'size' || k === 'sort_metric' || k === 'sort_direction') continue;
+                if (k === 'faction') continue; // detail toggle handled below
+                u.searchParams.append(k, v);
+            }
+            // data_source: keep server-provided default in sync with client store
+            if (!u.searchParams.has('data_source')) u.searchParams.set('data_source', ds);
+            if (!u.searchParams.has('epic')) u.searchParams.set('epic', String(filters.includeEpic || false));
+            // detail faction toggle (overrides global factions)
+            if (faction && faction !== 'all') u.searchParams.set('faction', faction);
+            if (extra) for (const [k, v] of Object.entries(extra)) u.searchParams.set(k, v);
+            return u;
+        }
+
+        const pilotsUrl = buildUrl(`/ship/${data.shipXws}/pilots`);
+        const listsUrl = buildUrl(`/ship/${data.shipXws}/lists`, { limit: '10' });
+        const squadronsUrl = buildUrl(`/ship/${data.shipXws}/squadrons`, { limit: '10' });
+        const statsUrl = buildUrl(`/ship/${data.shipXws}`);
+
+        // Keep the browser URL's `faction` param in sync so a refresh or copy-
+        // paste preserves the per-ship faction breakdown. Preserve all other
+        // global filters already in the URL.
+        {
+            const next = new URL(window.location.href);
+            if (faction && faction !== 'all') next.searchParams.set('faction', faction);
+            else next.searchParams.delete('faction');
+            if (next.toString() !== window.location.href) {
+                window.history.replaceState({}, '', next.toString());
+            }
+        }
+
         pilotsLoading = true;
         fetch(pilotsUrl.toString())
             .then((res) => {

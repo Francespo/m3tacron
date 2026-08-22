@@ -239,22 +239,6 @@ class XwingDataStore {
             };
         }
 
-        if (pack || xws.includes('-')) {
-            let namePart = cleanId.replace(/[^a-zA-Z0-9]/g, ' ');
-            namePart = namePart.replace(/\b\w/g, (c) => c.toUpperCase()).trim();
-            if (namePart) {
-                return {
-                    name: namePart,
-                    xws,
-                    initiative: 0,
-                    limited: 1,
-                    ship: '',
-                    faction: '',
-                    pack: pack ?? undefined
-                };
-            }
-        }
-
         return null;
     }
 
@@ -292,19 +276,6 @@ class XwingDataStore {
                 ...d.upgrades[cleanId],
                 xws
             };
-        }
-
-        if (xws.includes('-')) {
-            let namePart = cleanId.replace(/[^a-zA-Z0-9]/g, ' ');
-            namePart = namePart.replace(/\b\w/g, (c) => c.toUpperCase()).trim();
-            if (namePart) {
-                return {
-                    name: namePart,
-                    xws,
-                    limited: 0,
-                    sides: [{ title: namePart, type: 'upgrade' }]
-                };
-            }
         }
 
         return null;

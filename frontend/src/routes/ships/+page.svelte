@@ -18,12 +18,13 @@
     import { xwingData } from "$lib/stores/xwingData.svelte";
     import Toggle from "$lib/components/Toggle.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
+    import { page as appPage } from "$app/state";
 
     let { data } = $props();
 
     let filterOpen = $state(false);
-    // Initialize page from URL (?page=0 -> UI page 1, ?page=1 -> UI page 2)
-    // so direct navigation/refresh on ?page=2 preserves the page number.
+    // Page is now driven solely by client-side pagination over mergedShips.
+    // URL's ?page param is only used to seed initial page after navigation.
     let page = $state(typeof window !== 'undefined'
         ? Math.max(1, Number(new URLSearchParams(window.location.search).get('page') || 0) + 1)
         : 1);
@@ -404,13 +405,23 @@
                         ? `linear-gradient(to right, ${cardFactions.map((f: string, i: number) => `${getFactionColor(f)} ${((i * 100) / cardFactions.length).toFixed(2)}% ${(((i + 1) * 100) / cardFactions.length).toFixed(2)}%`).join(', ')})`
                         : ''}
 
-                    <!-- Clicking the capsule opens the ship detail page. When a
-                         specific faction is selected on this card, carry it over
-                         as ?faction=X so the detail page shows that faction's
-                         pilots and accent color. "all" (default) carries nothing. -->
-                    {@const shipHref = activeFaction
-                        ? `/ship/${ship.xws}?faction=${activeFaction}`
-                        : `/ship/${ship.xws}`}
+                    <!-- Clicking the capsule opens the ship detail page. Carry
+                         forward all active global filters (formats, dates,
+                         location, platforms, etc.) so the detail stats stay
+                         consistent with the overview card, plus the per-card
+                         faction toggle as ?faction=X when a specific faction
+                         is selected. -->
+                    {@const shipHref = (() => {
+                        const sp = new URLSearchParams(appPage.url.search);
+                        sp.delete('page');
+                        sp.delete('size');
+                        sp.delete('sort_metric');
+                        sp.delete('sort_direction');
+                        if (activeFaction) sp.set('faction', activeFaction);
+                        else sp.delete('faction');
+                        const qs = sp.toString();
+                        return `/ship/${ship.xws}${qs ? `?${qs}` : ''}`;
+                    })()}
 
                     <a href={shipHref} class="block group relative" style="--glow-alpha: {glowOpacity};">
                         <div
