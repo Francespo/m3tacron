@@ -709,7 +709,6 @@
                     type="button"
                     class={sortHeaderClass("pct") + " text-right rounded-md"}
                     onclick={() => togglePilotSort("pct")}
-                    title="Share of the chassis' tournament games that included this pilot (pilot games / total chassis games). Can exceed 100% in aggregate because a list with two copies of the same ship counts once per copy."
                 >
                     % of Games {sortIndicator("pct")}
                 </button>
@@ -864,10 +863,9 @@
                                 {gamesVal.toLocaleString()}
                             </div>
 
-                            <!-- % of Games (desktop): share of chassis games that included this pilot -->
+                            <!-- % of Games (desktop) -->
                             <div
                                 class="hidden lg:flex justify-end items-center gap-2"
-                                title="Share of chassis games that included this pilot — pilot games / total chassis games"
                             >
                                 <div
                                     class="w-20 h-1.5 bg-black rounded-full overflow-hidden border border-white/5"
