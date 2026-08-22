@@ -121,7 +121,6 @@ if [ "$BACKEND_PORT" != "$ORIG_BACKEND_PORT" ] || [ "$POSTGRES_PORT" != "$ORIG_P
 fi
 
 echo "==> Bringing up backend stack (postgres + backend in Docker)..."
-BACKEND_PORT="${BACKEND_PORT:-8890}"
 docker compose -f docker-compose.local.yml up -d --build postgres db-seed backend
 
 echo "==> Waiting for backend healthcheck..."
