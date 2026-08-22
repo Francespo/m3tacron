@@ -1,5 +1,9 @@
 <script lang="ts">
-    // Desktop-only sticky filter sidebar (2nd column in 3-col layout).
+    // Filter sidebar — previously a fixed desktop-only panel (lg+).
+    // Now the filter chrome is a right-side drawer on ALL breakpoints
+    // (reusing MobileFilterDrawer). This component is kept for
+    // backwards-compatibility and as a possible inline variant, but
+    // pages no longer mount it as the primary filter surface.
     // The mobile equivalent lives in `MobileFilterDrawer` (rendered by each
     // page). Both render the same two-section structure: a collapsible
     // "data filter" section (TournamentFilters) on top, then a

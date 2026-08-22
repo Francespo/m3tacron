@@ -1,6 +1,5 @@
 <script lang="ts">
-    import FilterPanel from "$lib/components/FilterPanel.svelte";
-    import MobileFilterDrawer from "$lib/components/MobileFilterDrawer.svelte";
+        import MobileFilterDrawer from "$lib/components/MobileFilterDrawer.svelte";
     import MobileFilterTrigger from "$lib/components/MobileFilterTrigger.svelte";
     import SortBy from "$lib/components/SortBy.svelte";
     import PendingIndicator from "$lib/components/PendingIndicator.svelte";
@@ -97,12 +96,9 @@
 </svelte:head>
 
 <div class="flex min-h-screen">
-    <!-- Filter Panel (2nd column). No page-specific children: the page's
-         only filter (sort) lives in the main content section header, so
-         the sidebar renders just the data filter section — labeled
-         "TOURNAMENT FILTERS" contextually on this page. -->
-    <FilterPanel dataFilterTitle="Tournament filters" />
-
+    <!-- Filters now live in the right-side drawer (FAB) on all breakpoints.
+         No fixed left filter panel — the FAB + drawer replace it on desktop
+         too, matching the mobile pattern. -->
     <MobileFilterTrigger
         activeCount={filters.activeChips.length}
         onClick={() => (filterOpen = true)}

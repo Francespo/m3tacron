@@ -63,19 +63,45 @@
 	import { page } from "$app/stores";
 	import { filters } from "$lib/stores/filters.svelte";
 	import { setDataSource, setIncludeEpic } from "$lib/sync/contentSource";
+	import { sidebarStore } from "$lib/stores/sidebar.svelte";
 
 	// Sidebar Links — derived from the module-level NAV_LINKS so the desktop
 	// sidebar and the mobile nav drawer render the same set of routes.
 	const links = NAV_LINKS;
 
-	let collapsed = false; // Hardcode for now, can be toggled later
+	$effect(() => {
+		sidebarStore.ensureLoaded();
+	});
+	let collapsed = $derived(sidebarStore.isCollapsed());
+
+	function toggleCollapsed() {
+		sidebarStore.toggle();
+	}
 </script>
 
 <div
 	class="fixed left-0 top-0 h-screen bg-terminal-panel border-r border-[#ffffff14] flex flex-col z-[100] transition-all duration-200 {collapsed
-		? 'w-[60px]'
+		? 'w-[72px]'
 		: 'w-[260px]'} hidden md:flex"
 >
+	<!-- Collapse toggle (top-right of sidebar header) -->
+	<button
+		type="button"
+		onclick={toggleCollapsed}
+		aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+		aria-pressed={collapsed}
+		class="absolute top-2 right-2 z-10 inline-flex items-center justify-center w-7 h-7 rounded-md border border-transparent text-secondary hover:text-primary hover:bg-[#ffffff08] active:bg-[#ffffff14] transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+		title={collapsed ? "Expand" : "Collapse"}
+	>
+		<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+			{#if collapsed}
+				<path d="M9 18l6-6-6-6" />
+			{:else}
+				<path d="M15 18l-6-6 6-6" />
+			{/if}
+		</svg>
+	</button>
+
 	<!-- Header / Brand -->
 	<div class="border-b border-border-dark w-full px-4 py-6">
 		<div class="flex flex-col {collapsed ? 'items-center' : 'items-start'}">

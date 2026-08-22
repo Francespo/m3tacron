@@ -1,5 +1,4 @@
 <script lang="ts">
-    import FilterPanel from "$lib/components/FilterPanel.svelte";
     import MobileFilterDrawer from "$lib/components/MobileFilterDrawer.svelte";
     import MobileFilterTrigger from "$lib/components/MobileFilterTrigger.svelte";
     import SortBy from "$lib/components/SortBy.svelte";
@@ -197,10 +196,6 @@
 </svelte:head>
 
 <div class="flex min-h-screen">
-    <FilterPanel pageFilterTitle="List filters">
-        {@render filterBody()}
-    </FilterPanel>
-
     <MobileFilterTrigger
         activeCount={filters.activeChips.length}
         onClick={() => (filterOpen = true)}

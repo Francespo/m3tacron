@@ -20,11 +20,11 @@
 	let { activeCount, onClick }: Props = $props();
 </script>
 
-<button
+ <button
 	type="button"
 	onclick={onClick}
 	aria-label="Open filters{activeCount > 0 ? ` (${activeCount} active)` : ''}"
-	class="fixed bottom-4 right-4 z-[45] flex items-center gap-2 h-12 pl-3 pr-4 rounded-full bg-terminal-panel border border-primary/40 text-primary shadow-lg shadow-black/60 hover:bg-[#ffffff08] hover:border-primary active:bg-[#ffffff14] transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 lg:hidden"
+	class="fixed bottom-4 right-4 z-[45] flex items-center gap-2 h-12 pl-3 pr-4 rounded-full bg-terminal-panel border border-primary/40 text-primary shadow-lg shadow-black/60 hover:bg-[#ffffff08] hover:border-primary active:bg-[#ffffff14] transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
 >
 	<!-- Filter icon (3 lines, tapering — the standard "funnel" mark, drawn
 	     in strokes only so it matches the other UI icons). -->
