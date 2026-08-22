@@ -1206,7 +1206,7 @@
                                         >{wr.toFixed(1)}% WR</span
                                     >
                                     <span class="text-[11px] text-secondary"
-                                        >{list.games} games · {list.count ?? 1} entries</span
+                                        >{list.games} games · {(list.entries ?? list.entries_count ?? list.count ?? 1)} entries</span
                                     >
                                 </div>
                             </div>

@@ -33,6 +33,8 @@ class ListData(BaseModel):
     faction_key: str = ""
     icon_char: str = ""
     count: int = 0
+    entries: int = 0
+    entries_count: int = 0
     win_rate: float = 0.0
     total_loadout: int = 0
     pilots: list[PilotData]

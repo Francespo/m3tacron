@@ -191,9 +191,6 @@
 		<div
 			class="border-t border-border-dark w-full p-4 flex flex-col items-center gap-1"
 		>
-			<span class="text-secondary font-sans text-xs font-bold"
-				>M3taCron Analytics</span
-			>
 			<span
 				class="text-secondary font-sans text-xs flex items-center gap-1"
 				>Made with <svg
