@@ -21,11 +21,9 @@
     // ------------------------------------------------------------------------
     // Top Performing Lists — client-side sort
     // ------------------------------------------------------------------------
-    // SortBy in the section header drives this state. `popularity` maps to
-    // `list.popularity` (or `list.count` as a fallback, since the enriched
-    // payload from the backend can use either field name). `winrate` is
-    // computed on demand from `wins / games`.
-    type ListSortKey = "winrate" | "games" | "lists";
+    // SortBy in the section header drives this state.
+    // `winrate` is computed on demand from `wins / games` (or pre-computed win_rate).
+    type ListSortKey = "winrate" | "games";
 
     let listSortKey = $state<ListSortKey>("winrate");
     let listSortDir = $state<"asc" | "desc">("desc");
@@ -35,15 +33,15 @@
             case "winrate": {
                 const games = Math.max(0, l.games ?? 0);
                 const wins = Math.max(0, l.wins ?? 0);
-                // Pre-computed `win_rate` is preferred (already a percent);
-                // fall back to computing from raw counts.
+                // Compute directly so sorting is 100% accurate even if pre-computed win_rate is missing or 0
+                if (games > 0) {
+                    return (wins / games) * 100;
+                }
                 if (typeof l.win_rate === "number") return l.win_rate;
-                return games > 0 ? (wins / games) * 100 : -1;
+                return -1;
             }
             case "games":
                 return Math.max(0, l.games ?? 0);
-            case "lists":
-                return Math.max(0, l.popularity ?? l.count ?? 0);
         }
     }
 
@@ -439,11 +437,10 @@
                 direction={listSortDir}
                 options={[
                     { value: "winrate", label: "Win Rate" },
-                    { value: "games", label: "Games" },
-                        { value: "lists", label: "Lists" }
+                    { value: "games", label: "Games" }
                 ]}
                 onChange={(v, d) => {
-                    listSortKey = v as "winrate" | "games" | "lists";
+                    listSortKey = v as ListSortKey;
                     listSortDir = d;
                 }}
             />
