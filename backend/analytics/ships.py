@@ -140,11 +140,14 @@ def aggregate_ship_stats(
             sl.faction,
             COUNT(DISTINCT sl.ps_id) as list_count,
             COUNT(DISTINCT ps.list_id) as different_lists_count,
+            COUNT(DISTINCT ps.id) as entries_count,
+            COUNT(DISTINCT l.ship_list) as squadron_count,
             COALESCE(SUM(GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0))), 0) as wins,
             COALESCE(SUM(GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.swiss_losses, 0)) + GREATEST(0, COALESCE(ps.swiss_draws, 0))
                 + GREATEST(0, COALESCE(ps.cut_wins, 0)) + GREATEST(0, COALESCE(ps.cut_losses, 0)) + GREATEST(0, COALESCE(ps.cut_draws, 0))), 0) as games
         FROM ship_lists sl
         JOIN playerstanding ps ON ps.id = sl.ps_id
+        JOIN list l ON l.id = ps.list_id
         GROUP BY sl.ship_xws, sl.faction
     """)
 
@@ -163,22 +166,14 @@ def aggregate_ship_stats(
             "faction": row[1] or "unknown",
             "list_count": row[2] or 0,
             "different_lists_count": row[3] or 0,
-            "wins": row[4] or 0,
-            "games": row[5] or 0,
+            "entries_count": row[4] or 0,
+            "squadron_count": row[5] or 0,
+            "wins": row[6] or 0,
+            "games": row[7] or 0,
         }
         for row in result
     ]
-
-    results = merge_ship_faction_rows(faction_rows)
-
-    for item in results:
-        # Use first faction for display, store all factions
-        primary_faction = item["factions"][0] if item["factions"] else "unknown"
-        try:
-            faction_enum = Faction.from_xws(primary_faction)
-        except (ValueError, AttributeError):
-            faction_enum = Faction.UNKNOWN
-        item["faction_xws"] = faction_enum
+# (upstream hierarchy merged into faction_rows above)
 
     # Sort
     def sort_key(item):

@@ -218,6 +218,8 @@ def aggregate_card_stats(
                 "games_count": 0,
                 "list_count": 0,
                 "different_lists_count": 0,
+                "entries_count": 0,
+                "squadron_count": 0,
                 "wins": 0,
                 "_signatures": set(),
             }
@@ -312,6 +314,8 @@ def aggregate_card_stats(
                 "games_count": 0,
                 "list_count": 0,
                 "different_lists_count": 0,
+                "entries_count": 0,
+                "squadron_count": 0,
                 "wins": 0,
                 "_signatures": set(),
             }
@@ -430,13 +434,14 @@ def aggregate_card_stats(
         sql = text(f"""
             SELECT
                 p->>'id' as card_xws,
-                COUNT(DISTINCT ps.id) as list_count,
+                COUNT(DISTINCT ps.id) as entries_count,
                 SUM(GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0))) as wins,
                 SUM(
                     GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.swiss_losses, 0)) + GREATEST(0, COALESCE(ps.swiss_draws, 0))
                     + GREATEST(0, COALESCE(ps.cut_wins, 0)) + GREATEST(0, COALESCE(ps.cut_losses, 0)) + GREATEST(0, COALESCE(ps.cut_draws, 0))
                 ) as games,
-                COUNT(DISTINCT ps.list_id) as different_lists_count
+                COUNT(DISTINCT ps.list_id) as different_lists_count,
+                COUNT(DISTINCT l.ship_list) as squadron_count
             FROM playerstanding ps
             JOIN tournament t ON t.id = ps.tournament_id
             JOIN list l ON l.id = ps.list_id
@@ -453,6 +458,7 @@ def aggregate_card_stats(
                 SELECT
                     ps.id as ps_id,
                     ps.list_id,
+                    l.ship_list,
                     l.list_json,
                     ps.swiss_wins, ps.swiss_losses, ps.swiss_draws,
                     ps.cut_wins, ps.cut_losses, ps.cut_draws,
@@ -465,7 +471,7 @@ def aggregate_card_stats(
             ),
             upgrade_values AS (
                 SELECT
-                    ps_id, list_id,
+                    ps_id, list_id, ship_list,
                     swiss_wins, swiss_losses, swiss_draws,
                     cut_wins, cut_losses, cut_draws,
                     CASE
@@ -484,13 +490,14 @@ def aggregate_card_stats(
             )
             SELECT
                 u_elem as card_xws,
-                COUNT(DISTINCT ps_id) as list_count,
+                COUNT(DISTINCT ps_id) as entries_count,
                 SUM(GREATEST(0, COALESCE(swiss_wins, 0)) + GREATEST(0, COALESCE(cut_wins, 0))) as wins,
                 SUM(
                     GREATEST(0, COALESCE(swiss_wins, 0)) + GREATEST(0, COALESCE(swiss_losses, 0)) + GREATEST(0, COALESCE(swiss_draws, 0))
                     + GREATEST(0, COALESCE(cut_wins, 0)) + GREATEST(0, COALESCE(cut_losses, 0)) + GREATEST(0, COALESCE(cut_draws, 0))
                 ) as games,
-                COUNT(DISTINCT list_id) as different_lists_count
+                COUNT(DISTINCT list_id) as different_lists_count,
+                COUNT(DISTINCT ship_list) as squadron_count
             FROM upgrade_values, jsonb_array_elements_text(upgrades_json) u_elem
             WHERE u_elem IS NOT NULL
             GROUP BY u_elem
@@ -511,12 +518,12 @@ def aggregate_card_stats(
         if not card_xws or card_xws not in stats:
             continue
         s = stats[card_xws]
-        s["list_count"] = int(row[1] or 0)
+        s["entries_count"] = int(row[1] or 0)
         s["wins"] = int(row[2] or 0)
         s["games_count"] = int(row[3] or 0)
         s["different_lists_count"] = int(row[4] or 0)
-        # No per-list signature is collected in SQL — the
-        # different_lists_count is already an exact count from the DB.
+        s["list_count"] = int(row[4] or 0)
+        s["squadron_count"] = int(row[5] or 0)
         s.pop("_signatures", None)
 
     # Any catalog entries that weren't touched by the SQL still hold a

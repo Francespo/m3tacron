@@ -379,7 +379,7 @@
     // control: win rate, games, and popularity (squad.popularity or
     // squad.count). The win_rate field on squadrons is already a
     // percentage; we fall back to wins/games if missing.
-    type SquadSortKey = "winrate" | "games" | "lists" | "unique";
+    type SquadSortKey = "winrate" | "games" | "lists" | "entries";
 
     let squadSortKey = $state<SquadSortKey>("winrate");
     let squadSortDir = $state<"asc" | "desc">("desc");
@@ -394,10 +394,10 @@
             }
             case "games":
                 return Math.max(0, s.games ?? 0);
-            case "unique":
-                return Math.max(0, s.different_lists_count ?? 0);
+            case "entries":
+                return Math.max(0, s.count ?? s.popularity ?? 0);
             case "lists":
-                return Math.max(0, s.popularity ?? s.count ?? 0);
+                return Math.max(0, s.different_lists_count ?? s.count ?? s.popularity ?? 0);
         }
     }
 
@@ -578,7 +578,7 @@
          KEY METRICS — compact stat cards
     ===================================================================== -->
     <section
-        class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-10"
+        class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-10"
     >
         <!-- Total Games -->
         <div
@@ -614,6 +614,22 @@
             </span>
         </div>
 
+        <!-- Squadrons -->
+        <div
+            class="bg-terminal-panel border border-border-dark rounded-lg p-4 flex flex-col gap-1"
+        >
+            <span
+                class="text-[10px] font-mono text-secondary uppercase tracking-widest"
+                >Squadrons</span
+            >
+            <span class="text-2xl md:text-3xl font-mono font-bold text-primary"
+                >{(stats.squadron_count ?? squadrons.length).toLocaleString()}</span
+            >
+            <span class="text-[10px] font-mono text-secondary">
+                chassis combos
+            </span>
+        </div>
+
         <!-- Lists -->
         <div
             class="bg-terminal-panel border rounded-lg p-4 flex flex-col gap-1"
@@ -627,41 +643,24 @@
                 >{listCount.toLocaleString()}</span
             >
             <span class="text-[10px] font-mono text-secondary">
-                total appearances
+                distinct builds
             </span>
         </div>
 
-        <!-- Unique Lists -->
+        <!-- Entries -->
         <div
             class="bg-terminal-panel border rounded-lg p-4 flex flex-col gap-1"
             style="border-color: {accentBorder}; box-shadow: {accentGlow};"
         >
             <span
                 class="text-[10px] font-mono text-secondary uppercase tracking-widest"
-                >Unique Lists</span
+                >Entries</span
             >
             <span class="text-2xl md:text-3xl font-mono font-bold text-primary"
-                >{differentListCount.toLocaleString()}</span
+                >{(stats.entries_count ?? listCount).toLocaleString()}</span
             >
             <span class="text-[10px] font-mono text-secondary">
-                distinct squads
-            </span>
-        </div>
-
-        <!-- Pilots -->
-        <div
-            class="bg-terminal-panel border rounded-lg p-4 flex flex-col gap-1"
-            style="border-color: {accentBorder}; box-shadow: {accentGlow};"
-        >
-            <span
-                class="text-[10px] font-mono text-secondary uppercase tracking-widest"
-                >Pilots</span
-            >
-            <span class="text-2xl md:text-3xl font-mono font-bold text-primary"
-                >{pilotCount}</span
-            >
-            <span class="text-[10px] font-mono text-secondary">
-                in the {info.size?.toLowerCase() || "chassis"} chassis
+                tournament entries
             </span>
         </div>
     </section>
@@ -1031,7 +1030,7 @@
                         { value: "winrate", label: "Win Rate" },
                         { value: "games", label: "Games" },
                         { value: "lists", label: "Lists" },
-                        { value: "unique", label: "Unique Lists" }
+                        { value: "entries", label: "Entries" }
                     ]}
                     onChange={(v, d) => {
                         squadSortKey = v as SquadSortKey;
@@ -1056,7 +1055,11 @@
                               : 0}
                     {@const sListCount = Math.max(
                         0,
-                        squad.popularity ?? squad.count ?? 0,
+                        squad.different_lists_count ?? squad.count ?? squad.popularity ?? 0,
+                    )}
+                    {@const sEntries = Math.max(
+                        0,
+                        squad.count ?? squad.popularity ?? 0,
                     )}
                     {@const sWrColor = getWinRateColor(sWrNum)}
                     <!-- Aggregate ship counts (e.g. 3x X-wing + 2x Y-wing) -->
@@ -1105,7 +1108,7 @@
                                     </span>
                                 </div>
                                 <span
-                                    class="shrink-0 px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary"
+                                    class="shrink-0 px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
                                 >
                                     GAMES {sGames}
                                 </span>
@@ -1144,9 +1147,14 @@
                                 class="flex items-center gap-2 pt-3 border-t border-border-dark/60 mt-auto flex-wrap"
                             >
                                 <span
-                                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary"
+                                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
                                 >
                                     LISTS {sListCount}
+                                </span>
+                                <span
+                                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
+                                >
+                                    ENTRIES {sEntries}
                                 </span>
                                 <span
                                     class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold"

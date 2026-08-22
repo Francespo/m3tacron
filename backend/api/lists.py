@@ -95,12 +95,6 @@ def _compute_lists(
 
 
 def _sort_list_stats(data: list[dict], sort_metric: str, sort_direction: str) -> list[dict]:
-    """Sort cached (unsorted-for-request) list rows by the requested criteria.
-
-    Replicates the sort logic previously embedded in _compute_lists. Applied
-    AFTER the cache lookup so the expensive aggregation is shared across sort
-    orders. Returns a new list — the cached list is never mutated.
-    """
     reverse = sort_direction == "desc"
 
     def get_win_rate(r):
@@ -110,6 +104,8 @@ def _sort_list_stats(data: list[dict], sort_metric: str, sort_direction: str) ->
         return sorted(data, key=get_win_rate, reverse=reverse)
     elif sort_metric == "Points Cost":
         return sorted(data, key=lambda x: x["points"], reverse=reverse)
+    elif sort_metric in ("Entries", "Lists", "Popularity"):
+        return sorted(data, key=lambda x: x.get("count", 0), reverse=reverse)
     return sorted(data, key=lambda x: x["games"], reverse=reverse)
 
 

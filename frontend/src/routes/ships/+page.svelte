@@ -113,8 +113,9 @@
                     games_count: apiData?.games_count ?? 0,
                     wins: apiData?.wins ?? 0,
                     list_count: apiData?.list_count ?? 0,
-                    // Per-faction breakdown from the API (ships page faction
-                    // toggle). Keyed by faction xws -> {games_count, list_count, wins}.
+                    entries_count: apiData?.entries_count ?? apiData?.list_count ?? 0,
+                    squadron_count: apiData?.squadron_count ?? 0,
+                    // Per-faction breakdown for capsule faction toggle
                     faction_stats: apiData?.faction_stats ?? {},
                     pilots_count: xwingData.getPilotCountByShip(xws),
                 });
@@ -132,8 +133,12 @@
                 merged.sort((a, b) => reverse ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name));
             } else if (currentSortBy === "Games") {
                 merged.sort((a, b) => reverse ? b.games_count - a.games_count : a.games_count - b.games_count);
+            } else if (currentSortBy === "Entries") {
+                merged.sort((a, b) => reverse ? (b.entries_count ?? 0) - (a.entries_count ?? 0) : (a.entries_count ?? 0) - (b.entries_count ?? 0));
+            } else if (currentSortBy === "Squadrons") {
+                merged.sort((a, b) => reverse ? (b.squadron_count ?? 0) - (a.squadron_count ?? 0) : (a.squadron_count ?? 0) - (b.squadron_count ?? 0));
             } else {
-                // Popularity = list_count
+                // Lists = distinct builds
                 merged.sort((a, b) => reverse ? b.list_count - a.list_count : a.list_count - b.list_count);
             }
 
@@ -282,7 +287,8 @@
                 direction={filters.sortDirection}
                 options={[
                     { value: "Lists", label: "Lists" },
-                    { value: "Unique Lists", label: "Unique Lists" },
+                    { value: "Squadrons", label: "Squadrons" },
+                    { value: "Entries", label: "Entries" },
                     { value: "Win Rate", label: "Win Rate" },
                     { value: "Games", label: "Games" },
                 ]}
@@ -506,83 +512,33 @@
                                 {ship.name || ship.xws || "Unknown Ship"}
                             </span>
 
-                            {#if hasData}
-                                <!-- Stats Grid (2x2) -->
-                                <div class="grid grid-cols-2 gap-1 w-full">
-                                    <div
-                                        class="text-center bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
-                                    >
-                                        <span
-                                            class="wr-text text-xs font-mono font-bold"
-                                            >{Number(wr).toFixed(1) + "%"}</span
-                                        >
-                                        <span
-                                            class="text-[9px] font-mono text-secondary block"
-                                            >WR</span
-                                        >
-                                    </div>
-                                    <div
-                                        class="text-center bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
-                                    >
-                                        <span class="text-xs font-mono text-primary"
-                                            >{games}</span
-                                        >
-                                        <span
-                                            class="text-[9px] font-mono text-secondary block"
-                                            >Games</span
-                                        >
-                                    </div>
-                                    <div
-                                        class="text-center bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
-                                    >
-                                        <span class="text-xs font-mono text-primary"
-                                            >{lists}</span
-                                        >
-                                        <span
-                                            class="text-[9px] font-mono text-secondary block"
-                                            >Lists</span
-                                        >
-                                    </div>
-                                    <div
-                                        class="text-center bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
-                                    >
-                                        <span class="text-xs font-mono text-primary"
-                                            >{pilotsCount}</span
-                                        >
-                                        <span
-                                            class="text-[9px] font-mono text-secondary block"
-                                            >Pilots</span
-                                        >
-                                    </div>
+                            <!-- Stats Grid (hierarchy: WR / Squadrons / Lists / Entries / Games / Pilots) -->
+                            <div class="grid grid-cols-3 gap-1 w-full text-center">
+                                <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
+                                    <span class="wr-text text-xs font-mono font-bold">{games === 0 ? "NA" : Number(wr).toFixed(1) + "%"}</span>
+                                    <span class="text-[9px] font-mono text-secondary block">WR</span>
                                 </div>
-                            {:else}
-                                <!-- No-data ship: static Pilots count + a clear
-                                     "no data" pill instead of the 4-pill grid. -->
-                                <div class="grid grid-cols-2 gap-1 w-full">
-                                    <div
-                                        class="text-center bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
-                                    >
-                                        <span class="text-xs font-mono text-primary"
-                                            >{pilotsCount}</span
-                                        >
-                                        <span
-                                            class="text-[9px] font-mono text-secondary block"
-                                            >Pilots</span
-                                        >
-                                    </div>
-                                    <div
-                                        class="text-center bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
-                                    >
-                                        <span class="text-xs font-mono text-secondary"
-                                            >No data</span
-                                        >
-                                        <span
-                                            class="text-[9px] font-mono text-secondary block"
-                                            >No games recorded</span
-                                        >
-                                    </div>
+                                <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
+                                    <span class="text-xs font-mono text-primary">{ship.squadron_count ?? 0}</span>
+                                    <span class="text-[9px] font-mono text-secondary block">Squadrons</span>
                                 </div>
-                            {/if}
+                                <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
+                                    <span class="text-xs font-mono text-primary">{lists}</span>
+                                    <span class="text-[9px] font-mono text-secondary block">Lists</span>
+                                </div>
+                                <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
+                                    <span class="text-xs font-mono text-primary">{ship.entries_count ?? lists}</span>
+                                    <span class="text-[9px] font-mono text-secondary block">Entries</span>
+                                </div>
+                                <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
+                                    <span class="text-xs font-mono text-primary">{games}</span>
+                                    <span class="text-[9px] font-mono text-secondary block">Games</span>
+                                </div>
+                                <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
+                                    <span class="text-xs font-mono text-primary">{pilotsCount}</span>
+                                    <span class="text-[9px] font-mono text-secondary block">Pilots</span>
+                                </div>
+                            </div>
                         </div>
                     </a>
                 {/each}

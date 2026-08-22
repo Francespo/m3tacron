@@ -151,7 +151,7 @@ def aggregate_list_stats(
                 l.faction_xws_normalized,
                 l.name,
                 l.points,
-                COUNT(*) as games,
+                COUNT(*) as entries,
                 SUM(
                     GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.swiss_losses, 0)) +
                     GREATEST(0, COALESCE(ps.swiss_draws, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0)) +
@@ -176,7 +176,7 @@ def aggregate_list_stats(
     #
     # Row tuple column order:
     #   0 canonical_signature, 1 faction, 2 faction_xws_normalized,
-    #   3 name, 4 points, 5 games, 6 total_games, 7 wins
+    #   3 name, 4 points, 5 entries, 6 total_games, 7 wins
     final_list = []
     for row in result:
         faction = row[1] or "unknown"
@@ -186,6 +186,7 @@ def aggregate_list_stats(
             f_enum = Faction.UNKNOWN
         wins = int(row[7] or 0)
         games = int(row[6] or 0)
+        entries = int(row[5] or 0)
         # win_rate as a percentage (0-100), one decimal place. Avoid
         # division-by-zero — empty groups surface as 0.0.
         win_rate = round((wins / games) * 100, 1) if games else 0.0
@@ -199,6 +200,9 @@ def aggregate_list_stats(
             "wins": wins,
             "games": games,
             "win_rate": win_rate,
+            "count": entries,
+            "entries": entries,
+            "entries_count": entries,
         })
 
     final_list.sort(key=lambda x: x["games"], reverse=True)

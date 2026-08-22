@@ -33,6 +33,8 @@ class ListData(BaseModel):
     faction_key: str = ""
     icon_char: str = ""
     count: int = 0
+    entries: int = 0
+    entries_count: int = 0
     win_rate: float = 0.0
     total_loadout: int = 0
     pilots: list[PilotData]
@@ -55,6 +57,8 @@ class PilotStats(BaseModel):
     games_count: int
     list_count: int
     different_lists_count: int
+    entries_count: int = 0
+    squadron_count: int = 0
     wins: int
 
 
@@ -63,6 +67,8 @@ class UpgradeStats(BaseModel):
     games_count: int
     list_count: int
     different_lists_count: int
+    entries_count: int = 0
+    squadron_count: int = 0
     wins: int
 
 
@@ -80,6 +86,8 @@ class ShipStats(BaseModel):
     games_count: int
     list_count: int
     different_lists_count: int
+    entries_count: int = 0
+    squadron_count: int = 0
     wins: int
     faction_stats: dict[str, ShipFactionStats] = {}
 

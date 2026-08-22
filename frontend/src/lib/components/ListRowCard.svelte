@@ -58,8 +58,24 @@
                 </span>
             </div>
 
-            <!-- Stats Badges (PTS colored emerald, GAMES standardized) -->
+            <!-- Stats Badges: entries→games→winrate→points (mandatory order) -->
             <div class="flex items-center gap-1.5 flex-wrap shrink-0">
+                <span
+                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
+                >
+                    ENTRIES {list.count ?? 1}
+                </span>
+                <span
+                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
+                >
+                    GAMES {list.games ?? 0}
+                </span>
+                <span
+                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
+                    style="color: {wrColor};"
+                >
+                    WR {list.games === 0 ? "NA" : wr.toFixed(1) + "%"}
+                </span>
                 <span
                     class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-mono font-bold"
                 >
@@ -73,17 +89,6 @@
                             >(orig. {list.original_points})</span
                         >
                     {/if}
-                </span>
-                <span
-                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
-                    style="color: {wrColor};"
-                >
-                    WR {list.games === 0 ? "NA" : wr.toFixed(1) + "%"}
-                </span>
-                <span
-                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
-                >
-                    GAMES {list.games ?? 0}
                 </span>
             </div>
         </div>
