@@ -91,6 +91,22 @@ def aggregate_ship_stats(
     if search:
         where_clauses.append("psm.ship_xws ILIKE :search"); params["search"] = f"%{search}%"
 
+    # User wants unknown/multi-faction lists excluded from BOTH overview and
+    # detail — not even in multi-faction ships' "all" aggregate. HMP Droid
+    # Gunship 763→760 gap is exactly 3 unknown-faction lists.
+    # Normalize to catch "Unknown", "unknown ", etc.
+    _unknown = "NULLIF(lower(replace(replace(%s, ' ', ''), '-', '')), '') IS NOT NULL AND lower(replace(replace(%s, ' ', ''), '-', '')) <> 'unknown'"
+    where_clauses.append(_unknown % ("ps.faction_xws_normalized", "ps.faction_xws_normalized"))
+    where_clauses.append(_unknown % ("psm.faction", "psm.faction"))
+    where_clauses.append(_unknown % ("l.faction_xws_normalized", "l.faction_xws_normalized"))
+    # Multi-faction (mixed) squad: pilots in the list span >1 distinct pilot faction
+    where_clauses.append(
+        "(SELECT COUNT(DISTINCT lower(replace(replace(COALESCE(NULLIF(mpsm2.faction, ''), 'unknown'), ' ', ''), '-', '')))"
+        " FROM jsonb_array_elements(l.list_json::jsonb->'pilots') mp2"
+        " JOIN pilot_ship_mapping mpsm2 ON mpsm2.pilot_xws = (mp2->>'id') AND mpsm2.source = :source"
+        ") = 1"
+    )
+
     where_clauses.append("(NOT t.is_team_event OR ps.is_team_member)")
 
     where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
