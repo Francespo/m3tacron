@@ -23,13 +23,13 @@ jobs:
     if: inputs.confirm == 'YES'
 
     steps:
-      - name: Install PostgreSQL client
+      - name: Configure PostgreSQL PGDG repo
         run: |
           sudo install -d /etc/apt/keyrings
           curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg
           echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
-          sudo apt-get install -y postgresql-client-18
+          sudo apt-get install -y postgresql-client
 
       - name: Open SSH tunnel
         run: |
@@ -64,6 +64,17 @@ jobs:
           PASS=$(python3 -c "from urllib.parse import urlparse; import sys; u=urlparse(sys.argv[1]); print(u.password or sys.argv[1])" "$RAW")
           echo "::add-mask::$PASS"
           echo "pass=$PASS" >> "$GITHUB_OUTPUT"
+
+      - name: Match PostgreSQL client to server version
+        run: |
+          PASS="${{ steps.dbpass.outputs.pass }}"
+          export PGPASSWORD="$PASS"
+          SERVER_MAJOR=$(psql -h localhost -p 5432 -U postgres -d postgres -t -A -c "SHOW server_version;" 2>/dev/null | cut -d. -f1 | tr -d '[:space:]')
+          if [ -n "$SERVER_MAJOR" ]; then
+            echo "Detected server PostgreSQL version: $SERVER_MAJOR"
+            sudo apt-get install -y "postgresql-client-$SERVER_MAJOR" || true
+          fi
+          echo "pg_dump version in use: $(pg_dump --version)"
 
       - name: Snapshot before promote
         run: |
