@@ -31,7 +31,6 @@ function ensureLoaded(): void {
 }
 
 function isCollapsed(): boolean {
-	if (!loaded) ensureLoaded();
 	return collapsedById["sidebar"] ?? false;
 }
 
