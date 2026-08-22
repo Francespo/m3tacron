@@ -9,6 +9,7 @@ venv/
 ENV/
 *.egg-info/
 *.log
+*.egg-info/
 import_log.txt
 error.log
 

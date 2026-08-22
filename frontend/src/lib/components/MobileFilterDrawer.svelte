@@ -201,7 +201,7 @@
 		</FilterSection>
 	</div>
 	{#if pageFilterTitle && children}
-		<div class="h-0.5 bg-border-dark my-1 shrink-0"></div>
+		<div class="h-0.5 bg-border-dark mt-3 mb-4 shrink-0"></div>
 		<div
 			class="flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
 		>

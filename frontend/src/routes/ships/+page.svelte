@@ -97,6 +97,8 @@
                     games_count: apiData?.games_count ?? 0,
                     wins: apiData?.wins ?? 0,
                     list_count: apiData?.list_count ?? 0,
+                    entries_count: apiData?.entries_count ?? apiData?.list_count ?? 0,
+                    squadron_count: apiData?.squadron_count ?? 0,
                     pilots_count: xwingData.getPilotCountByShip(xws),
                 });
             }
@@ -113,8 +115,12 @@
                 merged.sort((a, b) => reverse ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name));
             } else if (currentSortBy === "Games") {
                 merged.sort((a, b) => reverse ? b.games_count - a.games_count : a.games_count - b.games_count);
+            } else if (currentSortBy === "Entries") {
+                merged.sort((a, b) => reverse ? (b.entries_count ?? 0) - (a.entries_count ?? 0) : (a.entries_count ?? 0) - (b.entries_count ?? 0));
+            } else if (currentSortBy === "Squadrons") {
+                merged.sort((a, b) => reverse ? (b.squadron_count ?? 0) - (a.squadron_count ?? 0) : (a.squadron_count ?? 0) - (b.squadron_count ?? 0));
             } else {
-                // Popularity = list_count
+                // Lists = distinct builds
                 merged.sort((a, b) => reverse ? b.list_count - a.list_count : a.list_count - b.list_count);
             }
 
@@ -252,7 +258,8 @@
                 direction={filters.sortDirection}
                 options={[
                     { value: "Lists", label: "Lists" },
-                    { value: "Unique Lists", label: "Unique Lists" },
+                    { value: "Squadrons", label: "Squadrons" },
+                    { value: "Entries", label: "Entries" },
                     { value: "Win Rate", label: "Win Rate" },
                     { value: "Games", label: "Games" },
                 ]}
@@ -424,10 +431,10 @@
                                 {ship.name || ship.xws || "Unknown Ship"}
                             </span>
 
-                            <!-- Stats Grid (2x2) -->
-                            <div class="grid grid-cols-2 gap-1 w-full">
+                            <!-- Stats Grid -->
+                            <div class="grid grid-cols-3 gap-1 w-full text-center">
                                 <div
-                                    class="text-center bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
+                                    class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
                                 >
                                     <span
                                         class="wr-text text-xs font-mono font-bold"
@@ -441,18 +448,18 @@
                                     >
                                 </div>
                                 <div
-                                    class="text-center bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
+                                    class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
                                 >
                                     <span class="text-xs font-mono text-primary"
-                                        >{games}</span
+                                        >{ship.squadron_count ?? 0}</span
                                     >
                                     <span
                                         class="text-[9px] font-mono text-secondary block"
-                                        >Games</span
+                                        >Squadrons</span
                                     >
                                 </div>
                                 <div
-                                    class="text-center bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
+                                    class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
                                 >
                                     <span class="text-xs font-mono text-primary"
                                         >{lists}</span
@@ -463,7 +470,29 @@
                                     >
                                 </div>
                                 <div
-                                    class="text-center bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
+                                    class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
+                                >
+                                    <span class="text-xs font-mono text-primary"
+                                        >{ship.entries_count ?? lists}</span
+                                    >
+                                    <span
+                                        class="text-[9px] font-mono text-secondary block"
+                                        >Entries</span
+                                    >
+                                </div>
+                                <div
+                                    class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
+                                >
+                                    <span class="text-xs font-mono text-primary"
+                                        >{games}</span
+                                    >
+                                    <span
+                                        class="text-[9px] font-mono text-secondary block"
+                                        >Games</span
+                                    >
+                                </div>
+                                <div
+                                    class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
                                 >
                                     <span class="text-xs font-mono text-primary"
                                         >{pilotsCount}</span

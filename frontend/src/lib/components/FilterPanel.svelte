@@ -62,7 +62,7 @@
     <!-- 3) Page-specific filters, strongly separated from the data section
          above. -->
     {#if pageFilterTitle && children}
-        <div class="h-0.5 bg-border-dark my-1"></div>
+        <div class="h-0.5 bg-border-dark mt-3 mb-4"></div>
 
         <FilterSection
             id={'page:' + slugify(pageFilterTitle)}

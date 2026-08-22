@@ -23,18 +23,22 @@
         className?: string;
     } = $props();
 
+    const hasCustomTextSize = $derived(className.includes("text-"));
+
     const sizeClass = $derived(
-        size === "xs"
-            ? "text-[10px]"
-            : size === "sm"
-              ? "text-sm"
-              : size === "md"
-                ? "text-lg"
-                : size === "lg"
-                  ? "text-2xl"
-                  : size === "xl"
-                    ? "text-5xl md:text-6xl"
-                    : "text-7xl",
+        hasCustomTextSize
+            ? ""
+            : size === "xs"
+              ? "text-[10px]"
+              : size === "sm"
+                ? "text-sm"
+                : size === "md"
+                  ? "text-lg"
+                  : size === "lg"
+                    ? "text-2xl"
+                    : size === "xl"
+                      ? "text-5xl md:text-6xl"
+                      : "text-7xl",
     );
 
     const isUnknown = $derived(!faction || faction === "unknown");

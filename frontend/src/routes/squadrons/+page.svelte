@@ -190,7 +190,7 @@
                 options={[
                     { value: "Games", label: "Games" },
                     { value: "Lists", label: "Lists" },
-                    { value: "Unique Lists", label: "Unique Lists" },
+                    { value: "Entries", label: "Entries" },
                     { value: "Win Rate", label: "Win Rate" },
                 ]}
                 onChange={(v, d) => {

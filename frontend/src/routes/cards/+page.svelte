@@ -296,7 +296,8 @@
                     { value: "Cost", label: "Points Cost" },
                     { value: "Games", label: "Games" },
                     { value: "Lists", label: "Lists" },
-                    { value: "Unique Lists", label: "Unique Lists" },
+                    { value: "Entries", label: "Entries" },
+                    { value: "Squadrons", label: "Squadrons" },
                     { value: "Win Rate", label: "Win Rate" },
                 ]}
                 onChange={(v, d) => {
@@ -356,6 +357,8 @@
                     0,
                     Number(c?.different_lists_count ?? c?.different_list_count ?? 0),
                 ),
+                squadron_count: Math.max(0, Number(c?.squadron_count ?? 0)),
+                entries_count: Math.max(0, Number(c?.entries_count ?? 0)),
                 wins: Math.max(0, Number(c?.wins ?? 0)),
             }))}
 

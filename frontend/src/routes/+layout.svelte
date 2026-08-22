@@ -64,6 +64,20 @@
 			navSafetyTimer = null;
 		}
 		navActive = false;
+
+		// Every route change must land at the top — scroll is per-page,
+		// not global. Without this the main column keeps its scrollTop
+		// across navigations (e.g. 80% down on /lists → click a list →
+		// /list/[id] already 80% down).
+		requestAnimationFrame(() => {
+			const scroller = document.querySelector(
+				".md\\:ml-\\[260px\\].flex-1.overflow-y-auto",
+			) as HTMLElement | null;
+			if (scroller) scroller.scrollTop = 0;
+			window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
+			document.documentElement.scrollTop = 0;
+			document.body.scrollTop = 0;
+		});
 	});
 
 	// Mobile-only nav drawer state. Bound to MobileTopBar's hamburger (open)

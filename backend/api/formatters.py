@@ -166,7 +166,13 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
     try: points = int(stats.get("points", 0))
     except (ValueError, TypeError): points = 0
     
-    try: count = int(stats.get("popularity", 0))
+    raw_count = (
+        stats.get("count",
+        stats.get("entries",
+        stats.get("entries_count",
+        stats.get("popularity", 0))))
+    )
+    try: count = int(raw_count or 0)
     except (ValueError, TypeError): count = 0
     
     try: games = int(stats.get("games", 0))
@@ -190,6 +196,8 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
         points=calculated_points,
         original_points=points,
         count=count,
+        entries=count,
+        entries_count=count,
         games=games,
         wins=wins,
         win_rate=win_rate,
