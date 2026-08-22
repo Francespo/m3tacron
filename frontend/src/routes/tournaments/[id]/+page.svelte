@@ -325,6 +325,14 @@
             {@const t = detail.tournament}
             {@const matches = detail.matches ?? []}
             {@const roundGroups = groupRoundsByType(matches)}
+            {@const hasCutTpl = (detail.players_cut?.length ?? 0) > 0}
+            {@const hasSwissTpl = (detail.players_swiss?.length ?? 0) > 0}
+            {@const activeStandingsTpl = standingsTab === 'cut' ? (detail.players_cut ?? []) : (detail.players_swiss ?? [])}
+            {@const activeTotalPagesTpl = Math.ceil(activeStandingsTpl.length / STANDINGS_PER_PAGE)}
+            {@const activePageTpl = standingsTab === 'cut' ? cutPage : swissPage}
+            {@const activePageItemsTpl = activeStandingsTpl.slice(activePageTpl * STANDINGS_PER_PAGE, (activePageTpl + 1) * STANDINGS_PER_PAGE)}
+            {@const cutIsKnockoutTpl = (() => { const players = (detail.players_cut ?? []) as { rank: number }[]; if (players.length < 2) return false; const ranks = players.map((p) => p.rank); const counts = new Map<number, number>(); for (const r of ranks) counts.set(r, (counts.get(r) ?? 0) + 1); const shared = [...counts.values()].filter((c) => c > 1).reduce((a, b) => a + b, 0); const allPow = ranks.every((r) => r > 0 && (r & (r - 1)) === 0); return shared / players.length > 0.5 || (allPow && shared > 0); })()}
+            {@const cutTierGroupsTpl = (() => { const groups = new Map<number, { rank: number; players: typeof activePageItemsTpl }>(); for (const p of activePageItemsTpl) { const pr = (p as any).rank as number; if (!groups.has(pr)) groups.set(pr, { rank: pr, players: [] as any }); (groups.get(pr)!.players as any).push(p); } return Array.from(groups.values()).sort((a, b) => a.rank - b.rank); })()}
             <!-- Header -->
         <div class="border-b border-border-dark pb-6 mb-6">
             <div class="flex items-center gap-3 mb-2">
@@ -423,10 +431,10 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             <div class="flex flex-col gap-6">
                 <!-- Standings (toggleable when both Cut + Swiss exist) -->
-                {#if hasCut || hasSwiss}
+                {#if hasCutTpl || hasSwissTpl}
                     <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden">
                         <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center justify-between gap-3">
-                            {#if hasCut && hasSwiss}
+                            {#if hasCutTpl && hasSwissTpl}
                                 <div class="flex items-center bg-[rgba(255,255,255,0.05)] rounded-md p-0.5">
                                     <button
                                         class="px-3 py-1 rounded-md text-xs font-mono font-bold uppercase tracking-wider transition-colors {standingsTab === 'swiss' ? 'bg-[rgba(255,255,255,0.1)] text-primary' : 'text-secondary hover:text-primary'}"
@@ -438,19 +446,19 @@
                                     >Cut</button>
                                 </div>
                             {:else}
-                                <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">{hasCut ? "CUT STANDINGS" : "STANDINGS"}</h2>
+                                <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">{hasCutTpl ? "CUT STANDINGS" : "STANDINGS"}</h2>
                             {/if}
 
                             <!-- Standings Pagination Controls in Top Header -->
                             <div class="flex items-center gap-3">
-                                {#if activeTotalPages > 1}
+                                {#if activeTotalPagesTpl > 1}
                                     <span class="text-xs font-mono text-secondary">
-                                        Page {activePage + 1} / {activeTotalPages}
+                                        Page {activePageTpl + 1} / {activeTotalPagesTpl}
                                     </span>
                                     <div class="flex items-center gap-1">
                                         <button
                                             class="p-1.5 rounded-md border border-border-dark text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
-                                            disabled={activePage === 0}
+                                            disabled={activePageTpl === 0}
                                             onclick={prevPage}
                                             aria-label="Previous page"
                                         >
@@ -458,7 +466,7 @@
                                         </button>
                                         <button
                                             class="p-1.5 rounded-md border border-border-dark text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
-                                            disabled={activePage >= activeTotalPages - 1}
+                                            disabled={activePageTpl >= activeTotalPagesTpl - 1}
                                             onclick={nextPage}
                                             aria-label="Next page"
                                         >
@@ -470,10 +478,10 @@
                         </div>
 
                         <!-- Standings Player List -->
-                        {#if standingsTab === 'cut' && cutIsKnockout}
+                        {#if standingsTab === 'cut' && cutIsKnockoutTpl}
                             <!-- Knockout placement: group by reached stage, compact -->
                             <div class="flex flex-col">
-                                {#each cutTierGroups as g}
+                                {#each cutTierGroupsTpl as g}
                                     <div class="flex items-center gap-3 p-2.5 border-b border-border-dark last:border-0">
                                         <span class="w-20 shrink-0 text-[10px] font-mono uppercase tracking-wide text-right leading-tight {g.rank <= 2 ? 'text-green-400 font-bold' : 'text-amber-300'}">{cutStageLabel(g.rank)}</span>
                                         <div class="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
@@ -489,7 +497,7 @@
                             </div>
                         {:else}
                         <div class="flex flex-col">
-                            {#each activePageItems as p}
+                            {#each activePageItemsTpl as p}
                                 <div class="flex items-center gap-3 p-3 border-b border-border-dark last:border-0 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
                                     <span class="w-8 h-8 rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center font-mono text-sm">{p.rank}</span>
                                     <FactionIcon faction={p.faction} size="md" />
