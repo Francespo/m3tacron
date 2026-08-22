@@ -18,6 +18,21 @@ from ..data_structures.location import Location
 
 logger = logging.getLogger(__name__)
 
+
+class TournamentSkipped(Exception):
+    """Raised when a tournament should be skipped for an expected reason.
+
+    This is not a scraping failure: the event is simply not a match for our
+    data (wrong game system, future date, or insufficient players). Callers
+    treat it as an informational skip rather than an error.
+    """
+
+    def __init__(self, tournament_id: str, reason: str):
+        self.tournament_id = tournament_id
+        self.reason = reason
+        super().__init__(f"Tournament {tournament_id} skipped: {reason}")
+
+
 # Game System URLs for reference
 XWING_25AMG_URL = "https://rollbetter.gg/games/5"
 XWING_25XWA_URL = "https://rollbetter.gg/games/17"
@@ -61,13 +76,9 @@ class RollbetterScraper(BaseScraper):
                     # Wait for data load
                     page.wait_for_timeout(3000)
 
-                    # Check for validation; if it fails, try API fallback before aborting.
-                    if not self._validate_page(page, tournament_id):
-                        api_data = self._try_fetch_api_data(tournament_id, url)
-                        if api_data:
-                            self.cache[tournament_id] = api_data
-                            return
-                        raise ValueError("Tournament failed validation")
+                    # Check for validation; if it fails, it raises
+                    # TournamentSkipped (expected, informational skip).
+                    self._validate_page(page, tournament_id)
 
                     # Try ListFortress Export Logic directly here
                     lf_data = None
@@ -248,6 +259,9 @@ class RollbetterScraper(BaseScraper):
                             self.cache[tournament_id] = ui_data
                             return
 
+            except TournamentSkipped:
+                # Expected, informational skip — do not retry or treat as error.
+                raise
             except Exception as e:
                 logger.error(
                     f"Attempt {attempt+1} Error for {tournament_id}: {e}")
@@ -255,13 +269,16 @@ class RollbetterScraper(BaseScraper):
                 # Retry loop continues
 
         # If LF export flow failed, fall back to the public API.
-        api_data = self._try_fetch_api_data(
-            tournament_id, f"{self.BASE_URL}/tournaments/{tournament_id}")
+        try:
+            api_data = self._try_fetch_api_data(
+                tournament_id, f"{self.BASE_URL}/tournaments/{tournament_id}")
+        except TournamentSkipped:
+            raise
         if api_data:
             self.cache[tournament_id] = api_data
             return
 
-        logger.error(
+        logger.warning(
             f"Failed to scrape LF data for {tournament_id} after 3 attempts.")
         if error_trace:
             import traceback
@@ -527,20 +544,20 @@ class RollbetterScraper(BaseScraper):
             "registrationCount", 0) or 0
 
         if player_count <= 1 and len(waitlist) <= 1:
-            logger.warning(
-                f"Tournament {tournament_id} has insufficient players (API). Skipping."
+            raise TournamentSkipped(
+                tournament_id,
+                "Tournament has insufficient players (API)."
             )
-            return None
 
         title = info.get("title") or info.get(
             "name") or f"Rollbetter Event {tournament_id}"
         date_value = info.get("endDate") or info.get("startDate")
         parsed_date = self._parse_api_date(date_value)
         if parsed_date.date() > datetime.now().date():
-            logger.warning(
-                f"Tournament {tournament_id} is in the future ({parsed_date.date()}). Skipping."
+            raise TournamentSkipped(
+                tournament_id,
+                f"Tournament is in the future ({parsed_date.date()})."
             )
-            return None
 
         location = None
         venue = info.get("venue") or ""
@@ -751,14 +768,16 @@ class RollbetterScraper(BaseScraper):
         is_xwing_title = "x-wing" in h1_text.lower()
 
         if "Marvel Crisis Protocol" in body_text and not is_xwing_title:
-            logger.warning(
-                f"Tournament {tournament_id} seems to be Marvel Crisis Protocol. Skipping.")
-            return False
+            raise TournamentSkipped(
+                tournament_id,
+                "Tournament seems to be Marvel Crisis Protocol (not X-Wing)."
+            )
 
         if "Star Wars: Legion" in body_text and not is_xwing_title:
-            logger.warning(
-                f"Tournament {tournament_id} seems to be Legion. Skipping.")
-            return False
+            raise TournamentSkipped(
+                tournament_id,
+                "Tournament seems to be Star Wars: Legion (not X-Wing)."
+            )
 
         if "X-Wing" not in body_text and "Miniatures Game" not in body_text and not is_xwing_title:
             logger.warning(
@@ -770,9 +789,10 @@ class RollbetterScraper(BaseScraper):
 
         # Allow "Today" as valid (<=)
         if date_obj.date() > datetime.now().date():
-            logger.warning(
-                f"Tournament {tournament_id} is in the future ({date_obj.date()}). Skipping.")
-            return False
+            raise TournamentSkipped(
+                tournament_id,
+                f"Tournament is in the future ({date_obj.date()})."
+            )
 
         # Count
         player_count = None
@@ -785,9 +805,12 @@ class RollbetterScraper(BaseScraper):
                         player_count = int(parts[0].strip())
                         break
             if player_count is not None and player_count <= 1:
-                logger.warning(
-                    f"Tournament {tournament_id} has insufficient players. Skipping.")
-                return False
+                raise TournamentSkipped(
+                    tournament_id,
+                    "Tournament has insufficient players."
+                )
+        except TournamentSkipped:
+            raise
         except:
             pass
 

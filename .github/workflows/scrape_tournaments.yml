@@ -5,7 +5,7 @@ permissions:
 
 on:
   schedule:
-    # Run at 08:00 UTC every day — writes to staging (promote via separate workflow)
+    # Run at 08:00 UTC every day — writes to prod (direct live update)
     - cron: "0 8 * * *"
   workflow_dispatch:
     inputs:
@@ -34,12 +34,11 @@ on:
       environment:
         description: "Target database environment (use none for SQLite artifact only)"
         required: true
-        default: "staging"
+        default: "prod"
         type: choice
         options:
-          - staging
           - prod
-          - dev
+          - staging
           - none
       upload_sqlite_artifact:
         description: "Upload scraped SQLite database as an artifact"
@@ -55,6 +54,12 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
+
+    # True when the job needs the database SSH tunnel: the scheduled daily
+    # run always targets prod, and workflow_dispatch targets whatever
+    # environment was chosen (none = SQLite artifact only, no DB).
+    env:
+      NEEDS_DB: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.environment != 'none') }}
 
     steps:
       - uses: actions/checkout@v4
@@ -75,11 +80,11 @@ jobs:
           playwright install chromium --with-deps
 
       - name: Install PostgreSQL client (for pg_isready / psql)
-        if: inputs.environment == 'prod' || inputs.environment == 'staging' || inputs.environment == 'dev'
+        if: env.NEEDS_DB == 'true'
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
       - name: Open SSH tunnel to database
-        if: inputs.environment == 'prod' || inputs.environment == 'staging' || inputs.environment == 'dev'
+        if: env.NEEDS_DB == 'true'
         run: |
           # Sanitize the secret — copes with CR line endings / stray whitespace
           # from paste that breaks ssh-add (error: "error in libcrypto").
@@ -94,7 +99,7 @@ jobs:
           rm -f /tmp/m3tacron_deploy_key
 
       - name: Start database tunnel
-        if: inputs.environment == 'prod' || inputs.environment == 'staging' || inputs.environment == 'dev'
+        if: env.NEEDS_DB == 'true'
         run: |
           ssh -f -N -L 5432:localhost:3000 \
             -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes \
@@ -119,7 +124,7 @@ jobs:
 
           if [ -z "$PLATFORM" ]; then PLATFORM="longshanks+rollbetter"; fi
           if [ -z "$TIME_RANGE" ]; then TIME_RANGE="last week"; fi
-          if [ -z "$DB_ENV" ]; then DB_ENV="staging"; fi
+          if [ -z "$DB_ENV" ]; then DB_ENV="prod"; fi
 
           # Build DATABASE_URL from secrets via SSH tunnel.
           # Secrets may be a full URL (postgres://user:pass@host/db) or just a password.
@@ -141,14 +146,6 @@ jobs:
             RAW="${{ secrets.PROD_DATABASE_URL }}"
             PASS=$(_extract_pass "$RAW")
             export DATABASE_URL="postgres://postgres:${PASS}@localhost:5432/m3tacron_staging"
-          elif [ "$DB_ENV" = "dev" ]; then
-            RAW="${{ secrets.DEV_DATABASE_URL }}"
-            PASS=$(_extract_pass "$RAW")
-            # Dev DB — if it lives on the same Postgres, use the tunnel.
-            # If your dev DB is elsewhere, override by setting DEV_DATABASE_URL to the full direct URL
-            # and uncomment the next line:
-            # export DATABASE_URL="$RAW"
-            export DATABASE_URL="postgres://postgres:${PASS}@localhost:5432/postgres"
           fi
 
           OVERWRITE_FLAG=""
@@ -177,12 +174,24 @@ jobs:
           retention-days: 30
 
       - name: Commit and Push Changes
-        if: inputs.environment != 'none'
+        if: env.NEEDS_DB == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add backend/data/geocoding_cache.json
           if [ -f main.db ]; then git add main.db; fi
-          git diff --cached --quiet || git commit -m "Update tournament data and geocoding cache" || exit 0
-          git pull --rebase --autostash
-          git push
+          if git diff --cached --quiet; then
+            echo "No cache changes to commit."
+            exit 0
+          fi
+          git commit -m "Update tournament data and geocoding cache"
+          # main is a protected branch — direct push is rejected. Push the
+          # cache commit to a dedicated branch so it isn't lost; the job
+          # must NOT fail because of branch protection.
+          if git branch --show-current | grep -q '^main$'; then
+            CACHE_BRANCH="data/geocoding-cache"
+            git branch -f "$CACHE_BRANCH" HEAD
+            git push -f origin "$CACHE_BRANCH" 2>/dev/null || echo "Cache push to $CACHE_BRANCH failed (non-fatal)"
+          else
+            git push 2>/dev/null || echo "Cache push failed (non-fatal)"
+          fi

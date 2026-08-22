@@ -48,7 +48,7 @@ from ..models import Match, PlayerStanding, Tournament, TeamStanding, TeamMatch
 from ..scrapers.base import BaseScraper
 from ..scrapers.listfortress_scraper import ListFortressScraper
 from ..scrapers.longshanks_scraper import LongshanksScraper
-from ..scrapers.rollbetter_scraper import RollbetterScraper
+from ..scrapers.rollbetter_scraper import RollbetterScraper, TournamentSkipped
 from ..utils.list_keys import get_list_key, get_ship_list
 
 logging.basicConfig(
@@ -200,10 +200,23 @@ def _delete_existing_tournament(session: Session, url: str) -> None:
         eid = existing.id
         if eid is not None:
             logger.info(f"Deleting existing tournament data (id={eid}) for {url}")
+            # Delete in dependency order so no FK violation:
+            # 1. matches (reference playerstanding)
+            # 2. team_member edges (reference BOTH teamstanding AND playerstanding —
+            #    delete by the playerstanding side so members whose team_id is
+            #    NULL are still cleaned)
+            # 3. playerstanding (referenced by match + team_member — both gone)
+            # 4. teamstanding (referenced by team_member — gone)
+            # 5. tournament
             session.exec(delete(TeamMatch).where(
                 cast(Any, TeamMatch.tournament_id) == eid))
             session.exec(delete(Match).where(
                 cast(Any, Match.tournament_id) == eid))
+            session.exec(delete(TeamMember).where(
+                cast(Any, TeamMember.playerstanding_id).in_(
+                    select(PlayerStanding.id).where(
+                        cast(Any, PlayerStanding.tournament_id) == eid)
+                )))
             session.exec(delete(TeamMember).where(
                 cast(Any, TeamMember.teamstanding_id).in_(
                     select(TeamStanding.id).where(
@@ -551,6 +564,10 @@ def _scrape_by_url(
                         tournament_id)
                     scraper_name = name
                     break
+                except TournamentSkipped as exc:
+                    logger.warning(
+                        f"[{name}] Skipping {url} (id={tournament_id}): {exc.reason}")
+                    return False, None
                 except Exception as exc:
                     logger.warning(
                         f"[{name}] Failed to scrape {url} (id={tournament_id}): {exc}"
@@ -575,6 +592,10 @@ def _scrape_by_url(
                 tournament_id)
         else:
             return False, f"Unsupported tournament URL host: {url}"
+    except TournamentSkipped as exc:
+        logger.warning(
+            f"Skipping {url} (id={tournament_id}): {exc.reason}")
+        return False, None
     except Exception as exc:
         return False, f"Scrape failed for {url} (id={tournament_id}): {exc}"
 
@@ -747,6 +768,12 @@ def scrape_platform(
                 f"[{scraper_name}] Saved '{t_name}' "
                 f"({n_players} player(s), {n_matches} match(es))."
             )
+        except TournamentSkipped as exc:
+            # Expected, informational skip (e.g. wrong game system, future
+            # date, insufficient players). Do not surface as an error.
+            logger.warning(
+                f"[{scraper_name}] Skipping '{name}' ({url}): {exc.reason}")
+            skipped += 1
         except Exception as exc:
             logger.error(
                 f"[{scraper_name}] Failed to scrape '{name}' ({url}): {exc}",

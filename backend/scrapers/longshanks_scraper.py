@@ -311,8 +311,22 @@ class LongshanksScraper(BaseScraper):
     def get_participants(self, tournament_id: str) -> list[PlayerStanding]:
         """
         Scrape participants from the Ranking tab (Pure Python).
+
+        NOTE: the scraper instance is REUSED across tournaments by
+        scrape_platform (one LongshanksScraper per subdomain). Any state
+        carried from a previous tournament's get_participants (member rows,
+        team placeholders, maps) must be reset here — otherwise the stale
+        PlayerStanding objects, which may have been committed/expired by the
+        DB session during the previous save, get returned and cause
+        DetachedInstanceError on attribute access.
         """
         participants = []
+        self.is_team_event = False
+        self.player_team_map = {}
+        self.team_members = {}
+        self._member_display = {}
+        self._team_placeholders = {}
+        self._member_rows = {}
         # Force navigation to Ranking tab
         url = f"{self.base_url}/event/{tournament_id}/?tab=ranking"
 

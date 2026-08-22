@@ -73,3 +73,5 @@ verify*.png
 commit_message.json
 .opencode/
 .vite/
+# Font-centering verification screenshots (local review evidence, not for GitHub)
+.verify-font-centering/
