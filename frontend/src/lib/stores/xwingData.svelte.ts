@@ -57,6 +57,9 @@ export interface XWingShip {
     pilots?: any[]; 
     icon?: string;
     factions: string[];
+    /** Epic-only ships (no standard-legal pilots). Used by the ships page
+     *  epic toggle: only shown when "Include Epic" is on. */
+    epic?: boolean;
 }
 
 export interface XWingUpgrade {
@@ -284,6 +287,30 @@ class XwingDataStore {
      */
     getPilotCountByShip(shipXws: string, source: XWingSource = this.currentSource): number {
         return this.pilotCountByShip[source]?.[shipXws] ?? 0;
+    }
+
+    /**
+     * Get number of pilots for a ship filtered by faction.
+     * When faction is null/"all"/"unknown" the total is returned.
+     */
+    getPilotCountByShipForFaction(
+        shipXws: string,
+        faction: string | null,
+        source: XWingSource = this.currentSource,
+    ): number {
+        if (!faction || faction === "all" || faction.toLowerCase() === "unknown") {
+            return this.getPilotCountByShip(shipXws, source);
+        }
+        const data = this.data[source];
+        if (!data?.pilots) return 0;
+        const normWanted = faction.toLowerCase().replace(/[\s-]/g, "");
+        let count = 0;
+        for (const pilot of Object.values(data.pilots) as XWingPilot[]) {
+            if (pilot.ship !== shipXws) continue;
+            const pf = (pilot.faction ?? "").toLowerCase().replace(/[\s-]/g, "");
+            if (pf === normWanted) count++;
+        }
+        return count;
     }
 }
 
