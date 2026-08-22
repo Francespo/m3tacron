@@ -280,7 +280,7 @@
                     <span
                         class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
                     >
-                        LISTS {stats.popularity ?? 0}
+                        APPEARANCES {stats.popularity ?? 0}
                     </span>
                     <span
                         class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
