@@ -173,7 +173,15 @@ def aggregate_ship_stats(
         }
         for row in result
     ]
-# (upstream hierarchy merged into faction_rows above)
+    results = merge_ship_faction_rows(faction_rows)
+
+    for item in results:
+        primary_faction = item["factions"][0] if item["factions"] else "unknown"
+        try:
+            faction_enum = Faction.from_xws(primary_faction)
+        except (ValueError, AttributeError):
+            faction_enum = Faction.UNKNOWN
+        item["faction_xws"] = faction_enum
 
     # Sort
     def sort_key(item):
