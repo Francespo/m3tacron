@@ -918,7 +918,7 @@
                     />
                 </div>
                 <div class="w-full flex flex-col">
-                    {#each sortedPilots.slice(0, 5) as pilot}
+                    {#each sortedPilots.slice(0, 6) as pilot}
                         {@const p = getPilotDisplay(pilot.xws)}
                         {@const wr = getWinRate(pilot.wins || 0, pilot.games_count || 0)}
                         <div
@@ -1081,7 +1081,7 @@
                     />
                 </div>
                 <div class="w-full flex flex-col">
-                    {#each sortedShips.slice(0, 5) as ship}
+                    {#each sortedShips.slice(0, 6) as ship}
                         {@const shipData = xwingData.getShip(ship.xws)}
                         {@const shipName = shipData?.name || ship.xws}
                         {@const factionXws = ship.faction_xws}
@@ -1156,9 +1156,9 @@
                         value={listSortKey}
                         direction={listSortDir}
                         options={[
-                            { value: "lists", label: "Lists" },
                             { value: "winrate", label: "Win Rate" },
-                            { value: "games", label: "Games" }
+                            { value: "games", label: "Games" },
+                            { value: "entries", label: "Entries" }
                         ]}
                         onChange={(newValue, newDirection) => {
                             listSortKey = newValue as SortKey;

@@ -265,17 +265,22 @@
                     {getFactionLabel(stats.faction)}
                 </p>
 
-                <!-- Key Metrics -->
+                <!-- Key Metrics: squadrons→lists→entries→games→winrate -->
                 <div class="flex flex-wrap gap-2 mt-2">
                     <span
                         class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
                     >
-                        GAMES {Math.max(0, stats.games ?? 0)}
+                        LISTS {stats.popularity ?? 0}
                     </span>
                     <span
                         class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
                     >
-                        APPEARANCES {stats.popularity ?? 0}
+                        ENTRIES {stats.popularity ?? 0}
+                    </span>
+                    <span
+                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
+                    >
+                        GAMES {Math.max(0, stats.games ?? 0)}
                     </span>
                     <span
                         class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"

@@ -865,7 +865,7 @@
                                     </span>
                                 </div>
                                 <span
-                                    class="shrink-0 px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary"
+                                    class="shrink-0 px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
                                 >
                                     GAMES {sGames}
                                 </span>
@@ -909,7 +909,7 @@
                                     LISTS {sListCount}
                                 </span>
                                 <span
-                                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary"
+                                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
                                 >
                                     ENTRIES {sEntries}
                                 </span>

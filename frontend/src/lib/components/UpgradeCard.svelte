@@ -126,13 +126,13 @@
                     </span>
                     <!-- Entries -->
                     <span
-                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary"
+                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
                     >
                         ENTRIES {upgrade.entries_count ?? listsCount}
                     </span>
                     <!-- Games -->
                     <span
-                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary"
+                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
                     >
                         GAMES {games}
                     </span>
