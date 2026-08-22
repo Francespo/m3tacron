@@ -908,7 +908,6 @@
                         direction={pilotSortDir}
                         options={[
                             { value: "lists", label: "Lists" },
-                            { value: "entries", label: "Entries" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}
@@ -950,6 +949,7 @@
                                         <FactionIcon
                                             faction={p.faction}
                                             size="xs"
+                                            className="text-[11px]"
                                         />
                                         <span
                                             class="text-[12px] text-secondary truncate min-w-0 pointer-events-none"
@@ -991,7 +991,6 @@
                         direction={upgradeSortDir}
                         options={[
                             { value: "lists", label: "Lists" },
-                            { value: "entries", label: "Entries" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}
@@ -1072,7 +1071,6 @@
                         direction={shipSortDir}
                         options={[
                             { value: "lists", label: "Lists" },
-                            { value: "entries", label: "Entries" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}
@@ -1117,6 +1115,7 @@
                                         <FactionIcon
                                             faction={factionXws}
                                             size="xs"
+                                            className="text-[11px]"
                                         />
                                         <span
                                             class="text-[12px] text-secondary truncate min-w-0 pointer-events-none"

@@ -19,7 +19,7 @@ export const FACTION_CHARS: Record<string, string> = {
     rebelalliance: '!',
     galacticempire: '@',
     scumandvillainy: '#',
-    resistance: '$',
+    resistance: '!',
     firstorder: '+',
     galacticrepublic: '/',
     separatistalliance: '.',
