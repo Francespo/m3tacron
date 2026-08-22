@@ -577,91 +577,42 @@
     <!-- ====================================================================
          KEY METRICS — compact stat cards
     ===================================================================== -->
-    <section
-        class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-10"
-    >
-        <!-- Total Games -->
+    <section class="grid grid-cols-5 gap-2 mb-10">
+        <!-- Total Games — compact, single line -->
         <div
-            class="bg-terminal-panel border rounded-lg p-4 flex flex-col gap-1"
+            class="bg-terminal-panel border rounded-lg px-3 py-3 flex flex-col gap-1 min-w-0"
             style="border-color: {accentBorder}; box-shadow: {accentGlow};"
         >
-            <span
-                class="text-[10px] font-mono text-secondary uppercase tracking-widest"
-                >Total Games</span
-            >
-            <span class="text-2xl md:text-3xl font-mono font-bold text-primary"
-                >{totalGames.toLocaleString()}</span
-            >
+            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest whitespace-nowrap">Total Games</span>
+            <span class="text-xl md:text-2xl font-mono font-bold text-primary truncate">{totalGames.toLocaleString()}</span>
         </div>
 
         <!-- Win Rate -->
         <div
-            class="bg-terminal-panel border rounded-lg p-4 flex flex-col gap-1"
+            class="bg-terminal-panel border rounded-lg px-3 py-3 flex flex-col gap-1 min-w-0"
             style="border-color: {accentBorder}; box-shadow: {accentGlow};"
         >
-            <span
-                class="text-[10px] font-mono text-secondary uppercase tracking-widest"
-                >Win Rate</span
-            >
-            <span
-                class="text-2xl md:text-3xl font-mono font-bold"
-                style="color: {getWinRateColor(winRateNum)};"
-            >
-                {winRateStr}
-            </span>
-            <span class="text-[10px] font-mono text-secondary">
-                {wins.toLocaleString()} wins
-            </span>
+            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest whitespace-nowrap">Win Rate</span>
+            <span class="text-xl md:text-2xl font-mono font-bold truncate" style="color: {getWinRateColor(winRateNum)};">{winRateStr}</span>
+            <span class="text-[10px] font-mono text-secondary truncate">{wins.toLocaleString()} wins</span>
         </div>
 
-        <!-- Squadrons -->
-        <div
-            class="bg-terminal-panel border border-border-dark rounded-lg p-4 flex flex-col gap-1"
-        >
-            <span
-                class="text-[10px] font-mono text-secondary uppercase tracking-widest"
-                >Squadrons</span
-            >
-            <span class="text-2xl md:text-3xl font-mono font-bold text-primary"
-                >{(stats.squadron_count ?? squadrons.length).toLocaleString()}</span
-            >
-            <span class="text-[10px] font-mono text-secondary">
-                chassis combos
-            </span>
+        <!-- Squadrons — no subtitle -->
+        <div class="bg-terminal-panel border border-border-dark rounded-lg px-3 py-3 flex flex-col gap-1 min-w-0">
+            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest whitespace-nowrap">Squadrons</span>
+            <span class="text-xl md:text-2xl font-mono font-bold text-primary truncate">{(stats.squadron_count ?? squadrons.length).toLocaleString()}</span>
         </div>
 
-        <!-- Lists -->
-        <div
-            class="bg-terminal-panel border rounded-lg p-4 flex flex-col gap-1"
-            style="border-color: {accentBorder}; box-shadow: {accentGlow};"
-        >
-            <span
-                class="text-[10px] font-mono text-secondary uppercase tracking-widest"
-                >Lists</span
-            >
-            <span class="text-2xl md:text-3xl font-mono font-bold text-primary"
-                >{listCount.toLocaleString()}</span
-            >
-            <span class="text-[10px] font-mono text-secondary">
-                distinct builds
-            </span>
+        <!-- Lists — no subtitle -->
+        <div class="bg-terminal-panel border rounded-lg px-3 py-3 flex flex-col gap-1 min-w-0" style="border-color: {accentBorder}; box-shadow: {accentGlow};">
+            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest whitespace-nowrap">Lists</span>
+            <span class="text-xl md:text-2xl font-mono font-bold text-primary truncate">{listCount.toLocaleString()}</span>
         </div>
 
-        <!-- Entries -->
-        <div
-            class="bg-terminal-panel border rounded-lg p-4 flex flex-col gap-1"
-            style="border-color: {accentBorder}; box-shadow: {accentGlow};"
-        >
-            <span
-                class="text-[10px] font-mono text-secondary uppercase tracking-widest"
-                >Entries</span
-            >
-            <span class="text-2xl md:text-3xl font-mono font-bold text-primary"
-                >{(stats.entries_count ?? listCount).toLocaleString()}</span
-            >
-            <span class="text-[10px] font-mono text-secondary">
-                tournament entries
-            </span>
+        <!-- Tournament Entries — renamed from Entries -->
+        <div class="bg-terminal-panel border rounded-lg px-3 py-3 flex flex-col gap-1 min-w-0" style="border-color: {accentBorder}; box-shadow: {accentGlow};">
+            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest whitespace-nowrap">Tournament Entries</span>
+            <span class="text-xl md:text-2xl font-mono font-bold text-primary truncate">{(stats.entries_count ?? listCount).toLocaleString()}</span>
         </div>
     </section>
 
