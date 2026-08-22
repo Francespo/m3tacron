@@ -156,11 +156,8 @@
 
 {#snippet filterBody()}
     <div class="space-y-3">
-        <div class="flex items-center gap-2">
-            <span class="text-xs font-bold tracking-widest text-primary font-mono">
-                SHIP FILTERS
-            </span>
-        </div>
+        <!-- The section header ("SHIP FILTERS") is rendered by the
+             wrapping FilterSection via `pageFilterTitle="Ship filters"`. -->
 
         <!-- Sort By was moved to the main content section header
              (rendered by SortBy) to give the list a single canonical
@@ -229,7 +226,7 @@
 </svelte:head>
 
 <div class="flex min-h-screen">
-    <FilterPanel>
+    <FilterPanel pageFilterTitle="Ship filters">
         {@render filterBody()}
     </FilterPanel>
 
@@ -242,6 +239,7 @@
         onClose={() => (filterOpen = false)}
         title="Filters"
         activeCount={filters.activeChips.length}
+        pageFilterTitle="Ship filters"
     >
         {@render filterBody()}
     </MobileFilterDrawer>

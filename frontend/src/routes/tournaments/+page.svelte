@@ -97,10 +97,11 @@
 </svelte:head>
 
 <div class="flex min-h-screen">
-    <!-- Filter Panel (2nd column). No children: the page's only filter
-         (sort) lives in the main content section header so there is no
-         sidebar content to render. -->
-    <FilterPanel />
+    <!-- Filter Panel (2nd column). No page-specific children: the page's
+         only filter (sort) lives in the main content section header, so
+         the sidebar renders just the data filter section — labeled
+         "TOURNAMENT FILTERS" contextually on this page. -->
+    <FilterPanel dataFilterTitle="Tournament filters" />
 
     <MobileFilterTrigger
         activeCount={filters.activeChips.length}
@@ -111,11 +112,8 @@
         onClose={() => (filterOpen = false)}
         title="Filters"
         activeCount={filters.activeChips.length}
-    >
-        {#snippet children()}
-            <!-- No sidebar filters on this page; sort lives in the main content. -->
-        {/snippet}
-    </MobileFilterDrawer>
+        dataFilterTitle="Tournament filters"
+    />
 
     <!-- Main Content (3rd column) -->
     <main class="flex-1 min-w-0 p-6 md:p-8 pb-20 lg:pb-8">

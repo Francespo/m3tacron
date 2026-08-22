@@ -117,13 +117,8 @@
 
 {#snippet filterBody()}
     <div class="space-y-3">
-        <div class="flex items-center gap-2">
-            <span
-                class="text-xs font-bold tracking-widest text-primary font-mono"
-            >
-                CARD FILTERS
-            </span>
-        </div>
+        <!-- The section header ("CARD FILTERS") is rendered by the
+             wrapping FilterSection via `pageFilterTitle="Card filters"`. -->
 
         <!-- Basic / Advanced toggle -->
         <div
@@ -235,7 +230,7 @@
 </svelte:head>
 
 <div class="flex min-h-screen">
-    <FilterPanel>
+    <FilterPanel pageFilterTitle="Card filters">
         {@render filterBody()}
     </FilterPanel>
 
@@ -248,6 +243,7 @@
         onClose={() => (filterOpen = false)}
         title="Filters"
         activeCount={filters.activeChips.length}
+        pageFilterTitle="Card filters"
     >
         {@render filterBody()}
     </MobileFilterDrawer>

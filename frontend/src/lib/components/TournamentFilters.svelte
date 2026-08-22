@@ -166,43 +166,9 @@
 </script>
 
 <div class="w-full space-y-3">
-    <!-- Header -->
-    <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2">
-            <span class="text-xs font-bold tracking-widest text-primary font-mono">
-                TOURNAMENT FILTERS
-            </span>
-            <button
-                type="button"
-                class="group relative inline-flex items-center justify-center w-4 h-4 rounded-full text-secondary hover:text-primary active:text-white focus:outline-none focus:ring-1 focus:ring-primary"
-                aria-label="How tournament filters work"
-            >
-                <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                >
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="16" x2="12" y2="12" />
-                    <line x1="12" y1="8" x2="12.01" y2="8" />
-                </svg>
-                <div
-                    class="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-64 p-2 bg-terminal-panel border border-border-dark rounded-md text-[10px] font-mono text-secondary opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-opacity z-50 pointer-events-none"
-                >
-                    Tournament filters are applied to the page's input data. The
-                    page-specific filters and the tournament filters are
-                    complementary — for example, if you filter for tournaments
-                    on a list page, only data from tournaments that match your
-                    filter is shown.
-                </div>
-            </button>
-        </div>
-    </div>
+    <!-- The section header ("DATA FILTER" / "TOURNAMENT FILTERS") and the
+         info tooltip now come from the wrapping FilterSection (label +
+         description props), not from this component. -->
 
     <!-- Date Range Accordion -->
     <div class="border-b border-border-dark">

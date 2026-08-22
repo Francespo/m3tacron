@@ -12,13 +12,21 @@
 	import { page } from "$app/state";
 	import { filters } from "$lib/stores/filters.svelte";
 	import TournamentFilters from "./TournamentFilters.svelte";
+	import FilterSection from "./FilterSection.svelte";
+	import { slugify } from "$lib/stores/filterSections.svelte";
 
 	type Props = {
 		open: boolean;
 		onClose: () => void;
 		title?: string;
 		activeCount?: number;
-		children: Snippet;
+		// Two-section structure: the data filter section on top (same
+		// defaults + ids as the desktop FilterPanel so the persisted
+		// collapse preference is shared), then the page-specific section.
+		dataFilterTitle?: string;
+		dataFilterDescription?: string;
+		pageFilterTitle?: string;
+		children?: Snippet;
 		footer?: Snippet;
 	};
 	let {
@@ -26,6 +34,9 @@
 		onClose,
 		title = "Filters",
 		activeCount = 0,
+		dataFilterTitle = "Data filter",
+		dataFilterDescription = "Tournament filters are applied to the page's input data. The page-specific filters and the tournament filters are complementary — for example, if you filter for tournaments on a list page, only data from tournaments that match your filter is shown.",
+		pageFilterTitle,
 		children,
 		footer,
 	}: Props = $props();
@@ -171,21 +182,35 @@
 		</button>
 	</header>
 
-	<!-- Body: TournamentFilters is rendered in a non-scrolling wrapper so
-	     its info tooltip (absolutely positioned, extends below the icon)
-	     is never clipped by overflow. The page-specific children snippet
-	     sits in its own scrollable area below. Bottom safe-area padding
-	     on the scroll area keeps the iOS home indicator from covering
-	     the last control. -->
+	<!-- Body: two stacked filter sections. The data section renders in a
+	     non-scrolling wrapper so TournamentFilters' info tooltip
+	     (absolutely positioned, extends below the icon) is never clipped
+	     by overflow. The page-specific section sits in its own scrollable
+	     area below, separated by the same strong divider as the desktop
+	     panel; bottom safe-area padding on the scroll area keeps the iOS
+	     home indicator from covering the last control. Section ids match
+	     the desktop FilterPanel so the persisted collapse preference is
+	     shared between the two. -->
 	<div class="relative z-50 p-4 pb-0 min-w-0">
-		<TournamentFilters />
-	</div>
-	{#if children}
-		<div
-			class="flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+		<FilterSection
+			id="data"
+			label={dataFilterTitle}
+			description={dataFilterDescription}
 		>
-			<div class="h-px bg-border-dark my-4"></div>
-			{@render children()}
+			<TournamentFilters />
+		</FilterSection>
+	</div>
+	{#if pageFilterTitle && children}
+		<div class="h-0.5 bg-border-dark my-1 shrink-0"></div>
+		<div
+			class="flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+		>
+			<FilterSection
+				id={'page:' + slugify(pageFilterTitle)}
+				label={pageFilterTitle}
+			>
+				{@render children()}
+			</FilterSection>
 		</div>
 	{/if}
 
