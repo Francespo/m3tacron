@@ -116,7 +116,7 @@
                     <span
                         class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
                     >
-                        SQ {upgrade.squadron_count ?? 0}
+                        SQUADRONS {upgrade.squadron_count ?? 0}
                     </span>
                     <!-- Lists -->
                     <span

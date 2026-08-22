@@ -72,6 +72,13 @@ class UpgradeStats(BaseModel):
     wins: int
 
 
+class ShipFactionStats(BaseModel):
+    """Per-faction breakdown for a ship (used by the ships-page faction toggle)."""
+    games_count: int
+    list_count: int
+    wins: int
+
+
 class ShipStats(BaseModel):
     xws: str
     faction_xws: Faction
@@ -82,6 +89,7 @@ class ShipStats(BaseModel):
     entries_count: int = 0
     squadron_count: int = 0
     wins: int
+    faction_stats: dict[str, ShipFactionStats] = {}
 
 
 # 3. Event Data (Tournaments and Results)

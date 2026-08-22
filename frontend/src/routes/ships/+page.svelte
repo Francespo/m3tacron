@@ -18,11 +18,16 @@
     import { xwingData } from "$lib/stores/xwingData.svelte";
     import Toggle from "$lib/components/Toggle.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
+    import { page as appPage } from "$app/state";
 
     let { data } = $props();
 
     let filterOpen = $state(false);
-    let page = $state(1);
+    // Page is now driven solely by client-side pagination over mergedShips.
+    // URL's ?page param is only used to seed initial page after navigation.
+    let page = $state(typeof window !== 'undefined'
+        ? Math.max(1, Number(new URLSearchParams(window.location.search).get('page') || 0) + 1)
+        : 1);
     let factionOpen = $state(false);
     const size = 50;
 
@@ -45,6 +50,11 @@
     function retry() {
         invalidateAll();
     }
+
+    // Per-card faction toggle (multi-faction ships only). The value is the
+    // selected faction xws; `undefined`/missing means "all factions".
+    // Single-faction ships never write to this map.
+    let selectedFactionByShip = $state<Record<string, string>>({});
 
     // Sync state FROM the URL so direct navigation (e.g. ?page=2) works.
     // URL hydration is now handled centrally by the layout via
@@ -83,7 +93,13 @@
 
             // Start with ALL ships from xwingData
             const merged: any[] = [];
+            // Strict dedupe by ship xws: every chassis may appear in the
+            // manifest once and must render exactly once (never once with
+            // data and once without).
+            const seen = new Set<string>();
             for (const [xws, ship] of Object.entries(xwingShips)) {
+                if (seen.has(xws)) continue;
+                seen.add(xws);
                 // Skip epic-only ships (ships with no standard-legal pilots) unless includeEpic is on
                 if (!epic && ship.epic) continue;
                 // Skip ships not in the chassis filter (when one is active)
@@ -99,6 +115,8 @@
                     list_count: apiData?.list_count ?? 0,
                     entries_count: apiData?.entries_count ?? apiData?.list_count ?? 0,
                     squadron_count: apiData?.squadron_count ?? 0,
+                    // Per-faction breakdown for capsule faction toggle
+                    faction_stats: apiData?.faction_stats ?? {},
                     pilots_count: xwingData.getPilotCountByShip(xws),
                 });
             }
@@ -157,6 +175,15 @@
         } else {
             filters.selectedFactions = [...filters.selectedFactions, f];
         }
+    }
+
+    // Per-card faction toggle: select one faction (card recolors + stats
+    // filter to that faction) or back to "all factions".
+    function selectShipFaction(xws: string, faction: string) {
+        selectedFactionByShip[xws] = faction;
+    }
+    function selectShipAll(xws: string) {
+        delete selectedFactionByShip[xws];
     }
 </script>
 
@@ -342,89 +369,141 @@
                     <!-- Ships Heatmap Grid -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                         {#each shipItems as ship}
-                    {@const games = Math.max(0, ship.games_count ?? 0)}
-                    {@const wins = Math.max(0, ship.wins ?? 0)}
-                    {@const wr = games > 0 ? (wins / games) * 100 : 0}
-                    {@const wrColor = getWinRateColor(wr)}
-                    {@const lists = Math.max(0, ship.list_count ?? 0)}
-                    {@const factionKey = ship.factions?.[0] ?? "unknown"}
-                    {@const factionColor = getFactionColor(factionKey)}
-                    {@const pilotsCount = Math.max(0, ship.pilots_count ?? 0)}
-                    <!-- Glow intensity proportional to games (popularity) -->
-                    {@const glowOpacity = Math.min(0.3, (games / 2000) * 0.3)}
-                    <!-- Multi-faction gradient: vertical color stripes, one per faction.
-                         For 1 faction: empty (CSS uses --faction fallback). For 2+:
-                         equal-width stops so the ship icon is visibly split. -->
-                    {@const factionCount = ship.factions?.length ?? 0}
+                    {@const shipFactions = (ship.factions ?? [])}
                     <!-- Only the canonical factions (Rebels, Empire, Scum, etc.) get
                          real colors. "all", "unknown", "galactic20empire" and other
                          dirty values are filtered out so the gradient stays clean.
                          Factions are sorted by `ALL_FACTIONS` index so the stripe
                          order is stable across ships and re-renders (e.g. Rebel is
                          always left-most, Empire always second). -->
-                    {@const realFactions = (ship.factions ?? [])
+                    {@const realFactions = shipFactions
                         .filter((f: string) => ALL_FACTIONS.includes(f))
                         .sort((a: string, b: string) => ALL_FACTIONS.indexOf(a) - ALL_FACTIONS.indexOf(b))}
                     {@const realCount = realFactions.length}
                     {@const isMulti = realCount > 1}
-                    <!-- Equal-width hard stripes: each color gets a `start% end%`
-                         range so the browser paints distinct bands instead of
-                         interpolating all stops at the same position (which would
-                         collapse to a single red→tan blend). Example for 5 factions:
-                         red 0% 20%, green 20% 40%, blue 40% 60%, grey 60% 80%, tan 80% 100% -->
-                    {@const factionGradient = isMulti
-                        ? `linear-gradient(to right, ${realFactions.map((f: string, i: number) => `${getFactionColor(f)} ${((i * 100) / realCount).toFixed(2)}% ${(((i + 1) * 100) / realCount).toFixed(2)}%`).join(', ')})`
-                        : ''}
-                    <!-- Split halo as a multi-layer box-shadow. `box-shadow` can't
-                         paint a gradient natively, so we emit one layer per faction
-                         with a horizontal offset that spreads the colors left↔right
-                         (matching the ship-icon gradient above). Each layer's alpha
-                         is the ship popularity (`--glow-alpha`) so popular ships glow
-                         brighter. `box-shadow` is painted outside the element's
-                         border-box, so unlike the old `::after` (which used
-                         `z-index: -1` and bled through the card background) the glow
-                         never enters the card content area. -->
-                    {@const multiGlow = isMulti
-                        ? realFactions.map((f: string, i: number) => {
-                            const step = realCount <= 1 ? 0 : 16 / Math.max(1, realCount - 1);
-                            const offset = (i - (realCount - 1) / 2) * step;
-                            const alpha = Math.round(glowOpacity * 255).toString(16).padStart(2, '0');
-                            return `${offset}px 0px 14px 3px ${getFactionColor(f)}${alpha}`;
-                        }).join(', ')
+                    <!-- Per-card faction toggle state: undefined -> "all factions" -->
+                    {@const selectedFaction = selectedFactionByShip[ship.xws] ?? "all"}
+                    {@const activeFaction = isMulti && selectedFaction !== "all" ? selectedFaction : null}
+                    <!-- The card's visual factions: all of them by default, the
+                         selected faction alone when the pill toggle is active. -->
+                    {@const cardFactions = activeFaction ? [activeFaction] : realFactions}
+                    {@const cardMulti = cardFactions.length > 1}
+                    {@const factionKey = cardFactions[0] ?? "unknown"}
+                    {@const factionColor = getFactionColor(factionKey)}
+                    <!-- Faction-scoped stats (from the API's faction_stats
+                         breakdown) or the ship-wide aggregates. When a faction
+                         is selected but has no tournament data, the stats are
+                         0 (no data) — never the ship-wide totals. -->
+                    {@const fStats = activeFaction ? (ship.faction_stats?.[activeFaction] ?? null) : null}
+                    {@const games = Math.max(0, activeFaction ? (fStats?.games_count ?? 0) : (ship.games_count ?? 0))}
+                    {@const wins = Math.max(0, activeFaction ? (fStats?.wins ?? 0) : (ship.wins ?? 0))}
+                    {@const wr = games > 0 ? (wins / games) * 100 : 0}
+                    {@const wrColor = getWinRateColor(wr)}
+                    {@const lists = Math.max(0, activeFaction ? (fStats?.list_count ?? 0) : (ship.list_count ?? 0))}
+                    {@const pilotsCount = Math.max(0, activeFaction ? xwingData.getPilotCountByShipForFaction(ship.xws, activeFaction) : ship.pilots_count ?? 0)}
+                    {@const hasData = games > 0}
+                    <!-- Glow intensity proportional to games (popularity) -->
+                    {@const glowOpacity = Math.min(0.3, (games / 2000) * 0.3)}
+                    <!-- Multi-faction gradient: vertical color stripes, one per faction.
+                         For 1 faction: empty (CSS uses --faction fallback). For 2+:
+                         equal-width stops so the ship icon is visibly split. -->
+                    {@const factionGradient = cardMulti
+                        ? `linear-gradient(to right, ${cardFactions.map((f: string, i: number) => `${getFactionColor(f)} ${((i * 100) / cardFactions.length).toFixed(2)}% ${(((i + 1) * 100) / cardFactions.length).toFixed(2)}%`).join(', ')})`
                         : ''}
 
-                    <a href="/ship/{ship.xws}" class="block group">
+                    <!-- Clicking the capsule opens the ship detail page. Carry
+                         forward all active global filters (formats, dates,
+                         location, platforms, etc.) so the detail stats stay
+                         consistent with the overview card, plus the per-card
+                         faction toggle as ?faction=X when a specific faction
+                         is selected. -->
+                    {@const shipHref = (() => {
+                        const sp = new URLSearchParams(appPage.url.search);
+                        sp.delete('page');
+                        sp.delete('size');
+                        sp.delete('sort_metric');
+                        sp.delete('sort_direction');
+                        if (activeFaction) sp.set('faction', activeFaction);
+                        else sp.delete('faction');
+                        const qs = sp.toString();
+                        return `/ship/${ship.xws}${qs ? `?${qs}` : ''}`;
+                    })()}
+
+                    <a href={shipHref} class="block group relative" style="--glow-alpha: {glowOpacity};">
                         <div
-                            class="ship-card relative bg-terminal-panel border border-border-dark rounded-lg p-4 flex flex-col items-center gap-2 hover:border-secondary/50 group-hover:scale-[1.03] group-hover:-translate-y-1 transition-all duration-200"
-                            style="--faction: {factionColor}; --faction-gradient: {factionGradient}; --wr: {wrColor}; --glow-alpha: {glowOpacity}; --multi-glow: {multiGlow};"
-                            class:ship-card--multi={isMulti}
+                            class="ship-card relative z-[1] bg-terminal-panel border border-border-dark rounded-lg p-4 flex flex-col items-center gap-2 hover:border-secondary/50 transition-all duration-200"
+                            style="--faction: {cardMulti ? '#888' : factionColor}; --wr: {wrColor};"
+                            class:ship-card--multi={cardMulti}
                         >
-                            <!-- Faction icon(s) (small, top-right) -->
-                            <!-- Multi-faction ships (e.g. Z-95 AF4 in Rebels+Republic+Scum) show all
-                                 canonical faction glyphs in a row. Dirty values like
-                                 "all" / "unknown" / "galactic20empire" are filtered out. -->
-                            <div
-                                class="absolute top-2 right-2 flex items-center gap-1 opacity-80"
-                            >
-                                {#if realCount > 1}
-                                    {#each realFactions as f}
-                                        <FactionIcon faction={f} size="sm" />
-                                    {/each}
-                                {:else if realCount === 1}
-                                    <FactionIcon
-                                        faction={realFactions[0]}
-                                        size="sm"
-                                    />
-                                {/if}
-                            </div>
-
                             <!-- Ship Icon (from X-Wing ship font via CSS pseudo-element).
-                                 Multi-faction ships render the glyph with a multi-color
-                                 horizontal gradient (one stripe per faction). -->
+                                 Single-faction: colored by --faction. Multi-faction:
+                                 multi-color horizontal gradient stripes. -->
                             <i
                                 class="ship-icon xwing-miniatures-ship xwing-miniatures-ship-{ship.xws ? ship.xws.replace(/[^a-z0-9]/g, '') : ''} transition-transform"
-                                class:ship-icon--multi={isMulti}
+                                style="--icon-faction: {factionColor}; --icon-gradient: {factionGradient};"
+                                class:ship-icon--multi={cardMulti}
                             ></i>
+                            <!-- Faction pill (top-right corner of EVERY card).
+                                 Multi-faction ships: one clickable icon per faction
+                                 + a circled "A" (All factions) toggle. Single-faction
+                                 ships: a non-clickable badge with the faction icon. -->
+                            <div class="absolute top-2 right-2">
+                                <div
+                                    class="flex items-center gap-1 rounded-full border border-border-dark bg-[#0d0d14]/90 p-0.5"
+                                >
+                                    {#if realCount > 0}
+                                        {#each realFactions as f}
+                                            {#if isMulti}
+                                                <button
+                                                    type="button"
+                                                    title={getFactionLabel(f)}
+                                                    aria-label={`Show ${getFactionLabel(f)} stats`}
+                                                    class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full leading-none transition-opacity {activeFaction === f
+                                                        ? 'opacity-100 ring-1 ring-white/40'
+                                                        : 'opacity-50 hover:opacity-100'}"
+                                                    onclick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        selectShipFaction(ship.xws, f);
+                                                    }}
+                                                >
+                                                    <FactionIcon faction={f} size="xs" className="leading-none" />
+                                                </button>
+                                            {:else}
+                                                <span
+                                                    class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full leading-none opacity-80"
+                                                    title={getFactionLabel(f)}
+                                                >
+                                                    <FactionIcon faction={f} size="xs" className="leading-none" />
+                                                </span>
+                                            {/if}
+                                        {/each}
+                                    {:else}
+                                        <!-- No canonical factions: neutral unknown badge -->
+                                        <span class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full leading-none opacity-80" title="Unknown faction">
+                                            <FactionIcon faction="unknown" size="xs" className="leading-none" />
+                                        </span>
+                                    {/if}
+
+                                    {#if isMulti}
+                                        <button
+                                            type="button"
+                                            title="All factions"
+                                            aria-label="Show stats across all factions"
+                                            class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full font-sans text-[10px] font-bold leading-none transition-colors {activeFaction === null
+                                                ? 'border border-primary bg-white/10 text-primary'
+                                                : 'border border-transparent text-secondary hover:text-primary'}"
+                                            onclick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                selectShipAll(ship.xws);
+                                            }}
+                                        >
+                                            A
+                                        </button>
+                                    {/if}
+                                </div>
+                            </div>
 
                             <!-- Ship Name -->
                             <span
@@ -433,76 +512,31 @@
                                 {ship.name || ship.xws || "Unknown Ship"}
                             </span>
 
-                            <!-- Stats Grid -->
+                            <!-- Stats Grid: row1 Squadrons/Lists/Entries, row2 Games/WR/Pilots (all L→R) -->
                             <div class="grid grid-cols-3 gap-1 w-full text-center">
-                                <div
-                                    class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
-                                >
-                                    <span
-                                        class="wr-text text-xs font-mono font-bold"
-                                        >{games === 0
-                                            ? "NA"
-                                            : Number(wr).toFixed(1) + "%"}</span
-                                    >
-                                    <span
-                                        class="text-[9px] font-mono text-secondary block"
-                                        >WR</span
-                                    >
+                                <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
+                                    <span class="text-xs font-mono text-primary">{ship.squadron_count ?? 0}</span>
+                                    <span class="text-[9px] font-mono text-secondary block">Squadrons</span>
                                 </div>
-                                <div
-                                    class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
-                                >
-                                    <span class="text-xs font-mono text-primary"
-                                        >{ship.squadron_count ?? 0}</span
-                                    >
-                                    <span
-                                        class="text-[9px] font-mono text-secondary block"
-                                        >Squadrons</span
-                                    >
+                                <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
+                                    <span class="text-xs font-mono text-primary">{lists}</span>
+                                    <span class="text-[9px] font-mono text-secondary block">Lists</span>
                                 </div>
-                                <div
-                                    class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
-                                >
-                                    <span class="text-xs font-mono text-primary"
-                                        >{lists}</span
-                                    >
-                                    <span
-                                        class="text-[9px] font-mono text-secondary block"
-                                        >Lists</span
-                                    >
+                                <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
+                                    <span class="text-xs font-mono text-primary">{ship.entries_count ?? lists}</span>
+                                    <span class="text-[9px] font-mono text-secondary block">Entries</span>
                                 </div>
-                                <div
-                                    class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
-                                >
-                                    <span class="text-xs font-mono text-primary"
-                                        >{ship.entries_count ?? lists}</span
-                                    >
-                                    <span
-                                        class="text-[9px] font-mono text-secondary block"
-                                        >Entries</span
-                                    >
+                                <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
+                                    <span class="text-xs font-mono text-primary">{games}</span>
+                                    <span class="text-[9px] font-mono text-secondary block">Games</span>
                                 </div>
-                                <div
-                                    class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
-                                >
-                                    <span class="text-xs font-mono text-primary"
-                                        >{games}</span
-                                    >
-                                    <span
-                                        class="text-[9px] font-mono text-secondary block"
-                                        >Games</span
-                                    >
+                                <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
+                                    <span class="wr-text text-xs font-mono font-bold">{games === 0 ? "NA" : Number(wr).toFixed(1) + "%"}</span>
+                                    <span class="text-[9px] font-mono text-secondary block">WR</span>
                                 </div>
-                                <div
-                                    class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5"
-                                >
-                                    <span class="text-xs font-mono text-primary"
-                                        >{pilotsCount}</span
-                                    >
-                                    <span
-                                        class="text-[9px] font-mono text-secondary block"
-                                        >Pilots</span
-                                    >
+                                <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
+                                    <span class="text-xs font-mono text-primary">{pilotsCount}</span>
+                                    <span class="text-[9px] font-mono text-secondary block">Pilots</span>
                                 </div>
                             </div>
                         </div>
@@ -566,12 +600,14 @@
     .ship-card {
         --faction: #888;
         --wr: #888;
-        --glow-alpha: 0;
-        box-shadow: 0 0 20px color-mix(in srgb, var(--faction) calc(var(--glow-alpha) * 100%), transparent);
+        /* --glow-alpha intentionally NOT set here: it comes from the card
+           wrapper's inline style and is inherited by this element, so the
+           single-faction glow keeps the ship's popularity alpha. */
+        box-shadow: 0 0 20px color-mix(in srgb, var(--faction) calc(var(--glow-alpha, 0) * 100%), transparent);
         border-color: color-mix(in srgb, var(--faction) 30%, transparent);
     }
     .ship-icon {
-        color: var(--faction);
+        color: var(--icon-faction, var(--faction, #888));
         opacity: 0.9;
         font-size: clamp(3rem, 18vw, 8rem);
         line-height: 1;
@@ -589,7 +625,7 @@
        keeps the rest of the card untouched. */
     .ship-icon--multi {
         color: transparent;
-        background: var(--faction-gradient, var(--faction));
+        background: var(--icon-gradient, var(--icon-faction, var(--faction)));
         -webkit-background-clip: text;
         background-clip: text;
         -webkit-text-fill-color: transparent;
@@ -597,37 +633,26 @@
         filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.6));
     }
 
-    /* Multi-faction cards: a 1px gradient border that respects rounded-md.
-       We layer a `::before` over the border area, then mask out the
-       interior so the underlying panel shows through. */
+    /* Multi-faction cards: GRAY border + halo (like single-faction ships
+       with no data), while the multi-color gradient stays on the icon.
+       The gray is set inline via `--faction: #888` on the card. */
     .ship-card--multi {
-        border-color: transparent;
-        /* Override the single-color box-shadow from .ship-card with a
-           split halo built from the per-faction colors. The template
-           precomputes one box-shadow layer per faction (with a horizontal
-           offset) and passes it via the `--multi-glow` custom property.
-           `box-shadow` is painted outside the element's border-box, so
-           the glow is strictly OUTSIDE the card and never bleeds into
-           the ship icon / stats inside it. */
-        box-shadow: var(--multi-glow, none);
+        /* (no --faction here: it comes inline; this class exists to keep
+           the selector semantics explicit) */
     }
-    .ship-card--multi::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        padding: 1px;
-        border-radius: inherit;
-        background: var(--faction-gradient, var(--faction));
-        /* Mask trick: the first linear-gradient is the "hole" that reveals
-           the panel underneath; the second is the "border" itself. */
-        -webkit-mask:
-            linear-gradient(#000 0 0) content-box,
-            linear-gradient(#000 0 0);
-        mask:
-            linear-gradient(#000 0 0) content-box,
-            linear-gradient(#000 0 0);
-        -webkit-mask-composite: xor;
-        mask-composite: exclude;
-        pointer-events: none;
+
+    /* All cards scale up on hover (single- and multi-faction alike). The
+       transform lives on the wrapper so the glow moves in sync with the
+       card expansion. */
+    a.block.group.relative {
+        transition: transform 0.2s;
     }
+    a.block.group.relative:hover {
+        transform: scale(1.03) translateY(-0.25rem);
+    }
+
+    /* The multi-faction halo/border uses the plain gray box-shadow and
+       border from `.ship-card` (via --faction: #888) — same neutral look as
+       single-faction ships. The multi-color gradient lives on the icon only
+       (--icon-gradient). No extra pseudo-elements needed. */
 </style>

@@ -28,14 +28,43 @@
     import BackLink from "$lib/components/BackLink.svelte";
     import SortBy from "$lib/components/SortBy.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
+    import { API_BASE } from "$lib/api";
 
     let { data } = $props();
 
     let info = $derived(data.info ?? { name: data.shipXws, factions: [] });
-    let stats = $derived(data.stats ?? {});
-    let pilots = $derived(data.pilots ?? []);
-    let lists = $derived(data.lists ?? []);
-    let squadrons = $derived(data.squadrons ?? []);
+    // `stats` is replaced by client-side refetches when the faction toggle
+    // changes, so the key metrics recompute per faction.
+    let stats = $state(data.stats ?? {});
+    // `pilots` is replaced by client-side refetches when the faction toggle
+    // changes; starts with the server-loaded data (which may already be
+    // faction-scoped via ?faction=).
+    let pilots = $state([...(data.pilots ?? [])]);
+    let lists = $state([...(data.lists ?? [])]);
+    let squadrons = $state([...(data.squadrons ?? [])]);
+
+    // Selected faction for the detail view. Initialized from the URL
+    // (?faction=rebelalliance carried over from the ships page per-card
+    // pill or a global factions filter). Otherwise default to "all" so the
+    // detail stats match the ships overview card exactly — even for
+    // single-faction ships. Filtering by the ship's sole faction via
+    // ps.faction_xws_normalized excludes a few lists with unknown/cross-
+    // faction data (HMP: 763→760 games) so it must not be auto-applied.
+    let selectedFaction = $state(
+        (() => {
+            const urlFaction = (data as any).faction && (data as any).faction !== "all" ? (data as any).faction : null;
+            if (urlFaction) return urlFaction;
+            // Also check actual URL for SSR hydration where data.faction may be missing
+            if (typeof window !== 'undefined') {
+                const qsFaction = new URLSearchParams(window.location.search).get('faction');
+                if (qsFaction && qsFaction !== 'all') return qsFaction;
+            }
+            return "all";
+        })(),
+    );
+
+    // True while a faction-scoped pilots refetch is in flight.
+    let pilotsLoading = $state(false);
 
     // Trigger xwingData manifest load so pilot/ship lookups work as soon as
     // the page renders. setSource is a no-op once data is loaded.
@@ -44,11 +73,134 @@
     });
 
     // Primary faction for the glow / accent color.
-    // Ships can belong to multiple factions; use the first one.
+    // When "all" is selected, use the ship's first faction for a subtle
+    // default accent; when a specific faction is selected, use it.
     let primaryFaction = $derived(
-        (info.factions && info.factions[0]) || "unknown",
+        selectedFaction !== "all"
+            ? selectedFaction
+            : ((info.factions && info.factions[0]) || "unknown"),
     );
     let factionColor = $derived(getFactionColor(primaryFaction));
+
+    // Accent color for borders/glows on sub-capsules: GRAY when "All" is
+    // selected, faction-colored when a specific faction is selected.
+    let accentColor = $derived(
+        selectedFaction === "all" ? "#888888" : factionColor,
+    );
+    let accentBorder = $derived(
+        `color-mix(in srgb, ${accentColor} 30%, transparent)`,
+    );
+    let accentGlow = $derived(
+        `0 0 14px color-mix(in srgb, ${accentColor} 10%, transparent)`,
+    );
+
+    // True when the ship can be flown by more than one canonical faction.
+    let hasMultipleFactions = $derived(
+        (info.factions ?? []).filter((f: string) => f && f !== "unknown").length > 1,
+    );
+
+    // Fetch pilots whenever the selected faction changes. The server-scoped
+    // data from +page.ts is already correct for the initial faction, so skip
+    // the first run (that's what `data.faction` matched).
+    let fetchedFaction = $state<string | null>(null);
+    $effect(() => {
+        // This effect drives client-side refetches (window) — never run it
+        // during SSR. In the browser, `window` exists and the fetch fires.
+        if (typeof window === "undefined") return;
+        const faction = selectedFaction;
+        if (fetchedFaction === faction) return;
+        fetchedFaction = faction;
+        const ds = filters.dataSource || "xwa";
+
+        function buildUrl(path: string, extra?: Record<string, string>) {
+            const u = new URL(`${API_BASE}${path}`, window.location.origin);
+            // Carry forward every global filter currently in the page URL
+            // (formats, date range, location, platforms, player counts,
+            // data_source, epic, search, etc.) so the refetch stays
+            // consistent with the ships overview the user came from. Skip
+            // page/size/sort which are ships-list-specific.
+            for (const [k, v] of new URLSearchParams(window.location.search).entries()) {
+                if (k === 'page' || k === 'size' || k === 'sort_metric' || k === 'sort_direction') continue;
+                if (k === 'faction') continue; // detail toggle handled below
+                u.searchParams.append(k, v);
+            }
+            // data_source: keep server-provided default in sync with client store
+            if (!u.searchParams.has('data_source')) u.searchParams.set('data_source', ds);
+            if (!u.searchParams.has('epic')) u.searchParams.set('epic', String(filters.includeEpic || false));
+            // detail faction toggle (overrides global factions)
+            if (faction && faction !== 'all') u.searchParams.set('faction', faction);
+            if (extra) for (const [k, v] of Object.entries(extra)) u.searchParams.set(k, v);
+            return u;
+        }
+
+        const pilotsUrl = buildUrl(`/ship/${data.shipXws}/pilots`);
+        const listsUrl = buildUrl(`/ship/${data.shipXws}/lists`, { limit: '10' });
+        const squadronsUrl = buildUrl(`/ship/${data.shipXws}/squadrons`, { limit: '10' });
+        const statsUrl = buildUrl(`/ship/${data.shipXws}`);
+
+        // Keep the browser URL's `faction` param in sync so a refresh or copy-
+        // paste preserves the per-ship faction breakdown. Preserve all other
+        // global filters already in the URL.
+        {
+            const next = new URL(window.location.href);
+            if (faction && faction !== 'all') next.searchParams.set('faction', faction);
+            else next.searchParams.delete('faction');
+            if (next.toString() !== window.location.href) {
+                window.history.replaceState({}, '', next.toString());
+            }
+        }
+
+        pilotsLoading = true;
+        fetch(pilotsUrl.toString())
+            .then((res) => {
+                if (!res.ok) throw new Error(`Failed to load pilots: ${res.status}`);
+                return res.json();
+            })
+            .then((body) => {
+                if (fetchedFaction !== faction) return; // stale
+                pilots = [...(body.pilots ?? [])];
+            })
+            .catch((e) => console.error("Failed to load pilots for faction:", faction, e))
+            .finally(() => {
+                if (fetchedFaction === faction) pilotsLoading = false;
+            });
+        fetch(listsUrl.toString())
+            .then((res) => {
+                if (!res.ok) throw new Error(`Failed to load lists: ${res.status}`);
+                return res.json();
+            })
+            .then((body) => {
+                if (fetchedFaction !== faction) return; // stale
+                lists = [...(body.lists ?? [])];
+            })
+            .catch((e) => console.error("Failed to load lists for faction:", faction, e));
+        fetch(squadronsUrl.toString())
+            .then((res) => {
+                if (!res.ok) throw new Error(`Failed to load squadrons: ${res.status}`);
+                return res.json();
+            })
+            .then((body) => {
+                if (fetchedFaction !== faction) return; // stale
+                squadrons = [...(body.squadrons ?? [])];
+            })
+            .catch((e) => console.error("Failed to load squadrons for faction:", faction, e));
+        fetch(statsUrl.toString())
+            .then((res) => {
+                if (!res.ok) throw new Error(`Failed to load stats: ${res.status}`);
+                return res.json();
+            })
+            .then((body) => {
+                if (fetchedFaction !== faction) return; // stale
+                stats = body.stats ?? {};
+            })
+            .catch((e) => console.error("Failed to load stats for faction:", faction, e));
+    });
+
+    // Faction toggle handler: clicking a faction chip selects it; clicking
+    // "All" (or the currently-selected faction again) returns to all.
+    function toggleFaction(faction: string) {
+        selectedFaction = selectedFaction === faction ? "all" : faction;
+    }
 
     // Pulls the best-known display name for the ship. The +page.ts already
     // returns info.name (from xwingData2), so this is just a safety net.
@@ -70,15 +222,21 @@
     let differentListCount = $derived(
         Math.max(0, stats.different_lists_count || 0),
     );
-    let pilotCount = $derived(xwingData.getPilotCountByShip(data.shipXws));
+    // Pilot count filtered by the currently selected faction (or total for "all").
+    let pilotCount = $derived(xwingData.getPilotCountByShipForFaction(data.shipXws, selectedFaction));
 
     // Ship base stats from xwingData2 (e.g. attack/agility/hull/shields).
-    // We index by stat type and render with the matching xwing font glyph.
-    const SHIP_STAT_GLYPHS: Record<string, string> = {
-        attack: "%",
-        agility: "^",
-        hull: "&",
-        shields: "*",
+    // Attack uses the firing-arc glyph (same icons as on the card PNG).
+    const ARCS_TO_FONT_CLASS: Record<string, string> = {
+        "Front Arc": "frontarc",
+        "Rear Arc": "reararc",
+        "Full Front Arc": "fullfrontarc",
+        "Full Rear Arc": "fullreararc",
+        "Bullseye Arc": "bullseyearc",
+        "Single Turret Arc": "singleturretarc",
+        "Double Turret Arc": "doubleturretarc",
+        "Left Arc": "leftarc",
+        "Right Arc": "rightarc",
     };
     let shipBaseStats = $derived.by(() => {
         const s = xwingData.getShip(data.shipXws);
@@ -92,12 +250,17 @@
         | "name"
         | "initiative"
         | "cost"
+        | "loadout"
         | "games"
         | "pct"
         | "winrate";
 
     let pilotSortKey = $state<PilotSortKey>("games");
     let pilotSortDir = $state<"asc" | "desc">("desc");
+
+    // Loadout value only exists for the XWA (2.5) ruleset. Show the sort
+    // option + column only when the selected data source is XWA.
+    let isXwa = $derived((filters.dataSource || "xwa") === "xwa");
 
     function togglePilotSort(key: PilotSortKey) {
         if (pilotSortKey === key) {
@@ -122,6 +285,7 @@
         const pData = xwingData.getPilot(p.xws);
         const initiative = pData?.initiative ?? p.initiative ?? -1;
         const cost = pData?.cost ?? p.cost ?? 0;
+        const loadout = pData?.loadout ?? p.loadout ?? 0;
 
         switch (pilotSortKey) {
             case "name":
@@ -130,12 +294,16 @@
                 return initiative;
             case "cost":
                 return cost;
+            case "loadout":
+                return loadout;
             case "games":
                 return games;
             case "pct":
                 return pct;
             case "winrate":
                 return wr;
+            default:
+                return games;
         }
     }
 
@@ -262,13 +430,16 @@
     </div>
 
     <!-- ====================================================================
-         HERO HEADER
+         HERO HEADER (the "outer capsule" containing image + name + factions)
          - Big ship icon (200px) on the left
          - Ship name, factions, base stats on the right
          - Subtle backdrop ship icon (xwing font) behind everything
+         - Small external halo + colored border via accentColor/accentBorder
+           (gray when "All" is selected, faction-colored otherwise).
     ===================================================================== -->
     <section
-        class="relative bg-terminal-panel border border-border-dark rounded-2xl p-6 md:p-8 mb-6 overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.4)]"
+        class="relative bg-terminal-panel border rounded-2xl p-6 md:p-8 mb-6 overflow-hidden"
+        style="border-color: {accentBorder}; box-shadow: 0 8px 30px rgba(0,0,0,0.4), {accentGlow};"
     >
         <!-- Backdrop huge xwing-font ship silhouette -->
         <i
@@ -299,26 +470,53 @@
 
             <!-- Ship identity + base stats -->
             <div class="flex-1 min-w-0 z-10 w-full">
-                <!-- Faction chips + size badge -->
+                <!-- Faction chips (toggle) + size badge -->
                 <div class="flex items-center gap-2 flex-wrap mb-3">
-                    {#each info.factions ?? [] as faction}
-                        <span
-                            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider border"
-                            style="color: {getFactionColor(faction)}; border-color: {getFactionColor(
-                                faction,
-                            )}66; background-color: {getFactionColor(faction)}15;"
+                    <!-- "All" chip: only for MULTI-faction ships (single-faction
+                         ships go straight to their only faction's view). -->
+                    {#if (info.factions ?? []).filter((f: string) => f && f !== "unknown").length > 1}
+                        <button
+                            type="button"
+                            onclick={() => toggleFaction("all")}
+                            class="faction-chip faction-chip-all inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider border transition-colors {selectedFaction === 'all'
+                                ? 'border-primary bg-white/10 text-primary'
+                                : 'border-border-dark bg-white/5 text-secondary hover:text-primary hover:border-primary/40'}"
+                            aria-pressed={selectedFaction === 'all'}
+                            title="Show stats for all factions"
                         >
-                            <FactionIcon {faction} size="sm" />
-                            {getFactionLabel(faction)}
-                        </span>
-                    {/each}
-                    {#if info.size}
-                        <span
-                            class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider border border-border-dark bg-white/5 text-secondary"
-                        >
-                            {info.size}
-                        </span>
+                            All
+                        </button>
                     {/if}
+                    {#each info.factions ?? [] as faction}
+                        {@const fActive = selectedFaction === faction}
+                        {@const fColor = getFactionColor(faction)}
+                        {#if hasMultipleFactions}
+                            <button
+                                type="button"
+                                onclick={() => toggleFaction(faction)}
+                                class="faction-chip inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider border {fActive
+                                    ? 'ring-1 ring-inset ring-white/20'
+                                    : ''}"
+                                style="--chip-color: {fColor}; color: {fColor}; border-color: {fColor}66; background-color: {fColor}15;"
+                                aria-pressed={fActive}
+                                title={getFactionLabel(faction)}
+                            >
+                                <FactionIcon {faction} size="sm" />
+                                {getFactionLabel(faction)}
+                            </button>
+                        {:else}
+                            <!-- Single-faction ship: static badge, NOT clickable,
+                                 does not alter anything. -->
+                            <span
+                                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider border cursor-default"
+                                style="--chip-color: {fColor}; color: {fColor}; border-color: {fColor}66; background-color: {fColor}15;"
+                                title={getFactionLabel(faction)}
+                            >
+                                <FactionIcon {faction} size="sm" />
+                                {getFactionLabel(faction)}
+                            </span>
+                        {/if}
+                    {/each}
                 </div>
 
                 <!-- Ship name -->
@@ -328,31 +526,45 @@
                     {shipName}
                 </h1>
 
-                <!-- Ship base stats (attack/agility/hull/shields) -->
-                {#if shipBaseStats.length > 0}
-                    <div class="flex flex-wrap items-center gap-2">
+                <!-- Ship base stats (attack/agility/hull/shields) + size -->
+                {#if shipBaseStats.length > 0 || info.size}
+                    <div class="flex flex-wrap items-center gap-2 mt-4">
+                        {#if info.size}
+                            <!-- Size as a square-ish pill, grouped with the
+                                 stat glyphs (below the ship), not inline with
+                                 the faction chips. -->
+                            <div
+                                class="inline-flex items-center justify-center px-2.5 py-1.5 rounded-md border border-border-dark bg-black/40 min-w-[3.5rem]"
+                                title="Ship size"
+                            >
+                                <span
+                                    class="text-[11px] font-mono font-bold uppercase tracking-wider text-secondary"
+                                >
+                                    {info.size}
+                                </span>
+                            </div>
+                        {/if}
                         {#each shipBaseStats as stat}
-                            {#if SHIP_STAT_GLYPHS[stat.type] !== undefined}
-                                {@const statColor = stat.type === "attack" ? "#f87171"
+                            {@const isAttack = stat.type === "attack"}
+                            {@const statFontClass = stat.type === "shields" ? "shield" : stat.type}
+                            {@const arcClass = isAttack ? (ARCS_TO_FONT_CLASS[stat.arc ?? ""] ?? "attack") : statFontClass}
+                            {@const showStat = isAttack ? true : ["agility","hull","shields"].includes(stat.type)}
+                            {#if showStat}
+                                {@const statColor = isAttack ? "#f87171"
                                     : stat.type === "agility" ? "#4ade80"
                                     : stat.type === "hull" ? "#facc15"
                                     : stat.type === "shields" ? "#60a5fa"
                                     : factionColor}
                                 <div
                                     class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-border-dark bg-black/40"
-                                    title={stat.type}
+                                    title={isAttack && stat.arc ? `${stat.arc} ${stat.value}` : stat.type}
                                 >
-                                    <span
-                                        class="font-xwing text-base leading-none"
-                                        style="color: {statColor};"
-                                    >
-                                        {SHIP_STAT_GLYPHS[stat.type]}
-                                    </span>
-                                    <span
-                                        class="text-sm font-mono font-bold text-primary"
-                                    >
-                                        {stat.value}
-                                    </span>
+                                    {#if isAttack}
+                                        <i class="xwing-miniatures-font xwing-miniatures-font-{arcClass} text-base leading-none" style="color: {statColor};" aria-hidden="true"></i>
+                                    {:else}
+                                        <i class="xwing-miniatures-font xwing-miniatures-font-{statFontClass} text-base leading-none" style="color: {statColor};" aria-hidden="true"></i>
+                                    {/if}
+                                    <span class="text-sm font-mono font-bold text-primary">{stat.value}</span>
                                 </div>
                             {/if}
                         {/each}
@@ -365,103 +577,42 @@
     <!-- ====================================================================
          KEY METRICS — compact stat cards
     ===================================================================== -->
-    <section
-        class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-10"
-    >
-        <!-- Total Games -->
+    <section class="grid grid-cols-5 gap-2 mb-10">
+        <!-- Squadrons — compact, single line -->
+        <div class="bg-terminal-panel border border-border-dark rounded-lg px-3 py-3 flex flex-col gap-1 min-w-0">
+            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest whitespace-nowrap">Squadrons</span>
+            <span class="text-xl md:text-2xl font-mono font-bold text-primary truncate">{(stats.squadron_count ?? squadrons.length).toLocaleString()}</span>
+        </div>
+
+        <!-- Lists — no subtitle -->
+        <div class="bg-terminal-panel border rounded-lg px-3 py-3 flex flex-col gap-1 min-w-0" style="border-color: {accentBorder}; box-shadow: {accentGlow};">
+            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest whitespace-nowrap">Lists</span>
+            <span class="text-xl md:text-2xl font-mono font-bold text-primary truncate">{listCount.toLocaleString()}</span>
+        </div>
+
+        <!-- Tournament Entries — renamed from Entries -->
+        <div class="bg-terminal-panel border rounded-lg px-3 py-3 flex flex-col gap-1 min-w-0" style="border-color: {accentBorder}; box-shadow: {accentGlow};">
+            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest whitespace-nowrap">Tournament Entries</span>
+            <span class="text-xl md:text-2xl font-mono font-bold text-primary truncate">{(stats.entries_count ?? listCount).toLocaleString()}</span>
+        </div>
+
+        <!-- Total Games — compact, single line -->
         <div
-            class="bg-terminal-panel border border-border-dark rounded-lg p-4 flex flex-col gap-1"
+            class="bg-terminal-panel border rounded-lg px-3 py-3 flex flex-col gap-1 min-w-0"
+            style="border-color: {accentBorder}; box-shadow: {accentGlow};"
         >
-            <span
-                class="text-[10px] font-mono text-secondary uppercase tracking-widest"
-                >Total Games</span
-            >
-            <span class="text-2xl md:text-3xl font-mono font-bold text-primary"
-                >{totalGames.toLocaleString()}</span
-            >
+            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest whitespace-nowrap">Total Games</span>
+            <span class="text-xl md:text-2xl font-mono font-bold text-primary truncate">{totalGames.toLocaleString()}</span>
         </div>
 
         <!-- Win Rate -->
         <div
-            class="bg-terminal-panel border border-border-dark rounded-lg p-4 flex flex-col gap-1"
+            class="bg-terminal-panel border rounded-lg px-3 py-3 flex flex-col gap-1 min-w-0"
+            style="border-color: {accentBorder}; box-shadow: {accentGlow};"
         >
-            <span
-                class="text-[10px] font-mono text-secondary uppercase tracking-widest"
-                >Win Rate</span
-            >
-            <span
-                class="text-2xl md:text-3xl font-mono font-bold"
-                style="color: {getWinRateColor(winRateNum)};"
-            >
-                {winRateStr}
-            </span>
-            <span class="text-[10px] font-mono text-secondary">
-                {wins.toLocaleString()} wins
-            </span>
-        </div>
-
-        <!-- Squadrons -->
-        <div
-            class="bg-terminal-panel border border-border-dark rounded-lg p-4 flex flex-col gap-1"
-        >
-            <span
-                class="text-[10px] font-mono text-secondary uppercase tracking-widest"
-                >Squadrons</span
-            >
-            <span class="text-2xl md:text-3xl font-mono font-bold text-primary"
-                >{(stats.squadron_count ?? squadrons.length).toLocaleString()}</span
-            >
-            <span class="text-[10px] font-mono text-secondary">
-                chassis combos
-            </span>
-        </div>
-
-        <!-- Lists -->
-        <div
-            class="bg-terminal-panel border border-border-dark rounded-lg p-4 flex flex-col gap-1"
-        >
-            <span
-                class="text-[10px] font-mono text-secondary uppercase tracking-widest"
-                >Lists</span
-            >
-            <span class="text-2xl md:text-3xl font-mono font-bold text-primary"
-                >{listCount.toLocaleString()}</span
-            >
-            <span class="text-[10px] font-mono text-secondary">
-                distinct builds
-            </span>
-        </div>
-
-        <!-- Entries -->
-        <div
-            class="bg-terminal-panel border border-border-dark rounded-lg p-4 flex flex-col gap-1"
-        >
-            <span
-                class="text-[10px] font-mono text-secondary uppercase tracking-widest"
-                >Entries</span
-            >
-            <span class="text-2xl md:text-3xl font-mono font-bold text-primary"
-                >{(stats.entries_count ?? listCount).toLocaleString()}</span
-            >
-            <span class="text-[10px] font-mono text-secondary">
-                tournament entries
-            </span>
-        </div>
-
-        <!-- Pilots -->
-        <div
-            class="bg-terminal-panel border border-border-dark rounded-lg p-4 flex flex-col gap-1"
-        >
-            <span
-                class="text-[10px] font-mono text-secondary uppercase tracking-widest"
-                >Pilots</span
-            >
-            <span class="text-2xl md:text-3xl font-mono font-bold text-primary"
-                >{pilotCount}</span
-            >
-            <span class="text-[10px] font-mono text-secondary">
-                in the {info.size?.toLowerCase() || "chassis"} chassis
-            </span>
+            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest whitespace-nowrap">Win Rate</span>
+            <span class="text-xl md:text-2xl font-mono font-bold truncate" style="color: {getWinRateColor(winRateNum)};">{winRateStr}</span>
+            <span class="text-[10px] font-mono text-secondary truncate">{wins.toLocaleString()} wins</span>
         </div>
     </section>
 
@@ -486,8 +637,9 @@
                     { value: "name", label: "Name" },
                     { value: "initiative", label: "Init" },
                     { value: "cost", label: "Cost" },
+                    ...(isXwa ? [{ value: "loadout", label: "Loadout" }] : []),
                     { value: "games", label: "Games" },
-                    { value: "pct", label: "% of Chassis" },
+                    { value: "pct", label: "% of Games" },
                     { value: "winrate", label: "Win Rate" }
                 ]}
                 onChange={(v, d) => {
@@ -495,6 +647,7 @@
                         | "name"
                         | "initiative"
                         | "cost"
+                        | "loadout"
                         | "games"
                         | "pct"
                         | "winrate";
@@ -504,11 +657,15 @@
         </div>
 
         <div
-            class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden shadow-[0_4px_12px_rgba(0,0,0,0.4)]"
+            class="bg-terminal-panel border rounded-lg overflow-hidden shadow-[0_4px_12px_rgba(0,0,0,0.4)]"
+            style="border-color: {accentBorder}; box-shadow: 0 4px 12px rgba(0,0,0,0.4), 0 0 22px color-mix(in srgb, {accentColor} 12%, transparent);"
         >
-            <!-- Column headers (clickable to sort) -->
+            <!-- Column headers (clickable to sort). Grid gains a Loadout
+                 column in XWA mode. -->
             <div
-                class="hidden lg:grid grid-cols-[minmax(0,2.2fr)_64px_64px_72px_minmax(0,1.4fr)_84px] gap-3 px-4 py-2.5 border-b border-border-dark bg-[#0c0c0c]"
+                class="hidden lg:grid {isXwa
+                    ? 'grid-cols-[minmax(0,2.2fr)_64px_64px_64px_72px_minmax(0,1.4fr)_84px]'
+                    : 'grid-cols-[minmax(0,2.2fr)_64px_64px_72px_minmax(0,1.4fr)_84px]'} gap-3 px-4 py-2.5 border-b border-border-dark bg-[#0c0c0c]"
             >
                 <button
                     type="button"
@@ -532,6 +689,15 @@
                 >
                     Cost {sortIndicator("cost")}
                 </button>
+                {#if isXwa}
+                    <button
+                        type="button"
+                        class={sortHeaderClass("loadout") + " text-right rounded-md"}
+                        onclick={() => togglePilotSort("loadout")}
+                    >
+                        Loadout {sortIndicator("loadout")}
+                    </button>
+                {/if}
                 <button
                     type="button"
                     class={sortHeaderClass("games") + " text-right rounded-md"}
@@ -544,7 +710,7 @@
                     class={sortHeaderClass("pct") + " text-right rounded-md"}
                     onclick={() => togglePilotSort("pct")}
                 >
-                    % of Chassis {sortIndicator("pct")}
+                    % of Games {sortIndicator("pct")}
                 </button>
                 <button
                     type="button"
@@ -572,18 +738,21 @@
                         {@const pilotName = resolvePilotName(pilot)}
                         {@const initiative = pData?.initiative ?? pilot.initiative}
                         {@const cost = pData?.cost ?? pilot.cost}
+                        {@const loadout = pData?.loadout ?? pilot.loadout}
                         {@const pilotImg = pData?.image}
                         {@const wrBadgeColor = getWinRateColor(wrNum)}
                         <a
                             href="/pilot/{pilot.xws}"
-                            class="grid grid-cols-[88px_minmax(0,1fr)] lg:grid-cols-[minmax(0,2.2fr)_64px_64px_72px_minmax(0,1.4fr)_84px] gap-4 px-4 py-3 hover:bg-[#ffffff05] hover:border-l-2 hover:border-l-primary transition-colors group items-center"
+                            class="grid grid-cols-[88px_minmax(0,1fr)] {isXwa
+                                ? 'lg:grid-cols-[minmax(0,2.2fr)_64px_64px_64px_72px_minmax(0,1.4fr)_84px]'
+                                : 'lg:grid-cols-[minmax(0,2.2fr)_64px_64px_72px_minmax(0,1.4fr)_84px]'} gap-4 px-4 py-3 hover:bg-[#ffffff05] hover:border-l-2 hover:border-l-primary transition-colors group items-center"
                         >
                             <!-- Pilot cell: image + name (one grid column) -->
                             <div
                                 class="col-span-2 lg:col-span-1 flex items-center gap-4 min-w-0"
                             >
                                 <div
-                                    class="w-24 h-24 lg:w-24 lg:h-24 flex-shrink-0 rounded-lg bg-[#0a0a0a] border border-white/5 flex items-center justify-center overflow-hidden"
+                                    class="w-24 h-24 lg:w-24 lg:h-24 flex-shrink-0 flex items-center justify-center overflow-visible"
                                 >
                                     {#if pilotImg}
                                         <img
@@ -619,6 +788,12 @@
                                             <span
                                                 class="px-1.5 py-0.5 text-[10px] font-mono rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                                                 >{cost} PT</span
+                                            >
+                                        {/if}
+                                        {#if isXwa && loadout !== undefined && loadout !== null}
+                                            <span
+                                                class="px-1.5 py-0.5 text-[10px] font-mono rounded-md bg-sky-500/20 text-sky-400 border border-sky-500/30"
+                                                >{loadout} LV</span
                                             >
                                         {/if}
                                         <span
@@ -662,6 +837,25 @@
                                 {/if}
                             </div>
 
+                            <!-- Loadout (desktop, XWA only) -->
+                            {#if isXwa}
+                                <div
+                                    class="hidden lg:flex justify-end items-center"
+                                >
+                                    {#if loadout !== undefined && loadout !== null}
+                                        <span
+                                            class="px-2 py-0.5 text-xs font-mono rounded-md bg-sky-500/15 text-sky-400 border border-sky-500/20"
+                                            >{loadout}</span
+                                        >
+                                    {:else}
+                                        <span
+                                            class="text-xs font-mono text-secondary"
+                                            >—</span
+                                        >
+                                    {/if}
+                                </div>
+                            {/if}
+
                             <!-- Games (desktop) -->
                             <div
                                 class="hidden lg:flex justify-end items-center font-mono text-sm text-primary tabular-nums"
@@ -669,7 +863,7 @@
                                 {gamesVal.toLocaleString()}
                             </div>
 
-                            <!-- % of Chassis (desktop) -->
+                            <!-- % of Games (desktop) -->
                             <div
                                 class="hidden lg:flex justify-end items-center gap-2"
                             >
@@ -937,3 +1131,31 @@
         {/if}
     </section>
 </div>
+
+<style>
+    /* Faction chips: on hover, slightly enlarge + emit a glowing halo in
+       the chip's own faction color so they read as clickable toggles. */
+    .faction-chip {
+        --chip-color: #888;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .faction-chip:hover {
+        transform: scale(1.06) translateY(-1px);
+        box-shadow: 0 0 16px color-mix(in srgb, var(--chip-color) 55%, transparent);
+    }
+    .faction-chip[aria-pressed="true"] {
+        transform: scale(1.03);
+        box-shadow: 0 0 14px color-mix(in srgb, var(--chip-color) 45%, transparent);
+    }
+
+    /* "All" chip: gray halo (white) on hover/selected */
+    .faction-chip-all {
+        --chip-color: #cfcfcf;
+    }
+    .faction-chip-all:hover {
+        box-shadow: 0 0 16px rgba(255, 255, 255, 0.45);
+    }
+    .faction-chip-all[aria-pressed="true"] {
+        box-shadow: 0 0 14px rgba(255, 255, 255, 0.35);
+    }
+</style>

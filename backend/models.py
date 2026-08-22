@@ -220,6 +220,26 @@ class TeamMatch(SQLModel, table=True):
     is_bye: bool = Field(default=False)
 
 
+class PilotShipMapping(SQLModel, table=True):
+    """
+    Lookup mapping pilot XWS -> ship XWS + canonical faction.
+
+    Populated from the vendored xwing-data manifests (one row per
+    (pilot_xws, source) pair). Used by the ships analytics aggregation to
+    map every pilot occurrence in a list_json to the ship it flies and the
+    faction that ship belongs to. Without this table the ships page returns
+    zero stats; the faction column is what lets per-ship stats be broken
+    down by pilot faction for the multi-faction pill toggle.
+    """
+
+    __tablename__ = "pilot_ship_mapping"  # type: ignore[assignment]
+
+    pilot_xws: str = Field(primary_key=True)
+    source: str = Field(primary_key=True)
+    ship_xws: str = Field()
+    faction: str | None = Field(default=None)
+
+
 class ScrapeMeta(SQLModel, table=True):
     """
     Key/value store for incremental scrape state (e.g. data_version).
