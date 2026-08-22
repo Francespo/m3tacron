@@ -578,8 +578,8 @@
          KEY METRICS — compact stat cards
     ===================================================================== -->
     <section class="grid grid-cols-5 gap-2 mb-10">
-        <!-- Squadrons — compact, single line -->
-        <div class="bg-terminal-panel border border-border-dark rounded-lg px-3 py-3 flex flex-col gap-1 min-w-0">
+        <!-- Squadrons — compact, single line (halo like the other capsules) -->
+        <div class="bg-terminal-panel border rounded-lg px-3 py-3 flex flex-col gap-1 min-w-0" style="border-color: {accentBorder}; box-shadow: {accentGlow};">
             <span class="text-[10px] font-mono text-secondary uppercase tracking-widest whitespace-nowrap">Squadrons</span>
             <span class="text-xl md:text-2xl font-mono font-bold text-primary truncate">{(stats.squadron_count ?? squadrons.length).toLocaleString()}</span>
         </div>
