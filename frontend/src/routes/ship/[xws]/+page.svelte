@@ -44,10 +44,12 @@
     let squadrons = $state([...(data.squadrons ?? [])]);
 
     // Selected faction for the detail view. Initialized from the URL
-    // (?faction=rebelalliance carried over from the ships page pill), else
-    // the ship's SINGLE faction if it has only one (single-faction ships go
-    // straight to that faction's view — no "All"), else "all" (multi-faction
-    // ships show everything by default, gray theme).
+    // (?faction=rebelalliance carried over from the ships page per-card
+    // pill or a global factions filter). Otherwise default to "all" so the
+    // detail stats match the ships overview card exactly — even for
+    // single-faction ships. Filtering by the ship's sole faction via
+    // ps.faction_xws_normalized excludes a few lists with unknown/cross-
+    // faction data (HMP: 763→760 games) so it must not be auto-applied.
     let selectedFaction = $state(
         (() => {
             const urlFaction = (data as any).faction && (data as any).faction !== "all" ? (data as any).faction : null;
@@ -57,10 +59,7 @@
                 const qsFaction = new URLSearchParams(window.location.search).get('faction');
                 if (qsFaction && qsFaction !== 'all') return qsFaction;
             }
-            const factions = (data.info?.factions ?? []).filter(
-                (f: string) => f && f !== "unknown",
-            );
-            return factions.length === 1 ? factions[0] : "all";
+            return "all";
         })(),
     );
 
