@@ -261,12 +261,7 @@
                 <p
                     class="text-secondary font-mono text-xs flex items-center gap-2"
                 >
-                    <span
-                        class="inline-block w-2.5 h-2.5 rounded-full"
-                        style="background: {getFactionColor(
-                            stats.faction,
-                        )}"
-                    ></span>
+                    <FactionIcon faction={stats.faction} size="sm" />
                     {getFactionLabel(stats.faction)}
                 </p>
 
@@ -475,12 +470,11 @@
                                 class="flex items-start justify-between gap-4 border-b border-border-dark/50 pb-3"
                             >
                                 <div class="flex items-center gap-2 overflow-hidden min-w-0">
-                                    <span
-                                        class="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                        style="background: {getFactionColor(
-                                            factionXws,
-                                        )}"
-                                    ></span>
+                                    <FactionIcon
+                                        faction={factionXws}
+                                        size="sm"
+                                        className="flex-shrink-0"
+                                    />
                                     <div class="flex flex-col min-w-0">
                                         <h3
                                             class="font-sans font-bold text-primary text-sm line-clamp-2 leading-tight"
