@@ -512,12 +512,8 @@
                                 {ship.name || ship.xws || "Unknown Ship"}
                             </span>
 
-                            <!-- Stats Grid (hierarchy: WR / Squadrons / Lists / Entries / Games / Pilots) -->
+                            <!-- Stats Grid: row1 Squadrons/Lists/Entries, row2 Games/WR/Pilots (all L→R) -->
                             <div class="grid grid-cols-3 gap-1 w-full text-center">
-                                <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
-                                    <span class="wr-text text-xs font-mono font-bold">{games === 0 ? "NA" : Number(wr).toFixed(1) + "%"}</span>
-                                    <span class="text-[9px] font-mono text-secondary block">WR</span>
-                                </div>
                                 <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
                                     <span class="text-xs font-mono text-primary">{ship.squadron_count ?? 0}</span>
                                     <span class="text-[9px] font-mono text-secondary block">Squadrons</span>
@@ -533,6 +529,10 @@
                                 <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
                                     <span class="text-xs font-mono text-primary">{games}</span>
                                     <span class="text-[9px] font-mono text-secondary block">Games</span>
+                                </div>
+                                <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
+                                    <span class="wr-text text-xs font-mono font-bold">{games === 0 ? "NA" : Number(wr).toFixed(1) + "%"}</span>
+                                    <span class="text-[9px] font-mono text-secondary block">WR</span>
                                 </div>
                                 <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
                                     <span class="text-xs font-mono text-primary">{pilotsCount}</span>
