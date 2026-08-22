@@ -47,19 +47,13 @@ def _compute_squadrons(
 
 
 def _sort_squadron_stats(data: list[dict], sort_metric: str, sort_direction: str) -> list[dict]:
-    """Sort cached (unsorted-for-request) squadron rows by the requested criteria.
-
-    Replicates the sort logic previously embedded in _compute_squadrons.
-    Applied AFTER the cache lookup so the expensive aggregation is shared
-    across sort orders. Returns a new list — the cached list is never mutated.
-    """
     reverse = sort_direction == "desc"
     if sort_metric == "Win Rate":
         return sorted(data, key=lambda x: x["win_rate"], reverse=reverse)
     elif sort_metric == "Lists":
-        return sorted(data, key=lambda x: x.get("popularity", x.get("count", 0)), reverse=reverse)
-    elif sort_metric == "Unique Lists":
         return sorted(data, key=lambda x: x.get("different_lists_count", 0), reverse=reverse)
+    elif sort_metric == "Entries":
+        return sorted(data, key=lambda x: x.get("popularity", x.get("count", 0)), reverse=reverse)
     return sorted(data, key=lambda x: x["games"], reverse=reverse)
 
 
@@ -152,6 +146,7 @@ def get_squadrons(
             "games": s["games"],
             "win_rate": s["win_rate"],
             "count": s["popularity"],
+            "different_lists_count": s.get("different_lists_count", s["popularity"]),
             "pilots": pilots,
         })
 

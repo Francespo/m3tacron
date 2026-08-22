@@ -252,32 +252,15 @@
                     </div>
                 </div>
 
-                <!-- Key Metrics Row -->
+                <!-- Key Metrics Row: entries→games→winrate→points→loadout -->
                 <div
                     class="flex flex-wrap items-center gap-2"
                 >
-                    <!-- Points -->
+                    <!-- Entries -->
                     <span
-                        class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-mono font-bold"
+                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
                     >
-                        PTS {stats.points ?? 0}
-                    </span>
-
-                    <!-- Original Points (if different) -->
-                    {#if stats.original_points !== undefined && stats.original_points !== null && stats.original_points !== stats.points}
-                        <span
-                            class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary"
-                        >
-                            ORIGINAL PTS {stats.original_points}
-                        </span>
-                    {/if}
-
-                    <!-- Win Rate -->
-                    <span
-                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
-                        style="color: {getWinRateColor(Number(win_rate))};"
-                    >
-                        WR {win_rate}%
+                        ENTRIES {(stats as any)?.entries ?? (stats as any)?.count ?? stats.games ?? 0}
                     </span>
 
                     <!-- Games -->
@@ -293,6 +276,30 @@
                     >
                         W/L <span class="text-emerald-400">{stats.wins ?? 0}</span><span class="text-secondary/60">/</span><span class="text-rose-400/80">{(stats.games ?? 0) - (stats.wins ?? 0)}</span>
                     </span>
+
+                    <!-- Win Rate -->
+                    <span
+                        class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
+                        style="color: {getWinRateColor(Number(win_rate))};"
+                    >
+                        WR {win_rate}%
+                    </span>
+
+                    <!-- Points -->
+                    <span
+                        class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-mono font-bold"
+                    >
+                        PTS {stats.points ?? 0}
+                    </span>
+
+                    <!-- Original Points (if different) -->
+                    {#if stats.original_points !== undefined && stats.original_points !== null && stats.original_points !== stats.points}
+                        <span
+                            class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary"
+                        >
+                            ORIGINAL PTS {stats.original_points}
+                        </span>
+                    {/if}
 
                     <!-- Loadout (XWA only) -->
                     {#if isXwa && (stats.total_loadout ?? 0) > 0}

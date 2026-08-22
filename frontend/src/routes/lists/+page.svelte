@@ -290,6 +290,7 @@
                         options={[
                             { value: "Games", label: "Games" },
                             { value: "Win Rate", label: "Win Rate" },
+                            { value: "Entries", label: "Entries" },
                             { value: "Points Cost", label: "Points" },
                         ]}
                         onChange={(v, d) => {

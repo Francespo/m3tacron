@@ -247,17 +247,12 @@
                 </p>
             {/if}
 
-            <!-- Stat pills -->
+            <!-- Stat pills: squadrons→lists→entries→games→winrate→points -->
             <div class="flex flex-wrap gap-2 mt-5">
-                <span
-                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
-                >
-                    WR <span style="color: {wrColor};">{wrDisplay}</span>
-                </span>
                 <span
                     class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
                 >
-                    GAMES {games.toLocaleString()}
+                    SQ {(stats as any)?.squadron_count ?? 0}
                 </span>
                 <span
                     class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
@@ -267,10 +262,20 @@
                 <span
                     class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
                 >
-                    (UNIQUE {differentListsCount.toLocaleString()})
+                    ENTRIES {((stats as any)?.entries_count ?? listsCount).toLocaleString()}
                 </span>
                 <span
-                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-emerald-400"
+                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
+                >
+                    GAMES {games.toLocaleString()}
+                </span>
+                <span
+                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
+                >
+                    WR <span style="color: {wrColor};">{wrDisplay}</span>
+                </span>
+                <span
+                    class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-mono font-bold"
                 >
                     PTS {cost}
                 </span>

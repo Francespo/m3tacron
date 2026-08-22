@@ -75,7 +75,7 @@
         return epic ? ["legacy_x2po", "legacy_xlc", "legacy_pandorum"] : ["legacy_x2po", "legacy_xlc", "legacy_pandorum"];
     }
 
-    type SortKey = "lists" | "unique" | "winrate" | "games";
+    type SortKey = "lists" | "entries" | "winrate" | "games";
     type SortDir = "asc" | "desc";
     const DASHBOARD_RANKING_PREFS_KEY = "m3tacron.dashboard.rankingModes.v1";
     const WR_MIN_GAMES = {
@@ -86,7 +86,7 @@
     };
 
     function isSortKey(v: unknown): v is SortKey {
-        return v === "lists" || v === "unique" || v === "winrate" || v === "games";
+        return v === "lists" || v === "entries" || v === "winrate" || v === "games";
     }
 
     function isSortDir(v: unknown): v is SortDir {
@@ -373,20 +373,6 @@
         return "xwing-miniatures-ship-" + xws.replace(/[^a-z0-9]/g, "");
     }
 
-    function getFactionIconClass(xws: string) {
-        const normalized = (xws || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-        const icons: Record<string, string> = {
-            rebelalliance: "xwing-miniatures-font-rebel",
-            galacticempire: "xwing-miniatures-font-empire",
-            scumandvillainy: "xwing-miniatures-font-scum",
-            resistance: "xwing-miniatures-font-resistance",
-            firstorder: "xwing-miniatures-font-firstorder",
-            galacticrepublic: "xwing-miniatures-font-republic",
-            separatistalliance: "xwing-miniatures-font-separatists",
-        };
-        return icons[normalized] || "";
-    }
-
     function getUpgradeIconClass(type: string) {
         if (!type) return "";
         return (
@@ -417,14 +403,12 @@
                 else cmp = gamesB - gamesA;
             } else if (key === "games") {
                 cmp = gamesB - gamesA;
-            } else if (key === "unique") {
-                // unique lists: distinct lists, with games count tiebreaker
-                const uniqA = Number(a.different_lists_count ?? 0);
-                const uniqB = Number(b.different_lists_count ?? 0);
-                if (uniqB !== uniqA) cmp = uniqB - uniqA;
+            } else if (key === "entries") {
+                const eA = Number(a.entries_count ?? a.list_count ?? 0);
+                const eB = Number(b.entries_count ?? b.list_count ?? 0);
+                if (eB !== eA) cmp = eB - eA;
                 else cmp = gamesB - gamesA;
             } else {
-                // lists: by list count, with games count tiebreaker
                 const listA = Number(a.list_count ?? 0);
                 const listB = Number(b.list_count ?? 0);
                 if (listB !== listA) cmp = listB - listA;
@@ -924,7 +908,6 @@
                         direction={pilotSortDir}
                         options={[
                             { value: "lists", label: "Lists" },
-                            { value: "unique", label: "Unique Lists" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}
@@ -935,7 +918,7 @@
                     />
                 </div>
                 <div class="w-full flex flex-col">
-                    {#each sortedPilots.slice(0, 5) as pilot}
+                    {#each sortedPilots.slice(0, 6) as pilot}
                         {@const p = getPilotDisplay(pilot.xws)}
                         {@const wr = getWinRate(pilot.wins || 0, pilot.games_count || 0)}
                         <div
@@ -963,14 +946,11 @@
                                     <div
                                         class="flex items-center gap-1 min-w-0 mt-0.5"
                                     >
-                                        <i
-                                            class="xwing-miniatures-font {getFactionIconClass(
-                                                p.faction,
-                                            )} text-[11px]"
-                                            style="color: {getFactionColor(
-                                                p.faction,
-                                            )}"
-                                        ></i>
+                                        <FactionIcon
+                                            faction={p.faction}
+                                            size="xs"
+                                            className="text-[11px]"
+                                        />
                                         <span
                                             class="text-[12px] text-secondary truncate min-w-0 pointer-events-none"
                                         >
@@ -1011,7 +991,6 @@
                         direction={upgradeSortDir}
                         options={[
                             { value: "lists", label: "Lists" },
-                            { value: "unique", label: "Unique Lists" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}
@@ -1092,7 +1071,6 @@
                         direction={shipSortDir}
                         options={[
                             { value: "lists", label: "Lists" },
-                            { value: "unique", label: "Unique Lists" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}
@@ -1103,7 +1081,7 @@
                     />
                 </div>
                 <div class="w-full flex flex-col">
-                    {#each sortedShips.slice(0, 5) as ship}
+                    {#each sortedShips.slice(0, 6) as ship}
                         {@const shipData = xwingData.getShip(ship.xws)}
                         {@const shipName = shipData?.name || ship.xws}
                         {@const factionXws = ship.faction_xws}
@@ -1134,18 +1112,14 @@
                                     <div
                                         class="flex items-center gap-1 min-w-0 mt-0.5"
                                     >
-                                        <i
-                                            class="xwing-miniatures-font {getFactionIconClass(
-                                                factionXws,
-                                            )} text-[11px]"
-                                            style="color: {getFactionColor(
-                                                factionXws,
-                                            )}"
-                                        ></i>
+                                        <FactionIcon
+                                            faction={factionXws}
+                                            size="xs"
+                                            className="text-[11px]"
+                                        />
                                         <span
                                             class="text-[12px] text-secondary truncate min-w-0 pointer-events-none"
-                                            >{getFactionLabel(factionXws)}</span
-                                        >
+                                            >{getFactionLabel(factionXws)}</span>
                                     </div>
                                 </div>
                             </div>
@@ -1182,9 +1156,9 @@
                         value={listSortKey}
                         direction={listSortDir}
                         options={[
-                            { value: "lists", label: "Lists" },
                             { value: "winrate", label: "Win Rate" },
-                            { value: "games", label: "Games" }
+                            { value: "games", label: "Games" },
+                            { value: "entries", label: "Entries" }
                         ]}
                         onChange={(newValue, newDirection) => {
                             listSortKey = newValue as SortKey;
@@ -1197,7 +1171,8 @@
                         {@const factionXws = list.faction_xws}
                         {@const wr = getWinRate(list.wins || 0, list.games || 0)}
                         <div
-                            class="p-4 bg-[rgba(255,255,255,0.01)] border border-border-dark hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer w-full flex flex-col gap-3 rounded-lg"
+                            class="p-4 bg-[rgba(255,255,255,0.01)] border border-border-dark border-l-[3px] hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer w-full flex flex-col gap-3 rounded-lg overflow-hidden"
+                            style="border-left: 3px solid {getFactionColor(factionXws)};"
                         >
                             <div
                                 class="flex w-full items-start justify-between border-b border-border-dark pb-3"
@@ -1231,7 +1206,7 @@
                                         >{wr.toFixed(1)}% WR</span
                                     >
                                     <span class="text-[11px] text-secondary"
-                                        >{list.games} games</span
+                                        >{list.games} games · {(list.entries ?? list.entries_count ?? list.count ?? 1)} entries</span
                                     >
                                 </div>
                             </div>

@@ -297,7 +297,7 @@
                         <div class="flex items-center justify-between mb-3">
                             <span class="text-xs font-mono text-secondary">#{i + 1}</span>
                             <div class="flex items-center gap-2">
-                                <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary">GAMES {config.count}</span>
+                                <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">GAMES {config.count}</span>
                                 <span
                                     class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold"
                                     style="background: {wrColor(config.win_rate)}15; color: {wrColor(config.win_rate)};"

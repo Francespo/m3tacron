@@ -8,6 +8,7 @@ __pycache__/
 venv/
 ENV/
 *.log
+*.egg-info/
 import_log.txt
 error.log
 
