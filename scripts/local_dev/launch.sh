@@ -67,7 +67,7 @@ fi
 TAILNET_HOST="${TAILSCALE_HOST:-$HOSTNAME_SHORT}"
 
 # Vite allowed hosts: localhost + tailnet hostname
-VITE_ALLOWED="localhost,127.0.0.1,${TAILNET_HOST}"
+VITE_ALLOWED="localhost,127.0.0.1,${TAILNET_HOST},$(tailscale ip -4 2>/dev/null)"
 
 # --- Setup if needed ---
 bash "$SCRIPT_DIR/ensure-setup.sh"
