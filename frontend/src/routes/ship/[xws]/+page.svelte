@@ -546,7 +546,8 @@
                         {/if}
                         {#each shipBaseStats as stat}
                             {@const isAttack = stat.type === "attack"}
-                            {@const arcClass = isAttack ? (ARCS_TO_FONT_CLASS[stat.arc ?? ""] ?? "attack") : stat.type}
+                            {@const statFontClass = stat.type === "shields" ? "shield" : stat.type}
+                            {@const arcClass = isAttack ? (ARCS_TO_FONT_CLASS[stat.arc ?? ""] ?? "attack") : statFontClass}
                             {@const showStat = isAttack ? true : ["agility","hull","shields"].includes(stat.type)}
                             {#if showStat}
                                 {@const statColor = isAttack ? "#f87171"
@@ -561,7 +562,7 @@
                                     {#if isAttack}
                                         <i class="xwing-miniatures-font xwing-miniatures-font-{arcClass} text-base leading-none" style="color: {statColor};" aria-hidden="true"></i>
                                     {:else}
-                                        <i class="xwing-miniatures-font xwing-miniatures-font-{stat.type} text-base leading-none" style="color: {statColor};" aria-hidden="true"></i>
+                                        <i class="xwing-miniatures-font xwing-miniatures-font-{statFontClass} text-base leading-none" style="color: {statColor};" aria-hidden="true"></i>
                                     {/if}
                                     <span class="text-sm font-mono font-bold text-primary">{stat.value}</span>
                                 </div>
