@@ -394,7 +394,7 @@
                     {@const wr = games > 0 ? (wins / games) * 100 : 0}
                     {@const wrColor = getWinRateColor(wr)}
                     {@const lists = Math.max(0, activeFaction ? (fStats?.list_count ?? 0) : (ship.list_count ?? 0))}
-                    {@const pilotsCount = Math.max(0, ship.pilots_count ?? 0)}
+                    {@const pilotsCount = Math.max(0, activeFaction ? xwingData.getPilotCountByShipForFaction(ship.xws, activeFaction) : ship.pilots_count ?? 0)}
                     {@const hasData = games > 0}
                     <!-- Glow intensity proportional to games (popularity) -->
                     {@const glowOpacity = Math.min(0.3, (games / 2000) * 0.3)}

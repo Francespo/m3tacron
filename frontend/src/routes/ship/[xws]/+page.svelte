@@ -222,15 +222,21 @@
     let differentListCount = $derived(
         Math.max(0, stats.different_lists_count || 0),
     );
-    let pilotCount = $derived(xwingData.getPilotCountByShip(data.shipXws));
+    // Pilot count filtered by the currently selected faction (or total for "all").
+    let pilotCount = $derived(xwingData.getPilotCountByShipForFaction(data.shipXws, selectedFaction));
 
     // Ship base stats from xwingData2 (e.g. attack/agility/hull/shields).
-    // We index by stat type and render with the matching xwing font glyph.
-    const SHIP_STAT_GLYPHS: Record<string, string> = {
-        attack: "%",
-        agility: "^",
-        hull: "&",
-        shields: "*",
+    // Attack uses the firing-arc glyph (same icons as on the card PNG).
+    const ARCS_TO_FONT_CLASS: Record<string, string> = {
+        "Front Arc": "frontarc",
+        "Rear Arc": "reararc",
+        "Full Front Arc": "fullfrontarc",
+        "Full Rear Arc": "fullreararc",
+        "Bullseye Arc": "bullseyearc",
+        "Single Turret Arc": "singleturretarc",
+        "Double Turret Arc": "doubleturretarc",
+        "Left Arc": "leftarc",
+        "Right Arc": "rightarc",
     };
     let shipBaseStats = $derived.by(() => {
         const s = xwingData.getShip(data.shipXws);
@@ -539,27 +545,25 @@
                             </div>
                         {/if}
                         {#each shipBaseStats as stat}
-                            {#if SHIP_STAT_GLYPHS[stat.type] !== undefined}
-                                {@const statColor = stat.type === "attack" ? "#f87171"
+                            {@const isAttack = stat.type === "attack"}
+                            {@const arcClass = isAttack ? (ARCS_TO_FONT_CLASS[stat.arc ?? ""] ?? "attack") : stat.type}
+                            {@const showStat = isAttack ? true : ["agility","hull","shields"].includes(stat.type)}
+                            {#if showStat}
+                                {@const statColor = isAttack ? "#f87171"
                                     : stat.type === "agility" ? "#4ade80"
                                     : stat.type === "hull" ? "#facc15"
                                     : stat.type === "shields" ? "#60a5fa"
                                     : factionColor}
                                 <div
                                     class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-border-dark bg-black/40"
-                                    title={stat.type}
+                                    title={isAttack && stat.arc ? `${stat.arc} ${stat.value}` : stat.type}
                                 >
-                                    <span
-                                        class="font-xwing text-base leading-none"
-                                        style="color: {statColor};"
-                                    >
-                                        {SHIP_STAT_GLYPHS[stat.type]}
-                                    </span>
-                                    <span
-                                        class="text-sm font-mono font-bold text-primary"
-                                    >
-                                        {stat.value}
-                                    </span>
+                                    {#if isAttack}
+                                        <i class="xwing-miniatures-font xwing-miniatures-font-{arcClass} text-base leading-none" style="color: {statColor};" aria-hidden="true"></i>
+                                    {:else}
+                                        <i class="xwing-miniatures-font xwing-miniatures-font-{stat.type} text-base leading-none" style="color: {statColor};" aria-hidden="true"></i>
+                                    {/if}
+                                    <span class="text-sm font-mono font-bold text-primary">{stat.value}</span>
                                 </div>
                             {/if}
                         {/each}
@@ -797,7 +801,7 @@
                                 class="col-span-2 lg:col-span-1 flex items-center gap-4 min-w-0"
                             >
                                 <div
-                                    class="w-24 h-24 lg:w-24 lg:h-24 flex-shrink-0 rounded-lg bg-[#0a0a0a] border border-white/5 flex items-center justify-center overflow-hidden"
+                                    class="w-24 h-24 lg:w-24 lg:h-24 flex-shrink-0 flex items-center justify-center overflow-visible"
                                 >
                                     {#if pilotImg}
                                         <img
