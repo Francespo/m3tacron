@@ -44,7 +44,7 @@
     const shipName = $derived(
         shipXws ? xwingData.getShip(shipXws)?.name || pilot.ship_name : pilot.ship_name,
     );
-    const subtitle = $derived(pData?.caption || pData?.shipAbility?.name || "");
+    const subtitle = $derived(pData?.caption || "");
     const points = $derived(pData?.cost ?? pilot.points ?? pilot.cost ?? 0);
     const loadout = $derived(pData?.loadout ?? pilot.loadout);
 </script>

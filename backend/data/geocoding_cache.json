@@ -10543,5 +10543,15 @@
     "city": "Minas Gerais",
     "country": "Brazil",
     "continent": "South America"
+  },
+  "North America: Eastern": {
+    "city": "Unknown",
+    "country": "Unknown",
+    "continent": "North America"
+  },
+  "Rogue State Games, Mahwah NJ, US": {
+    "city": "Mahwah",
+    "country": "United States",
+    "continent": "North America"
   }
 }

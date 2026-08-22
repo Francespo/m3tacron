@@ -67,10 +67,12 @@ local-data/
 issues.json
 temp_*.txt
 *-issue-*
+.slim/
 playwright-images/
 .playwright-mcp/
 verify*.png
 commit_message.json
+.opencode/
 .vite/
 # Font-centering verification screenshots (local review evidence, not for GitHub)
 .verify-font-centering/
