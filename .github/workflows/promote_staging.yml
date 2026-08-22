@@ -65,7 +65,7 @@ jobs:
           PASS="${{ steps.dbpass.outputs.pass }}"
           export PGPASSWORD="$PASS"
           echo "=== Before promote ==="
-          psql -h localhost -p 5432 -U postgres -d postgres -c "SELECT 'prod: ' || COUNT(*) FROM tournament;" -d postgres 2>&1 | grep "prod:"
+          psql -h localhost -p 5432 -U postgres -d postgres -c "SELECT 'prod: ' || COUNT(*) FROM tournament;" 2>&1 | grep "prod:"
           psql -h localhost -p 5432 -U postgres -d m3tacron_staging -c "SELECT 'staging: ' || COUNT(*) FROM tournament;" 2>&1 | grep "staging:"
 
       - name: Promote staging to production
@@ -74,48 +74,48 @@ jobs:
           export PGPASSWORD="$PASS"
           DATE=$(date +%Y%m%d_%H%M%S)
 
-          # Terminate idle connections to allow DATABASE operations
-          psql -h localhost -p 5432 -U postgres -d postgres -c "
-            SELECT pg_terminate_backend(pid)
-            FROM pg_stat_activity
-            WHERE datname IN ('postgres', 'm3tacron_staging')
-              AND pid <> pg_backend_pid() AND state = 'idle';
-          " || true
-
           if [ "${{ inputs.backup }}" = "true" ]; then
-            echo "Creating backup: m3tacron_backup_${DATE}"
-            # Drop old backup with same prefix if exists (keep last one only to save disk)
-            psql -h localhost -p 5432 -U postgres -d postgres -c "DROP DATABASE IF EXISTS m3tacron_backup;" 2>&1 || true
-            psql -h localhost -p 5432 -U postgres -d postgres -c "CREATE DATABASE m3tacron_backup TEMPLATE postgres;" 2>&1
+            echo "Creating backup: m3tacron_backup_${DATE}..."
+            pg_dump -h localhost -p 5432 -U postgres -d postgres --no-owner --no-acl -Fc -f /tmp/prod_backup.dump
+            psql -h localhost -p 5432 -U postgres -d postgres -c "
+              SELECT pg_terminate_backend(pid)
+              FROM pg_stat_activity
+              WHERE datname = 'm3tacron_backup' AND pid <> pg_backend_pid();
+            " || true
+            psql -h localhost -p 5432 -U postgres -d postgres -c "DROP DATABASE IF EXISTS m3tacron_backup;"
+            psql -h localhost -p 5432 -U postgres -d postgres -c "CREATE DATABASE m3tacron_backup;"
+            pg_restore -h localhost -p 5432 -U postgres -d m3tacron_backup --no-owner --no-acl /tmp/prod_backup.dump || true
             psql -h localhost -p 5432 -U postgres -d postgres -c "SELECT pg_size_pretty(pg_database_size('m3tacron_backup'));" 2>&1 | tail -1
+            rm -f /tmp/prod_backup.dump
           fi
 
           echo "Dumping staging..."
           pg_dump -h localhost -p 5432 -U postgres -d m3tacron_staging --no-owner --no-acl -Fc -f /tmp/staging.dump
 
-          echo "Restoring to production (truncate + restore)..."
-          # Clean production schema without dropping the DB (avoids connection issues)
+          echo "Restoring to production..."
+          # Terminate connections to allow clean schema recreation
           psql -h localhost -p 5432 -U postgres -d postgres -c "
             SELECT pg_terminate_backend(pid)
             FROM pg_stat_activity
             WHERE datname = 'postgres' AND pid <> pg_backend_pid();
           " || true
+
           # Drop and recreate public schema
-          psql -h localhost -p 5432 -U postgres -d postgres <<'EOSQL'
-          \c postgres
-          DROP SCHEMA public CASCADE;
-          CREATE SCHEMA public;
-          GRANT ALL ON SCHEMA public TO postgres;
-          GRANT ALL ON SCHEMA public TO public;
-          EOSQL
+          psql -h localhost -p 5432 -U postgres -d postgres -c "
+            DROP SCHEMA public CASCADE;
+            CREATE SCHEMA public;
+            GRANT ALL ON SCHEMA public TO postgres;
+            GRANT ALL ON SCHEMA public TO public;
+          "
 
           pg_restore -h localhost -p 5432 -U postgres -d postgres --no-owner --no-acl /tmp/staging.dump
+          rm -f /tmp/staging.dump
 
           echo "=== After promote ==="
           psql -h localhost -p 5432 -U postgres -d postgres -c "SELECT 'prod: ' || COUNT(*) FROM tournament;" 2>&1 | grep "prod:"
           psql -h localhost -p 5432 -U postgres -d postgres -t -c "SELECT MAX(date) FROM tournament;" 2>&1 | tail -1
 
-          echo "Promotion complete. Backup at m3tacron_backup."
+          echo "Promotion complete. Backup preserved at m3tacron_backup."
 
       - name: Bump data_version cache
         run: |
