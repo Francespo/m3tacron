@@ -400,6 +400,8 @@
                     {@const wr = games > 0 ? (wins / games) * 100 : 0}
                     {@const wrColor = getWinRateColor(wr)}
                     {@const lists = Math.max(0, activeFaction ? (fStats?.list_count ?? 0) : (ship.list_count ?? 0))}
+                    {@const squadrons = Math.max(0, activeFaction ? (fStats?.squadron_count ?? 0) : (ship.squadron_count ?? 0))}
+                    {@const entries = Math.max(0, activeFaction ? (fStats?.entries_count ?? 0) : (ship.entries_count ?? 0))}
                     {@const pilotsCount = Math.max(0, activeFaction ? xwingData.getPilotCountByShipForFaction(ship.xws, activeFaction) : ship.pilots_count ?? 0)}
                     {@const hasData = games > 0}
                     <!-- Glow intensity proportional to games (popularity) -->
@@ -515,7 +517,7 @@
                             <!-- Stats Grid: row1 Squadrons/Lists/Entries, row2 Games/WR/Pilots (all L→R) -->
                             <div class="grid grid-cols-3 gap-1 w-full text-center">
                                 <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
-                                    <span class="text-xs font-mono text-primary">{ship.squadron_count ?? 0}</span>
+                                    <span class="text-xs font-mono text-primary">{squadrons}</span>
                                     <span class="text-[9px] font-mono text-secondary block">Squadrons</span>
                                 </div>
                                 <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
@@ -523,7 +525,7 @@
                                     <span class="text-[9px] font-mono text-secondary block">Lists</span>
                                 </div>
                                 <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">
-                                    <span class="text-xs font-mono text-primary">{ship.entries_count ?? lists}</span>
+                                    <span class="text-xs font-mono text-primary">{entries}</span>
                                     <span class="text-[9px] font-mono text-secondary block">Entries</span>
                                 </div>
                                 <div class="bg-[#ffffff05] border border-border-dark rounded-md px-1 py-0.5">

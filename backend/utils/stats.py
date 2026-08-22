@@ -65,6 +65,8 @@ def merge_ship_faction_rows(rows: Iterable[dict]) -> list[dict]:
             "games_count": 0,
             "list_count": 0,
             "wins": 0,
+            "entries_count": 0,
+            "squadron_count": 0,
         })
 
         games = row.get("games") or 0
@@ -76,6 +78,8 @@ def merge_ship_faction_rows(rows: Iterable[dict]) -> list[dict]:
 
         faction_stats["games_count"] += games
         faction_stats["list_count"] += list_count
+        faction_stats["entries_count"] += entries
+        faction_stats["squadron_count"] += squadrons
         faction_stats["wins"] += wins
 
         ship["games_count"] += games
