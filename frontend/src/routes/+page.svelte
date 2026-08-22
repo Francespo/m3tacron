@@ -1171,7 +1171,8 @@
                         {@const factionXws = list.faction_xws}
                         {@const wr = getWinRate(list.wins || 0, list.games || 0)}
                         <div
-                            class="p-4 bg-[rgba(255,255,255,0.01)] border border-border-dark hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer w-full flex flex-col gap-3 rounded-lg"
+                            class="p-4 bg-[rgba(255,255,255,0.01)] border border-border-dark border-l-[3px] hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer w-full flex flex-col gap-3 rounded-lg overflow-hidden"
+                            style="border-left: 3px solid {getFactionColor(factionXws)};"
                         >
                             <div
                                 class="flex w-full items-start justify-between border-b border-border-dark pb-3"
