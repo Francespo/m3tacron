@@ -9,36 +9,52 @@ router = APIRouter(prefix="/api/cards", tags=["Cards"])
 
 
 def _compute_cards(
-    page: int,
-    size: int,
     data_source: str,
-    sort_metric: str,
-    sort_direction: str,
     mode: str,
     filters: dict,
 ) -> list[dict]:
     """Run the expensive card aggregation for pilots or upgrades mode.
 
-    Returns the full sorted list (caller paginates).
+    The heavy SQL aggregation is sort-independent, so it always runs with a
+    neutral sort (Lists desc). The caller applies the requested sort to the
+    cached list before paginating — see _sort_card_stats.
     """
     try:
         ds_enum = DataSource(data_source)
     except ValueError:
         ds_enum = DataSource.XWA
 
-    criteria_map = {
-        "Cost": SortingCriteria.COST,
-        "Games": SortingCriteria.GAMES,
-        "Name": SortingCriteria.NAME,
-        "Lists": SortingCriteria.LISTS,
-        "Unique Lists": SortingCriteria.UNIQUE_LISTS,
-        "Win Rate": SortingCriteria.WINRATE,
-        "Loadout": SortingCriteria.LOADOUT,
-    }
-    criteria = criteria_map.get(sort_metric, SortingCriteria.LISTS)
-    s_dir = SortDirection.DESCENDING if sort_direction == "desc" else SortDirection.ASCENDING
+    return aggregate_card_stats(
+        filters,
+        SortingCriteria.LISTS,
+        SortDirection.DESCENDING,
+        mode,
+        ds_enum,
+    )
 
-    return aggregate_card_stats(filters, criteria, s_dir, mode, ds_enum)
+
+def _sort_card_stats(data: list[dict], sort_metric: str, sort_direction: str) -> list[dict]:
+    """Sort cached (unsorted-for-request) card stats by the requested criteria.
+
+    Replicates the sort_key logic from `_finalize_results` in
+    analytics/core.py. Applied AFTER the cache lookup so the expensive
+    aggregation is shared across sort orders. Returns a new list — the
+    cached list is never mutated.
+    """
+    def sort_key(item):
+        if sort_metric == "Unique Lists":
+            return (item["different_lists_count"], item["games_count"])
+        elif sort_metric == "Games":
+            return item["games_count"]
+        elif sort_metric == "Win Rate":
+            return item["wins"] / item["games_count"] if item["games_count"] > 0 else 0
+        elif sort_metric == "Name":
+            return item["xws"]
+        elif sort_metric in ("Cost", "Loadout"):
+            return 0  # Not stored in aggregated stats; rely on catalog
+        return (item["list_count"], item["games_count"])  # Lists (default)
+
+    return sorted(data, key=sort_key, reverse=(sort_direction == "desc"))
 
 
 def _build_filters(
@@ -74,6 +90,8 @@ def _build_filters(
     date_end: str | None = None,
     player_count_min: int | None = None,
     player_count_max: int | None = None,
+    upgrade_id: str | None = None,
+    epic: bool = False,
 ) -> dict:
     
     # Base sizes mapping
@@ -115,7 +133,8 @@ def _build_filters(
         "date_end": date_end,
         "player_count_min": player_count_min,
         "player_count_max": player_count_max,
-        "include_epic": False
+        "upgrade_id": upgrade_id,
+        "include_epic": epic,
     }
 
 
@@ -126,12 +145,14 @@ def get_pilots(
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Lists"),
     sort_direction: str = Query("desc"),
+    epic: bool = Query(False),
     
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
     ships: list[str] | None = Query(None),
     initiatives: list[int] | None = Query(None),
     search_text: str = Query(""),
+    search: str = Query(""),
     points_min: int | None = Query(None),
     points_max: int | None = Query(None),
     loadout_min: int | None = Query(None),
@@ -159,9 +180,10 @@ def get_pilots(
     player_count_min: int | None = Query(None),
     player_count_max: int | None = Query(None),
 ):
+    effective_search = search or search_text
     filters = _build_filters(
         formats=formats, factions=factions, ships=ships, initiatives=initiatives,
-        search_text=search_text, points_min=points_min, points_max=points_max,
+        search_text=effective_search, points_min=points_min, points_max=points_max,
         loadout_min=loadout_min, loadout_max=loadout_max, hull_min=hull_min,
         hull_max=hull_max, shields_min=shields_min, shields_max=shields_max,
         agility_min=agility_min, agility_max=agility_max, attack_min=attack_min,
@@ -169,16 +191,17 @@ def get_pilots(
         is_unique=is_unique, is_limited=is_limited, is_not_limited=is_not_limited,
         base_sizes=base_sizes, platforms=platforms, continent=continent, country=country, city=city,
         date_start=date_start, date_end=date_end,
-        player_count_min=player_count_min, player_count_max=player_count_max
+        player_count_min=player_count_min, player_count_max=player_count_max,
+        epic=epic,
     )
 
     cache_key = (
-        f"cards_pilots|{data_source}|{sort_metric}|{sort_direction}"
+        f"cards_pilots|{data_source}"
         f"|{','.join(sorted(formats or []))}"
         f"|{','.join(sorted(factions or []))}"
         f"|{','.join(sorted(ships or []))}"
         f"|{','.join(sorted(str(i) for i in (initiatives or [])))}"
-        f"|{search_text or ''}"
+        f"|{effective_search or ''}"
         f"|{points_min}|{points_max}"
         f"|{loadout_min}|{loadout_max}"
         f"|{hull_min}|{hull_max}"
@@ -194,12 +217,15 @@ def get_pilots(
         f"|{','.join(sorted(city or []))}"
         f"|{date_start or ''}|{date_end or ''}"
         f"|{player_count_min}|{player_count_max}"
+        f"|{epic}"
     )
 
     def compute():
-        return _compute_cards(page, size, data_source, sort_metric, sort_direction, "pilots", filters)
+        return _compute_cards(data_source, "pilots", filters)
 
     data = get_cached_or_compute(cache_key, compute)
+    # Sort AFTER the cache lookup — the heavy aggregation is sort-independent.
+    data = _sort_card_stats(data, sort_metric, sort_direction)
     total = len(data)
     items = data[page * size : (page + 1) * size]
 
@@ -213,11 +239,14 @@ def get_upgrades(
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Lists"),
     sort_direction: str = Query("desc"),
+    upgrade_id: str | None = Query(None, description="Filter to lists containing this upgrade xws"),
+    epic: bool = Query(False),
 
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
     upgrade_types: list[str] | None = Query(None),
     search_text: str = Query(""),
+    search: str = Query(""),
     points_min: int | None = Query(None),
     points_max: int | None = Query(None),
     platforms: list[str] | None = Query(None),
@@ -229,20 +258,23 @@ def get_upgrades(
     player_count_min: int | None = Query(None),
     player_count_max: int | None = Query(None),
 ):
+    effective_search = search or search_text
     filters = _build_filters(
         formats=formats, factions=factions, upgrade_types=upgrade_types,
-        search_text=search_text, points_min=points_min, points_max=points_max,
+        search_text=effective_search, points_min=points_min, points_max=points_max,
         platforms=platforms, continent=continent, country=country, city=city,
         date_start=date_start, date_end=date_end,
-        player_count_min=player_count_min, player_count_max=player_count_max
+        player_count_min=player_count_min, player_count_max=player_count_max,
+        upgrade_id=upgrade_id,
+        epic=epic,
     )
 
     cache_key = (
-        f"cards_upgrades|{data_source}|{sort_metric}|{sort_direction}"
+        f"cards_upgrades|{data_source}"
         f"|{','.join(sorted(formats or []))}"
         f"|{','.join(sorted(factions or []))}"
         f"|{','.join(sorted(upgrade_types or []))}"
-        f"|{search_text or ''}"
+        f"|{effective_search or ''}"
         f"|{points_min}|{points_max}"
         f"|{','.join(sorted(platforms or []))}"
         f"|{','.join(sorted(continent or []))}"
@@ -250,12 +282,16 @@ def get_upgrades(
         f"|{','.join(sorted(city or []))}"
         f"|{date_start or ''}|{date_end or ''}"
         f"|{player_count_min}|{player_count_max}"
+        f"|{upgrade_id or ''}"
+        f"|{epic}"
     )
 
     def compute():
-        return _compute_cards(page, size, data_source, sort_metric, sort_direction, "upgrades", filters)
+        return _compute_cards(data_source, "upgrades", filters)
 
     data = get_cached_or_compute(cache_key, compute)
+    # Sort AFTER the cache lookup — the heavy aggregation is sort-independent.
+    data = _sort_card_stats(data, sort_metric, sort_direction)
     total = len(data)
     items = data[page * size : (page + 1) * size]
 

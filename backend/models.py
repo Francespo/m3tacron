@@ -9,9 +9,13 @@ Defines:
 """
 import logging
 from sqlmodel import Field, Relationship, SQLModel
-from datetime import date, datetime
-from sqlalchemy import JSON, Column, Computed, String
+from datetime import date as date_type, datetime
+from sqlalchemy import JSON, Boolean, Column, Computed, String
 from sqlalchemy.dialects.postgresql import JSONB
+
+# JSONB is Postgres-only; fall back to generic JSON on other backends
+# (SQLite) so the schema can be created for local/artifact databases.
+JSONB_VARIANT = JSONB().with_variant(JSON(), "sqlite")
 
 from .data_structures.formats import Format
 from .data_structures.source import Source
@@ -28,15 +32,20 @@ class Tournament(SQLModel, table=True):
     """
     id: int | None = Field(default=None, primary_key=True)
     name: str
-    date: date
+    date: date_type = Field(index=True)
     location: Location | None = Field(default=Location(
         city="Unknown", country="Unknown", continent="Unknown"), sa_column=Column(LocationType))
     player_count: int = Field(default=0)
     team_count: int = Field(default=0)
     url: str
 
-    source: Source = Field(sa_column=Column(String))
-    format: Format | None = Field(default=None, sa_column=Column(String))
+    source: Source = Field(sa_column=Column(String, index=True))
+    format: Format | None = Field(default=None, sa_column=Column(String, index=True))
+
+    # True when the event is a team tournament (has TeamStanding/TeamMatch rows).
+    # Used by analytics to include only real member rows (is_team_member) and
+    # exclude legacy team-placeholder rows.
+    is_team_event: bool = Field(default=False, sa_column=Column("is_team_event", Boolean, index=True))
 
     standings: list["PlayerStanding"] = Relationship(
         back_populates="tournament")
@@ -46,26 +55,51 @@ class Tournament(SQLModel, table=True):
 
 class TeamStanding(SQLModel, table=True):
     """
-    A team's performance in a tournament.
+    A team's identity in a tournament.
     """
     id: int | None = Field(default=None, primary_key=True)
     tournament_id: int = Field(foreign_key="tournament.id")
     team_name: str = Field()
-    swiss_rank: int = Field(default=0)
-    swiss_wins: int = Field(default=0)
-    swiss_losses: int = Field(default=0)
-    swiss_draws: int = Field(default=0)
-    swiss_event_points: int | None = Field(default=None)
-    swiss_tie_breaker_points: int | None = Field(default=None)
-    cut_rank: int | None = Field(default=None)
-    cut_wins: int | None = Field(default=None)
-    cut_losses: int | None = Field(default=None)
-    cut_draws: int | None = Field(default=None)
-    cut_event_points: int | None = Field(default=None)
-    cut_tie_breaker_points: int | None = Field(default=None)
 
     tournament: Tournament | None = Relationship(
         back_populates="team_standings")
+    members: list["TeamMember"] = Relationship(back_populates="team")
+
+
+class TeamMember(SQLModel, table=True):
+    """
+    Membership edge between a team and an individual player standing.
+
+    One row per (team, member) pair; a player standing belongs to at most one
+    team (enforced by the playerstanding_id unique constraint). The member's
+    own list is on their PlayerStanding row; list_id/list_json here mirror it
+    for convenience.
+
+    NOTE: explicit __tablename__ = "team_member" — SQLModel would otherwise
+    derive "teammember", which does not match the migration-created table
+    ("team_member") and would make create_all try to recreate it, colliding
+    with the existing unique constraint name.
+    """
+    __tablename__ = "team_member"
+
+    id: int | None = Field(default=None, primary_key=True)
+    teamstanding_id: int = Field(
+        foreign_key="teamstanding.id", index=True)
+    playerstanding_id: int = Field(
+        foreign_key="playerstanding.id", unique=True, index=True)
+    list_id: int | None = Field(default=None, foreign_key="list.id")
+    list_json: dict | None = Field(default=None, sa_column=Column(JSONB_VARIANT))
+
+    team: TeamStanding | None = Relationship(back_populates="members")
+    player: "PlayerStanding" = Relationship(back_populates="team_membership")
+
+    __table_args__ = (
+        # One membership edge per (team, member) pair.
+        __import__("sqlalchemy").UniqueConstraint(
+            "teamstanding_id", "playerstanding_id",
+            name="uq_team_member_team_player",
+        ),
+    )
 
 
 class List(SQLModel, table=True):
@@ -81,7 +115,7 @@ class List(SQLModel, table=True):
     points: int | None = None
     pilot_count: int | None = None
     ship_list: str  # sorted comma-joined: "btla4ywing,t65xwing,t65xwing"
-    list_json: dict = Field(sa_column=Column(JSONB))
+    list_json: dict = Field(sa_column=Column(JSONB_VARIANT))
     created_at: datetime | None = Field(default=None)
 
 
@@ -89,8 +123,12 @@ class PlayerStanding(SQLModel, table=True):
     """
     A player's performance in a tournament.
     """
+    # Allow transient (non-column) attributes like `team_name` to be attached
+    # by scrapers without SQLModel trying to map them to columns.
+    model_config = {"extra": "allow"}
+
     id: int | None = Field(default=None, primary_key=True)
-    tournament_id: int = Field(foreign_key="tournament.id")
+    tournament_id: int = Field(foreign_key="tournament.id", index=True)
     player_name: str = Field()
     team_id: int | None = Field(default=None, foreign_key="teamstanding.id")
     swiss_rank: int = Field(default=0)
@@ -105,7 +143,7 @@ class PlayerStanding(SQLModel, table=True):
     cut_draws: int | None = Field(default=None)
     cut_event_points: int | None = Field(default=None)
     cut_tie_breaker_points: int | None = Field(default=None)
-    list_json: dict = Field(default={}, sa_column=Column(JSONB))
+    list_json: dict = Field(default={}, sa_column=Column(JSONB_VARIANT))
     list_id: int | None = Field(default=None, foreign_key="list.id", index=True)
     # Generated column: lower(replace(replace(list_json->>'faction', ' ', ''), '-', ''))
     # Mirrors the SQL GENERATED ALWAYS AS expression. Marked nullable since list_json
@@ -124,6 +162,17 @@ class PlayerStanding(SQLModel, table=True):
     tournament: Tournament | None = Relationship(back_populates="standings")
     team: TeamStanding | None = Relationship(
         sa_relationship_kwargs={"lazy": "select"})
+    # True when this standing row is a real individual member of a team event.
+    # False for solo-event players and for legacy team-placeholder rows (rows
+    # whose player_name is a team name — created by the pre-team_member scraper).
+    is_team_member: bool = Field(default=False, sa_column=Column("is_team_member", Boolean, index=True))
+    team_membership: "TeamMember" = Relationship(back_populates="player")
+
+    # NOTE: do NOT declare `team_name` here — SQLModel maps every annotated
+    # class attribute to a table column, and `team_name` is not a real column
+    # on playerstanding. Scrapers attach it dynamically as a transient
+    # instance attribute (setattr) so save_tournament_data / migrations can
+    # read it without SQLAlchemy trying to persist it.
 
 
 class Match(SQLModel, table=True):

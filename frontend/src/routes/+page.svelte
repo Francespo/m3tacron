@@ -8,6 +8,8 @@
         getFactionLabel,
     } from "$lib/data/factions";
     import { xwingData } from "$lib/stores/xwingData.svelte";
+    import { cachedFetchJson } from "$lib/api/cache";
+    import ErrorPanel from "$lib/components/ErrorPanel.svelte";
     import Chart from "chart.js/auto";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
 
@@ -15,6 +17,12 @@
     let loading = $state(true);
     let error = $state(false);
     let errorMsg = $state("");
+    // Bumped by the "Try again" button so the main fetch $effect re-runs.
+    let retryToken = $state(0);
+
+    function retry() {
+        retryToken++;
+    }
 
     /**
      * Latest tournament date in the current data source (and epic toggle).
@@ -53,7 +61,7 @@
     /**
      * Map a `(dataSource, includeEpic)` pair to the list of `formats` the
      * tournaments endpoint should filter on. The XWA macro is `{xwa, amg}`
-     * and the Legacy macro is `{legacy_x2po, legacy_xlc}`; the Epic toggle
+     * and the Legacy macro is `{legacy_x2po, legacy_xlc, legacy_pandorum}`; the Epic toggle
      * controls whether the larger squad-size variant (amg / legacy_xlc) is
      * included.
      */
@@ -64,7 +72,7 @@
         if (source === "xwa") {
             return epic ? ["xwa", "amg"] : ["xwa"];
         }
-        return epic ? ["legacy_x2po", "legacy_xlc"] : ["legacy_x2po"];
+        return epic ? ["legacy_x2po", "legacy_xlc", "legacy_pandorum"] : ["legacy_x2po", "legacy_xlc", "legacy_pandorum"];
     }
 
     type SortKey = "lists" | "unique" | "winrate" | "games";
@@ -171,9 +179,11 @@
         // Track BOTH the data source AND the epic toggle so the dashboard
         // re-fetches whenever the user changes either one via the
         // ContentSourceToggle. Reading both inside the effect makes them
-        // reactive dependencies under Svelte 5 runes.
+        // reactive dependencies under Svelte 5 runes. `retryToken` is read
+        // so the "Try again" button re-runs this fetch.
         const source = filters.dataSource;
         const epic = filters.includeEpic;
+        const _rt = retryToken;
         // Ensure data is loaded
         xwingData.setSource(source as any);
 
@@ -183,6 +193,11 @@
         error = false;
         errorMsg = "";
 
+        // AbortController so rapid source/filter changes cancel the
+        // in-flight request instead of racing it. `isCancelled` guards the
+        // state updates; the abort actually stops the network request.
+        const controller = new AbortController();
+
         // Pass `epic` to the meta-snapshot even though the backend currently
         // ignores it; the dashboard will already be wired correctly if the
         // endpoint starts honoring it. The `data_source` query param is the
@@ -191,16 +206,7 @@
         params.set("data_source", source);
         if (epic) params.set("epic", "true");
         const targetUrl = `/api/meta-snapshot?${params.toString()}`;
-        fetch(targetUrl)
-            .then(async (res) => {
-                if (!res.ok) {
-                    const errData = await res.json().catch(() => ({}));
-                    throw new Error(
-                        `HTTP error! status: ${res.status}, Details: ${errData.error || "unknown"}`,
-                    );
-                }
-                return res.json();
-            })
+        cachedFetchJson(targetUrl, undefined, controller.signal)
             .then((data) => {
                 if (!isCancelled) {
                     meta = data;
@@ -208,6 +214,7 @@
                 }
             })
             .catch((err) => {
+                if (err?.name === "AbortError") return;
                 console.error("Dashboard Fetch Error:", err);
                 if (!isCancelled) {
                     error = true;
@@ -218,6 +225,7 @@
 
         return () => {
             isCancelled = true;
+            controller.abort();
         };
     });
 
@@ -239,6 +247,9 @@
 
         let isCancelled = false;
 
+        // Abort the in-flight request when the source toggles again.
+        const controller = new AbortController();
+
         const params = new URLSearchParams();
         params.set("page", "0");
         params.set("size", "1");
@@ -249,15 +260,7 @@
         }
         const url = `/api/tournaments?${params.toString()}`;
 
-        fetch(url)
-            .then(async (res) => {
-                if (!res.ok) {
-                    // Don't blow up the dashboard if this secondary fetch
-                    // fails — the stat will fall back to `meta.last_sync`.
-                    return null;
-                }
-                return res.json();
-            })
+        cachedFetchJson(url, undefined, controller.signal)
             .then((data) => {
                 if (isCancelled || !data) return;
                 const first = data?.items?.[0];
@@ -265,12 +268,14 @@
                     latestTournamentDate = first.date;
                 }
             })
-            .catch(() => {
+            .catch((err) => {
+                if (err?.name === "AbortError") return;
                 /* swallow — keep previous / fallback value */
             });
 
         return () => {
             isCancelled = true;
+            controller.abort();
         };
     });
 
@@ -301,6 +306,9 @@
 
         let isCancelled = false;
 
+        // Abort the in-flight pagination when the source toggles again.
+        const controller = new AbortController();
+
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - 90);
         const dateStart = startDate.toISOString().slice(0, 10);
@@ -316,9 +324,11 @@
             for (const f of formats) {
                 params.append("formats", f);
             }
-            return fetch(`/api/tournaments?${params.toString()}`)
-                .then((r) => (r.ok ? r.json() : null))
-                .catch(() => null);
+            return cachedFetchJson(
+                `/api/tournaments?${params.toString()}`,
+                undefined,
+                controller.signal,
+            ).catch(() => null);
         };
 
         fetchPage(0).then(async (data) => {
@@ -353,6 +363,7 @@
 
         return () => {
             isCancelled = true;
+            controller.abort();
         };
     });
 
@@ -445,6 +456,7 @@
             shipName: ship?.name || pilot?.ship || "Unknown Ship",
             faction: pilot?.faction || "unknown",
             shipXws: pilot?.ship || "",
+            pack: (pilot as any)?.pack,
         };
     }
 
@@ -640,17 +652,68 @@
         </div>
     </header>
 
-    {#if loading || !meta}
-        <div
-            class="p-6 bg-terminal-panel border border-border-dark shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] rounded-md text-center"
-        >
-            <p class="text-secondary font-mono animate-pulse">
-                {#if error}
-                    Failed to fetch data: {errorMsg}
-                {:else}
-                    Loading or fetching data...
-                {/if}
-            </p>
+    {#if error}
+        <ErrorPanel
+            title="Failed to load dashboard data"
+            message={errorMsg}
+            onRetry={retry}
+        />
+    {:else if loading || !meta}
+        <!-- Loading Skeleton (matches dashboard shape: stat cards, chart
+             panels, leaderboard columns) -->
+        <div class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {#each Array(3) as _}
+                    <div
+                        class="bg-terminal-panel border border-border-dark rounded-lg p-4 h-24 space-y-2"
+                    >
+                        <div
+                            class="animate-pulse bg-[#ffffff06] rounded h-3 w-24"
+                        ></div>
+                        <div
+                            class="animate-pulse bg-[#ffffff06] rounded h-8 w-16"
+                        ></div>
+                    </div>
+                {/each}
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div
+                    class="bg-terminal-panel border border-border-dark rounded-lg p-5 h-[280px]"
+                >
+                    <div
+                        class="animate-pulse bg-[#ffffff06] rounded h-4 w-40 mb-4"
+                    ></div>
+                    <div
+                        class="animate-pulse bg-[#ffffff06] rounded h-[220px] w-full"
+                    ></div>
+                </div>
+                <div
+                    class="bg-terminal-panel border border-border-dark rounded-lg p-5 h-[280px]"
+                >
+                    <div
+                        class="animate-pulse bg-[#ffffff06] rounded h-4 w-40 mb-4"
+                    ></div>
+                    <div
+                        class="animate-pulse bg-[#ffffff06] rounded h-[220px] w-full"
+                    ></div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {#each Array(3) as _}
+                    <div
+                        class="bg-terminal-panel border border-border-dark rounded-lg p-5 space-y-3"
+                    >
+                        <div
+                            class="animate-pulse bg-[#ffffff06] rounded h-4 w-32"
+                        ></div>
+                        {#each Array(4) as _}
+                            <div
+                                class="animate-pulse bg-[#ffffff06] rounded h-6 w-full"
+                            ></div>
+                        {/each}
+                    </div>
+                {/each}
+            </div>
         </div>
     {:else}
         <!-- Period Banner: prominent "Last 90 Days" indicator -->
@@ -1168,7 +1231,7 @@
                                         >{wr.toFixed(1)}% WR</span
                                     >
                                     <span class="text-[11px] text-secondary"
-                                        >{list.games} games · {list.count ?? 0} lists</span
+                                        >{list.games} games</span
                                     >
                                 </div>
                             </div>
@@ -1186,7 +1249,11 @@
                                             <div class="text-sm text-secondary truncate">
                                                 {p.name}
                                             </div>
-                                            {#if pilot.upgrades?.length}
+                                            {#if p.pack}
+                                                <div class="text-[11px] text-secondary/80 italic truncate">
+                                                    {p.pack}
+                                                </div>
+                                            {:else if pilot.upgrades?.length}
                                                 <div class="text-[11px] text-secondary/80 truncate">
                                                     {pilot.upgrades
                                                         .slice(0, 3)

@@ -4,6 +4,8 @@
     import MobileFilterTrigger from "$lib/components/MobileFilterTrigger.svelte";
     import SortBy from "$lib/components/SortBy.svelte";
     import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
+    import PendingIndicator from "$lib/components/PendingIndicator.svelte";
+    import ErrorPanel from "$lib/components/ErrorPanel.svelte";
     import {
         getFactionColor,
         getFactionLabel,
@@ -20,7 +22,6 @@
     let { data } = $props();
 
     let filterOpen = $state(false);
-    let total = $state(0);
     let page = $state(1);
     let factionOpen = $state(false);
     const size = 50;
@@ -31,8 +32,19 @@
         filters.sortBy = "Lists";
     }
 
-    // Merged ship data: all ships from xwingData + stats from API
+    // Merged ship data: all ships from xwingData + stats from API.
     let mergedShips = $state<any[]>([]);
+    // First paint gate: `mergedShips` starts empty, so the skeleton shows
+    // until the first merge lands. Afterwards a refetch keeps the stale
+    // grid visible under the "Updating…" bar instead of blanking it.
+    let hasLoaded = $state(false);
+    let pending = $state(true);
+    let failed = $state(false);
+    let lastPromise: any = null;
+
+    function retry() {
+        invalidateAll();
+    }
 
     // Sync state FROM the URL so direct navigation (e.g. ?page=2) works.
     // URL hydration is now handled centrally by the layout via
@@ -52,7 +64,16 @@
         // Trigger xwingData load (and re-run this effect when it resolves).
         xwingData.setSource(filters.dataSource as any);
 
-        data.apiShipsPromise.then((apiShips: any[]) => {
+        // A new API promise means a refetch is in flight: keep the stale grid
+        // visible and show the updating bar until the new data is merged.
+        const p = data.apiShipsPromise;
+        if (p !== lastPromise) {
+            lastPromise = p;
+            pending = true;
+            failed = false;
+        }
+
+        p.then((apiShips: any[]) => {
             const xwingShips = xwingData.data[xwingData.currentSource]?.ships;
             if (!xwingShips) return; // xwingData not loaded yet
 
@@ -63,8 +84,8 @@
             // Start with ALL ships from xwingData
             const merged: any[] = [];
             for (const [xws, ship] of Object.entries(xwingShips)) {
-                // Skip epic-only (Huge) ships unless includeEpic is on
-                if (!epic && ship.size === "Huge") continue;
+                // Skip epic-only ships (ships with no standard-legal pilots) unless includeEpic is on
+                if (!epic && ship.epic) continue;
                 // Skip ships not in the chassis filter (when one is active)
                 if (selectedShips.length > 0 && !selectedShips.includes(xws)) continue;
 
@@ -98,7 +119,11 @@
             }
 
             mergedShips = merged;
-            total = merged.length;
+            hasLoaded = true;
+            pending = false;
+        }).catch(() => {
+            failed = true;
+            pending = false;
         });
     });
 
@@ -117,7 +142,7 @@
         if (page > 1) page--;
     }
     function nextPage() {
-        if (page * size < total) page++;
+        if (page * size < mergedShips.length) page++;
     }
 
     function toggleFaction(f: string) {
@@ -144,7 +169,7 @@
         <!-- Faction -->
         <div class="border-b border-border-dark mt-1">
             <button
-                class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary transition-colors"
+                class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
                 onclick={() => (factionOpen = !factionOpen)}
             >
                 <div class="flex items-center gap-2">
@@ -240,27 +265,76 @@
             />
         </div>
 
-        {#await data.itemsPromise}
-            <p class="text-secondary font-mono text-sm mb-6">Loading...</p>
+        {#if !hasLoaded}
+            {#if failed}
+                <div class="mb-6">
+                    <ErrorPanel
+                        title="Failed to load ships"
+                        onRetry={retry}
+                    />
+                </div>
+            {:else}
+                <p class="text-secondary font-mono text-sm mb-6">Loading…</p>
 
-            <!-- Loading Skeleton -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {#each Array(6) as _}
-                    <div class="animate-pulse bg-[#ffffff06] rounded-md h-64 border border-border-dark"></div>
-                {/each}
-            </div>
-        {:then _resolved}
+                <!-- Loading Skeleton (matches ship card shape: centered icon
+                     area + stats grid) -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {#each Array(6) as _}
+                        <div
+                            class="bg-terminal-panel border border-border-dark rounded-lg p-4 h-64 flex flex-col items-center gap-3"
+                        >
+                            <div
+                                class="flex-1 w-full flex items-center justify-center"
+                            >
+                                <div
+                                    class="animate-pulse bg-[#ffffff06] rounded-full w-28 h-28"
+                                ></div>
+                            </div>
+                            <div
+                                class="animate-pulse bg-[#ffffff06] rounded h-3.5 w-2/3"
+                            ></div>
+                            <div class="grid grid-cols-2 gap-1 w-full">
+                                {#each Array(4) as _}
+                                    <div
+                                        class="animate-pulse bg-[#ffffff06] rounded-md h-9"
+                                    ></div>
+                                {/each}
+                            </div>
+                        </div>
+                    {/each}
+                </div>
+            {/if}
+        {:else}
             {@const resolvedTotal = mergedShips.length}
             <!-- Client-side paginate mergedShips -->
             {@const startIdx = (page - 1) * size}
             {@const shipItems = mergedShips.slice(startIdx, startIdx + size)}
-            <p class="text-secondary font-mono text-sm mb-6">
-                {resolvedTotal} Ships Found
-            </p>
 
-            <!-- Ships Heatmap Grid -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {#each shipItems as ship}
+            <!-- Stale ships stay visible while a refetch runs: the grid
+                 container dims while `pending` and smoothly returns to full
+                 opacity; the neutral inline tag next to the count says the
+                 update is in flight. -->
+            <div class="flex items-center gap-2.5 mb-6">
+                <p class="text-secondary font-mono text-sm">
+                    {resolvedTotal} Ships Found
+                </p>
+                <PendingIndicator
+                    active={pending}
+                    mode="tag"
+                    label="Updating…"
+                />
+            </div>
+
+            <div
+                class="transition-opacity duration-200 {pending
+                    ? 'opacity-50'
+                    : 'opacity-100'}"
+            >
+
+                {#if shipItems.length > 0}
+                    <!-- Ships Heatmap Grid -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {#each shipItems as ship}
                     {@const games = Math.max(0, ship.games_count ?? 0)}
                     {@const wins = Math.max(0, ship.wins ?? 0)}
                     {@const wr = games > 0 ? (wins / games) * 100 : 0}
@@ -405,36 +479,57 @@
                         </div>
                     </a>
                 {/each}
-            </div>
+                    </div>
+                {:else}
+                    <!-- Empty state: no ships matched the current filters -->
+                    <div
+                        class="bg-terminal-panel border border-border-dark rounded-lg p-8 text-center space-y-2"
+                    >
+                        <p
+                            class="text-primary font-sans font-bold text-lg tracking-wide"
+                        >
+                            No ships found
+                        </p>
+                        <p class="text-secondary font-mono text-sm">
+                            Try adjusting your filters, or retry the query.
+                        </p>
+                        <div class="pt-2">
+                            <button
+                                type="button"
+                                onclick={retry}
+                                class="px-4 py-1.5 text-xs font-mono border border-border-dark text-secondary rounded-md hover:bg-[#ffffff08] hover:text-primary active:bg-[#ffffff14] transition-colors"
+                            >
+                                Try again
+                            </button>
+                        </div>
+                    </div>
+                {/if}
 
-            <!-- Pagination -->
-            {#if resolvedTotal > size}
-                <div
-                    class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
-                >
-                    <button
-                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
-                        onclick={prevPage}
-                        disabled={page <= 1}
+                <!-- Pagination -->
+                {#if resolvedTotal > size}
+                    <div
+                        class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
                     >
-                        ← Prev
-                    </button>
-                    <span class="text-xs font-mono text-secondary">Page {page}</span
-                    >
-                    <button
-                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
-                        onclick={nextPage}
-                        disabled={page * size >= resolvedTotal}
-                    >
-                        Next →
-                    </button>
-                </div>
-            {/if}
-        {:catch error}
-            <p class="text-red-400 font-mono text-sm mb-6">
-                Failed to load ships: {error.message}
-            </p>
-        {/await}
+                        <button
+                            class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            onclick={prevPage}
+                            disabled={page <= 1}
+                        >
+                            ← Prev
+                        </button>
+                        <span class="text-xs font-mono text-secondary">Page {page}</span
+                        >
+                        <button
+                            class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            onclick={nextPage}
+                            disabled={page * size >= resolvedTotal}
+                        >
+                            Next →
+                        </button>
+                    </div>
+                {/if}
+            </div>
+        {/if}
     </main>
 </div>
 

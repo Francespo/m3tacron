@@ -141,14 +141,19 @@ def aggregate_card_stats(
                 if ("xwa_epic" in allowed_formats or "legacy_epic" in allowed_formats) and is_epic:
                     show_card = True
                 if data_source == DataSource.LEGACY:
-                    legacy_keys = {"legacy_x2po", "legacy_xlc", "ffg"}
-                    if not legacy_keys.isdisjoint(allowed_formats):
+                    legacy_keys = {"legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum"}
+                    if not legacy_keys.isdisjoint(allowed_formats) and is_legal:
                         show_card = True
             else:
                 if data_source == DataSource.XWA and is_legal:
                     show_card = True
-                elif data_source == DataSource.LEGACY:
+                elif data_source == DataSource.LEGACY and is_legal:
                     show_card = True
+
+            # Explicit "include epic" flag (e.g. a Huge ship's detail page):
+            # show the epic-flagged card regardless of the format selection.
+            if filters.get("include_epic") and is_epic:
+                show_card = True
 
             if not show_card:
                 continue
@@ -258,14 +263,19 @@ def aggregate_card_stats(
                 if ("xwa_epic" in allowed_formats or "legacy_epic" in allowed_formats) and is_epic:
                     show_card = True
                 if data_source == DataSource.LEGACY:
-                    legacy_keys = {"legacy_x2po", "legacy_xlc", "ffg"}
-                    if not legacy_keys.isdisjoint(allowed_formats):
+                    legacy_keys = {"legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum"}
+                    if not legacy_keys.isdisjoint(allowed_formats) and is_legal:
                         show_card = True
             else:
                 if data_source == DataSource.XWA and is_legal:
                     show_card = True
-                elif data_source == DataSource.LEGACY:
+                elif data_source == DataSource.LEGACY and is_legal:
                     show_card = True
+
+            # Explicit "include epic" flag (e.g. a Huge ship's detail page):
+            # show the epic-flagged card regardless of the format selection.
+            if filters.get("include_epic") and is_epic:
+                show_card = True
 
             if not show_card:
                 continue
@@ -390,6 +400,29 @@ def aggregate_card_stats(
             "WHERE sp->>'id' = :filter_pilot_id)"
         )
         params["filter_pilot_id"] = filter_pilot_id
+
+    # If filter_upgrade_id is set, restrict to lists containing that upgrade.
+    # Works against the raw list_json pilots. The `upgrades` key may be an
+    # object ({"talent": ["predator"], ...}), an array, or missing — guard
+    # each shape with jsonb_typeof before unnesting so jsonb_each never runs
+    # on a non-object (psycopg2 errors.InvalidParameterValue otherwise).
+    if filter_upgrade_id:
+        where_clauses.append(
+            "EXISTS (SELECT 1 FROM jsonb_array_elements(ps.list_json->'pilots') sp "
+            "WHERE "
+            "(jsonb_typeof(sp->'upgrades') = 'object' AND "
+            "EXISTS (SELECT 1 FROM jsonb_each(sp->'upgrades') e, "
+            "jsonb_array_elements_text(e.value) u "
+            "WHERE jsonb_typeof(e.value) = 'array' AND u = :filter_upgrade_id)) "
+            "OR "
+            "(jsonb_typeof(sp->'upgrades') = 'array' AND "
+            "EXISTS (SELECT 1 FROM jsonb_array_elements_text(sp->'upgrades') u "
+            "WHERE u = :filter_upgrade_id))"
+            ")"
+        )
+        params["filter_upgrade_id"] = filter_upgrade_id
+
+    where_clauses.append("(NOT t.is_team_event OR ps.is_team_member)")
 
     where_sql = " AND ".join(where_clauses)
 

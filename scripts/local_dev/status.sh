@@ -6,15 +6,30 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$REPO_ROOT"
 
+# --- Detect tailnet hostname ---
+HOSTNAME_SHORT="$(hostname -s 2>/dev/null || echo localhost)"
+TAILSCALE_HOST=""
+if command -v tailscale &>/dev/null; then
+  TAILSCALE_HOST="$(tailscale status --json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['Self']['HostName'])" 2>/dev/null || true)"
+fi
+TAILNET_HOST="${TAILSCALE_HOST:-$HOSTNAME_SHORT}"
+
 echo "==> Container status:"
 docker compose -f docker-compose.local.yml ps
 
 echo
+BACKEND_PORT="${BACKEND_PORT:-8890}"
+VITE_PORT="${VITE_PORT:-3335}"
 echo "==> Health probes:"
-curl -fsS -o /dev/null -w "  backend  (http://localhost:8890/)    -> HTTP %{http_code}\n" http://localhost:8890/ 2>/dev/null \
+curl -fsS -o /dev/null -w "  backend  (http://localhost:${BACKEND_PORT}/)    -> HTTP %{http_code}\n" "http://localhost:${BACKEND_PORT}/" 2>/dev/null \
   || echo "  backend  -> DOWN"
-curl -fsS -o /dev/null -w "  frontend (http://localhost:3335/)    -> HTTP %{http_code}\n" http://localhost:3335/ 2>/dev/null \
+curl -fsS -o /dev/null -w "  frontend (http://localhost:${VITE_PORT}/)    -> HTTP %{http_code}\n" "http://localhost:${VITE_PORT}/" 2>/dev/null \
   || echo "  frontend -> DOWN"
+
+echo
+echo "==> Tailnet access:"
+echo "  Frontend: http://${TAILNET_HOST}:${VITE_PORT}"
+echo "  Backend:  http://${TAILNET_HOST}:${BACKEND_PORT}/docs"
 
 echo
 echo "==> DB row counts (if Postgres container is up):"

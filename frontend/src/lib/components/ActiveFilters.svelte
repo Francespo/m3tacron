@@ -11,7 +11,7 @@
                 ACTIVE FILTERS
             </span>
             <button
-                class="text-xs text-red-500 hover:text-red-400 transition-colors"
+                class="text-xs text-red-500 hover:text-red-400 active:text-red-300 transition-colors"
                 onclick={() => filters.resetAll()}
             >
                 Reset All
@@ -25,7 +25,7 @@
                 >
                     <span>{chip.label}</span>
                     <button
-                        class="text-secondary hover:text-white transition-colors"
+                        class="text-secondary hover:text-white active:text-white active:scale-90 transition-[color,transform] rounded-sm"
                         onclick={() => filters.removeChip(chip.key)}
                         aria-label={`Remove filter ${chip.label}`}
                     >

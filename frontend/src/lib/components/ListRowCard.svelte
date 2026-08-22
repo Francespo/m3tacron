@@ -37,7 +37,7 @@
 
 <a
     href={listHref}
-    class="group flex bg-terminal-panel border border-border-dark border-l-[3px] rounded-lg overflow-hidden hover:border-primary/40 hover:bg-[#ffffff04] transition-colors cursor-pointer block"
+    class="group flex bg-terminal-panel border border-border-dark border-l-[3px] rounded-lg overflow-hidden hover:border-primary/40 hover:bg-[#ffffff04] active:bg-[#ffffff08] transition-colors cursor-pointer block"
     style="border-left: 3px solid {factionColor};"
 >
     <!-- Content -->
@@ -93,7 +93,7 @@
             {#each list.pilots || [] as pilotEntry}
                 {@const pilotXws = normalizeXws(pilotEntry.xws)}
                 {@const pilot = xwingData.getPilot(pilotXws)}
-                {@const pilotSubtitle = pilot?.caption || pilot?.shipAbility?.name}
+                {@const pilotSubtitle = pilot?.caption}
                 <div
                     class="bg-[#ffffff05] border border-[#ffffff08] rounded-md p-2.5 min-w-[220px] flex-1 space-y-1.5"
                 >

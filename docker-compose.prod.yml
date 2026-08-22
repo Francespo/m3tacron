@@ -9,6 +9,7 @@ services:
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - UVICORN_WORKERS=${UVICORN_WORKERS:-2}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8888/', timeout=3)"]
       interval: 10s
@@ -25,7 +26,7 @@ services:
     expose:
       - "3333"
     environment:
-      - ORIGIN=${ORIGIN}
+      - ORIGIN=${ORIGIN:-${COOLIFY_URL}}
       - VITE_API_BASE=${VITE_API_BASE}
     depends_on:
       - backend

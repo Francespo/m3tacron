@@ -2,11 +2,31 @@
     import { getFormatFullLabel } from "$lib/data/formats";
     import { getSourceLabel } from "$lib/data/source";
     import BackLink from "$lib/components/BackLink.svelte";
+    import ErrorPanel from "$lib/components/ErrorPanel.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
+    import { invalidateAll } from "$app/navigation";
 
     let { data } = $props();
-    const t = $derived(data.detail?.tournament);
-    const matches = $derived(data.detail?.matches ?? []);
+
+    // The loader streams the detail payload in via `detailPromise`
+    // (non-blocking navigation). The {#await} block in the template gates
+    // rendering on it; this state only feeds the document title (non-
+    // rendering logic that needs the resolved payload).
+    let detail = $state<any>(null);
+    $effect(() => {
+        let cancelled = false;
+        data.detailPromise.then((d: any) => {
+            if (!cancelled) detail = d;
+        });
+        return () => {
+            cancelled = true;
+        };
+    });
+    const headTournament = $derived(detail?.tournament);
+
+    function retry() {
+        invalidateAll();
+    }
 
     // Shape of a single match row from the backend. The tournament detail
     // endpoint is untyped JSON, so we declare it locally for the bits the
@@ -98,7 +118,7 @@
     }
 
     // Group matches by type and round, distinguishing Swiss from Cut rounds.
-    const roundGroups = $derived.by(() => {
+    function groupRoundsByType(matches: Match[]): RoundGroup[] {
         const map = new Map<string, { roundNum: number; type: "swiss" | "cut"; matches: Match[] }>();
 
         for (const m of matches as Match[]) {
@@ -150,14 +170,17 @@
         });
 
         return result;
-    });
+    }
 
     // --- Match round carousel state ---
     let currentRoundIndex = $state(0);
 
-    // Clamp index when roundGroups changes (e.g. different tournament)
+    // Derived round groups for clamping/navigation (reacts to streamed detail)
+    const detailMatches = $derived(detail?.matches ?? []);
+    const roundGroupsDerived = $derived(groupRoundsByType(detailMatches));
+
     $effect(() => {
-        const max = roundGroups.length - 1;
+        const max = roundGroupsDerived.length - 1;
         if (currentRoundIndex > max) currentRoundIndex = max;
         if (currentRoundIndex < 0) currentRoundIndex = 0;
     });
@@ -166,7 +189,7 @@
         if (currentRoundIndex > 0) currentRoundIndex--;
     }
     function nextRound() {
-        if (currentRoundIndex < roundGroups.length - 1) currentRoundIndex++;
+        if (currentRoundIndex < roundGroupsDerived.length - 1) currentRoundIndex++;
     }
 
     // --- Standings pagination ---
@@ -175,30 +198,32 @@
     let cutPage = $state(0);
 
     const swissTotalPages = $derived(
-        Math.ceil((data.detail?.players_swiss?.length ?? 0) / STANDINGS_PER_PAGE)
+        Math.ceil((detail?.players_swiss?.length ?? 0) / STANDINGS_PER_PAGE)
     );
     const cutTotalPages = $derived(
-        Math.ceil((data.detail?.players_cut?.length ?? 0) / STANDINGS_PER_PAGE)
+        Math.ceil((detail?.players_cut?.length ?? 0) / STANDINGS_PER_PAGE)
     );
 
     // --- Standings tab toggle ---
-    const hasCut = $derived((data.detail?.players_cut?.length ?? 0) > 0);
-    const hasSwiss = $derived((data.detail?.players_swiss?.length ?? 0) > 0);
+    const hasCut = $derived((detail?.players_cut?.length ?? 0) > 0);
+    const hasSwiss = $derived((detail?.players_swiss?.length ?? 0) > 0);
     let standingsTab = $state<"swiss" | "cut">("swiss");
 
     // Reset pagination and tab when tournament changes
     $effect(() => {
-        void data.detail;
+        void data.detailPromise;
+        void detail;
         swissPage = 0;
         cutPage = 0;
         standingsTab = "swiss";
+        currentRoundIndex = 0;
     });
 
     // Active standings based on tab
     const activeStandings = $derived(
         standingsTab === "cut"
-            ? (data.detail?.players_cut ?? [])
-            : (data.detail?.players_swiss ?? [])
+            ? (detail?.players_cut ?? [])
+            : (detail?.players_swiss ?? [])
     );
     const activeTotalPages = $derived(
         standingsTab === "cut" ? cutTotalPages : swissTotalPages
@@ -229,7 +254,7 @@
     // 8=quarter-final, 16=round of 16, ...). When that pattern is present we
     // render a compact "reached this stage" view instead of a standings table.
     const cutIsKnockout = $derived.by(() => {
-        const players: { rank: number }[] = data.detail?.players_cut ?? [];
+        const players: { rank: number }[] = detail?.players_cut ?? [];
         if (players.length < 2) return false;
         const ranks = players.map((p) => p.rank);
         const counts = new Map<number, number>();
@@ -255,20 +280,52 @@
     const cutTierGroups = $derived.by(() => {
         const groups = new Map<number, { rank: number; players: typeof activePageItems }>();
         for (const p of activePageItems) {
-            if (!groups.has(p.rank)) groups.set(p.rank, { rank: p.rank, players: [] });
-            groups.get(p.rank)!.players.push(p);
+            const pr = (p as any).rank as number;
+            if (!groups.has(pr)) groups.set(pr, { rank: pr, players: [] as any });
+            (groups.get(pr)!.players as any).push(p);
         }
         return Array.from(groups.values()).sort((a, b) => a.rank - b.rank);
     });
 </script>
 
 <svelte:head>
-    <title>{t ? t.name : "Tournament"} | M3taCron</title>
+    <title>{headTournament ? headTournament.name : "Tournament"} | M3taCron</title>
 </svelte:head>
 
 <div class="p-6 md:p-8 max-w-[1400px] mx-auto">
-    {#if t}
-        <!-- Header -->
+    {#await data.detailPromise}
+        <p class="text-secondary font-mono text-sm mb-6">Loading…</p>
+
+        <!-- Loading Skeleton (matches detail layout: title row, info grid,
+             location card, standings list) -->
+        <div class="space-y-6">
+            <div
+                class="animate-pulse bg-[#ffffff06] rounded-lg h-10 w-72 max-w-full"
+            ></div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {#each Array(4) as _}
+                    <div
+                        class="animate-pulse bg-[#ffffff06] rounded-lg h-20"
+                    ></div>
+                {/each}
+            </div>
+            <div
+                class="animate-pulse bg-[#ffffff06] rounded-lg h-12"
+            ></div>
+            <div class="space-y-2">
+                {#each Array(6) as _}
+                    <div
+                        class="animate-pulse bg-[#ffffff06] rounded-md h-10"
+                    ></div>
+                {/each}
+            </div>
+        </div>
+    {:then detail}
+        {#if detail?.tournament}
+            {@const t = detail.tournament}
+            {@const matches = detail.matches ?? []}
+            {@const roundGroups = groupRoundsByType(matches)}
+            <!-- Header -->
         <div class="border-b border-border-dark pb-6 mb-6">
             <div class="flex items-center gap-3 mb-2">
                 <BackLink href="/tournaments" ariaLabel="Back to Tournaments" />
@@ -546,12 +603,22 @@
             <p class="text-secondary text-sm mb-6">
                 Tournament detail was not found.
             </p>
-            <a
-                href="/tournaments"
-                class="px-4 py-2 border border-border-dark rounded-md text-sm font-sans text-primary hover:bg-[rgba(255,255,255,0.05)] transition-colors"
-            >
-                ← Back to Tournaments
-            </a>
+            <div class="flex items-center gap-3">
+                <a
+                    href="/tournaments"
+                    class="px-4 py-2 border border-border-dark rounded-md text-sm font-sans text-primary hover:bg-[rgba(255,255,255,0.05)] active:bg-[rgba(255,255,255,0.1)] transition-colors"
+                >
+                    ← Back to Tournaments
+                </a>
+                <button
+                    type="button"
+                    onclick={retry}
+                    class="px-4 py-2 border border-border-dark rounded-md text-sm font-sans text-primary hover:bg-[rgba(255,255,255,0.05)] active:bg-[rgba(255,255,255,0.1)] transition-colors"
+                >
+                    Try again
+                </button>
+            </div>
         </div>
-    {/if}
+        {/if}
+    {/await}
 </div>

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Query
 from collections import defaultdict
 
 from ..analytics.ships import aggregate_ship_stats
-from ..analytics.lists import aggregate_list_stats
+from ..analytics.lists import aggregate_list_stats, fetch_list_pilots
 from ..analytics.squadrons import aggregate_squadron_stats
 from ..analytics.core import aggregate_card_stats
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
@@ -45,6 +45,7 @@ def get_ship_pilots(
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Lists"),
     sort_direction: str = Query("desc"),
+    epic: bool = Query(False),
 ):
     """Return pilot stats filtered to this ship."""
     ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
@@ -59,7 +60,10 @@ def get_ship_pilots(
 
     filters = {
         "ship": [ship_xws],
-        "include_epic": False,
+        # Huge-ship pilots are flagged `epic` in the manifest; the ships page
+        # only shows them when "Include Epic" is on, so their detail page must
+        # include them too or the pilot list comes back empty.
+        "include_epic": epic,
     }
     data = aggregate_card_stats(filters, criteria, direction, "pilots", ds)
     return {"pilots": data}
@@ -81,8 +85,18 @@ def get_ship_lists(
     filtered_data.sort(key=lambda x: x.get("win_rate", 0), reverse=True)
     if not filtered_data:
         filtered_data = data  # Fallback if no robust lists
-        
-    return {"lists": [enrich_list_data(l, source=ds) for l in filtered_data[:limit]]}
+
+    top = filtered_data[:limit]
+    signatures: list[str] = [l["signature"] for l in top if l.get("signature")]
+    pilots_map = fetch_list_pilots(signatures) if signatures else {}
+    # Attach lazily-fetched pilots (aggregation returns empty pilots now);
+    # copy rows so the shared aggregation result is never mutated.
+    enriched = [
+        {**l, "pilots": pilots_map.get(l["signature"], [])}
+        for l in top
+        if l.get("signature")
+    ]
+    return {"lists": [enrich_list_data(l, source=ds) for l in enriched]}
 
 
 @router.get("/{ship_xws}/squadrons")
