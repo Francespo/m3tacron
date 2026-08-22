@@ -18,7 +18,7 @@ Options:
                                         all time
                            Explicit:    YYYY-MM-DD:YYYY-MM-DD | YYYY-MM-DD:today
                            Legacy:      positive integer (days back)
-                           Default: yesterday.
+                           Default: last week.
     --max-tournaments N    Maximum tournaments to collect per scraper instance.
                            Default: no limit.
     --include-listfortress When platform is 'all', also include ListFortress.
@@ -906,7 +906,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--time-range",
-        default="1",
+        default="last week",
         dest="time_range",
         metavar="RANGE",
         help=(
@@ -914,7 +914,7 @@ def main() -> int:
             "Range keyword: last 3 days, last week, last month, "
             "last 3 months, last 6 months, last year, all time. "
             "Explicit range: YYYY-MM-DD:YYYY-MM-DD or YYYY-MM-DD:today/yesterday. "
-            "Legacy: positive integer (days back). Default: 1 (yesterday)."
+            "Legacy: positive integer (days back). Default: last week (last 7 days)."
         ),
     )
     parser.add_argument(

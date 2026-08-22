@@ -29,7 +29,7 @@ on:
           Explicit range: YYYY-MM-DD:YYYY-MM-DD | YYYY-MM-DD:today | YYYY-MM-DD:yesterday | yesterday:today
           Legacy:        positive integer (days back from today, treated as last N days)
         required: true
-        default: "yesterday"
+        default: "last week"
         type: string
       environment:
         description: "Target database environment (use none for SQLite artifact only)"
@@ -118,7 +118,7 @@ jobs:
           DB_ENV="${{ inputs.environment }}"
 
           if [ -z "$PLATFORM" ]; then PLATFORM="longshanks+rollbetter"; fi
-          if [ -z "$TIME_RANGE" ]; then TIME_RANGE="yesterday"; fi
+          if [ -z "$TIME_RANGE" ]; then TIME_RANGE="last week"; fi
           if [ -z "$DB_ENV" ]; then DB_ENV="staging"; fi
 
           # Build DATABASE_URL from secrets via SSH tunnel.
