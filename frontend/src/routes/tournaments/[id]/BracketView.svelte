@@ -187,51 +187,14 @@
         return null;
     });
 
-    function scrollToColumn(colIndex: number) {
-        const el = document.getElementById("bracket-scroll-container");
-        if (el) {
-            el.scrollTo({
-                left: colIndex * COL_STEP - 20,
-                behavior: "smooth"
-            });
-        }
-    }
+
 </script>
 
 <div class="flex flex-col w-full">
-    <!-- Quick Jump Bar (for brackets with 3+ rounds) -->
-    {#if bracketTreeData.rounds.length >= 3}
-        <div class="flex flex-wrap items-center gap-2 mb-4 bg-terminal-panel/80 p-2.5 rounded-lg border border-border-dark shrink-0">
-            <span class="text-xs font-mono text-secondary uppercase tracking-wider mr-1 font-semibold">
-                Jump to:
-            </span>
-            {#each Array.from({ length: bracketTreeData.rounds.length }) as _, c}
-                {@const label = getColumnHeader(bracketTreeData.rounds[c].length, c, bracketTreeData.rounds.length)}
-                <button
-                    type="button"
-                    class="px-2.5 py-1 text-xs font-mono rounded border border-border-dark bg-terminal-panel hover:bg-white/10 text-primary hover:border-primary/40 transition-colors"
-                    onclick={() => scrollToColumn(c)}
-                >
-                    {label}
-                </button>
-            {/each}
-            <button
-                type="button"
-                class="px-2.5 py-1 text-xs font-mono font-bold rounded border border-green-500/40 bg-green-500/10 hover:bg-green-500/20 text-green-400 hover:border-green-400/60 transition-colors flex items-center gap-1"
-                onclick={() => scrollToColumn(bracketTreeData.rounds.length)}
-            >
-                <svg class="w-3.5 h-3.5 text-green-400" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2a1 1 0 0 1 .993.883L13 3v2h4a2 2 0 0 1 1.995 1.85L19 7v2a5 5 0 0 1-4.825 4.992l-.175.008h-.5l-.175.008c-.027.02-.054.043-.081.068a6.002 6.002 0 0 1-5.184.03l-.06-.03-.175-.008h-.5A5 5 0 0 1 3 9V7a2 2 0 0 1 1.85-1.995L5 5h4V3a1 1 0 0 1 .883-.993L10 2h2z" />
-                </svg>
-                Champion
-            </button>
-        </div>
-    {/if}
-
     <!-- Scrollable Bracket View Container -->
     <div
         id="bracket-scroll-container"
-        class="bracket-scroll w-full overflow-x-auto overflow-y-auto max-h-[750px] border border-border-dark rounded-xl bg-[#080b12] p-4 relative"
+        class="bracket-scroll w-full overflow-x-auto overflow-y-auto max-h-[750px] border border-border-dark rounded-xl bg-terminal-panel p-4 relative"
     >
         {#if bracketTreeData.rounds.length === 0}
             <div class="py-12 text-center text-secondary font-mono text-sm">

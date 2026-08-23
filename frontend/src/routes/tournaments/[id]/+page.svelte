@@ -189,9 +189,6 @@
     // --- Standings pagination ---
     const STANDINGS_PER_PAGE = 10;
     let swissPage = $state(0);
-    let cutPage = $state(0);
-    let standingsTab = $state<"swiss" | "cut">("swiss");
-    let cutViewMode = $state<"bracket" | "list">("bracket");
 
     const playerMap = $derived.by(() => {
         const map = new Map<string, any>();
@@ -210,43 +207,16 @@
         return map;
     });
 
-    // Reset pagination and tab when tournament ID changes
+    // Reset pagination when tournament ID changes
     let prevTournamentId: string | undefined = undefined;
     $effect(() => {
         const curId = data?.id;
         if (curId && curId !== prevTournamentId) {
             prevTournamentId = curId;
             swissPage = 0;
-            cutPage = 0;
-            standingsTab = "swiss";
             currentRoundIndex = 0;
-            cutViewMode = "bracket";
         }
     });
-
-    function prevPage() {
-        if (standingsTab === "cut") {
-            if (cutPage > 0) cutPage--;
-        } else {
-            if (swissPage > 0) swissPage--;
-        }
-    }
-    function nextPage() {
-        if (standingsTab === "cut") cutPage++;
-        else swissPage++;
-    }
-
-    function cutStageLabel(rank: number): string {
-        if (rank === 1) return "Winner";
-        if (rank === 2) return "Runner-Up";
-        if (rank === 4) return "Semi-Finals";
-        if (rank === 8) return "Quarter-Finals";
-        if (rank === 16) return "Round of 16";
-        if (rank === 32) return "Round of 32";
-        if (rank === 64) return "Round of 64";
-        if (rank === 128) return "Round of 128";
-        return `Place ${rank}`;
-    }
 </script>
 
 <svelte:head>
@@ -383,160 +353,43 @@
             <span class="text-base text-primary font-sans">{t.location}</span>
         </div>
 
-        <!-- Playoff Cut Stage Section -->
-        {#if (matches ?? []).some((m: Match) => (m.type || "").toLowerCase().trim() === "cut")}
-            <div class="mb-8">
-                <div class="bg-terminal-panel border border-border-dark rounded-xl p-4 md:p-6 shadow-xl">
-                    <!-- Header with Title and View Toggle -->
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border-dark pb-4 mb-6">
-                        <div class="flex items-center gap-3">
-                            <div class="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400">
-                                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="6 9 12 15 18 9"></polyline>
-                                    <path d="M6 18h12"></path>
-                                    <path d="M6 6h12"></path>
-                                </svg>
-                            </div>
-                            <div>
-                                <h2 class="text-lg font-bold text-primary font-mono tracking-wide uppercase">
-                                    Playoff Stage — Knockout Bracket
-                                </h2>
-                                <p class="text-xs text-secondary font-mono">
-                                    Single-elimination tree progression
-                                </p>
-                            </div>
-                        </div>
+        {@const hasCut = (detail.players_cut?.length ?? 0) > 0}
+        {@const swissGroups = roundGroups.filter((g: RoundGroup) => g.type === 'swiss')}
+        {@const cutGroups = roundGroups.filter((g: RoundGroup) => g.type === 'cut')}
+        {@const hasCutMatches = cutGroups.length > 0}
+        {@const isKnockoutCut = hasCutMatches && (() => {
+            const firstCutRound = cutGroups[0]?.matches ?? [];
+            if (firstCutRound.length <= 1) return true;
+            // if first cut round has many matches and next rounds have fewer, it's knockout
+            return cutGroups.every((g, idx) => idx === 0 || g.matches.length <= cutGroups[idx - 1].matches.length);
+        })()}
 
-                        <!-- View Toggle Button: Bracket View / List View -->
-                        <div class="flex items-center bg-[#070a10] border border-border-dark rounded-lg p-1 self-start sm:self-auto">
-                            <button
-                                type="button"
-                                class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-mono font-bold uppercase tracking-wider transition-all duration-150 {cutViewMode === 'bracket' ? 'bg-primary/20 text-primary border border-primary/30 shadow-sm' : 'text-secondary hover:text-primary'}"
-                                onclick={() => { cutViewMode = 'bracket'; }}
-                            >
-                                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="3" y="3" width="7" height="7"></rect>
-                                    <rect x="14" y="3" width="7" height="7"></rect>
-                                    <rect x="14" y="14" width="7" height="7"></rect>
-                                    <rect x="3" y="14" width="7" height="7"></rect>
-                                </svg>
-                                <span>Bracket View</span>
-                            </button>
-                            <button
-                                type="button"
-                                class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-mono font-bold uppercase tracking-wider transition-all duration-150 {cutViewMode === 'list' ? 'bg-primary/20 text-primary border border-primary/30 shadow-sm' : 'text-secondary hover:text-primary'}"
-                                onclick={() => { cutViewMode = 'list'; }}
-                            >
-                                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <line x1="8" y1="6" x2="21" y2="6"></line>
-                                    <line x1="8" y1="12" x2="21" y2="12"></line>
-                                    <line x1="8" y1="18" x2="21" y2="18"></line>
-                                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                                </svg>
-                                <span>List View</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Content: Bracket View vs List View -->
-                    {#if cutViewMode === 'bracket'}
-                        <BracketView matches={detail.matches ?? []} {playerMap} />
-                    {:else}
-                        <!-- Tabular List View of Cut Matches -->
-                        <div class="flex flex-col gap-6">
-                            {#each roundGroups.filter(g => g.type === 'cut') as group}
-                                <div class="border border-border-dark/60 rounded-lg overflow-hidden bg-[#090d16]">
-                                    <div class="bg-[rgba(255,255,255,0.03)] border-b border-border-dark/60 p-3 flex items-center justify-between">
-                                        <span class="font-mono text-sm font-bold text-amber-300 uppercase tracking-wider">{group.label}</span>
-                                        <span class="text-xs font-mono text-secondary">{group.matches.length} Match{group.matches.length === 1 ? '' : 'es'}</span>
-                                    </div>
-                                    <div class="divide-y divide-border-dark/40">
-                                        {#each group.matches as m}
-                                            {@const winnerName = pickWinnerName(m)}
-                                            {@const p1Info = playerMap.get(m.player1.trim().toLowerCase())}
-                                            {@const p2Info = playerMap.get(m.player2.trim().toLowerCase())}
-                                            <div class="flex items-center justify-between gap-4 p-3 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
-                                                <!-- Player 1 -->
-                                                <div class="flex items-center gap-2 flex-1 min-w-0 justify-end">
-                                                    {#if p1Info?.list_id}
-                                                        <a href="/list/{p1Info.list_id}" class="text-xs font-mono text-secondary hover:text-green-400 border border-border-dark px-1.5 py-0.5 rounded">List</a>
-                                                    {/if}
-                                                    <span class="font-mono text-sm truncate text-right {winnerName === m.player1 ? 'text-green-400 font-bold' : winnerName === null ? 'text-secondary' : 'text-primary'}" title={m.player1}>{m.player1}</span>
-                                                    {#if p1Info?.faction}
-                                                        <FactionIcon faction={p1Info.faction} size="sm" />
-                                                    {/if}
-                                                </div>
-
-                                                <!-- Score -->
-                                                <div class="flex items-center justify-center gap-1.5 font-mono text-sm px-3 py-1 rounded bg-[rgba(255,255,255,0.04)] border border-border-dark shrink-0 font-bold">
-                                                    <span class={winnerName === m.player1 ? 'text-green-400' : 'text-secondary'}>{m.score1}</span>
-                                                    <span class="text-secondary/60">-</span>
-                                                    <span class={winnerName === m.player2 ? 'text-green-400' : 'text-secondary'}>{m.score2}</span>
-                                                </div>
-
-                                                <!-- Player 2 -->
-                                                <div class="flex items-center gap-2 flex-1 min-w-0 justify-start">
-                                                    {#if p2Info?.faction}
-                                                        <FactionIcon faction={p2Info.faction} size="sm" />
-                                                    {/if}
-                                                    <span class="font-mono text-sm truncate text-left {winnerName === m.player2 ? 'text-green-400 font-bold' : winnerName === null ? 'text-secondary' : 'text-primary'}" title={m.player2}>{m.player2}</span>
-                                                    {#if p2Info?.list_id}
-                                                        <a href="/list/{p2Info.list_id}" class="text-xs font-mono text-secondary hover:text-green-400 border border-border-dark px-1.5 py-0.5 rounded">List</a>
-                                                    {/if}
-                                                </div>
-                                            </div>
-                                        {/each}
-                                    </div>
-                                </div>
-                            {/each}
-                        </div>
-                    {/if}
-                </div>
-            </div>
-        {/if}
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <!-- Swiss Section: two-column when no cut bracket is shown, full-width stacking otherwise -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start mb-6">
             <div class="flex flex-col gap-6">
-                <!-- Standings (toggleable when both Cut + Swiss exist) -->
-                {#if hasCutTpl || hasSwissTpl}
+                <!-- Swiss Standings (or fallback when no cut exists) -->
+                {#if hasSwissTpl || (!hasCut && !hasCutMatches)}
                     <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden">
                         <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center justify-between gap-3">
-                            {#if hasCutTpl && hasSwissTpl}
-                                <div class="flex items-center bg-[rgba(255,255,255,0.05)] rounded-md p-0.5">
-                                    <button
-                                        class="px-3 py-1 rounded-md text-xs font-mono font-bold uppercase tracking-wider transition-colors {standingsTab === 'swiss' ? 'bg-[rgba(255,255,255,0.1)] text-primary' : 'text-secondary hover:text-primary'}"
-                                        onclick={() => { standingsTab = 'swiss'; }}
-                                    >Swiss</button>
-                                    <button
-                                        class="px-3 py-1 rounded-md text-xs font-mono font-bold uppercase tracking-wider transition-colors {standingsTab === 'cut' ? 'bg-[rgba(255,255,255,0.1)] text-primary' : 'text-secondary hover:text-primary'}"
-                                        onclick={() => { standingsTab = 'cut'; }}
-                                    >Cut</button>
-                                </div>
-                            {:else}
-                                <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">{hasCutTpl ? "CUT STANDINGS" : "STANDINGS"}</h2>
-                            {/if}
-
-                            <!-- Standings Pagination Controls in Top Header -->
+                            <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">SWISS STANDINGS</h2>
                             <div class="flex items-center gap-3">
-                                {#if Math.ceil((standingsTab === 'cut' ? (detail.players_cut?.length ?? 0) : (detail.players_swiss?.length ?? 0)) / STANDINGS_PER_PAGE) > 1}
+                                {#if Math.ceil((detail.players_swiss?.length ?? 0) / STANDINGS_PER_PAGE) > 1}
                                     <span class="text-xs font-mono text-secondary">
-                                        Page {(standingsTab === 'cut' ? cutPage : swissPage) + 1} / {Math.ceil(((standingsTab === 'cut' ? (detail.players_cut ?? []) : (detail.players_swiss ?? [])) as any[]).length / STANDINGS_PER_PAGE)}
+                                        Page {swissPage + 1} / {Math.ceil((detail.players_swiss?.length ?? 0) / STANDINGS_PER_PAGE)}
                                     </span>
                                     <div class="flex items-center gap-1">
                                         <button
                                             class="p-1.5 rounded-md border border-border-dark text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
-                                            disabled={(standingsTab === 'cut' ? cutPage : swissPage) === 0}
-                                            onclick={prevPage}
+                                            disabled={swissPage === 0}
+                                            onclick={() => { if (swissPage > 0) swissPage--; }}
                                             aria-label="Previous page"
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                                         </button>
                                         <button
                                             class="p-1.5 rounded-md border border-border-dark text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
-                                            disabled={(standingsTab === 'cut' ? cutPage : swissPage) >= Math.ceil(((standingsTab === 'cut' ? (detail.players_cut ?? []) : (detail.players_swiss ?? [])) as any[]).length / STANDINGS_PER_PAGE) - 1}
-                                            onclick={nextPage}
+                                            disabled={swissPage >= Math.ceil((detail.players_swiss?.length ?? 0) / STANDINGS_PER_PAGE) - 1}
+                                            onclick={() => swissPage++}
                                             aria-label="Next page"
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -545,28 +398,8 @@
                                 {/if}
                             </div>
                         </div>
-
-                        <!-- Standings Player List -->
-                        {#if standingsTab === 'cut' && (() => { const players = (detail.players_cut ?? []) as { rank: number }[]; if (players.length < 2) return false; const ranks = players.map((pp) => pp.rank); const counts = new Map<number, number>(); for (const r of ranks) counts.set(r, (counts.get(r) ?? 0) + 1); const shared = [...counts.values()].filter((c) => c > 1).reduce((a, b) => a + b, 0); const allPow = ranks.every((r) => r > 0 && (r & (r - 1)) === 0); return shared / players.length > 0.5 || (allPow && shared > 0); })()}
-                            <!-- Knockout placement: group by reached stage, compact -->
-                            <div class="flex flex-col">
-                                {#each (() => { const _items = ((standingsTab === 'cut' ? (detail.players_cut ?? []) : (detail.players_swiss ?? [])) as any[]).slice((standingsTab === 'cut' ? cutPage : swissPage) * STANDINGS_PER_PAGE, ((standingsTab === 'cut' ? cutPage : swissPage) + 1) * STANDINGS_PER_PAGE); const groups = new Map<number, { rank: number; players: typeof _items }>(); for (const pp of _items) { const pr = (pp as any).rank as number; if (!groups.has(pr)) groups.set(pr, { rank: pr, players: [] as any }); (groups.get(pr)!.players as any).push(pp); } return Array.from(groups.values()).sort((a, b) => a.rank - b.rank); })() as g}
-                                    <div class="flex items-center gap-3 p-2.5 border-b border-border-dark last:border-0">
-                                        <span class="w-20 shrink-0 text-[10px] font-mono uppercase tracking-wide text-right leading-tight {g.rank <= 2 ? 'text-green-400 font-bold' : 'text-amber-300'}">{cutStageLabel(g.rank)}</span>
-                                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
-                                            {#each g.players as p}
-                                                <span class="inline-flex items-center gap-1.5 min-w-0">
-                                                    <FactionIcon faction={p.faction} size="sm" />
-                                                    <span class="font-mono text-sm text-primary truncate max-w-[160px]" title={p.name}>{p.name}</span>
-                                                </span>
-                                            {/each}
-                                        </div>
-                                    </div>
-                                {/each}
-                            </div>
-                        {:else}
                         <div class="flex flex-col">
-                            {#each ((standingsTab === 'cut' ? (detail.players_cut ?? []) : (detail.players_swiss ?? [])) as any[]).slice((standingsTab === 'cut' ? cutPage : swissPage) * STANDINGS_PER_PAGE, ((standingsTab === 'cut' ? cutPage : swissPage) + 1) * STANDINGS_PER_PAGE) as p}
+                            {#each (detail.players_swiss ?? []).slice(swissPage * STANDINGS_PER_PAGE, (swissPage + 1) * STANDINGS_PER_PAGE) as p}
                                 <div class="flex items-center gap-3 p-3 border-b border-border-dark last:border-0 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
                                     <span class="w-8 h-8 rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center font-mono text-sm">{p.rank}</span>
                                     <FactionIcon faction={p.faction} size="md" />
@@ -580,59 +413,49 @@
                                     </div>
                                     <div class="flex-1"></div>
                                     {#if p.list_id}
-                                        <a
-                                            href="/list/{p.list_id}"
-                                            class="px-3 py-1 border border-border-dark rounded-md text-xs font-mono hover:bg-[rgba(255,255,255,0.1)] text-primary no-underline"
-                                            >LIST</a
-                                        >
+                                        <a href="/list/{p.list_id}" class="px-3 py-1 border border-border-dark rounded-md text-xs font-mono hover:bg-[rgba(255,255,255,0.1)] text-primary no-underline">LIST</a>
                                     {/if}
                                 </div>
                             {/each}
                         </div>
-                        {/if}
                     </div>
                 {/if}
             </div>
 
-            <!-- Matches (round carousel) -->
-            {#if roundGroups.length > 0}
-                {@const group = roundGroups[currentRoundIndex]}
-                {@const dom = dominantScenario(group.matches)}
+            <!-- Matches: Swiss-only carousel (cut matches are in the bracket below) -->
+            {#if swissGroups.length > 0}
+                {@const swissIdx = Math.min(currentRoundIndex, swissGroups.length - 1)}
+                {@const swissGroup = swissGroups[swissIdx]}
+                {@const swissDom = dominantScenario(swissGroup.matches)}
                 <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden flex flex-col" style="max-height: calc(100vh - 120px);">
                     <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center justify-between gap-3 shrink-0">
                         <div class="flex flex-col min-w-0">
                             <div class="flex items-center gap-2">
-                                <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">
-                                    {group.label}
-                                </h2>
-                                <span class="px-1.5 py-0.5 text-[10px] font-mono rounded font-semibold uppercase {group.type === 'cut' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'}">
-                                    {group.type === 'cut' ? 'Knockout' : 'Swiss'}
-                                </span>
+                                <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">{swissGroup.label}</h2>
+                                <span class="px-1.5 py-0.5 text-[10px] font-mono rounded font-semibold uppercase bg-blue-500/20 text-blue-300 border border-blue-500/30">Swiss</span>
                             </div>
-                            {#if dom}
-                                <span class="text-[11px] font-mono text-secondary uppercase tracking-wider truncate">{humanizeScenario(dom)}</span>
+                            {#if swissDom}
+                                <span class="text-[11px] font-mono text-secondary uppercase tracking-wider truncate">{humanizeScenario(swissDom)}</span>
                             {/if}
                         </div>
-
-                        <!-- Matches Round Controls in Top Header -->
                         <div class="flex items-center gap-3 shrink-0">
-                            {#if roundGroups.length > 1}
+                            {#if swissGroups.length > 1}
                                 <span class="text-xs font-mono text-secondary">
-                                    Round {currentRoundIndex + 1} / {roundGroups.length}
+                                    Round {swissIdx + 1} / {swissGroups.length}
                                 </span>
                                 <div class="flex items-center gap-1">
                                     <button
                                         class="p-1.5 rounded-md border border-border-dark text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
-                                        disabled={currentRoundIndex === 0}
-                                        onclick={prevRound}
+                                        disabled={swissIdx === 0}
+                                        onclick={() => { if (currentRoundIndex > 0) currentRoundIndex--; }}
                                         aria-label="Previous round"
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                                     </button>
                                     <button
                                         class="p-1.5 rounded-md border border-border-dark text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
-                                        disabled={currentRoundIndex >= roundGroups.length - 1}
-                                        onclick={nextRound}
+                                        disabled={swissIdx >= swissGroups.length - 1}
+                                        onclick={() => { if (currentRoundIndex < swissGroups.length - 1) currentRoundIndex++; }}
                                         aria-label="Next round"
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -641,10 +464,8 @@
                             {/if}
                         </div>
                     </div>
-
-                    <!-- Matches List -->
                     <div class="flex flex-col divide-y divide-border-dark/50 overflow-y-auto p-2">
-                        {#each group.matches as m}
+                        {#each swissGroup.matches as m}
                             {@const winnerName = pickWinnerName(m)}
                             <div class="flex items-center justify-between gap-3 p-2 mx-1 my-0.5 rounded-md bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)] transition-colors">
                                 <span class="font-mono text-sm text-left flex-1 truncate pr-2 {winnerName === m.player1 ? 'text-green-400 font-bold' : winnerName === null ? 'text-secondary' : 'text-primary'}" title={m.player1}>{m.player1}</span>
@@ -657,21 +478,60 @@
                             </div>
                         {/each}
                     </div>
-
-                    <!-- Quick Jump Round Bar -->
-                    {#if roundGroups.length > 1}
+                    {#if swissGroups.length > 1}
                         <div class="flex items-center justify-center gap-1.5 p-2 border-t border-border-dark shrink-0 overflow-x-auto">
-                            {#each roundGroups as rg, i}
-                                <button
-                                    class="px-2 py-0.5 text-[11px] font-mono rounded transition-colors {i === currentRoundIndex ? (rg.type === 'cut' ? 'bg-amber-500/30 text-amber-200 border border-amber-500/40' : 'bg-primary/20 text-primary border border-primary/30') : 'text-secondary hover:text-primary hover:bg-[rgba(255,255,255,0.05)]'}"
-                                    onclick={() => currentRoundIndex = i}
-                                >{rg.shortLabel}</button>
+                            {#each swissGroups as rg, i}
+                                <button class="px-2 py-0.5 text-[11px] font-mono rounded transition-colors {i === swissIdx ? 'bg-primary/20 text-primary border border-primary/30' : 'text-secondary hover:text-primary hover:bg-[rgba(255,255,255,0.05)]'}" onclick={() => currentRoundIndex = i}>{rg.shortLabel}</button>
                             {/each}
                         </div>
                     {/if}
                 </div>
             {/if}
         </div>
+
+        <!-- Playoff Bracket (single-elimination cut) — shown below the Swiss section; replaces both the Cut leaderboard and the Cut rounds of the old round viewer -->
+        {#if hasCutMatches}
+            <div class="mb-8">
+                <div class="bg-terminal-panel border border-border-dark rounded-xl p-4 md:p-6 shadow-xl">
+                    <div class="flex items-center gap-3 border-b border-border-dark pb-4 mb-6">
+                        <div class="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline><path d="M6 18h12"></path><path d="M6 6h12"></path></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-bold text-primary font-mono tracking-wide uppercase">Playoff Stage — Knockout Bracket</h2>
+                            <p class="text-xs text-secondary font-mono">Single-elimination tree — tap any match to see leads into the next round</p>
+                        </div>
+                    </div>
+                    {#if isKnockoutCut}
+                        <BracketView matches={detail.matches ?? []} {playerMap} />
+                    {:else}
+                        <!-- Cut is not single-elimination (e.g. secondary Swiss); fall back to tabular cut rounds -->
+                        <div class="flex flex-col gap-4">
+                            {#each cutGroups as group}
+                                <div class="border border-border-dark/60 rounded-lg overflow-hidden bg-[#090d16]">
+                                    <div class="bg-[rgba(255,255,255,0.03)] border-b border-border-dark/60 p-3 flex items-center justify-between">
+                                        <span class="font-mono text-sm font-bold text-amber-300 uppercase tracking-wider">{group.label}</span>
+                                        <span class="text-xs font-mono text-secondary">{group.matches.length} Match{group.matches.length === 1 ? '' : 'es'}</span>
+                                    </div>
+                                    <div class="divide-y divide-border-dark/40">
+                                        {#each group.matches as m}
+                                            {@const winnerName = pickWinnerName(m)}
+                                            <div class="flex items-center justify-between gap-4 p-3 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
+                                                <span class="font-mono text-sm flex-1 truncate text-right {winnerName === m.player1 ? 'text-green-400 font-bold' : winnerName === null ? 'text-secondary' : 'text-primary'}" title={m.player1}>{m.player1}</span>
+                                                <div class="flex items-center justify-center gap-1.5 font-mono text-sm px-3 py-1 rounded bg-[rgba(255,255,255,0.04)] border border-border-dark shrink-0 font-bold">
+                                                    <span class={winnerName === m.player1 ? 'text-green-400' : 'text-secondary'}>{m.score1}</span><span class="text-secondary/60">-</span><span class={winnerName === m.player2 ? 'text-green-400' : 'text-secondary'}>{m.score2}</span>
+                                                </div>
+                                                <span class="font-mono text-sm flex-1 truncate text-left {winnerName === m.player2 ? 'text-green-400 font-bold' : winnerName === null ? 'text-secondary' : 'text-primary'}" title={m.player2}>{m.player2}</span>
+                                            </div>
+                                        {/each}
+                                    </div>
+                                </div>
+                            {/each}
+                        </div>
+                    {/if}
+                </div>
+            </div>
+        {/if}
     {:else}
         <div class="flex flex-col items-center justify-center py-24">
             <h2 class="text-xl font-bold text-primary font-sans mb-4">
