@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { getFormatFullLabel } from "$lib/data/formats";
+    import { getDisplayFormatFullLabel } from "$lib/data/formats";
     import { getSourceLabel } from "$lib/data/source";
     import BackLink from "$lib/components/BackLink.svelte";
     import ErrorPanel from "$lib/components/ErrorPanel.svelte";
@@ -276,7 +276,7 @@
                     >Format</span
                 >
                 <span class="text-base font-bold text-primary font-mono truncate"
-                    >{getFormatFullLabel(t.format)}</span
+                    >{getDisplayFormatFullLabel(t.format, t.date)}</span
                 >
             </div>
             <div

@@ -55,3 +55,44 @@ export function getMacroFormat(formatXws: string): string {
     if (['ffg', 'legacy_x2po', 'legacy_xlc', 'legacy_pandorum'].includes(formatXws)) return '2.0';
     return '';
 }
+
+/**
+ * Infer display format for legacy tournaments where the stored
+ * `format` is `unknown`. Pre-2021 AMG/XWA tournaments are frequently
+ * stored as `unknown` due to missing ListFortress/Rollbetter format IDs,
+ * but the rule system at the time was exclusively FFG (2.0).
+ *
+ * For detail pages and chips that have access to the tournament date,
+ * pass `dateStr` (YYYY-MM-DD) to recover the correct era label.
+ *
+ * Behaviour:
+ *  - If `formatXws` is not `unknown` / `other` / falsy, return as-is.
+ *  - If `formatXws` is unknown and the date is before 2021-01-01, infer `ffg`.
+ *  - Otherwise return the original value (caller shows "Unknown").
+ */
+export function resolveDisplayFormat(
+    formatXws: string | null | undefined,
+    dateStr?: string | null,
+): string {
+    const raw = (formatXws ?? '').toLowerCase().trim();
+    if (raw && raw !== 'unknown' && raw !== 'other') return raw;
+    if (dateStr) {
+        // Lexicographic comparison is safe for YYYY-MM-DD
+        if (dateStr < '2021-01-01') return 'ffg';
+    }
+    return raw || 'unknown';
+}
+
+export function getDisplayFormatLabel(
+    formatXws: string | null | undefined,
+    dateStr?: string | null,
+): string {
+    return getFormatLabel(resolveDisplayFormat(formatXws, dateStr));
+}
+
+export function getDisplayFormatFullLabel(
+    formatXws: string | null | undefined,
+    dateStr?: string | null,
+): string {
+    return getFormatFullLabel(resolveDisplayFormat(formatXws, dateStr));
+}
