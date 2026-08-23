@@ -266,91 +266,89 @@
             <h1 class="text-3xl font-sans font-bold text-primary mt-4 mb-6">{t.name}</h1>
         </div>
 
-        <!-- Info Grid -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <!-- Info Grid — 5 capsules on one row (desktop), Location shares the row -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
             <div
-                class="bg-terminal-panel border border-border-dark rounded-lg p-4 flex flex-col"
+                class="bg-terminal-panel border border-border-dark rounded-lg p-3 flex flex-col min-w-0"
             >
                 <span class="text-xs text-secondary font-mono uppercase mb-1"
                     >Format</span
                 >
-                <span class="text-lg font-bold text-primary font-mono"
+                <span class="text-base font-bold text-primary font-mono truncate"
                     >{getFormatFullLabel(t.format)}</span
                 >
             </div>
             <div
-                class="bg-terminal-panel border border-border-dark rounded-lg p-4 flex flex-col"
+                class="bg-terminal-panel border border-border-dark rounded-lg p-3 flex flex-col min-w-0"
             >
                 <span class="text-xs text-secondary font-mono uppercase mb-1"
                     >Date</span
                 >
-                <span class="text-lg font-bold text-primary font-mono"
+                <span class="text-base font-bold text-primary font-mono truncate"
                     >{t.date}</span
                 >
             </div>
             <div
-                class="bg-terminal-panel border border-border-dark rounded-lg p-4 flex flex-col"
+                class="bg-terminal-panel border border-border-dark rounded-lg p-3 flex flex-col min-w-0"
             >
                 <span class="text-xs text-secondary font-mono uppercase mb-1"
                     >Players</span
                 >
-                <span class="text-lg font-bold text-primary font-mono"
+                <span class="text-base font-bold text-primary font-mono"
                     >{t.players}</span
                 >
             </div>
             <div
-                class="bg-terminal-panel border border-border-dark rounded-lg p-4 flex flex-col"
+                class="bg-terminal-panel border border-border-dark rounded-lg p-3 flex flex-col min-w-0"
             >
                 <span class="text-xs text-secondary font-mono uppercase mb-1"
                     >Source</span
                 >
-                <div class="flex items-center gap-2 min-w-0">
-                    <span class="text-lg font-bold text-primary font-mono truncate"
+                {#if t.url}
+                    <a
+                        href={t.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        class="inline-flex items-center gap-1.5 text-base font-bold text-primary font-mono truncate hover:text-white transition-colors underline decoration-dotted decoration-white/20 underline-offset-4 hover:decoration-white/50"
+                        title="Open tournament on {getSourceLabel(t.source)}"
+                        aria-label="Open tournament on {getSourceLabel(t.source)}"
+                    >
+                        <span class="truncate">{getSourceLabel(t.source)}</span>
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            class="shrink-0 opacity-60"
+                            ><path
+                                d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
+                            /><polyline points="15 3 21 3 21 9" /><line
+                                x1="10"
+                                y1="14"
+                                x2="21"
+                                y2="3"
+                            /></svg
+                        >
+                    </a>
+                {:else}
+                    <span class="text-base font-bold text-primary font-mono truncate"
                         >{getSourceLabel(t.source)}</span
                     >
-                    {#if t.url}
-                        <a
-                            href={t.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            class="inline-flex items-center gap-1 text-[11px] font-mono text-primary hover:text-white transition-colors"
-                            title="Open tournament on source"
-                            aria-label="Open tournament on source"
-                        >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="13"
-                                height="13"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                ><path
-                                    d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
-                                /><polyline points="15 3 21 3 21 9" /><line
-                                    x1="10"
-                                    y1="14"
-                                    x2="21"
-                                    y2="3"
-                                /></svg
-                            >
-                            <span>View on Source</span>
-                        </a>
-                    {/if}
-                </div>
+                {/if}
             </div>
-        </div>
-
-        <!-- Location -->
-        <div
-            class="bg-terminal-panel border border-border-dark rounded-lg p-4 mb-6"
-        >
-            <span class="text-xs text-secondary font-mono uppercase mb-1 block"
-                >Location</span
+            <div
+                class="bg-terminal-panel border border-border-dark rounded-lg p-3 flex flex-col min-w-0"
             >
-            <span class="text-base text-primary font-sans">{t.location}</span>
+                <span class="text-xs text-secondary font-mono uppercase mb-1"
+                    >Location</span
+                >
+                <span class="text-sm text-primary font-sans truncate" title={t.location}>{t.location}</span>
+            </div>
         </div>
 
         {@const hasCut = (detail.players_cut?.length ?? 0) > 0}
@@ -364,12 +362,12 @@
             return cutGroups.every((g, idx) => idx === 0 || g.matches.length <= cutGroups[idx - 1].matches.length);
         })()}
 
-        <!-- Swiss Section: equal-height standings + rounds; bracket sits full-width below -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch mb-6">
+        <!-- Swiss Section: standings natural height, rounds shortened to match -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start mb-6">
             <div class="flex flex-col">
                 <!-- Swiss Standings (or fallback when no cut exists) -->
                 {#if hasSwissTpl || (!hasCut && !hasCutMatches)}
-                    <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden flex flex-col h-full">
+                    <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden">
                         <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center justify-between gap-3">
                             <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">SWISS STANDINGS</h2>
                             <div class="flex items-center gap-3">
@@ -398,7 +396,7 @@
                                 {/if}
                             </div>
                         </div>
-                        <div class="flex flex-col flex-1 min-h-0">
+                        <div class="flex flex-col">
                             {#each (detail.players_swiss ?? []).slice(swissPage * STANDINGS_PER_PAGE, (swissPage + 1) * STANDINGS_PER_PAGE) as p}
                                 <div class="flex items-center gap-3 p-3 border-b border-border-dark last:border-0 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
                                     <span class="w-8 h-8 rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center font-mono text-sm">{p.rank}</span>
@@ -413,7 +411,10 @@
                                     </div>
                                     <div class="flex-1"></div>
                                     {#if p.list_id}
-                                        <a href="/list/{p.list_id}" class="px-3 py-1 border border-border-dark rounded-md text-xs font-mono hover:bg-[rgba(255,255,255,0.1)] text-primary no-underline">LIST</a>
+                                        <a href="/list/{p.list_id}" class="inline-flex items-center gap-1 px-2.5 py-1 border border-border-dark rounded-md text-xs font-mono hover:bg-[rgba(255,255,255,0.1)] text-primary no-underline" title="View list" aria-label="View list">
+                                            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>
+                                            view list
+                                        </a>
                                     {/if}
                                 </div>
                             {/each}
@@ -422,12 +423,12 @@
                 {/if}
             </div>
 
-            <!-- Matches: Swiss-only carousel (cut matches are in the bracket below) -->
+            <!-- Matches: Swiss-only carousel (cut matches are in the bracket below) — kept compact, not stretched -->
             {#if swissGroups.length > 0}
                 {@const swissIdx = Math.min(currentRoundIndex, swissGroups.length - 1)}
                 {@const swissGroup = swissGroups[swissIdx]}
                 {@const swissDom = dominantScenario(swissGroup.matches)}
-                <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden flex flex-col h-full" style="max-height: calc(100vh - 120px);">
+                <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden flex flex-col" style="max-height: 520px;">
                     <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center justify-between gap-3 shrink-0">
                         <div class="flex flex-col min-w-0">
                             <div class="flex items-center gap-2">
@@ -464,7 +465,7 @@
                             {/if}
                         </div>
                     </div>
-                    <div class="flex flex-col divide-y divide-border-dark/50 overflow-y-auto p-2 flex-1 min-h-0">
+                    <div class="flex flex-col divide-y divide-border-dark/50 overflow-y-auto p-2">
                         {#each swissGroup.matches as m}
                             {@const winnerName = pickWinnerName(m)}
                             <div class="flex items-center justify-between gap-3 p-2 mx-1 my-0.5 rounded-md bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)] transition-colors">

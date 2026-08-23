@@ -402,13 +402,8 @@
                                             {m.player1}
                                         </span>
                                         {#if p1Info?.list_id}
-                                            <a href="/list/{p1Info.list_id}" class="inline-flex items-center shrink-0 text-secondary hover:text-green-400 transition-colors ml-0.5" title="View squadron list">
-                                                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                                    <polyline points="14 2 14 8 20 8"></polyline>
-                                                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                                                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                                                </svg>
+                                            <a href="/list/{p1Info.list_id}" class="inline-flex items-center shrink-0 text-secondary hover:text-primary transition-colors ml-0.5" title="View list" aria-label="View list">
+                                                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>
                                             </a>
                                         {/if}
                                     </div>
@@ -434,13 +429,8 @@
                                             {m.player2}
                                         </span>
                                         {#if p2Info?.list_id}
-                                            <a href="/list/{p2Info.list_id}" class="inline-flex items-center shrink-0 text-secondary hover:text-green-400 transition-colors ml-0.5" title="View squadron list">
-                                                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                                    <polyline points="14 2 14 8 20 8"></polyline>
-                                                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                                                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                                                </svg>
+                                            <a href="/list/{p2Info.list_id}" class="inline-flex items-center shrink-0 text-secondary hover:text-primary transition-colors ml-0.5" title="View list" aria-label="View list">
+                                                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>
                                             </a>
                                         {/if}
                                     </div>
@@ -494,9 +484,11 @@
                         {#if champInfo?.list_id}
                             <a
                                 href="/list/{champInfo.list_id}"
-                                class="mt-1.5 px-2.5 py-0.5 border border-amber-400/40 rounded-md bg-amber-500/10 hover:bg-amber-500/20 text-[10px] font-mono text-amber-200 hover:text-amber-100 transition-colors uppercase tracking-wider font-semibold"
+                                class="mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 border border-amber-400/40 rounded-md bg-amber-500/10 hover:bg-amber-500/20 text-[10px] font-mono text-amber-200 hover:text-amber-100 transition-colors uppercase tracking-wider font-semibold"
+                                aria-label="View list"
                             >
-                                View Deck
+                                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>
+                                view list
                             </a>
                         {/if}
                     </div>
