@@ -427,12 +427,12 @@
                 {/if}
             </div>
 
-            <!-- Matches: Swiss-only carousel (cut matches are in the bracket below) — height synced to standings -->
+            <!-- Matches: Swiss-only carousel — capped to standings height, never taller -->
             {#if swissGroups.length > 0}
                 {@const swissIdx = Math.min(currentRoundIndex, swissGroups.length - 1)}
                 {@const swissGroup = swissGroups[swissIdx]}
                 {@const swissDom = dominantScenario(swissGroup.matches)}
-                <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden flex flex-col" style="height: {swissStandingsHeight ? `${swissStandingsHeight}px` : 'auto'};">
+                <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden flex flex-col" style="{swissStandingsHeight ? `max-height: ${swissStandingsHeight}px;` : ''}">
                     <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center justify-between gap-3 shrink-0">
                         <div class="flex flex-col min-w-0">
                             <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">{swissGroup.label}</h2>
