@@ -1,0 +1,156 @@
+name: Promote Staging to Production
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type YES to promote staging database to production"
+        required: true
+        type: string
+        default: ""
+      backup:
+        description: "Keep a backup of current production as m3tacron_backup_YYYYMMDD"
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    if: inputs.confirm == 'YES'
+
+    steps:
+      - name: Configure PostgreSQL PGDG repo
+        run: |
+          sudo install -d /etc/apt/keyrings
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Open SSH tunnel
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s' "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > /tmp/m3tacron_deploy_key
+          tail -c1 /tmp/m3tacron_deploy_key | read -r _ || echo >> /tmp/m3tacron_deploy_key
+          chmod 600 /tmp/m3tacron_deploy_key
+          eval $(ssh-agent -s)
+          ssh-add /tmp/m3tacron_deploy_key
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
+          rm -f /tmp/m3tacron_deploy_key
+
+      - name: Start database tunnel
+        run: |
+          ssh -f -N -L 5432:localhost:3000 \
+            -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes \
+            audit-bot@84.8.253.2
+          for i in $(seq 1 15); do
+            if pg_isready -h localhost -p 5432 2>/dev/null | grep -q "accepting"; then
+              echo "Tunnel ready."
+              break
+            fi
+            sleep 1
+          done
+          pg_isready -h localhost -p 5432 || (echo "ERROR: DB tunnel failed" && exit 1)
+
+      - name: Extract DB password
+        id: dbpass
+        run: |
+          RAW="${{ secrets.PROD_DATABASE_URL }}"
+          PASS=$(python3 -c "from urllib.parse import urlparse; import sys; u=urlparse(sys.argv[1]); print(u.password or sys.argv[1])" "$RAW")
+          echo "::add-mask::$PASS"
+          echo "pass=$PASS" >> "$GITHUB_OUTPUT"
+
+      - name: Match PostgreSQL client to server version
+        run: |
+          PASS="${{ steps.dbpass.outputs.pass }}"
+          export PGPASSWORD="$PASS"
+          SERVER_MAJOR=$(psql -h localhost -p 5432 -U postgres -d postgres -t -A -c "SHOW server_version;" 2>/dev/null | cut -d. -f1 | tr -d '[:space:]')
+          if [ -n "$SERVER_MAJOR" ]; then
+            echo "Detected server PostgreSQL version: $SERVER_MAJOR"
+            sudo apt-get install -y "postgresql-client-$SERVER_MAJOR" || true
+          fi
+          echo "pg_dump version in use: $(pg_dump --version)"
+
+      - name: Snapshot before promote
+        run: |
+          PASS="${{ steps.dbpass.outputs.pass }}"
+          export PGPASSWORD="$PASS"
+          echo "=== Before promote ==="
+          psql -h localhost -p 5432 -U postgres -d postgres -c "SELECT 'prod: ' || COUNT(*) FROM tournament;" 2>&1 | grep "prod:"
+          psql -h localhost -p 5432 -U postgres -d m3tacron_staging -c "SELECT 'staging: ' || COUNT(*) FROM tournament;" 2>&1 | grep "staging:"
+
+      - name: Promote staging to production
+        run: |
+          PASS="${{ steps.dbpass.outputs.pass }}"
+          export PGPASSWORD="$PASS"
+          DATE=$(date +%Y%m%d_%H%M%S)
+
+          if [ "${{ inputs.backup }}" = "true" ]; then
+            echo "Creating backup: m3tacron_backup_${DATE}..."
+            pg_dump -h localhost -p 5432 -U postgres -d postgres --no-owner --no-acl -Fc -f /tmp/prod_backup.dump
+            psql -h localhost -p 5432 -U postgres -d postgres -c "
+              SELECT pg_terminate_backend(pid)
+              FROM pg_stat_activity
+              WHERE datname = 'm3tacron_backup' AND pid <> pg_backend_pid();
+            " || true
+            psql -h localhost -p 5432 -U postgres -d postgres -c "DROP DATABASE IF EXISTS m3tacron_backup;"
+            psql -h localhost -p 5432 -U postgres -d postgres -c "CREATE DATABASE m3tacron_backup;"
+            pg_restore -h localhost -p 5432 -U postgres -d m3tacron_backup --no-owner --no-acl /tmp/prod_backup.dump || true
+            psql -h localhost -p 5432 -U postgres -d postgres -c "SELECT pg_size_pretty(pg_database_size('m3tacron_backup'));" 2>&1 | tail -1
+            rm -f /tmp/prod_backup.dump
+          fi
+
+          echo "Dumping staging..."
+          pg_dump -h localhost -p 5432 -U postgres -d m3tacron_staging --no-owner --no-acl -Fc -f /tmp/staging.dump
+
+          echo "Restoring to production..."
+          # Terminate connections to allow clean schema recreation
+          psql -h localhost -p 5432 -U postgres -d postgres -c "
+            SELECT pg_terminate_backend(pid)
+            FROM pg_stat_activity
+            WHERE datname = 'postgres' AND pid <> pg_backend_pid();
+          " || true
+
+          # Drop and recreate public schema
+          psql -h localhost -p 5432 -U postgres -d postgres -c "
+            DROP SCHEMA public CASCADE;
+            CREATE SCHEMA public;
+            GRANT ALL ON SCHEMA public TO postgres;
+            GRANT ALL ON SCHEMA public TO public;
+          "
+
+          pg_restore -h localhost -p 5432 -U postgres -d postgres --no-owner --no-acl /tmp/staging.dump
+          rm -f /tmp/staging.dump
+
+          echo "=== After promote ==="
+          psql -h localhost -p 5432 -U postgres -d postgres -c "SELECT 'prod: ' || COUNT(*) FROM tournament;" 2>&1 | grep "prod:"
+          psql -h localhost -p 5432 -U postgres -d postgres -t -c "SELECT MAX(date) FROM tournament;" 2>&1 | tail -1
+
+          echo "Promotion complete. Backup preserved at m3tacron_backup."
+
+      - name: Bump data_version cache
+        run: |
+          PASS="${{ steps.dbpass.outputs.pass }}"
+          export PGPASSWORD="$PASS"
+          psql -h localhost -p 5432 -U postgres -d postgres -c "
+            DO \$\$
+            DECLARE
+              current_val text;
+              new_val int;
+            BEGIN
+              SELECT value INTO current_val FROM scrape_meta WHERE key = 'data_version';
+              BEGIN
+                new_val := current_val::integer + 1;
+              EXCEPTION WHEN OTHERS THEN
+                new_val := 1;
+              END;
+              INSERT INTO scrape_meta (key, value) VALUES ('data_version', new_val::text)
+              ON CONFLICT (key) DO UPDATE SET value = new_val::text;
+            END \$\$;
+          " 2>&1 | tail -1
+          echo "Cache invalidated."

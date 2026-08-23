@@ -56,7 +56,7 @@ from ..database import engine
 from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
 from ..api.formatters import _reformat_pilots
-from .filter_helpers import format_filter_clause, ship_list_filter_clause
+from .filter_helpers import format_filter_clause, ship_list_filter_clause, huge_ships_exclusion_clause
 
 
 def aggregate_list_stats(
@@ -91,6 +91,21 @@ def aggregate_list_stats(
         where_clauses.append("t.player_count <= :pc_max")
         params["pc_max"] = int(filters["player_count_max"])
 
+    # Location filters — tournament.location is stored as JSON; access via
+    # JSONB ->> operator on the text representation of each sub-field.
+    filter_continents = filters.get("continent")
+    if filter_continents:
+        where_clauses.append("t.location->>'continent' = ANY(:continents)")
+        params["continents"] = list(filter_continents)
+    filter_countries = filters.get("country")
+    if filter_countries:
+        where_clauses.append("t.location->>'country' = ANY(:countries)")
+        params["countries"] = list(filter_countries)
+    filter_cities = filters.get("city")
+    if filter_cities:
+        where_clauses.append("t.location->>'city' = ANY(:cities)")
+        params["cities"] = list(filter_cities)
+
     fmt_clause = format_filter_clause(filters.get("allowed_formats"), params, leading_and=False)
     if fmt_clause:
         where_clauses.append(fmt_clause)
@@ -119,6 +134,12 @@ def aggregate_list_stats(
     if ship_clause:
         where_clauses.append(ship_clause)
 
+    where_clauses.append("(NOT t.is_team_event OR ps.is_team_member)")
+    if not filters.get("epic", False):
+        huge_clause = huge_ships_exclusion_clause(False, data_source, params)
+        if huge_clause:
+            where_clauses.append(huge_clause)
+
     where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
     with Session(engine) as session:
@@ -130,8 +151,7 @@ def aggregate_list_stats(
                 l.faction_xws_normalized,
                 l.name,
                 l.points,
-                l.list_json,
-                COUNT(*) as games,
+                COUNT(*) as entries,
                 SUM(
                     GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.swiss_losses, 0)) +
                     GREATEST(0, COALESCE(ps.swiss_draws, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0)) +
@@ -143,30 +163,30 @@ def aggregate_list_stats(
             JOIN list l ON l.id = ps.list_id
             WHERE {where_sql}
             GROUP BY l.id, l.canonical_signature, l.faction, l.faction_xws_normalized,
-                     l.name, l.points, l.list_json
+                     l.name, l.points
             """
         )
         result = session.execute(sql, params).fetchall()
 
-    # Build result list — no Python canonicalization, but transform pilots
-    # to match the expected Pydantic schema (xws, upgrades as list of {xws}).
+    # Build result list — stats only. Pilots are NOT loaded here: pulling
+    # list_json for every row (51K+ rows, ~49MB) and reformatting all of
+    # them was the dominant cold-cache cost, yet pagination discards all
+    # but one page. Callers attach pilots for only the rows they return via
+    # fetch_list_pilots().
     #
     # Row tuple column order:
     #   0 canonical_signature, 1 faction, 2 faction_xws_normalized,
-    #   3 name, 4 points, 5 list_json, 6 games, 7 total_games, 8 wins
+    #   3 name, 4 points, 5 entries, 6 total_games, 7 wins
     final_list = []
     for row in result:
         faction = row[1] or "unknown"
-        list_json = row[5]
-        if not list_json or not isinstance(list_json, dict):
-            continue
         try:
             f_enum = Faction.from_xws(faction)
         except (ValueError, AttributeError):
             f_enum = Faction.UNKNOWN
-        pilots_out = _reformat_pilots(list_json.get("pilots", []))
-        wins = int(row[8] or 0)
-        games = int(row[7] or 0)
+        wins = int(row[7] or 0)
+        games = int(row[6] or 0)
+        entries = int(row[5] or 0)
         # win_rate as a percentage (0-100), one decimal place. Avoid
         # division-by-zero — empty groups surface as 0.0.
         win_rate = round((wins / games) * 100, 1) if games else 0.0
@@ -176,11 +196,40 @@ def aggregate_list_stats(
             "points": row[4] or 0,
             "original_points": 0,
             "faction_xws": f_enum,
-            "pilots": pilots_out,
+            "pilots": [],
             "wins": wins,
             "games": games,
             "win_rate": win_rate,
+            "count": entries,
+            "entries": entries,
+            "entries_count": entries,
         })
 
     final_list.sort(key=lambda x: x["games"], reverse=True)
     return final_list
+
+
+def fetch_list_pilots(signatures: list[str]) -> dict[str, list[dict]]:
+    """Fetch + reformat pilots for a small set of list signatures.
+
+    Lazy counterpart to aggregate_list_stats: loads list_json only for the
+    rows actually being returned (e.g. one paginated page), not the whole
+    aggregation result. Returns {signature: [pilot, ...]}.
+    """
+    if not signatures:
+        return {}
+
+    with Session(engine) as session:
+        sql = text(
+            "SELECT canonical_signature, list_json FROM list "
+            "WHERE canonical_signature = ANY(:sigs)"
+        )
+        rows = session.execute(sql, {"sigs": list(set(signatures))}).fetchall()
+
+    result: dict[str, list[dict]] = {}
+    for sig, list_json in rows:
+        if list_json and isinstance(list_json, dict):
+            result[sig] = _reformat_pilots(list_json.get("pilots", []))
+        else:
+            result[sig] = []
+    return result

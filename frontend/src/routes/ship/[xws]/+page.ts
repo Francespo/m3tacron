@@ -1,17 +1,50 @@
 import type { PageLoad } from './$types';
 import { API_BASE } from '$lib/api';
+import { browser } from '$app/environment';
+import { filters } from '$lib/stores/filters.svelte';
+
+function buildForwardParams(url: URL): URLSearchParams {
+    // Forward every global filter from the URL to the 4 ship detail endpoints.
+    // Exclude keys that are ships-overview specific (pagination/sort) — the
+    // detail endpoint's own `faction` toggle is forwarded explicitly below.
+    const SKIP = new Set(['page', 'size', 'sort_metric', 'sort_direction']);
+    const out = new URLSearchParams();
+
+    for (const [k, v] of url.searchParams.entries()) {
+        if (SKIP.has(k)) continue;
+        out.append(k, v);
+    }
+
+    // Ensure data_source always present (backend defaults to xwa but we want explicit)
+    if (!out.has('data_source')) {
+        const ds = url.searchParams.get('data_source') || 'xwa';
+        out.set('data_source', ds);
+    }
+
+    // Epic: URL param wins; on client, also honor the shared filter store so
+    // navigating from /ships with the toggle on keeps Huge pilots visible.
+    const includeEpic =
+        url.searchParams.get('epic') === 'true' ||
+        (browser && filters.includeEpic);
+    out.set('epic', String(includeEpic));
+
+    return out;
+}
 
 export const load: PageLoad = async ({ fetch, params, url }) => {
     url.search; // Force reactivity
     const shipXws = params.xws;
-    const ds = url.searchParams.get('data_source') || 'xwa';
 
-    // Fetch all endpoints in parallel
+    const fwd = buildForwardParams(url);
+    const qs = fwd.toString();
+    const factionParam = url.searchParams.get('faction') || 'all';
+
+    // Fetch all endpoints in parallel, all sharing the same global filters
     const [infoRes, pilotsRes, listsRes, squadronsRes] = await Promise.allSettled([
-        fetch(`${API_BASE}/ship/${shipXws}?data_source=${ds}`),
-        fetch(`${API_BASE}/ship/${shipXws}/pilots?data_source=${ds}`),
-        fetch(`${API_BASE}/ship/${shipXws}/lists?data_source=${ds}&limit=10`),
-        fetch(`${API_BASE}/ship/${shipXws}/squadrons?data_source=${ds}&limit=10`),
+        fetch(`${API_BASE}/ship/${shipXws}?${qs}`),
+        fetch(`${API_BASE}/ship/${shipXws}/pilots?${qs}`),
+        fetch(`${API_BASE}/ship/${shipXws}/lists?${qs}&limit=10`),
+        fetch(`${API_BASE}/ship/${shipXws}/squadrons?${qs}&limit=10`),
     ]);
 
     const shipData = infoRes.status === 'fulfilled' && infoRes.value.ok
@@ -33,5 +66,6 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
         pilots: pilotsData.pilots || [],
         lists: listsData.lists || [],
         squadrons: squadronsData.squadrons || [],
+        faction: factionParam,
     };
 };

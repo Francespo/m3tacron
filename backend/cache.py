@@ -32,7 +32,17 @@ _in_flight: dict[str, threading.Event] = {}
 _in_flight_errors: dict[str, BaseException] = {}
 
 
+def get_db_version() -> str | None:
+    """Public: read data_version from scrape_meta (used by auto-rewarm)."""
+    return _get_db_version_impl()
+
+
 def _get_db_version() -> str | None:
+    """Backward-compat alias; prefer get_db_version()."""
+    return _get_db_version_impl()
+
+
+def _get_db_version_impl() -> str | None:
     """
     Read the current data_version from scrape_meta table.
     Returns None if the table doesn't exist (e.g. SQLite test DB).

@@ -37,7 +37,7 @@
 
 <a
     href={listHref}
-    class="group flex bg-terminal-panel border border-border-dark border-l-[3px] rounded-lg overflow-hidden hover:border-primary/40 hover:bg-[#ffffff04] transition-colors cursor-pointer block"
+    class="group flex bg-terminal-panel border border-border-dark border-l-[3px] rounded-lg overflow-hidden hover:border-primary/40 hover:bg-[#ffffff04] active:bg-[#ffffff08] transition-colors cursor-pointer block"
     style="border-left: 3px solid {factionColor};"
 >
     <!-- Content -->
@@ -58,8 +58,24 @@
                 </span>
             </div>
 
-            <!-- Stats Badges (PTS colored emerald, GAMES standardized) -->
+            <!-- Stats Badges: entries→games→winrate→points (mandatory order) -->
             <div class="flex items-center gap-1.5 flex-wrap shrink-0">
+                <span
+                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
+                >
+                    ENTRIES {list.count ?? 1}
+                </span>
+                <span
+                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
+                >
+                    GAMES {list.games ?? 0}
+                </span>
+                <span
+                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
+                    style="color: {wrColor};"
+                >
+                    WR {list.games === 0 ? "NA" : wr.toFixed(1) + "%"}
+                </span>
                 <span
                     class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-mono font-bold"
                 >
@@ -74,17 +90,6 @@
                         >
                     {/if}
                 </span>
-                <span
-                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
-                    style="color: {wrColor};"
-                >
-                    WR {list.games === 0 ? "NA" : wr.toFixed(1) + "%"}
-                </span>
-                <span
-                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
-                >
-                    GAMES {list.games ?? 0}
-                </span>
             </div>
         </div>
 
@@ -93,7 +98,7 @@
             {#each list.pilots || [] as pilotEntry}
                 {@const pilotXws = normalizeXws(pilotEntry.xws)}
                 {@const pilot = xwingData.getPilot(pilotXws)}
-                {@const pilotSubtitle = pilot?.caption || pilot?.shipAbility?.name}
+                {@const pilotSubtitle = pilot?.caption}
                 <div
                     class="bg-[#ffffff05] border border-[#ffffff08] rounded-md p-2.5 min-w-[220px] flex-1 space-y-1.5"
                 >

@@ -5,11 +5,14 @@
     import SortBy from "$lib/components/SortBy.svelte";
     import SquadronRowCard from "$lib/components/SquadronRowCard.svelte";
     import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
+    import PendingIndicator from "$lib/components/PendingIndicator.svelte";
+    import ErrorPanel from "$lib/components/ErrorPanel.svelte";
     import Toggle from "$lib/components/Toggle.svelte";
     import {
         ALL_FACTIONS,
         getFactionLabel,
     } from "$lib/data/factions";
+    import { invalidateAll } from "$app/navigation";
     import { scheduleSync } from "$lib/sync/urlSync.svelte";
     import { filters } from "$lib/stores/filters.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
@@ -21,7 +24,40 @@
     let factionOpen = $state(false);
 
     const size = 20;
-    let total = $state(0);
+
+    // The loader streams squadron rows in via `itemsPromise` (non-blocking
+    // navigation). `resolved` keeps the LAST good payload so filter/sort/
+    // page changes never blank the list: stale rows stay visible under a
+    // thin "Updating…" bar while the next query runs; only the first load
+    // shows the skeleton.
+    let resolved = $state<any>(null);
+    let pending = $state(true);
+    let failed = $state(false);
+    let lastPromise: any = null;
+    let generation = 0;
+    let total = $derived(resolved?.total ?? 0);
+
+    $effect(() => {
+        const p = data.itemsPromise;
+        if (p === lastPromise) return;
+        lastPromise = p;
+        const gen = ++generation;
+        pending = true;
+        failed = false;
+        p.then((r: any) => {
+            if (gen !== generation) return;
+            resolved = r;
+            pending = false;
+        }).catch(() => {
+            if (gen !== generation) return;
+            failed = true;
+            pending = false;
+        });
+    });
+
+    function retry() {
+        invalidateAll();
+    }
 
     // Default sort metric for the squadrons listing. Matches the SortBy
     // options below (Win Rate, Games, Lists) — "Lists" sorts by list_count
@@ -29,13 +65,6 @@
     if (!filters.sortBy) {
         filters.sortBy = "Games";
     }
-
-    // Track total from the latest promise resolution (for nextPage guard)
-    $effect(() => {
-        data.itemsPromise.then((resolved: any) => {
-            total = Number(resolved.total ?? 0);
-        });
-    });
 
     // Re-fetch when filters change (URL synchronization)
     $effect(() => {
@@ -77,7 +106,7 @@
         <!-- Faction Checkboxes -->
         <div class="border-b border-border-dark mt-1">
             <button
-                class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary transition-colors"
+                class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
                 onclick={() => (factionOpen = !factionOpen)}
             >
                 <div class="flex items-center gap-2">
@@ -163,7 +192,7 @@
                 options={[
                     { value: "Games", label: "Games" },
                     { value: "Lists", label: "Lists" },
-                    { value: "Unique Lists", label: "Unique Lists" },
+                    { value: "Entries", label: "Entries" },
                     { value: "Win Rate", label: "Win Rate" },
                 ]}
                 onChange={(v, d) => {
@@ -173,18 +202,57 @@
             />
         </div>
 
-        {#await data.itemsPromise}
-            <p class="text-secondary font-mono text-sm mb-6">Loading...</p>
+        {#if !resolved}
+            {#if failed}
+                <div class="mb-6">
+                    <ErrorPanel
+                        title="Failed to load squadrons"
+                        onRetry={retry}
+                    />
+                </div>
+            {:else}
+                <p class="text-secondary font-mono text-sm mb-6">Loading…</p>
 
-            <!-- Loading Skeleton -->
-            <div class="space-y-3">
-                {#each Array(5) as _}
-                    <div class="animate-pulse bg-[#ffffff06] rounded-lg h-24 border border-border-dark"></div>
-                {/each}
-            </div>
-        {:then resolved}
-            {@const resolvedTotal = Number(resolved.total ?? 0)}
-            {@const squadronItems = resolved.items ?? []}
+                <!-- Loading Skeleton (matches SquadronRowCard shape) -->
+                <div class="space-y-3">
+                    {#each Array(5) as _}
+                        <div
+                            class="bg-terminal-panel border border-border-dark border-l-[3px] rounded-lg p-4 space-y-3"
+                        >
+                            <div class="flex items-center justify-between gap-2">
+                                <div
+                                    class="animate-pulse bg-[#ffffff06] rounded h-4 w-1/3"
+                                ></div>
+                                <div class="flex gap-1.5">
+                                    <div
+                                        class="animate-pulse bg-[#ffffff06] rounded h-4 w-10"
+                                    ></div>
+                                    <div
+                                        class="animate-pulse bg-[#ffffff06] rounded h-4 w-10"
+                                    ></div>
+                                    <div
+                                        class="animate-pulse bg-[#ffffff06] rounded h-4 w-10"
+                                    ></div>
+                                </div>
+                            </div>
+                            <div class="flex gap-2 flex-wrap">
+                                <div
+                                    class="animate-pulse bg-[#ffffff06] rounded h-9 w-24"
+                                ></div>
+                                <div
+                                    class="animate-pulse bg-[#ffffff06] rounded h-9 w-28"
+                                ></div>
+                                <div
+                                    class="animate-pulse bg-[#ffffff06] rounded h-9 w-20"
+                                ></div>
+                            </div>
+                        </div>
+                    {/each}
+                </div>
+            {/if}
+        {:else}
+            {@const resolvedTotal = Number(resolved?.total ?? 0)}
+            {@const squadronItems = resolved?.items ?? []}
             <!--
                 Filter: exclude only multi-faction squadrons (ships from
                 different factions illegally combined in one list).
@@ -206,44 +274,84 @@
 
                 return true;
             })}
-            <p class="text-secondary font-mono text-sm mb-6">
-                {total} Unique Squadrons Found
-            </p>
 
-            <!-- Squadron Cards -->
-            <div class="space-y-3">
-                {#each visibleSquadrons as list}
-                    <SquadronRowCard {list} />
-                {/each}
+            <!-- Stale rows stay visible while a refetch runs: the rows
+                 container dims while `pending` and smoothly returns to full
+                 opacity; the neutral inline tag next to the count says the
+                 update is in flight. -->
+            <div class="flex items-center gap-2.5 mb-6">
+                <p class="text-secondary font-mono text-sm">
+                    {total} Unique Squadrons Found
+                </p>
+                <PendingIndicator
+                    active={pending}
+                    mode="tag"
+                    label="Updating…"
+                />
             </div>
 
-            <!-- Pagination -->
-            {#if resolvedTotal > size}
-                <div
-                    class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
-                >
-                    <button
-                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
-                        onclick={prevPage}
-                        disabled={page <= 1}
+            <div
+                class="transition-opacity duration-200 {pending
+                    ? 'opacity-50'
+                    : 'opacity-100'}"
+            >
+
+                {#if visibleSquadrons.length > 0}
+                    <!-- Squadron Cards -->
+                    <div class="space-y-3">
+                        {#each visibleSquadrons as list}
+                            <SquadronRowCard {list} />
+                        {/each}
+                    </div>
+                {:else}
+                    <!-- Empty state: no squadrons matched the current filters -->
+                    <div
+                        class="bg-terminal-panel border border-border-dark rounded-lg p-8 text-center space-y-2"
                     >
-                        ← Prev
-                    </button>
-                    <span class="text-xs font-mono text-secondary">Page {page}</span
+                        <p
+                            class="text-primary font-sans font-bold text-lg tracking-wide"
+                        >
+                            No squadrons found
+                        </p>
+                        <p class="text-secondary font-mono text-sm">
+                            Try adjusting your filters, or retry the query.
+                        </p>
+                        <div class="pt-2">
+                            <button
+                                type="button"
+                                onclick={retry}
+                                class="px-4 py-1.5 text-xs font-mono border border-border-dark text-secondary rounded-md hover:bg-[#ffffff08] hover:text-primary active:bg-[#ffffff14] transition-colors"
+                            >
+                                Try again
+                            </button>
+                        </div>
+                    </div>
+                {/if}
+
+                <!-- Pagination -->
+                {#if resolvedTotal > size}
+                    <div
+                        class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
                     >
-                    <button
-                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary transition-colors disabled:opacity-30"
-                        onclick={nextPage}
-                        disabled={page * size >= resolvedTotal}
-                    >
-                        Next →
-                    </button>
-                </div>
-            {/if}
-        {:catch error}
-            <p class="text-red-400 font-mono text-sm mb-6">
-                Failed to load squadrons: {error.message}
-            </p>
-        {/await}
+                        <button
+                            class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            onclick={prevPage}
+                            disabled={page <= 1}
+                        >
+                            ← Prev
+                        </button>
+                        <span class="text-xs font-mono text-secondary">Page {page}</span
+                        >
+                        <button
+                            class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            onclick={nextPage}
+                            disabled={page * size >= resolvedTotal}
+                        >
+                            Next →
+                        </button>
+                    </div>
+                {/if}
+            </div>
+        {/if}
     </main>
 </div>

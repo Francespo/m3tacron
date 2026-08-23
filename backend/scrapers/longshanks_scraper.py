@@ -49,6 +49,29 @@ class LongshanksScraper(BaseScraper):
         self.inferred_format = None
         self.is_team_event = False
         self.player_team_map = {}
+        # member name (lower) -> team name, populated during get_participants
+        # for team events so get_matches can resolve per-player games to teams.
+        self.team_members: dict[str, str] = {}
+        # member display name (lower -> original casing)
+        self._member_display: dict[str, str] = {}
+        # team name (lower) -> team placeholder PlayerStanding (team record)
+        self._team_placeholders: dict[str, PlayerStanding] = {}
+        # member name (lower) -> member PlayerStanding
+        self._member_rows: dict[str, PlayerStanding] = {}
+
+    def _hide_cookie_popup(self, page) -> None:
+        """Best-effort cookie-popup hiding.
+
+        Never raises: Longshanks frequently triggers a JS navigation right
+        after the initial DOMContentLoaded, which destroys the page execution
+        context and makes add_style_tag throw. The popup is cosmetic — the
+        scrape must not fail because of it.
+        """
+        try:
+            page.add_style_tag(
+                content="#cookie_permission { display: none !important; }")
+        except Exception as exc:
+            logger.debug(f"Cookie-popup style injection skipped: {exc}")
 
     def _dismiss_cookie_popup(self, page) -> None:
         """Dismiss cookie consent popup if present."""
@@ -70,6 +93,44 @@ class LongshanksScraper(BaseScraper):
         except Exception:
             pass
 
+    def _games_panel_shows_round(self, page, round_num: int) -> bool:
+        """Return True when the #games panel has rendered the given round.
+
+        Each match's .details block contains "Round N", so we can distinguish
+        the requested round from the previous round's stale content.
+        """
+        try:
+            first_game = page.locator("#games .game").first
+            if first_game.count() == 0:
+                return False
+            details = first_game.locator(".details").all_inner_texts()
+            for d in details:
+                if re.search(rf"Round\s*C?\s*{round_num}\b", d):
+                    return True
+        except Exception:
+            pass
+        return False
+
+    def _goto_with_retry(self, page, url: str, wait_until="domcontentloaded",
+                         timeout: int = 30000, tries: int = 5) -> None:
+        """Navigate a page with retries.
+
+        Transient network errors (e.g. ERR_NETWORK_CHANGED, runner egress
+        timeouts) occasionally abort page loads; a few retries with growing
+        backoff make the long paginated runs and re-roster far more robust.
+        """
+        last_exc: Exception | None = None
+        for attempt in range(tries):
+            try:
+                page.goto(url, wait_until=wait_until, timeout=timeout)
+                return
+            except Exception as exc:
+                last_exc = exc
+                logger.warning(
+                    f"Navigation attempt {attempt + 1}/{tries} failed for {url}: {exc}")
+                page.wait_for_timeout(3000 * (attempt + 1))
+        raise last_exc or RuntimeError(f"Navigation failed: {url}")
+
     def _parse_faction(self, value: str) -> str | None:
         """Parse faction from image alt/src."""
         faction = Faction.from_xws(value)
@@ -86,10 +147,10 @@ class LongshanksScraper(BaseScraper):
         url = f"{self.base_url}/event/{tournament_id}/"
 
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
             page = browser.new_page()
             try:
-                page.goto(url, wait_until="networkidle", timeout=30000)
+                self._goto_with_retry(page, url, wait_until="networkidle", timeout=30000)
                 page.wait_for_timeout(2000)
 
                 if self.is_team_event:
@@ -250,304 +311,499 @@ class LongshanksScraper(BaseScraper):
     def get_participants(self, tournament_id: str) -> list[PlayerStanding]:
         """
         Scrape participants from the Ranking tab (Pure Python).
+
+        NOTE: the scraper instance is REUSED across tournaments by
+        scrape_platform (one LongshanksScraper per subdomain). Any state
+        carried from a previous tournament's get_participants (member rows,
+        team placeholders, maps) must be reset here — otherwise the stale
+        PlayerStanding objects, which may have been committed/expired by the
+        DB session during the previous save, get returned and cause
+        DetachedInstanceError on attribute access.
         """
         participants = []
+        self.is_team_event = False
+        self.player_team_map = {}
+        self.team_members = {}
+        self._member_display = {}
+        self._team_placeholders = {}
+        self._member_rows = {}
         # Force navigation to Ranking tab
         url = f"{self.base_url}/event/{tournament_id}/?tab=ranking"
 
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
             page = browser.new_page()
             try:
                 logger.info(f"Scraping participants from {url}")
-                page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                self._goto_with_retry(page, url, wait_until="domcontentloaded", timeout=60000)
 
-                # Cookie cleanup
-                page.add_style_tag(
-                    content="#cookie_permission { display: none !important; }")
+                # Cookie cleanup (non-fatal)
+                self._hide_cookie_popup(page)
 
-                # Wait for player list
-                try:
-                    page.wait_for_selector(".player", timeout=5000)
-                except:
-                    logger.warning("No .player elements found on Ranking tab.")
+                # The ranking tab can render slowly and Longshanks
+                # occasionally drops requests, so retry the parse when no
+                # players come back.
+                for attempt in range(3):
+                    # Wait for player list (the ranking tab can be slow)
+                    try:
+                        page.wait_for_selector(".player", timeout=20000)
+                    except:
+                        logger.warning(
+                            f"No .player elements found on Ranking tab (attempt {attempt + 1}/3).")
 
-                # Detection: Check if it's a team event (presence of sub-tabs)
-                is_team_event = page.locator("a#tab_team").count() > 0
-                self.is_team_event = is_team_event
-                self.player_team_map = {}
-                if is_team_event:
-                    logger.info(
-                        "Team event detected; scraping team standings.")
-
-                # We will perform two passes for team events, or one pass for individual events
-                team_results_only = is_team_event
-                passes = [False]  # Individual view (default)
-                if is_team_event:
-                    # Team view first, then Individual view
-                    passes = [True, False]
-
-                participants_dict = {}  # (Name, is_team) -> PlayerStanding
-                member_to_team = {}  # PID -> TeamName mapping
-
-                for is_team_pass in passes:
+                    # Detection: Check if it's a team event (presence of sub-tabs)
+                    is_team_event = page.locator("a#tab_team").count() > 0
+                    self.is_team_event = is_team_event
+                    self.player_team_map = {}
                     if is_team_event:
-                        if is_team_pass:
-                            # Pass 1: Scrape Teams
-                            page.locator("a#tab_team").click()
-                        else:
-                            # Pass 2: Scrape Individuals
-                            page.locator("a#tab_player").click()
+                        logger.info(
+                            "Team event detected; scraping team standings.")
 
-                        page.wait_for_timeout(2000)
-                        # Wait for rows to refresh from AJAX
-                        try:
-                            page.wait_for_selector(".player", timeout=5000)
-                        except:
-                            pass
+                    # We will perform two passes for team events, or one pass for individual events
+                    team_results_only = is_team_event
+                    passes = [False]  # Individual view (default)
+                    if is_team_event:
+                        # Team view first, then Individual view
+                        passes = [True, False]
 
-                    data_dump = []
-                    # Robust selectors (legacy doesn't have .main_content)
-                    ranking_container = page.locator(
-                        ".ranking.event, .main_content, body").first
-                    elements = ranking_container.locator("h3, .player").all()
+                    participants_dict = {}  # name -> PlayerStanding (members/individuals)
+                    member_to_team = {}  # PID -> TeamName mapping
+                    self.team_members = {}  # member name (lower) -> team name
 
-                    for el in elements:
-                        tag = el.evaluate("el => el.tagName.toLowerCase()")
-                        if tag == 'h3':
-                            data_dump.append(
-                                {'type': 'header', 'text': el.text_content() or ''})
-                            continue
+                    for is_team_pass in passes:
+                        if is_team_event:
+                            if is_team_pass:
+                                # Pass 1: Scrape Teams
+                                page.locator("a#tab_team").click()
+                            else:
+                                # Pass 2: Scrape Individuals
+                                page.locator("a#tab_player").click()
 
-                        classes = el.get_attribute("class") or ""
-                        if "player" not in classes:
-                            continue
+                            page.wait_for_timeout(2000)
+                            # Wait for rows to refresh from AJAX
+                            try:
+                                page.wait_for_selector(".player", timeout=5000)
+                            except:
+                                pass
 
-                        # Data Extraction
-                        name_el = el.locator(".player_link").first
-                        if name_el.count() == 0:
-                            name_el = el.locator(".data").first
-                        name_raw = name_el.text_content() if name_el.count() > 0 else "Unknown"
+                        data_dump = []
+                        # Robust selectors (legacy doesn't have .main_content)
+                        ranking_container = page.locator(
+                            ".ranking.event, .main_content, body").first
+                        elements = ranking_container.locator("h3, .player").all()
 
-                        rank_el = el.locator(".rank").first
-                        rank_raw = rank_el.text_content() if rank_el.count() > 0 else "0"
+                        for el in elements:
+                            tag = el.evaluate("el => el.tagName.toLowerCase()")
+                            if tag == 'h3':
+                                data_dump.append(
+                                    {'type': 'header', 'text': el.text_content() or ''})
+                                continue
 
-                        wins_el = el.locator(".wins").first
-                        wins_txt = wins_el.text_content() if wins_el.count() > 0 else "0"
+                            classes = el.get_attribute("class") or ""
+                            if "player" not in classes:
+                                continue
 
-                        loss_el = el.locator(".loss").first
-                        loss_txt = loss_el.text_content() if loss_el.count() > 0 else "0"
+                            # Longshanks renders the per-round "accordion" opponent
+                            # rows (and the "Drop" separator) as .player elements
+                            # too — e.g. class="player accordion 65045" or a bare
+                            # class="player drop" with no id. Those rows are NOT
+                            # standings entries and must not overwrite the real
+                            # standings stats below, or every player ends up with
+                            # the rank/W-L of their last opponent row.
+                            #
+                            # Real standings rows always carry id="player_<pid>"
+                            # (including players who dropped mid-event but still
+                            # have a final ranking — their row keeps the "drop"
+                            # class but still has the player_ id), so we use the
+                            # id attribute as the discriminator.
+                            row_id = el.get_attribute("id") or ""
+                            if "accordion" in classes or not row_id.startswith("player_"):
+                                continue
 
-                        draws_el = el.locator(".draws").first
-                        draws_txt = draws_el.text_content() if draws_el.count() > 0 else "0"
+                            # Data Extraction
+                            name_el = el.locator(".player_link").first
+                            if name_el.count() == 0:
+                                name_el = el.locator(".data").first
+                            name_raw = name_el.text_content() if name_el.count() > 0 else "Unknown"
 
-                        # Stats
-                        stats_items = []
-                        for s in el.locator(".stat").all():
-                            stats_items.append({
-                                'text': s.inner_text().strip() or s.text_content().strip(),
-                                'title': s.get_attribute("title") or ''
+                            rank_el = el.locator(".rank").first
+                            rank_raw = rank_el.text_content() if rank_el.count() > 0 else "0"
+                            rank_cls = rank_el.get_attribute("class") or "" if rank_el.count() > 0 else ""
+                            # Extra safety net: standings rows never have the
+                            # "opponent" marker on their .rank element.
+                            if "opponent" in rank_cls:
+                                continue
+
+                            wins_el = el.locator(".wins").first
+                            wins_txt = wins_el.text_content() if wins_el.count() > 0 else "0"
+
+                            loss_el = el.locator(".loss").first
+                            loss_txt = loss_el.text_content() if loss_el.count() > 0 else "0"
+
+                            draws_el = el.locator(".draws").first
+                            draws_txt = draws_el.text_content() if draws_el.count() > 0 else "0"
+
+                            # Stats
+                            stats_items = []
+                            for s in el.locator(".stat").all():
+                                stats_items.append({
+                                    'text': s.inner_text().strip() or s.text_content().strip(),
+                                    'title': s.get_attribute("title") or ''
+                                })
+
+                            list_icon = el.locator("a.list_link.pop").first
+                            xws_raw = list_icon.get_attribute(
+                                "data-list") if list_icon.count() > 0 else None
+
+                            # PID and Team Mapping
+                            pid = None
+                            team_name = None
+                            if is_team_pass:
+                                # Team View: First link is team, others are players
+                                team_link = el.locator(
+                                    "a[onclick*='pop_team']").first
+                                team_name = team_link.text_content().strip() if team_link.count() > 0 else name_raw
+
+                                # Map members
+                                for m_lnk in el.locator("a[onclick*='pop_user']").all():
+                                    onclick = m_lnk.get_attribute("onclick")
+                                    if onclick:
+                                        m_match = re.search(
+                                            r"pop_user\((\d+)", onclick)
+                                        if m_match:
+                                            member_to_team[m_match.group(
+                                                1)] = team_name
+                                            # Also record the member's display name
+                                            member_disp = m_lnk.inner_text().strip() if m_lnk.count() > 0 else ""
+                                            if member_disp:
+                                                member_disp = re.sub(r"\s*#\d+$", "", member_disp).strip()
+                                                self._member_display[member_disp.lower()] = member_disp
+                                                self.team_members[member_disp.lower()] = team_name
+                            else:
+                                # Individual View: extract PID
+                                user_link = el.locator(
+                                    "a[onclick*='pop_user']").first
+                                if user_link.count() > 0:
+                                    onclick = user_link.get_attribute("onclick")
+                                    if onclick:
+                                        p_match = re.search(
+                                            r"pop_user\((\d+)", onclick)
+                                        if p_match:
+                                            pid = p_match.group(1)
+
+                                if not pid:
+                                    id_span = el.locator(".id_number").first
+                                    if id_span.count() > 0:
+                                        txt = id_span.text_content() or ""
+                                        if '#' in txt:
+                                            pid = re.sub(
+                                                r"[^0-9]", "", txt.split('#')[-1])
+
+                            # A row is a TEAM row (not an individual) iff it
+                            # carries a pop_team link. In the individual pass,
+                            # team rows appear when the tab_player click timed
+                            # out and the (team) ranking view is still shown —
+                            # they must never become members.
+                            has_team_link = el.locator(
+                                "a[onclick*='pop_team']").count() > 0
+
+                            data_dump.append({
+                                'type': 'player',
+                                'nameRaw': name_raw,
+                                'rankRaw': rank_raw,
+                                'wins': wins_txt,
+                                'loss': loss_txt,
+                                'draw': draws_txt,
+                                'stats': stats_items,
+                                'xws': xws_raw,
+                                'pid': pid,
+                                'team_name': team_name if is_team_pass else member_to_team.get(pid),
+                                'has_team_link': has_team_link,
                             })
 
-                        list_icon = el.locator("a.list_link.pop").first
-                        xws_raw = list_icon.get_attribute(
-                            "data-list") if list_icon.count() > 0 else None
-
-                        # PID and Team Mapping
-                        pid = None
-                        team_name = None
-                        if is_team_pass:
-                            # Team View: First link is team, others are players
-                            team_link = el.locator(
-                                "a[onclick*='pop_team']").first
-                            team_name = team_link.text_content().strip() if team_link.count() > 0 else name_raw
-
-                            # Map members
-                            for m_lnk in el.locator("a[onclick*='pop_user']").all():
-                                onclick = m_lnk.get_attribute("onclick")
-                                if onclick:
-                                    m_match = re.search(
-                                        r"pop_user\((\d+)", onclick)
-                                    if m_match:
-                                        member_to_team[m_match.group(
-                                            1)] = team_name
-                        else:
-                            # Individual View: extract PID
-                            user_link = el.locator(
-                                "a[onclick*='pop_user']").first
-                            if user_link.count() > 0:
-                                onclick = user_link.get_attribute("onclick")
-                                if onclick:
-                                    p_match = re.search(
-                                        r"pop_user\((\d+)", onclick)
-                                    if p_match:
-                                        pid = p_match.group(1)
-
-                            if not pid:
-                                id_span = el.locator(".id_number").first
-                                if id_span.count() > 0:
-                                    txt = id_span.text_content() or ""
-                                    if '#' in txt:
-                                        pid = re.sub(
-                                            r"[^0-9]", "", txt.split('#')[-1])
-
-                        data_dump.append({
-                            'type': 'player',
-                            'nameRaw': name_raw,
-                            'rankRaw': rank_raw,
-                            'wins': wins_txt,
-                            'loss': loss_txt,
-                            'draw': draws_txt,
-                            'stats': stats_items,
-                            'xws': xws_raw,
-                            'pid': pid,
-                            'team_name': team_name if is_team_pass else member_to_team.get(pid)
-                        })
-
-                    # Process data_dump for this pass
-                    current_section = "swiss"
-                    for item in data_dump:
-                        if item['type'] == 'header':
-                            h_text = item['text'].lower()
-                            if "cut" in h_text or "top" in h_text:
-                                current_section = "cut"
-                            elif "main" in h_text or "swiss" in h_text:
-                                current_section = "swiss"
-                            continue
-
-                        if item['type'] != 'player':
-                            continue
-
-                        try:
-                            name = item.get('nameRaw', 'Unknown').strip()
-                            name = re.sub(r"\s*#\d+$", "", name)
-                            name = " ".join(name.split())
-
-                            pid = item.get('pid')
-                            t_name = item.get('team_name')
-
-                            if "bye" in name.lower() or "drop" in name.lower() or pid == "308":
+                        # Process data_dump for this pass
+                        current_section = "swiss"
+                        for item in data_dump:
+                            if item['type'] == 'header':
+                                h_text = item['text'].lower()
+                                if "cut" in h_text or "top" in h_text:
+                                    current_section = "cut"
+                                elif "main" in h_text or "swiss" in h_text:
+                                    current_section = "swiss"
                                 continue
 
-                            # Filter column headers
-                            wins_raw = str(item.get('wins', '0')).strip()
-                            if not re.search(r"\d", wins_raw):
+                            if item['type'] != 'player':
                                 continue
 
-                            r_match = re.search(
-                                r"(\d+)", str(item.get('rankRaw', '0')))
-                            rank = int(r_match.group(1)) if r_match else 0
-                            if rank == 0:
-                                continue
+                            try:
+                                name = item.get('nameRaw', 'Unknown').strip()
+                                name = re.sub(r"\s*#\d+$", "", name)
+                                name = " ".join(name.split())
 
-                            def _safe_stat(value) -> int:
-                                match = re.search(r"-?\d+", str(value))
-                                return int(match.group(0)) if match else 0
+                                pid = item.get('pid')
+                                t_name = item.get('team_name')
 
-                            wins = _safe_stat(item.get('wins'))
-                            losses = _safe_stat(item.get('loss'))
-                            draws = _safe_stat(item.get('draw'))
+                                if "bye" in name.lower() or "drop" in name.lower() or pid == "308":
+                                    continue
 
-                            tp = 0
-                            vps = 0
-                            score = 0
-                            mov = 0
+                                # Filter column headers
+                                wins_raw = str(item.get('wins', '0')).strip()
+                                if not re.search(r"\d", wins_raw):
+                                    continue
 
-                            for st in item.get('stats', []):
-                                txt = st['text'].strip().replace(
-                                    '\xa0', ' ').replace('–', '-').replace('—', '-')
-                                pattern1 = r"([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s+(-?\d+(?:\.\d+)?)"
-                                matches = re.findall(pattern1, txt)
-                                if not matches:
-                                    pattern2 = r"(-?\d+(?:\.\d+)?)\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)*)"
-                                    matches_rev = re.findall(pattern2, txt)
-                                    matches = [(m[1], m[0])
-                                               for m in matches_rev]
+                                r_match = re.search(
+                                    r"(\d+)", str(item.get('rankRaw', '0')))
+                                rank = int(r_match.group(1)) if r_match else 0
+                                if rank == 0:
+                                    continue
 
-                                for label_raw, val_raw in matches:
-                                    label = label_raw.strip().lower()
-                                    try:
-                                        val_int = int(float(val_raw))
-                                    except:
+                                def _safe_stat(value) -> int:
+                                    match = re.search(r"-?\d+", str(value))
+                                    return int(match.group(0)) if match else 0
+
+                                wins = _safe_stat(item.get('wins'))
+                                losses = _safe_stat(item.get('loss'))
+                                draws = _safe_stat(item.get('draw'))
+
+                                tp = 0
+                                vps = 0
+                                score = 0
+                                mov = 0
+
+                                for st in item.get('stats', []):
+                                    txt = st['text'].strip().replace(
+                                        '\xa0', ' ').replace('–', '-').replace('—', '-')
+                                    pattern1 = r"([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s+(-?\d+(?:\.\d+)?)"
+                                    matches = re.findall(pattern1, txt)
+                                    if not matches:
+                                        pattern2 = r"(-?\d+(?:\.\d+)?)\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)*)"
+                                        matches_rev = re.findall(pattern2, txt)
+                                        matches = [(m[1], m[0])
+                                                   for m in matches_rev]
+
+                                    for label_raw, val_raw in matches:
+                                        label = label_raw.strip().lower()
+                                        try:
+                                            val_int = int(float(val_raw))
+                                        except:
+                                            continue
+                                        if label in ["tp", "tournament points"]:
+                                            tp = val_int
+                                        elif label in ["mp", "mission points", "vps", "victory points"]:
+                                            vps = val_int
+                                        elif label in ["mov", "margin of victory"]:
+                                            mov = val_int
+                                        elif label in ["score", "points"]:
+                                            score = val_int
+
+                                    if not matches and st['title']:
+                                        title_lower = st['title'].lower()
+                                        try:
+                                            check_str = txt.replace(
+                                                '.', '', 1).replace('-', '', 1)
+                                            if check_str.isdigit():
+                                                val = int(float(txt))
+                                                if "tournament points" in title_lower or title_lower == "tp":
+                                                    tp = val
+                                                elif "mission points" in title_lower or "victory points" in title_lower or title_lower == "vps":
+                                                    vps = val
+                                                elif "margin of victory" in title_lower or title_lower == "mov":
+                                                    mov = val
+                                        except:
+                                            pass
+
+                                # Longshanks 2026 layout: the TP value is rendered
+                                # as a bare number with no label (e.g. the
+                                # .stat.mono.skinny.desktop cell shows "12"), or as
+                                # "12 TP" inside the .mobile variant. The label-
+                                # based patterns above can't capture either, so fall
+                                # back to those layouts here.
+                                if not tp:
+                                    clean = txt.strip()
+                                    if re.fullmatch(r"-?\d+", clean):
+                                        tp = int(clean)
+                                    else:
+                                        m_tp = re.search(
+                                            r"(-?\d+)\s*TP\b", clean, re.IGNORECASE)
+                                        if m_tp:
+                                            tp = int(m_tp.group(1))
+
+                                if not tp and (wins or draws):
+                                    tp = (wins * 3) + (draws * 1)
+
+                                final_ep = tp if "xwing-legacy" not in self.base_url else None
+                                final_tb = vps if "xwing-legacy" not in self.base_url else (
+                                    mov if mov else vps)
+
+                                if is_team_pass and t_name:
+                                    name = t_name
+
+                                if is_team_pass:
+                                    # Team view: one row per team. We record the
+                                    # team's aggregate record on a placeholder
+                                    # PlayerStanding (used only to derive the
+                                    # TeamStanding identity + team match winners)
+                                    # and create one member PlayerStanding per
+                                    # pop_user link (is_team_member=True, team_name
+                                    # set, zeroed standings) so per-player match
+                                    # FKs resolve. The team placeholder itself is
+                                    # NOT emitted as a player (analytics excludes
+                                    # non-members in team events).
+                                    key = name
+                                    team_placeholder = PlayerStanding(
+                                        tournament_id=int(tournament_id),
+                                        player_name=name,
+                                        list_json={},
+                                    )
+                                    team_placeholder.is_team_member = False
+                                    team_placeholder.team_name = name  # placeholder: links to its own teamstanding row
+                                    if current_section == "cut":
+                                        team_placeholder.cut_rank, team_placeholder.cut_wins, team_placeholder.cut_losses, team_placeholder.cut_draws = rank, wins, losses, draws
+                                        team_placeholder.cut_event_points, team_placeholder.cut_tie_breaker_points = final_ep, final_tb
+                                    else:
+                                        team_placeholder.swiss_rank, team_placeholder.swiss_wins, team_placeholder.swiss_losses, team_placeholder.swiss_draws = rank, wins, losses, draws
+                                        team_placeholder.swiss_event_points, team_placeholder.swiss_tie_breaker_points = final_ep, final_tb
+                                    # stash on the scraper so save_tournament_data
+                                    # can create TeamStanding identity rows
+                                    self._team_placeholders[name.lower().strip()] = team_placeholder
+
+                                    # Member rows (zeroed stats — Longshanks does
+                                    # not expose per-member standings, only names).
+                                    for m_name_lower, m_team in list(self.team_members.items()):
+                                        if m_team.lower().strip() != name.lower().strip():
+                                            continue
+                                        # Only create once (the team row may repeat
+                                        # in cut + swiss sections).
+                                        if m_name_lower in self._member_rows:
+                                            continue
+                                        member_pr = PlayerStanding(
+                                            tournament_id=int(tournament_id),
+                                            player_name=self._member_display.get(m_name_lower, m_name_lower),
+                                            list_json={},
+                                        )
+                                        member_pr.is_team_member = True
+                                        member_pr.team_name = m_team
+                                        self._member_rows[m_name_lower] = member_pr
+                                    continue
+
+                                if team_results_only and not is_team_pass:
+                                    # Individual view in a team event: build the
+                                    # member->team map AND add a real member
+                                    # PlayerStanding row so per-player matches
+                                    # resolve. The team placeholder rows (added
+                                    # from the team pass) carry the team's
+                                    # aggregate stats; members carry their own.
+                                    #
+                                    # IMPORTANT: when the tab_player click times
+                                    # out (cookie overlay / slow JS), the ranking
+                                    # tab still shows TEAM rows. Those rows carry
+                                    # a pop_team link — skip them so they never
+                                    # become members (they'd duplicate the team
+                                    # placeholder with is_team_member=true).
+                                    if item.get('has_team_link'):
+                                        if t_name and name:
+                                            self.player_team_map[name.lower()] = t_name
+                                            self.team_members.setdefault(name.lower(), t_name)
                                         continue
-                                    if label in ["tp", "tournament points"]:
-                                        tp = val_int
-                                    elif label in ["mp", "mission points", "vps", "victory points"]:
-                                        vps = val_int
-                                    elif label in ["mov", "margin of victory"]:
-                                        mov = val_int
-                                    elif label in ["score", "points"]:
-                                        score = val_int
+                                    if t_name and name:
+                                        self.player_team_map[name.lower()] = t_name
+                                        self.team_members[name.lower()] = t_name
+                                    # Member rows: mark as team members, keep their
+                                    # individual standings.
+                                    if not t_name:
+                                        # No team mapping for this player — skip
+                                        # (shouldn't happen for team events).
+                                        continue
+                                    key = name
+                                    if key in participants_dict:
+                                        pr = participants_dict[key]
+                                        if current_section == "cut":
+                                            pr.cut_rank, pr.cut_wins, pr.cut_losses, pr.cut_draws = rank, wins, losses, draws
+                                            pr.cut_event_points, pr.cut_tie_breaker_points = final_ep, final_tb
+                                        else:
+                                            pr.swiss_rank, pr.swiss_wins, pr.swiss_losses, pr.swiss_draws = rank, wins, losses, draws
+                                            pr.swiss_event_points, pr.swiss_tie_breaker_points = final_ep, final_tb
+                                    else:
+                                        pr = PlayerStanding(
+                                            tournament_id=int(tournament_id),
+                                            player_name=name,
+                                            list_json={},
+                                        )
+                                        pr.is_team_member = True
+                                        pr.team_name = t_name
+                                        if current_section == "cut":
+                                            pr.cut_rank, pr.cut_wins, pr.cut_losses, pr.cut_draws = rank, wins, losses, draws
+                                            pr.cut_event_points, pr.cut_tie_breaker_points = final_ep, final_tb
+                                        else:
+                                            pr.swiss_rank, pr.swiss_wins, pr.swiss_losses, pr.swiss_draws = rank, wins, losses, draws
+                                            pr.swiss_event_points, pr.swiss_tie_breaker_points = final_ep, final_tb
+                                        participants_dict[key] = pr
 
-                                if not matches and st['title']:
-                                    title_lower = st['title'].lower()
+                                    if item.get('xws'):
+                                        try:
+                                            xws_json = json.loads(item['xws'])
+                                            participants_dict[key].list_json = xws_json
+                                            if not self.inferred_format:
+                                                from ..data_structures.formats import infer_format_from_xws
+                                                self.inferred_format = infer_format_from_xws(
+                                                    xws_json)
+                                        except:
+                                            pass
+                                    continue
+
+                                # Individual events: normal path (unchanged).
+                                key = name
+                                if key in participants_dict:
+                                    pr = participants_dict[key]
+                                    if current_section == "cut":
+                                        pr.cut_rank, pr.cut_wins, pr.cut_losses, pr.cut_draws = rank, wins, losses, draws
+                                        pr.cut_event_points, pr.cut_tie_breaker_points = final_ep, final_tb
+                                    else:
+                                        pr.swiss_rank, pr.swiss_wins, pr.swiss_losses, pr.swiss_draws = rank, wins, losses, draws
+                                        pr.swiss_event_points, pr.swiss_tie_breaker_points = final_ep, final_tb
+                                else:
+                                    pr = PlayerStanding(
+                                        tournament_id=int(tournament_id),
+                                        player_name=name,
+                                        list_json={}
+                                    )
+                                    if current_section == "cut":
+                                        pr.cut_rank, pr.cut_wins, pr.cut_losses, pr.cut_draws = rank, wins, losses, draws
+                                        pr.cut_event_points, pr.cut_tie_breaker_points = final_ep, final_tb
+                                    else:
+                                        pr.swiss_rank, pr.swiss_wins, pr.swiss_losses, pr.swiss_draws = rank, wins, losses, draws
+                                        pr.swiss_event_points, pr.swiss_tie_breaker_points = final_ep, final_tb
+                                    participants_dict[key] = pr
+
+                                if item.get('xws') and not team_results_only:
                                     try:
-                                        check_str = txt.replace(
-                                            '.', '', 1).replace('-', '', 1)
-                                        if check_str.isdigit():
-                                            val = int(float(txt))
-                                            if "tournament points" in title_lower or title_lower == "tp":
-                                                tp = val
-                                            elif "mission points" in title_lower or "victory points" in title_lower or title_lower == "vps":
-                                                vps = val
-                                            elif "margin of victory" in title_lower or title_lower == "mov":
-                                                mov = val
+                                        xws_json = json.loads(item['xws'])
+                                        participants_dict[key].list_json = xws_json
+                                        if not self.inferred_format:
+                                            from ..data_structures.formats import infer_format_from_xws
+                                            self.inferred_format = infer_format_from_xws(
+                                                xws_json)
                                     except:
                                         pass
+                            except Exception as loop_e:
+                                import traceback
+                                traceback.print_exc()
 
-                            if not tp and (wins or draws):
-                                tp = (wins * 3) + (draws * 1)
-
-                            final_ep = tp if "xwing-legacy" not in self.base_url else None
-                            final_tb = vps if "xwing-legacy" not in self.base_url else (
-                                mov if mov else vps)
-
-                            if is_team_pass and t_name:
-                                name = t_name
-
-                            if team_results_only and not is_team_pass:
-                                if t_name and name:
-                                    self.player_team_map[name.lower()] = t_name
-                                continue
-
-                            key = name
-                            if key in participants_dict:
-                                pr = participants_dict[key]
-                                if current_section == "cut":
-                                    pr.cut_rank, pr.cut_wins, pr.cut_losses, pr.cut_draws = rank, wins, losses, draws
-                                    pr.cut_event_points, pr.cut_tie_breaker_points = final_ep, final_tb
-                                else:
-                                    pr.swiss_rank, pr.swiss_wins, pr.swiss_losses, pr.swiss_draws = rank, wins, losses, draws
-                                    pr.swiss_event_points, pr.swiss_tie_breaker_points = final_ep, final_tb
-                            else:
-                                pr = PlayerStanding(
-                                    tournament_id=int(tournament_id),
-                                    player_name=name,
-                                    list_json={}
-                                )
-                                if current_section == "cut":
-                                    pr.cut_rank, pr.cut_wins, pr.cut_losses, pr.cut_draws = rank, wins, losses, draws
-                                    pr.cut_event_points, pr.cut_tie_breaker_points = final_ep, final_tb
-                                else:
-                                    pr.swiss_rank, pr.swiss_wins, pr.swiss_losses, pr.swiss_draws = rank, wins, losses, draws
-                                    pr.swiss_event_points, pr.swiss_tie_breaker_points = final_ep, final_tb
-                                participants_dict[key] = pr
-
-                            if item.get('xws') and not team_results_only:
-                                try:
-                                    xws_json = json.loads(item['xws'])
-                                    participants_dict[key].list_json = xws_json
-                                    if not self.inferred_format:
-                                        from ..data_structures.formats import infer_format_from_xws
-                                        self.inferred_format = infer_format_from_xws(
-                                            xws_json)
-                                except:
-                                    pass
-                        except Exception as loop_e:
-                            import traceback
-                            traceback.print_exc()
-
-                participants = list(participants_dict.values())
+                    participants = list(participants_dict.values())
+                    if participants or (self.is_team_event and self._member_rows):
+                        break
+                    logger.warning(
+                        f"Ranking tab returned no players (attempt {attempt + 1}/3); reloading...")
+                    participants_dict = {}
+                    member_to_team = {}
+                    self.player_team_map = {}
+                    self.team_members = {}
+                    self._member_display = {}
+                    self._team_placeholders = {}
+                    self._member_rows = {}
+                    self._goto_with_retry(
+                        page, url, wait_until="domcontentloaded", timeout=60000)
+                    self._hide_cookie_popup(page)
                 if not team_results_only:
                     self._extract_lists_from_icons(
                         page, participants, tournament_id)
@@ -557,6 +813,13 @@ class LongshanksScraper(BaseScraper):
             finally:
                 browser.close()
 
+        # For team events, return BOTH the member rows (is_team_member=True,
+        # per-player match FKs resolve against them) AND the team placeholder
+        # rows (is_team_member=False, carrying the team's aggregate record).
+        # save_tournament_data builds TeamStanding identity from team_name on
+        # member rows and team_member edges; analytics excludes non-members.
+        if self.is_team_event:
+            return list(self._member_rows.values()) + list(self._team_placeholders.values())
         return participants
 
     def _fetch_lists_from_popups(self, page, participants, tournament_id):
@@ -572,10 +835,20 @@ class LongshanksScraper(BaseScraper):
 
             # Let's extract IDs from the page first
             player_ids = {}  # Name -> ID
+            has_coded_list = {}  # Name (lower) -> True if the row shows an encoded list icon
 
             rows = page.locator(".player").all()
             for row in rows:
                 try:
+                    # Skip accordion rows and the Drop separator — they are
+                    # not standings entries. Real standings rows (including
+                    # players who dropped mid-event) always have
+                    # id="player_<pid>".
+                    row_classes = row.get_attribute("class") or ""
+                    row_id = row.get_attribute("id") or ""
+                    if "accordion" in row_classes or not row_id.startswith("player_"):
+                        continue
+
                     # Extract Name
                     name_el = row.locator(
                         "span.player_link, a.player_link").first
@@ -617,16 +890,23 @@ class LongshanksScraper(BaseScraper):
                     if pid and clean_name_lower:
                         player_ids[clean_name_lower] = pid
 
+                    # Only *encoded* lists (list_code.png) contain XWS JSON in
+                    # the popup; "Text list" icons (list.png) do not.
+                    if row.locator("img[src*='list_code.png']").count() > 0:
+                        has_coded_list[clean_name_lower] = True
+
                 except:
                     pass
 
             # Filter participants needing lists
             missing = []
             for p in participants:
-                # If list is empty AND we have an ID
-                if (not p.list_json or not p.list_json.get("pilots")) and p.player_name.lower().strip() in player_ids:
+                # If list is empty AND we have an ID AND the player actually
+                # has an encoded list to fetch.
+                p_key = p.player_name.lower().strip()
+                if (not p.list_json or not p.list_json.get("pilots")) and p_key in player_ids and has_coded_list.get(p_key):
                     missing.append(
-                        (p, player_ids[p.player_name.lower().strip()]))
+                        (p, player_ids[p_key]))
 
             if not missing:
                 return
@@ -782,7 +1062,7 @@ class LongshanksScraper(BaseScraper):
         url = f"{self.base_url}/event/{tournament_id}/?tab=games"
 
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
             page = browser.new_page()
             try:
                 # Check for Legacy format first
@@ -790,15 +1070,13 @@ class LongshanksScraper(BaseScraper):
                 if self.inferred_format:
                     fmt_val = self.inferred_format.value if hasattr(
                         self.inferred_format, "value") else self.inferred_format
-                    if fmt_val in [Format.LEGACY_XLC.value, Format.LEGACY_X2PO.value, Format.FFG.value]:
+                    if fmt_val in [Format.LEGACY_XLC.value, Format.LEGACY_X2PO.value, Format.FFG.value, Format.LEGACY_PANDORUM.value]:
                         is_legacy = True
                         logger.info(
                             "Legacy format detected (from XWS). Forcing Scenario to NO_SCENARIO.")
 
-                page.goto(url, wait_until="networkidle", timeout=60000)
-                page.add_style_tag(
-                    content="#cookie_permission { display: none !important; }"
-                )
+                self._goto_with_retry(page, url, wait_until="networkidle", timeout=60000)
+                self._hide_cookie_popup(page)
 
                 # Check Title/System for Legacy keywords if not already detected
                 if not is_legacy:
@@ -899,176 +1177,227 @@ class LongshanksScraper(BaseScraper):
                         round_text = opt["text"]
                         round_val = opt["value"]
 
-                    # Parse round number and type from dropdown text
-                    round_num = 0
-                    round_type = RoundType.SWISS
-                    rm = re.search(r"Round (\d+)", round_text)
-                    if rm:
-                        round_num = int(rm.group(1))
-                    elif "Cut" in round_text or "Top" in round_text:
-                        round_type = RoundType.CUT
-                        cm = re.search(r"(\d+)", round_text)
-                        round_num = int(cm.group(1)) if cm else 0
-                    else:
-                        # Fallback: use dropdown value as round number
-                        try:
-                            round_num = int(round_val)
-                        except (ValueError, TypeError):
-                            round_num = 0
+                        # Parse round number and type from dropdown text
+                        round_num = 0
+                        round_type = RoundType.SWISS
+                        rm = re.search(r"Round (\d+)", round_text)
+                        if rm:
+                            round_num = int(rm.group(1))
+                        elif "Cut" in round_text or "Top" in round_text:
+                            round_type = RoundType.CUT
+                            cm = re.search(r"(\d+)", round_text)
+                            round_num = int(cm.group(1)) if cm else 0
+                        else:
+                            # Fallback: use dropdown value as round number
+                            try:
+                                round_num = int(round_val)
+                            except (ValueError, TypeError):
+                                round_num = 0
 
-                    # Parse scenario from round text ("Round 1 - Scramble")
-                    scenario = None
-                    if not is_legacy:
-                        if " - " in round_text:
-                            scen_part = round_text.split(" - ", 1)[1].strip()
-                            scenario = self._parse_scenario(scen_part)
-                    else:
-                        from ..data_structures.scenarios import Scenario
-                        scenario = Scenario.NO_SCENARIO
+                        # Parse scenario from round text ("Round 1 - Scramble")
+                        scenario = None
+                        if not is_legacy:
+                            if " - " in round_text:
+                                scen_part = round_text.split(" - ", 1)[1].strip()
+                                scenario = self._parse_scenario(scen_part)
+                        else:
+                            from ..data_structures.scenarios import Scenario
+                            scenario = Scenario.NO_SCENARIO
 
-                    # Fallback: Scan page content for known scenarios if not found in dropdown
-                    if not scenario or scenario == "unknown":  # Check vs "unknown" string if enum returns that, or None
-                        # We need to wait for content to load first, which happens below after click.
-                        # So we move this logic AFTER the click/wait.
-                        pass
-
-                    # Load matches for the round directly via the page helper.
-                    page.evaluate(
-                        """(roundValue) => {
-                            if (typeof load_games === 'function') {
-                                load_games(roundValue);
-                            }
-                        }""",
-                        round_val,
-                    )
-
-                    try:
-                        page.wait_for_selector("#games", timeout=10000)
-                    except Exception as _wait_err:
-                        logger.debug(
-                            f"games panel wait timed out for {tournament_id}: {_wait_err}"
-                        )
-                    page.wait_for_timeout(1500)
-
-                    # --- Precise Scenario Extraction (Subagent Verified) ---
-                    # Logic: Look for any "Scenario" header inside a match item and grab its sibling.
-                    # We assume the scenario is the same for all matches in the round (Standard Longshanks behavior).
-                    if not is_legacy and (not scenario or scenario == "unknown"):
-                        try:
-                            # Execute JS to find the first valid scenario text in this round
-                            found_scen_text = page.evaluate("""() => {
-                                const root = document.querySelector('#games') || document;
-                                const headers = Array.from(root.querySelectorAll('span.header'));
-                                const scenHeader = headers.find(h => h.innerText.trim() === 'Scenario');
-                                if (scenHeader && scenHeader.nextElementSibling) {
-                                    return scenHeader.nextElementSibling.innerText.trim();
-                                }
-                                return null;
-                            }""")
-
-                            if found_scen_text:
-                                scenario = self._parse_scenario(
-                                    found_scen_text)
-                                logger.info(
-                                    f"Extracted scenario from DOM: '{found_scen_text}' -> {scenario}")
-                        except Exception as e:
-                            logger.warning(
-                                f"DOM scenario extraction failed: {e}")
-                    # -------------------------------------------------------
-
-                    # Each .results div IS one match (2 child .player divs)
-                    result_divs = page.locator("#games .results").all()
-                    for rdiv in result_divs:
-                        try:
-                            player_divs = rdiv.locator(".player").all()
-                            if len(player_divs) < 2:
-                                continue
-
-                            # Extract player names from .player_link
-                            p1_link = player_divs[0].locator(".player_link")
-                            p2_link = player_divs[1].locator(".player_link")
-                            if p1_link.count() == 0 or p2_link.count() == 0:
-                                continue
-
-                            p1_name = p1_link.inner_text().strip()
-                            p2_name = p2_link.inner_text().strip()
-
-                            # Only map player -> team names when scraping the team
-                            # view (is_team_pass True). This avoids converting
-                            # individual matches into team matches.
-                            if is_team_pass and self.is_team_event and self.player_team_map:
-                                p1_team = self.player_team_map.get(
-                                    p1_name.lower())
-                                p2_team = self.player_team_map.get(
-                                    p2_name.lower())
-                                if p1_team:
-                                    p1_name = p1_team
-                                if p2_team:
-                                    p2_name = p2_team
-
-                            # Extract scores from .score elements
-                            s1 = 0
-                            s2 = 0
-                            p1_score_el = player_divs[0].locator(".score")
-                            p2_score_el = player_divs[1].locator(".score")
-                            if p1_score_el.count() > 0:
-                                try:
-                                    s1 = int(p1_score_el.inner_text().strip())
-                                except ValueError:
-                                    s1 = 0
-                            if p2_score_el.count() > 0:
-                                try:
-                                    s2 = int(p2_score_el.inner_text().strip())
-                                except ValueError:
-                                    s2 = 0
-
-                            # Winner from CSS class (winner/loser)
-                            p1_cls = player_divs[0].get_attribute(
-                                "class") or ""
-                            p2_cls = player_divs[1].get_attribute(
-                                "class") or ""
-                            winner_name = None
-                            if "winner" in p1_cls:
-                                winner_name = p1_name
-                            elif "winner" in p2_cls:
-                                winner_name = p2_name
-                            elif s1 > s2:
-                                winner_name = p1_name
-                            elif s2 > s1:
-                                winner_name = p2_name
-
-                            is_bye = "bye" in p2_name.lower()
-
-                            if self.is_team_event:
-                                match_key = (
-                                    round_num,
-                                    round_type,
-                                    tuple(
-                                        sorted([p1_name.lower(), p2_name.lower()])),
-                                )
-                                if match_key in seen_team_matches:
-                                    continue
-                                seen_team_matches.add(match_key)
-                            m_dict = {
-                                "round_number": round_num,
-                                "round_type": round_type,
-                                "scenario": scenario,
-                                "player1_score": s1,
-                                "player2_score": s2,
-                                "is_bye": is_bye,
-                                "p1_name_temp": p1_name,
-                                "p2_name_temp": p2_name,
-                                "winner_name_temp": winner_name,
-                                "is_team_match": bool(is_team_pass),
-                            }
-                            matches.append(m_dict)
-                        except Exception:
+                        # Fallback: Scan page content for known scenarios if not found in dropdown
+                        if not scenario or scenario == "unknown":  # Check vs "unknown" string if enum returns that, or None
+                            # We need to wait for content to load first, which happens below after click.
+                            # So we move this logic AFTER the click/wait.
                             pass
 
-                    logger.info(
-                        f"Round '{round_text}': "
-                        f"{sum(1 for m in matches if m['round_number'] == round_num and m['round_type'] == round_type)} matches"
-                    )
+                        round_matches = []
+                        # Longshanks occasionally drops a load_games()
+                        # AJAX response; retry the round when nothing is
+                        # extracted instead of silently skipping it.
+                        for _round_try in range(3):
+                            # Load matches for the round directly via the page helper.
+                            page.evaluate(
+                                """(roundValue) => {
+                                    if (typeof load_games === 'function') {
+                                        load_games(roundValue);
+                                    }
+                                }""",
+                                round_val,
+                            )
+
+                            # The page swaps the #games panel via AJAX, which can
+                            # briefly render empty (or still show the previous
+                            # round) before the requested round's games appear —
+                            # and large rounds stream in progressively. Poll until
+                            # the panel shows this round AND the game count has
+                            # stopped growing, so we never extract from a cleared,
+                            # stale, or partially-rendered panel.
+                            _last_game_count = -1
+                            for _poll in range(30):
+                                page.wait_for_timeout(500)
+                                if self._games_panel_shows_round(page, round_num):
+                                    _count = page.locator("#games .game").count()
+                                    if _count > 0 and _count == _last_game_count:
+                                        break
+                                    _last_game_count = _count
+                            page.wait_for_timeout(500)
+
+                            # --- Precise Scenario Extraction (Subagent Verified) ---
+                            # Logic: Look for any "Scenario" header inside a match item and grab its sibling.
+                            # We assume the scenario is the same for all matches in the round (Standard Longshanks behavior).
+                            if not is_legacy and (not scenario or scenario == "unknown"):
+                                try:
+                                    # Execute JS to find the first valid scenario text in this round
+                                    found_scen_text = page.evaluate("""() => {
+                                        const root = document.querySelector('#games') || document;
+                                        const headers = Array.from(root.querySelectorAll('span.header'));
+                                        const scenHeader = headers.find(h => h.innerText.trim() === 'Scenario');
+                                        if (scenHeader && scenHeader.nextElementSibling) {
+                                            return scenHeader.nextElementSibling.innerText.trim();
+                                        }
+                                        return null;
+                                    }""")
+
+                                    if found_scen_text:
+                                        scenario = self._parse_scenario(
+                                            found_scen_text)
+                                        logger.info(
+                                            f"Extracted scenario from DOM: '{found_scen_text}' -> {scenario}")
+                                except Exception as e:
+                                    logger.warning(
+                                        f"DOM scenario extraction failed: {e}")
+                            # -------------------------------------------------------
+
+                            # Each .results div IS one match (2 child .player divs)
+                            result_divs = page.locator("#games .results").all()
+                            # Default round/type for the panel (overridden per game
+                            # from the .details text below).
+                            game_round_num = round_num
+                            game_round_type = round_type
+                            for rdiv in result_divs:
+                                try:
+                                    player_divs = rdiv.locator(".player").all()
+                                    if len(player_divs) < 2:
+                                        continue
+
+                                    # Extract player names from .player_link
+                                    p1_link = player_divs[0].locator(".player_link")
+                                    p2_link = player_divs[1].locator(".player_link")
+                                    if p1_link.count() == 0 or p2_link.count() == 0:
+                                        continue
+
+                                    p1_name = p1_link.inner_text().strip()
+                                    p2_name = p2_link.inner_text().strip()
+
+                                    # The game's .details block is the authoritative
+                                    # source for the round AND the scenario: it
+                                    # renders as "Round 4 Table 1" / "Round C5
+                                    # Table 1" plus "Scenario X". This is far more
+                                    # reliable than the dropdown labels (cut options
+                                    # use negative values and "Top cut round N"
+                                    # text) and avoids reading a stale scenario from
+                                    # a panel that is mid-transition.
+                                    game_details = rdiv.locator("xpath=ancestor::div[contains(@class, 'game')]").first.locator(".details").all_inner_texts()
+                                    game_round_num = round_num
+                                    game_round_type = round_type
+                                    game_scenario = scenario
+                                    for d_text in game_details:
+                                        m_r = re.search(
+                                            r"Round\s*(C)?\s*(\d+)", d_text, re.IGNORECASE)
+                                        if m_r:
+                                            if m_r.group(1) == "C":
+                                                game_round_type = RoundType.CUT
+                                            game_round_num = int(m_r.group(2))
+                                        m_s = re.search(
+                                            r"Scenario\s*(?::|-)?\s*(.+?)\s*$",
+                                            d_text, re.IGNORECASE)
+                                        if m_s and m_s.group(1).strip():
+                                            game_scenario = self._parse_scenario(
+                                                m_s.group(1).strip())
+
+                                    # Only map player -> team names when scraping the team
+                                    # view (is_team_pass True). This avoids converting
+                                    # individual matches into team matches.
+                                    if is_team_pass and self.is_team_event and self.player_team_map:
+                                        p1_team = self.player_team_map.get(
+                                            p1_name.lower())
+                                        p2_team = self.player_team_map.get(
+                                            p2_name.lower())
+                                        if p1_team:
+                                            p1_name = p1_team
+                                        if p2_team:
+                                            p2_name = p2_team
+
+                                    # Extract scores from .score elements
+                                    s1 = 0
+                                    s2 = 0
+                                    p1_score_el = player_divs[0].locator(".score")
+                                    p2_score_el = player_divs[1].locator(".score")
+                                    if p1_score_el.count() > 0:
+                                        try:
+                                            s1 = int(p1_score_el.inner_text().strip())
+                                        except ValueError:
+                                            s1 = 0
+                                    if p2_score_el.count() > 0:
+                                        try:
+                                            s2 = int(p2_score_el.inner_text().strip())
+                                        except ValueError:
+                                            s2 = 0
+
+                                    # Winner from CSS class (winner/loser)
+                                    p1_cls = player_divs[0].get_attribute(
+                                        "class") or ""
+                                    p2_cls = player_divs[1].get_attribute(
+                                        "class") or ""
+                                    winner_name = None
+                                    if "winner" in p1_cls:
+                                        winner_name = p1_name
+                                    elif "winner" in p2_cls:
+                                        winner_name = p2_name
+                                    elif s1 > s2:
+                                        winner_name = p1_name
+                                    elif s2 > s1:
+                                        winner_name = p2_name
+
+                                    is_bye = "bye" in p2_name.lower()
+
+                                    if self.is_team_event:
+                                        match_key = (
+                                            game_round_num,
+                                            game_round_type,
+                                            tuple(
+                                                sorted([p1_name.lower(), p2_name.lower()])),
+                                        )
+                                        if match_key in seen_team_matches:
+                                            continue
+                                        seen_team_matches.add(match_key)
+                                    m_dict = {
+                                        "round_number": game_round_num,
+                                        "round_type": game_round_type,
+                                        "scenario": game_scenario,
+                                        "player1_score": s1,
+                                        "player2_score": s2,
+                                        "is_bye": is_bye,
+                                        "p1_name_temp": p1_name,
+                                        "p2_name_temp": p2_name,
+                                        "winner_name_temp": winner_name,
+                                        "is_team_match": bool(is_team_pass),
+                                    }
+                                    round_matches.append(m_dict)
+                                except Exception:
+                                    pass
+                            if round_matches:
+                                break
+                            logger.warning(
+                                f"No matches extracted for {round_text} "
+                                f"(attempt {_round_try + 1}/3); reloading...")
+                            page.wait_for_timeout(1500)
+                        matches.extend(round_matches)
+
+                        logger.info(
+                            f"Round '{round_text}': "
+                            f"{sum(1 for m in matches if m['round_number'] == game_round_num and m['round_type'] == game_round_type)} matches"
+                        )
 
             except Exception as e:
                 logger.error(f"Error scraping matches: {e}")
@@ -1110,11 +1439,10 @@ class LongshanksScraper(BaseScraper):
         logger.info(f"Scraping Longshanks history: {history_url}")
 
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
             page = browser.new_page()
             try:
-                page.goto(history_url, wait_until="domcontentloaded",
-                          timeout=30000)
+                self._goto_with_retry(page, history_url, timeout=30000)
                 page.wait_for_timeout(2000)
                 self._dismiss_cookie_popup(page)
 
@@ -1158,8 +1486,7 @@ class LongshanksScraper(BaseScraper):
                                 query=urlencode(params, doseq=True)
                             )
                         )
-                        page.goto(next_url, wait_until="domcontentloaded",
-                                  timeout=30000)
+                        self._goto_with_retry(page, next_url, timeout=30000)
                         page.wait_for_timeout(2000)
 
                     # Extract tournament cards from current page

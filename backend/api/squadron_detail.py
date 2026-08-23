@@ -241,6 +241,7 @@ def get_squadron_lists(
             "pilots": list_json.get("pilots", []),
             "wins": int(row[8] or 0),
             "games": int(row[7] or 0),
+            "popularity": int(row[6] or 0),
         }
         squadron_lists.append(enrich_list_data(l_data, source=ds_enum))
 

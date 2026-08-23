@@ -21,7 +21,7 @@ class MacroFormat(StrEnum):
         """Return list of corresponding formats."""
         match self:
             case MacroFormat.V2_5: return [Format.AMG, Format.XWA]
-            case MacroFormat.V2_0: return [Format.LEGACY_X2PO, Format.LEGACY_XLC, Format.FFG]
+            case MacroFormat.V2_0: return [Format.LEGACY_X2PO, Format.LEGACY_XLC, Format.FFG, Format.LEGACY_PANDORUM]
             case MacroFormat.UNKNOWN: return [Format.UNKNOWN]
 
 class Format(StrEnum):
@@ -33,6 +33,7 @@ class Format(StrEnum):
     FFG = "ffg"
     LEGACY_X2PO = "legacy_x2po"
     LEGACY_XLC = "legacy_xlc"
+    LEGACY_PANDORUM = "legacy_pandorum"
     
     # Unknown
     UNKNOWN = "unknown"
@@ -45,6 +46,7 @@ class Format(StrEnum):
             case Format.XWA: return "XWA"
             case Format.LEGACY_X2PO: return "Legacy (X2PO)"
             case Format.LEGACY_XLC: return "Legacy (XLC)"
+            case Format.LEGACY_PANDORUM: return "Legacy Pandorum"
             case Format.FFG: return "FFG"
             case _: return "Unknown"
             
@@ -55,7 +57,7 @@ class Format(StrEnum):
         match self:
             case Format.AMG | Format.XWA:
                 return MacroFormat.V2_5
-            case Format.LEGACY_X2PO | Format.LEGACY_XLC | Format.FFG:
+            case Format.LEGACY_X2PO | Format.LEGACY_XLC | Format.FFG | Format.LEGACY_PANDORUM:
                 return MacroFormat.V2_0
             case _:
                 return MacroFormat.UNKNOWN
@@ -96,6 +98,10 @@ def infer_format_from_xws(xws: dict) -> Format:
         # lorenzosanti = legacy xlc
         if "lorenzosanti" in combined: return Format.LEGACY_XLC
         
+        # albogarelli.github.io/pandorumbuilder = Legacy Pandorum
+        if "albogarelli.github.io/pandorumbuilder" in combined or "pandorumbuilder" in combined:
+            return Format.LEGACY_PANDORUM
+        
         # raithos = FFG
         if "raithos" in combined: return Format.FFG
         
@@ -111,6 +117,8 @@ def infer_format_from_xws(xws: dict) -> Format:
     
     if "xwing-legacy.com" in combined_top: return Format.LEGACY_X2PO
     if "lorenzosanti" in combined_top: return Format.LEGACY_XLC
+    if "albogarelli.github.io/pandorumbuilder" in combined_top or "pandorumbuilder" in combined_top:
+        return Format.LEGACY_PANDORUM
     if "raithos" in combined_top: return Format.FFG
     if "yasb.app" in combined_top:
         ruleset = xws.get("ruleset", "").upper()

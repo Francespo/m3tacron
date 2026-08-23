@@ -34,6 +34,8 @@ Output:
 
 Press Ctrl+C to stop Vite. Docker stack keeps running (stop with `up.sh --stop`).
 
+**Port auto-selection:** If 3335/8890/5435 are taken (multiple worktrees), ports auto-increment to the next free port and the banner shows the actual ports.
+
 ### Setup only
 
 ```bash

@@ -38,15 +38,136 @@ COUNTRY_TO_CONTINENT = {
     # South America
     "br": "South America", "ar": "South America", "cl": "South America", "co": "South America",
     "pe": "South America", "ve": "South America", "ec": "South America", "uy": "South America",
+    "py": "South America", "bo": "South America", "gy": "South America",
     # Asia
     "cn": "Asia", "jp": "Asia", "kr": "Asia", "in": "Asia", "sg": "Asia", "th": "Asia",
     "my": "Asia", "ph": "Asia", "id": "Asia", "vn": "Asia", "tw": "Asia", "hk": "Asia",
     "ae": "Asia", "il": "Asia", "sa": "Asia", "tr": "Asia", "ru": "Asia",
+    "pk": "Asia", "bd": "Asia", "lk": "Asia", "np": "Asia", "kh": "Asia", "la": "Asia",
+    "mm": "Asia", "kz": "Asia", "uz": "Asia", "qa": "Asia", "kw": "Asia", "bh": "Asia",
+    "om": "Asia", "jo": "Asia", "lb": "Asia", "ir": "Asia", "iq": "Asia", "af": "Asia",
+    "mn": "Asia", "ge": "Asia", "am": "Asia", "az": "Asia",
     # Oceania
-    "au": "Oceania", "nz": "Oceania",
+    "au": "Oceania", "nz": "Oceania", "fj": "Oceania", "pg": "Oceania",
     # Africa
     "za": "Africa", "eg": "Africa", "ng": "Africa", "ke": "Africa", "ma": "Africa",
+    "gh": "Africa", "tz": "Africa", "et": "Africa", "ug": "Africa", "dz": "Africa",
+    "tn": "Africa", "ci": "Africa", "cm": "Africa", "zm": "Africa", "zw": "Africa",
+    "mw": "Africa", "mz": "Africa", "na": "Africa", "bw": "Africa", "sn": "Africa",
+    "rw": "Africa", "sd": "Africa", "ly": "Africa", "mg": "Africa", "ao": "Africa",
+    "cd": "Africa", "bf": "Africa", "ml": "Africa", "ne": "Africa", "tg": "Africa",
+    "bj": "Africa", "gm": "Africa", "gn": "Africa", "sl": "Africa", "lr": "Africa",
+    "mr": "Africa", "so": "Africa", "er": "Africa", "dj": "Africa", "cf": "Africa",
+    "ga": "Africa", "gq": "Africa", "cg": "Africa", "td": "Africa", "ss": "Africa",
+    # Caribbean / Central America (map to North America for simplicity)
+    "cu": "North America", "do": "North America", "jm": "North America",
+    "ht": "North America", "tt": "North America", "bs": "North America",
+    "bb": "North America", "bz": "North America", "cr": "North America",
+    "gt": "North America", "hn": "North America", "ni": "North America",
+    "pa": "North America", "sv": "North America", "pr": "North America",
+    "gd": "North America", "lc": "North America", "vc": "North America",
+    "kn": "North America", "ag": "North America", "dm": "North America",
 }
+
+# Continent aliases that sometimes appear in partial location strings.
+CONTINENT_ALIASES = {
+    "north america": "North America",
+    "south america": "South America",
+    "central america": "North America",
+    "europe": "Europe",
+    "asia": "Asia",
+    "oceania": "Oceania",
+    "australia": "Oceania",
+    "africa": "Africa",
+    "antarctica": "Antarctica",
+}
+
+
+# Common country-name aliases that Nominatim / the scrapers may return.
+COUNTRY_ALIASES_BY_NAME = {
+    "brasil": "Brazil",
+    "brazil": "Brazil",
+    "usa": "United States",
+    "united states of america": "United States",
+    "america": "United States",
+    "uk": "United Kingdom",
+    "united kingdom": "United Kingdom",
+    "england": "United Kingdom",
+    "scotland": "United Kingdom",
+    "wales": "United Kingdom",
+    "south korea": "South Korea",
+    "korea": "South Korea",
+    "russia": "Russia",
+    "czechia": "Czech Republic",
+    "turkiye": "Turkey",
+    "viet nam": "Vietnam",
+    "taiwan": "Taiwan",
+    "hong kong": "Hong Kong",
+    "uae": "United Arab Emirates",
+    "saudi arabia": "Saudi Arabia",
+    "the netherlands": "Netherlands",
+    "holland": "Netherlands",
+    "iran": "Iran",
+    "iraq": "Iraq",
+    "syria": "Syria",
+    "congo": "Democratic Republic of the Congo",
+    "czech republic": "Czech Republic",
+    "dominican republic": "Dominican Republic",
+    "north macedonia": "North Macedonia",
+    "bosnia and herzegovina": "Bosnia and Herzegovina",
+    "trinidad and tobago": "Trinidad and Tobago",
+    "new zealand": "New Zealand",
+}
+
+
+def _lookup_country_name(text: str) -> str | None:
+    """Return the canonical country name if ``text`` is (essentially) a
+    country name or code, else None.
+
+    Used to decide whether a query is 'country-only' (and can be resolved
+    offline) vs. a venue/address string that needs a geocoder.
+    """
+    if not text:
+        return None
+    low = text.lower().strip()
+
+    # Direct code (GB, US, DE, ...)
+    if low in COUNTRY_CODE_TO_NAME:
+        return COUNTRY_CODE_TO_NAME[low]
+
+    # Full name or alias
+    if low in COUNTRY_ALIASES_BY_NAME:
+        return COUNTRY_ALIASES_BY_NAME[low]
+
+    # Exact full-name match against the map (normalized)
+    for code, full_name in COUNTRY_CODE_TO_NAME.items():
+        if low == full_name.lower():
+            return full_name
+
+    return None
+
+
+def _continent_from_region(text: str | None) -> str | None:
+    """Extract a continent from a partial region string.
+
+    Handles Rollbetter-style strings such as "North America: Eastern",
+    "Europe: Central", a bare "Asia", or multi-line metadata that contains a
+    region line among other text. Returns the canonical continent name or
+    None.
+    """
+    if not text:
+        return None
+    low = text.lower().strip()
+    # Scan each line AND the whole string: the region may sit on its own
+    # line inside a multi-line metadata block.
+    for chunk in [low, *low.splitlines()]:
+        # Take the part before ':' (e.g. "North America: Eastern" -> "North America")
+        region = chunk.split(":")[0].strip()
+        for alias, canonical in CONTINENT_ALIASES.items():
+            if region == alias or region.startswith(alias) or alias in region:
+                return canonical
+    return None
+
 
 # Country code to full name mapping for common short codes
 COUNTRY_CODE_TO_NAME = {
@@ -58,6 +179,33 @@ COUNTRY_CODE_TO_NAME = {
     "gr": "Greece", "au": "Australia", "nz": "New Zealand", "ca": "Canada",
     "mx": "Mexico", "br": "Brazil", "ar": "Argentina", "jp": "Japan", "cn": "China",
     "kr": "South Korea", "in": "India", "sg": "Singapore", "ru": "Russia",
+    "ua": "Ukraine", "tr": "Turkey", "il": "Israel", "sa": "Saudi Arabia",
+    "ae": "United Arab Emirates", "za": "South Africa", "eg": "Egypt",
+    "ng": "Nigeria", "ke": "Kenya", "th": "Thailand", "vn": "Vietnam",
+    "tw": "Taiwan", "ph": "Philippines", "my": "Malaysia", "id": "Indonesia",
+    "pk": "Pakistan", "bd": "Bangladesh", "cl": "Chile", "co": "Colombia",
+    "pe": "Peru", "ve": "Venezuela", "ec": "Ecuador", "uy": "Uruguay",
+    "cz": "Czech Republic", "sk": "Slovakia", "si": "Slovenia", "hr": "Croatia",
+    "rs": "Serbia", "bg": "Bulgaria", "ro": "Romania", "lt": "Lithuania",
+    "lv": "Latvia", "ee": "Estonia", "is": "Iceland", "ie": "Ireland",
+    "cy": "Cyprus", "mt": "Malta", "lu": "Luxembourg", "kr": "South Korea",
+    "hk": "Hong Kong", "kz": "Kazakhstan", "ge": "Georgia", "am": "Armenia",
+    "az": "Azerbaijan", "qa": "Qatar", "kw": "Kuwait", "bh": "Bahrain",
+    "om": "Oman", "jo": "Jordan", "lb": "Lebanon", "ir": "Iran", "iq": "Iraq",
+    "af": "Afghanistan", "mn": "Mongolia", "np": "Nepal", "lk": "Sri Lanka",
+    "mm": "Myanmar", "kh": "Cambodia", "la": "Laos", "fj": "Fiji",
+    "pg": "Papua New Guinea", "gh": "Ghana", "tz": "Tanzania", "et": "Ethiopia",
+    "ug": "Uganda", "dz": "Algeria", "tn": "Tunisia", "ma": "Morocco",
+    "ci": "Ivory Coast", "cm": "Cameroon", "zm": "Zambia", "zw": "Zimbabwe",
+    "mw": "Malawi", "mz": "Mozambique", "na": "Namibia", "bw": "Botswana",
+    "sn": "Senegal", "rw": "Rwanda", "sd": "Sudan", "ly": "Libya",
+    "mg": "Madagascar", "ao": "Angola", "cu": "Cuba", "do": "Dominican Republic",
+    "jm": "Jamaica", "ht": "Haiti", "tt": "Trinidad and Tobago",
+    "bs": "Bahamas", "bb": "Barbados", "bz": "Belize", "cr": "Costa Rica",
+    "gt": "Guatemala", "hn": "Honduras", "ni": "Nicaragua", "pa": "Panama",
+    "sv": "El Salvador", "pr": "Puerto Rico", "py": "Paraguay", "bo": "Bolivia",
+    "gy": "Guyana", "md": "Moldova", "al": "Albania", "mk": "North Macedonia",
+    "ba": "Bosnia and Herzegovina", "me": "Montenegro", "by": "Belarus",
 }
 
 
@@ -92,6 +240,14 @@ def _get_continent_from_country(country: str | None) -> str | None:
     if country_lower in COUNTRY_TO_CONTINENT:
         return COUNTRY_TO_CONTINENT[country_lower]
 
+    # Common country-name aliases that Nominatim / the scrapers may return.
+    if country_lower in COUNTRY_ALIASES_BY_NAME:
+        canonical = COUNTRY_ALIASES_BY_NAME[country_lower]
+        for code, full_name in COUNTRY_CODE_TO_NAME.items():
+            if full_name.lower() == canonical.lower():
+                return COUNTRY_TO_CONTINENT.get(code)
+        return None
+
     # Try to find by partial name match
     for code, continent in COUNTRY_TO_CONTINENT.items():
         full_name = COUNTRY_CODE_TO_NAME.get(code, "").lower()
@@ -99,6 +255,12 @@ def _get_continent_from_country(country: str | None) -> str | None:
             return continent
         if country_lower in full_name:
             return continent
+
+    # "Country: Region" pattern (e.g. "United States: East Coast")
+    if ":" in country_lower:
+        before_colon = country_lower.split(":")[0].strip()
+        if before_colon and before_colon != country_lower:
+            return _get_continent_from_country(before_colon)
 
     return None
 
@@ -120,6 +282,53 @@ def _dedupe_candidates(candidates: list[str]) -> list[str]:
         seen.add(key)
         ordered.append(item)
     return ordered
+
+
+def _geocode_photon(candidate: str) -> dict | None:
+    """Geocode via Photon (Komoot) — a free, keyless Nominatim-compatible API.
+
+    Photon is significantly better than Nominatim at resolving *venue*
+    queries ("Rogue State Games, Mahwah NJ, US" -> Mahwah, New Jersey) because
+    it indexes OSM shop/amenity nodes and their addresses. Used as a fallback
+    when Nominatim returns no city for a venue+city query.
+
+    Returns a dict {city, country, continent} or None.
+    """
+    try:
+        url = "https://photon.komoot.io/api/?"
+        params = {"q": candidate, "limit": 1, "lang": "en"}
+        # Photon rejects requests without a User-Agent (403).
+        headers = {"User-Agent": USER_AGENT}
+        response = httpx.get(url, params=params, headers=headers, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+        features = data.get("features") or []
+        if not features:
+            logger.info(f"Photon: No results for '{candidate}'")
+            return None
+
+        props = features[0].get("properties", {})
+        city = (props.get("city") or props.get("town") or
+                props.get("village") or props.get("county") or
+                props.get("state"))
+        country = props.get("country")
+        country_code = (props.get("countrycode") or "").lower()
+
+        if not country and not city:
+            return None
+
+        continent = _get_continent_from_country(country_code)
+        if not continent and country:
+            continent = _get_continent_from_country(country)
+
+        return {
+            "city": city or "Unknown",
+            "country": country or "Unknown",
+            "continent": continent or "Unknown",
+        }
+    except Exception as e:
+        logger.debug(f"Photon geocode error for '{candidate}': {e}")
+        return None
 
 
 def resolve_location(query: str) -> Location | None:
@@ -193,6 +402,21 @@ def resolve_location(query: str) -> Location | None:
     for candidate in candidates:
         candidate_lower = candidate.lower().strip()
 
+        # Handle region/continent-only strings ("North America: Eastern",
+        # "Europe: Central", "Asia") — derive continent, no API needed.
+        continent_region = _continent_from_region(candidate_lower)
+        if continent_region and not any(
+            ch.isdigit() for ch in candidate_lower
+        ):
+            loc_dict = {"city": "Unknown",
+                        "country": "Unknown", "continent": continent_region}
+            _GEO_CACHE[candidate] = loc_dict
+            _GEO_CACHE[query] = loc_dict
+            _save_cache(_GEO_CACHE)
+            logger.info(
+                f"Geocoding region-only: '{candidate}' -> {continent_region}")
+            return Location.create(city="Unknown", country="Unknown", continent=continent_region)
+
         # Handle very short queries (likely country codes like "GB")
         if len(candidate_lower) <= 3 and candidate_lower in COUNTRY_TO_CONTINENT:
             country_name = COUNTRY_CODE_TO_NAME.get(
@@ -204,6 +428,30 @@ def resolve_location(query: str) -> Location | None:
             _GEO_CACHE[query] = loc_dict
             _save_cache(_GEO_CACHE)
             return Location.create(city="Unknown", country=country_name, continent=continent)
+
+        # Country-name-only (full or partial, e.g. "Germany", "United States",
+        # "Brasil" → "Brazil") — derive continent without an API call.
+        # Guard: only when the candidate is *essentially* a country name —
+        # a comma-joined venue string ("The Outpost, Sheffield, UK") must not
+        # short-circuit here, and must not contain digits.
+        country_continent = _get_continent_from_country(candidate_lower)
+        country_lookup = _lookup_country_name(candidate_lower)
+        if (
+            country_continent
+            and len(candidate_lower) > 3
+            and not any(ch.isdigit() for ch in candidate_lower)
+            and "," not in candidate_lower
+            and country_lookup is not None
+        ):
+            country_name = country_lookup
+            loc_dict = {"city": "Unknown",
+                        "country": country_name, "continent": country_continent}
+            _GEO_CACHE[candidate] = loc_dict
+            _GEO_CACHE[query] = loc_dict
+            _save_cache(_GEO_CACHE)
+            logger.info(
+                f"Geocoding country-only: '{candidate}' -> {country_name} ({country_continent})")
+            return Location.create(city="Unknown", country=country_name, continent=country_continent)
 
         for key, loc in CUSTOM_OVERRIDES.items():
             if key in candidate_lower:
@@ -240,6 +488,20 @@ def resolve_location(query: str) -> Location | None:
 
             if not data:
                 logger.info(f"Nominatim: No results for '{candidate}'")
+                # Nominatim failed on a venue+city query → fall back to
+                # Photon, which indexes shops/venues and their addresses.
+                photon_loc = _geocode_photon(candidate)
+                if photon_loc:
+                    _GEO_CACHE[candidate] = photon_loc
+                    _GEO_CACHE[query] = photon_loc
+                    _save_cache(_GEO_CACHE)
+                    logger.info(
+                        f"Photon fallback resolved '{candidate}' -> {photon_loc}")
+                    return Location.create(
+                        city=photon_loc["city"],
+                        country=photon_loc["country"],
+                        continent=photon_loc["continent"],
+                    )
                 continue
 
             result = data[0]
@@ -279,7 +541,51 @@ def resolve_location(query: str) -> Location | None:
                 if not city:
                     logger.warning(
                         f"Nominatim returned result but no City/Country for '{candidate}'")
+                    # No country AND no city — the venue failed to resolve to a
+                    # place; try Photon before giving up on this candidate.
+                    photon_loc = _geocode_photon(candidate)
+                    if photon_loc:
+                        _GEO_CACHE[candidate] = photon_loc
+                        _GEO_CACHE[query] = photon_loc
+                        _save_cache(_GEO_CACHE)
+                        logger.info(
+                            f"Photon fallback resolved '{candidate}' -> {photon_loc}")
+                        return Location.create(
+                            city=photon_loc["city"],
+                            country=photon_loc["country"],
+                            continent=photon_loc["continent"],
+                        )
                     continue
+
+            # NEW: Nominatim found a result but the city is missing/obscure
+            # while the venue is named in the query — Photon's venue index
+            # often recovers the real city ("Rogue State Games" -> Mahwah).
+            # Only fall back when the query actually contains a venue-like
+            # token (a comma-separated first part) to avoid double lookups
+            # on plain city queries. Also treat "city == state" as a
+            # no-real-city signal (Nominatim fell back to state/county).
+            state = address.get("state") or ""
+            county = address.get("county") or ""
+            city_is_just_region = (
+                city is not None
+                and state and city.lower() == state.lower()
+            ) or (
+                city is not None
+                and county and city.lower() == county.lower()
+            )
+            if (not city or city_is_just_region) and "," in candidate:
+                photon_loc = _geocode_photon(candidate)
+                if photon_loc and photon_loc["city"] != "Unknown":
+                    _GEO_CACHE[candidate] = photon_loc
+                    _GEO_CACHE[query] = photon_loc
+                    _save_cache(_GEO_CACHE)
+                    logger.info(
+                        f"Photon fallback resolved venue '{candidate}' -> {photon_loc}")
+                    return Location.create(
+                        city=photon_loc["city"],
+                        country=photon_loc["country"],
+                        continent=photon_loc["continent"],
+                    )
 
             loc_dict = {
                 "city": city or "Unknown",

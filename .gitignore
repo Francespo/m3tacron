@@ -8,6 +8,7 @@ __pycache__/
 venv/
 ENV/
 *.log
+*.egg-info/
 import_log.txt
 error.log
 
@@ -69,5 +70,13 @@ temp_*.txt
 .slim/
 playwright-images/
 .playwright-mcp/
+.verify-ships/
+.vite/
 verify*.png
+# Ships-page verification screenshots (local review evidence, not for GitHub)
+.verify-ships/
 commit_message.json
+.opencode/
+.vite/
+# Font-centering verification screenshots (local review evidence, not for GitHub)
+.verify-font-centering/

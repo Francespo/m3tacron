@@ -2,7 +2,7 @@ from .schemas import ListData, PilotData, UpgradeData
 from ..utils.xwing_data.pilots import get_pilot_info
 from ..utils.xwing_data.ships import get_ship_icon_name
 from ..utils.xwing_data.upgrades import get_upgrade_info, get_upgrade_slot
-from ..data_structures.factions import Faction
+from ..data_structures.factions import Faction, get_faction_char
 
 from ..data_structures.data_source import DataSource
 
@@ -84,10 +84,22 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
         rich_upgrades = []
         upgrades_data = p.get("upgrades", {})
         
+        # The raw list_json may store upgrades either as a dict of slot -> ids,
+        # a flat list of id strings, or a flat list of {"xws": id} entries
+        # (the shape produced by `_reformat_pilots`). Normalize each entry so
+        # the per-card lookup below always receives an XWS string.
+        def _norm_upgrade_id(u):
+            if isinstance(u, dict):
+                return u.get("xws") or u.get("id") or u.get("name") or ""
+            return u
+
         if isinstance(upgrades_data, dict):
             for slot, items in upgrades_data.items():
                 if not isinstance(items, list): continue
-                for item_id in items:
+                for raw_item in items:
+                    item_id = _norm_upgrade_id(raw_item)
+                    if not item_id:
+                        continue
                     upg_info = get_upgrade_info(item_id, source=source) or {}
                     norm_slot = slot.lower()
                     if norm_slot == "configuration": norm_slot = "config"
@@ -108,7 +120,10 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
                         slot_xws=norm_slot
                     ))
         elif isinstance(upgrades_data, list):
-            for item_id in upgrades_data:
+            for raw_item in upgrades_data:
+                item_id = _norm_upgrade_id(raw_item)
+                if not item_id:
+                    continue
                 upg_info = get_upgrade_info(item_id, source=source) or {}
                 slot = get_upgrade_slot(item_id)
                 norm_slot = slot.lower()
@@ -138,17 +153,26 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
             initiative=int(pilot_info.get("initiative") or 0),
             upgrades=rich_upgrades
         ))
-    
-    f_key = stats.get("faction", "unknown")
+
+    f_raw = stats.get("faction") or stats.get("faction_xws") or "unknown"
     try:
-        f_label = Faction.from_xws(f_key).label
+        f_enum = Faction.from_xws(f_raw)
+        f_label = f_enum.label
+        f_key = f_enum.value
     except:
-        f_label = f_key.title()
+        f_label = f_raw.title()
+        f_key = f_raw
 
     try: points = int(stats.get("points", 0))
     except (ValueError, TypeError): points = 0
     
-    try: count = int(stats.get("popularity", 0))
+    raw_count = (
+        stats.get("count",
+        stats.get("entries",
+        stats.get("entries_count",
+        stats.get("popularity", 0))))
+    )
+    try: count = int(raw_count or 0)
     except (ValueError, TypeError): count = 0
     
     try: games = int(stats.get("games", 0))
@@ -160,16 +184,20 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
     try: wins = int(stats.get("wins", 0))
     except (ValueError, TypeError): wins = 0
 
+    icon_char = stats.get("icon_char") or get_faction_char(f_key)
+
     return ListData(
         signature=stats.get("signature", "Unknown Signature") or "Unknown Signature",
         name=stats.get("name", "Unknown List") or "Unknown List",
         faction=f_label,
         faction_key=f_key,
         faction_xws=stats.get("faction_xws", f_key),
-        icon_char=stats.get("icon_char", ""),
+        icon_char=icon_char,
         points=calculated_points,
         original_points=points,
         count=count,
+        entries=count,
+        entries_count=count,
         games=games,
         wins=wins,
         win_rate=win_rate,

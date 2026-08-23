@@ -23,18 +23,22 @@
         className?: string;
     } = $props();
 
+    const hasCustomTextSize = $derived(className.includes("text-"));
+
     const sizeClass = $derived(
-        size === "xs"
-            ? "text-[10px]"
-            : size === "sm"
-              ? "text-sm"
-              : size === "md"
-                ? "text-lg"
-                : size === "lg"
-                  ? "text-2xl"
-                  : size === "xl"
-                    ? "text-5xl md:text-6xl"
-                    : "text-7xl",
+        hasCustomTextSize
+            ? ""
+            : size === "xs"
+              ? "text-[10px]"
+              : size === "sm"
+                ? "text-sm"
+                : size === "md"
+                  ? "text-lg"
+                  : size === "lg"
+                    ? "text-2xl"
+                    : size === "xl"
+                      ? "text-5xl md:text-6xl"
+                      : "text-7xl",
     );
 
     const isUnknown = $derived(!faction || faction === "unknown");
@@ -46,7 +50,7 @@
     <!-- Unknown faction: plain "?" in sans-serif, grey. NOT in the X-Wing
          font (which would render "?" as a geometric/rocket glyph). -->
     <span
-        class="font-sans font-bold {sizeClass} {className}"
+        class="font-sans font-bold leading-none {sizeClass} {className}"
         style="color: {color};"
         aria-label="Unknown faction"
         title="Unknown faction"
@@ -56,7 +60,7 @@
 {:else}
     <!-- Known faction: X-Wing font glyph, colored. -->
     <span
-        class="font-xwing {sizeClass} {className}"
+        class="font-xwing leading-none {sizeClass} {className}"
         style="color: {color};"
         aria-label={faction}
         title={faction}

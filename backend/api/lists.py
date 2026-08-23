@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Query
-from ..analytics.lists import aggregate_list_stats
+from ..analytics.lists import aggregate_list_stats, fetch_list_pilots
 from ..cache import get_cached_or_compute
 from ..data_structures.data_source import DataSource
 from ..data_structures.factions import Faction
@@ -21,8 +21,7 @@ def _build_cache_key(
     data_source: str,
     formats, factions, ships, platforms, continent, country, city,
     date_start, date_end, player_count_min, player_count_max,
-    min_games, points_min, points_max,
-    sort_metric, sort_direction, page, size,
+    min_games, points_min, points_max, epic: bool = False,
 ) -> str:
     return (
         f"lists|{data_source}|"
@@ -36,19 +35,19 @@ def _build_cache_key(
         f"ds={date_start}|de={date_end}|"
         f"pcmin={player_count_min}|pcmax={player_count_max}|"
         f"mg={min_games}|pmin={points_min}|pmax={points_max}|"
-        f"sm={sort_metric}|sd={sort_direction}"
+        f"epic={epic}"
     )
 
 
 def _compute_lists(
-    page: int,
-    size: int,
     data_source: str,
-    sort_metric: str,
-    sort_direction: str,
     filters: dict,
 ) -> list[dict]:
-    """Run the expensive aggregation + post-filter + sort. Returns a list of rows."""
+    """Run the expensive aggregation + post-filter.
+
+    Returns a list of rows in neutral games-desc order. The requested sort is
+    applied AFTER the cache lookup — see _sort_list_stats.
+    """
     try:
         ds_enum = DataSource(data_source)
     except ValueError:
@@ -88,19 +87,26 @@ def _compute_lists(
         row["points"] = points
         filtered_data.append(row)
 
+    # Neutral deterministic order (games desc). The requested sort is applied
+    # after the cache lookup so the heavy aggregation is shared across sorts.
+    filtered_data.sort(key=lambda x: x["games"], reverse=True)
+
+    return filtered_data
+
+
+def _sort_list_stats(data: list[dict], sort_metric: str, sort_direction: str) -> list[dict]:
     reverse = sort_direction == "desc"
 
     def get_win_rate(r):
         return r["wins"] / r["games"] if r["games"] > 0 else 0.0
 
     if sort_metric == "Win Rate":
-        filtered_data.sort(key=get_win_rate, reverse=reverse)
+        return sorted(data, key=get_win_rate, reverse=reverse)
     elif sort_metric == "Points Cost":
-        filtered_data.sort(key=lambda x: x["points"], reverse=reverse)
-    else:
-        filtered_data.sort(key=lambda x: x["games"], reverse=reverse)
-
-    return filtered_data
+        return sorted(data, key=lambda x: x["points"], reverse=reverse)
+    elif sort_metric in ("Entries", "Lists", "Popularity"):
+        return sorted(data, key=lambda x: x.get("count", 0), reverse=reverse)
+    return sorted(data, key=lambda x: x["games"], reverse=reverse)
 
 
 @router.get("", response_model=PaginatedListsResponse)
@@ -110,6 +116,7 @@ def get_lists(
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Games"),
     sort_direction: str = Query("desc"),
+    epic: bool = Query(False),
 
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
@@ -137,6 +144,7 @@ def get_lists(
         "player_count_max": player_count_max,
         "ships": ships,
         "factions": factions,
+        "epic": epic,
     }
     if formats:
         filters["allowed_formats"] = formats
@@ -144,19 +152,31 @@ def get_lists(
     cache_key = _build_cache_key(
         data_source, formats, factions, ships, platforms, continent, country, city,
         date_start, date_end, player_count_min, player_count_max,
-        min_games, points_min, points_max,
-        sort_metric, sort_direction, page, size,
+        min_games, points_min, points_max, epic=epic,
     )
 
     def compute():
         return _compute_lists(
-            page=page, size=size, data_source=data_source,
-            sort_metric=sort_metric, sort_direction=sort_direction,
+            data_source=data_source,
             filters=filters,
         )
 
     filtered_data = get_cached_or_compute(cache_key, compute)
+    # Sort AFTER the cache lookup — the heavy aggregation is sort-independent.
+    filtered_data = _sort_list_stats(filtered_data, sort_metric, sort_direction)
     total = len(filtered_data)
-    items = filtered_data[page * size : (page + 1) * size]
+    page_items = filtered_data[page * size : (page + 1) * size]
+
+    # Pilots are aggregated lazily (see analytics/lists.py): the stats rows
+    # carry empty pilots, so attach them only for the page being returned.
+    # Copy each row first — the cached list is shared across requests and
+    # must never be mutated.
+    signatures: list[str] = [row["signature"] for row in page_items if row.get("signature")]
+    pilots_map = fetch_list_pilots(signatures) if signatures else {}
+    items = [
+        {**row, "pilots": pilots_map.get(row["signature"], [])}
+        for row in page_items
+        if row.get("signature")
+    ]
 
     return PaginatedListsResponse(items=items, total=total, page=page, size=size)

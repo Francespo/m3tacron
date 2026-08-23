@@ -44,24 +44,46 @@ def load_all_upgrades(source: DataSource = DataSource.XWA) -> dict:
                     }
         except Exception:
             continue
-            
+
     return all_upgrades
+
+PACK_SUFFIXES = [
+    "-armedanddangerous",
+    "-evacuationofdqar",
+    "-battleoverendor",
+    "-battleofyavin",
+    "-siegeofcoruscant",
+    "-alphastrike",
+    "-lsl",
+]
 
 def get_upgrade_info(xws_upgrade: str, source: DataSource = DataSource.XWA) -> dict | None:
     """Get full upgrade info from XWS ID."""
     upgrades = load_all_upgrades(source)
-    return upgrades.get(xws_upgrade)
+    if not isinstance(xws_upgrade, str):
+        return None
+    if xws_upgrade in upgrades:
+        return upgrades[xws_upgrade]
+
+    clean_id = xws_upgrade
+    for suf in PACK_SUFFIXES:
+        if clean_id.endswith(suf):
+            clean_id = clean_id[:-len(suf)]
+
+    if isinstance(clean_id, str) and clean_id in upgrades:
+        base_u = upgrades[clean_id]
+        return {**base_u, "xws": xws_upgrade}
+
+    return None
 
 def get_upgrade_name(xws_upgrade: str) -> str:
     """Get human-readable upgrade name from XWS ID (uses Default XWA source)."""
-    upgrades = load_all_upgrades()
-    upgrade = upgrades.get(xws_upgrade)
+    upgrade = get_upgrade_info(xws_upgrade)
     return upgrade["name"] if upgrade else xws_upgrade
 
 def get_upgrade_slot(xws_upgrade: str) -> str:
     """Get the primary slot name for an upgrade XWS ID."""
-    upgrades = load_all_upgrades()
-    upgrade = upgrades.get(xws_upgrade)
+    upgrade = get_upgrade_info(xws_upgrade)
     if not upgrade:
         return "unknown"
     

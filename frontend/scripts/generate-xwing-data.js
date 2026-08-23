@@ -96,6 +96,9 @@ function processSource(source) {
                 if (shipData) {
                     const shipXws = shipData.xws;
                     
+                    const pilots = shipData.pilots || [];
+                    const hasStandardPilots = pilots.some(p => p.standard === true || p.extended === true);
+
                     // Store Ship Info
                     if (!output.ships[shipXws]) {
                         output.ships[shipXws] = {
@@ -105,18 +108,25 @@ function processSource(source) {
                             icon: shipData.icon,
                             stats: shipData.stats,
                             actions: shipData.actions,
-                            factions: [faction] 
+                            factions: [faction],
+                            has_standard_pilots: hasStandardPilots,
+                            epic: !hasStandardPilots
                         };
                     } else {
                         // Add faction if not exists
                         if (!output.ships[shipXws].factions.includes(faction)) {
                             output.ships[shipXws].factions.push(faction);
                         }
+                        if (hasStandardPilots) {
+                            output.ships[shipXws].has_standard_pilots = true;
+                            output.ships[shipXws].epic = false;
+                        }
                     }
 
                     // Store Pilots
                     if (shipData.pilots) {
                         shipData.pilots.forEach(pilot => {
+                            const isStandardLegal = pilot.standard === true || pilot.extended === true;
                             output.pilots[pilot.xws] = {
                                 name: pilot.name,
                                 xws: pilot.xws,
@@ -131,7 +141,11 @@ function processSource(source) {
                                 upgrades: pilot.upgrades, // Slots
                                 caption: pilot.caption,
                                 ability: pilot.ability,
-                                shipAbility: pilot.shipAbility
+                                shipAbility: pilot.shipAbility,
+                                standard: pilot.standard ?? false,
+                                extended: pilot.extended ?? false,
+                                epic: pilot.epic ?? false,
+                                valid_in_standard: isStandardLegal
                             };
                         });
                     }
@@ -150,11 +164,16 @@ function processSource(source) {
                 // Upgrade files often contain multiple upgrades of the same Type
                 if (Array.isArray(upgradeData)) {
                     upgradeData.forEach(upgrade => {
+                         const isStandardLegal = upgrade.standard === true || upgrade.extended === true;
                          output.upgrades[upgrade.xws] = {
                             name: upgrade.name,
                             xws: upgrade.xws,
                             limited: upgrade.limited,
                             cost: upgrade.cost,
+                            standard: upgrade.standard ?? false,
+                            extended: upgrade.extended ?? false,
+                            epic: upgrade.epic ?? false,
+                            valid_in_standard: isStandardLegal,
                             sides: upgrade.sides.map(side => ({
                                 title: side.title,
                                 type: side.type,
