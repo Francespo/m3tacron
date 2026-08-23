@@ -189,6 +189,7 @@
     // --- Standings pagination ---
     const STANDINGS_PER_PAGE = 10;
     let swissPage = $state(0);
+    let swissStandingsHeight = $state(0);
 
     const playerMap = $derived.by(() => {
         const map = new Map<string, any>();
@@ -362,12 +363,12 @@
             return cutGroups.every((g, idx) => idx === 0 || g.matches.length <= cutGroups[idx - 1].matches.length);
         })()}
 
-        <!-- Swiss Section: standings natural height, rounds shortened to match -->
+        <!-- Swiss Section: matched-height standings + rounds -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start mb-6">
             <div class="flex flex-col">
                 <!-- Swiss Standings (or fallback when no cut exists) -->
                 {#if hasSwissTpl || (!hasCut && !hasCutMatches)}
-                    <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden">
+                    <div bind:clientHeight={swissStandingsHeight} class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden">
                         <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center justify-between gap-3">
                             <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">SWISS STANDINGS</h2>
                             <div class="flex items-center gap-3">
@@ -411,9 +412,8 @@
                                     </div>
                                     <div class="flex-1"></div>
                                     {#if p.list_id}
-                                        <a href="/list/{p.list_id}" class="inline-flex items-center gap-1 px-2.5 py-1 border border-border-dark rounded-md text-xs font-mono hover:bg-[rgba(255,255,255,0.1)] text-primary no-underline" title="View list" aria-label="View list">
-                                            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>
-                                            view list
+                                        <a href="/list/{p.list_id}" class="inline-flex items-center justify-center w-7 h-7 shrink-0 rounded-md border border-border-dark bg-[rgba(255,255,255,0.04)] text-secondary hover:text-primary hover:border-primary/30 hover:bg-white/5 transition-colors" title="View list" aria-label="View list">
+                                            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>
                                         </a>
                                     {/if}
                                 </div>
@@ -423,12 +423,12 @@
                 {/if}
             </div>
 
-            <!-- Matches: Swiss-only carousel (cut matches are in the bracket below) — kept compact, not stretched -->
+            <!-- Matches: Swiss-only carousel (cut matches are in the bracket below) — height synced to standings -->
             {#if swissGroups.length > 0}
                 {@const swissIdx = Math.min(currentRoundIndex, swissGroups.length - 1)}
                 {@const swissGroup = swissGroups[swissIdx]}
                 {@const swissDom = dominantScenario(swissGroup.matches)}
-                <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden flex flex-col" style="max-height: 520px;">
+                <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden flex flex-col" style="height: {swissStandingsHeight ? `${swissStandingsHeight}px` : 'auto'};">
                     <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center justify-between gap-3 shrink-0">
                         <div class="flex flex-col min-w-0">
                             <div class="flex items-center gap-2">
@@ -496,12 +496,13 @@
                 <div class="bg-terminal-panel border border-border-dark rounded-xl p-4 md:p-6 shadow-xl">
                     <div class="flex items-center gap-3 border-b border-border-dark pb-4 mb-6">
                         <div class="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400">
-                            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <path d="M6 13c0 2.2 1.8 4 6 4s6-1.8 6-4v-3H6v3z"></path>
-                                <path d="M18 9V7a4 4 0 0 0 4-4H2a4 4 0 0 0 4 4v2"></path>
-                                <path d="M12 17v4"></path>
-                                <path d="M8 21h8"></path>
-                                <path d="M6 9h12"></path>
+                            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+                                <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+                                <path d="M4 22h16"></path>
+                                <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path>
+                                <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path>
+                                <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path>
                             </svg>
                         </div>
                         <div>

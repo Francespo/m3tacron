@@ -195,9 +195,14 @@
     let dragScrollTop = $state(0);
     let bracketEl: HTMLDivElement | null = $state(null);
 
+    let hasDragged = $state(false);
+
     function onPointerDown(e: PointerEvent) {
         if (!bracketEl) return;
+        // Don't hijack clicks on interactive elements (list links, etc.)
+        if ((e.target as HTMLElement)?.closest?.("a, button")) return;
         isDragging = true;
+        hasDragged = false;
         bracketEl.setPointerCapture(e.pointerId);
         dragStartX = e.clientX;
         dragStartY = e.clientY;
@@ -211,6 +216,7 @@
         if (!isDragging || !bracketEl) return;
         const dx = e.clientX - dragStartX;
         const dy = e.clientY - dragStartY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasDragged = true;
         bracketEl.scrollLeft = dragScrollLeft - dx;
         bracketEl.scrollTop = dragScrollTop - dy;
     }
@@ -221,6 +227,19 @@
         try { bracketEl.releasePointerCapture(e.pointerId); } catch {}
         bracketEl.style.cursor = "grab";
         bracketEl.style.userSelect = "";
+        // Prevent click after a drag gesture
+        if (hasDragged) {
+            e.preventDefault();
+            // delay reset so the next click is suppressed
+            setTimeout(() => (hasDragged = false), 0);
+        }
+    }
+
+    function onBracketClick(e: MouseEvent) {
+        if (hasDragged) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
     }
 
 
@@ -233,6 +252,7 @@
         id="bracket-scroll-container"
         class="bracket-scroll w-full overflow-auto max-h-[750px] border border-border-dark rounded-xl bg-terminal-panel p-4 relative select-none"
         style="cursor: grab; scrollbar-width: none;"
+        onclickcapture={onBracketClick}
         onpointerdown={onPointerDown}
         onpointermove={onPointerMove}
         onpointerup={onPointerUp}
@@ -402,8 +422,8 @@
                                             {m.player1}
                                         </span>
                                         {#if p1Info?.list_id}
-                                            <a href="/list/{p1Info.list_id}" class="inline-flex items-center shrink-0 text-secondary hover:text-primary transition-colors ml-0.5" title="View list" aria-label="View list">
-                                                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>
+                                            <a href="/list/{p1Info.list_id}" class="inline-flex items-center justify-center w-6 h-6 shrink-0 rounded-md border border-border-dark bg-[rgba(255,255,255,0.03)] text-secondary hover:text-primary hover:border-primary/30 hover:bg-white/5 transition-colors ml-0.5" title="View list" aria-label="View list">
+                                                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>
                                             </a>
                                         {/if}
                                     </div>
@@ -429,8 +449,8 @@
                                             {m.player2}
                                         </span>
                                         {#if p2Info?.list_id}
-                                            <a href="/list/{p2Info.list_id}" class="inline-flex items-center shrink-0 text-secondary hover:text-primary transition-colors ml-0.5" title="View list" aria-label="View list">
-                                                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>
+                                            <a href="/list/{p2Info.list_id}" class="inline-flex items-center justify-center w-6 h-6 shrink-0 rounded-md border border-border-dark bg-[rgba(255,255,255,0.03)] text-secondary hover:text-primary hover:border-primary/30 hover:bg-white/5 transition-colors ml-0.5" title="View list" aria-label="View list">
+                                                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>
                                             </a>
                                         {/if}
                                     </div>
@@ -464,12 +484,13 @@
                         style="left: {K * COL_STEP}px; top: {champTop}px; width: {COL_WIDTH}px; height: 90px;"
                     >
                         <div class="flex items-center gap-1.5 text-amber-400 mb-1">
-                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <path d="M6 13c0 2.2 1.8 4 6 4s6-1.8 6-4v-3H6v3z"></path>
-                                <path d="M18 9V7a4 4 0 0 0 4-4H2a4 4 0 0 0 4 4v2"></path>
-                                <path d="M12 17v4"></path>
-                                <path d="M8 21h8"></path>
-                                <path d="M6 9h12"></path>
+                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+                                <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+                                <path d="M4 22h16"></path>
+                                <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path>
+                                <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path>
+                                <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path>
                             </svg>
                             <span class="font-mono text-[10px] uppercase tracking-widest font-extrabold text-amber-300">CHAMPION</span>
                         </div>
@@ -484,11 +505,11 @@
                         {#if champInfo?.list_id}
                             <a
                                 href="/list/{champInfo.list_id}"
-                                class="mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 border border-amber-400/40 rounded-md bg-amber-500/10 hover:bg-amber-500/20 text-[10px] font-mono text-amber-200 hover:text-amber-100 transition-colors uppercase tracking-wider font-semibold"
+                                class="mt-1.5 inline-flex items-center justify-center w-7 h-7 rounded-md border border-amber-400/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-200 hover:text-amber-100 transition-colors"
                                 aria-label="View list"
+                                title="View list"
                             >
-                                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>
-                                view list
+                                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>
                             </a>
                         {/if}
                     </div>
