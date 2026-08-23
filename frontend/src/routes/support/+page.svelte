@@ -55,11 +55,9 @@
       <p
         class="mb-4 text-center font-sans text-base italic leading-relaxed text-secondary/80 md:mb-6"
       >
-        M3taCron is a fan project I build in my free time. The site is free and
-        has no ads. Running it is not free though. Right now the server runs on
-        free resources from Oracle, so the bill is small, but that machine would
-        cost real money otherwise and keeping everything online takes time and
-        work.
+        M3taCron runs on passion, community, and free time, far from the
+        Empire's reach and annoying ad networks. This station is free, but
+        keeping it alive requires resources.
       </p>
 
       <div
@@ -82,9 +80,11 @@
           /></svg
         >
         <p class="text-[13px] text-secondary/90 leading-relaxed font-sans">
-          If you want to support the project, thank you. It already means a lot
-          to me. I do not have anything to give back except my thanks. If you
-          leave a name, it will show up with the supporters.
+          If you choose to support the project, thank you. It means a lot and
+          helps keep the station running. You can share your name to appear
+          among the supporters, or stay anonymous behind a cloaking device. It
+          is entirely your choice. I have nothing to offer in return except my
+          thanks.
           <br /><em>May the Force be with you, always.</em>
         </p>
       </div>
