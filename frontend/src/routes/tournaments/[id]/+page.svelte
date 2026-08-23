@@ -364,12 +364,12 @@
             return cutGroups.every((g, idx) => idx === 0 || g.matches.length <= cutGroups[idx - 1].matches.length);
         })()}
 
-        <!-- Swiss Section: two-column when no cut bracket is shown, full-width stacking otherwise -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start mb-6">
-            <div class="flex flex-col gap-6">
+        <!-- Swiss Section: equal-height standings + rounds; bracket sits full-width below -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch mb-6">
+            <div class="flex flex-col">
                 <!-- Swiss Standings (or fallback when no cut exists) -->
                 {#if hasSwissTpl || (!hasCut && !hasCutMatches)}
-                    <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden">
+                    <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden flex flex-col h-full">
                         <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center justify-between gap-3">
                             <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">SWISS STANDINGS</h2>
                             <div class="flex items-center gap-3">
@@ -398,7 +398,7 @@
                                 {/if}
                             </div>
                         </div>
-                        <div class="flex flex-col">
+                        <div class="flex flex-col flex-1 min-h-0">
                             {#each (detail.players_swiss ?? []).slice(swissPage * STANDINGS_PER_PAGE, (swissPage + 1) * STANDINGS_PER_PAGE) as p}
                                 <div class="flex items-center gap-3 p-3 border-b border-border-dark last:border-0 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
                                     <span class="w-8 h-8 rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center font-mono text-sm">{p.rank}</span>
@@ -427,7 +427,7 @@
                 {@const swissIdx = Math.min(currentRoundIndex, swissGroups.length - 1)}
                 {@const swissGroup = swissGroups[swissIdx]}
                 {@const swissDom = dominantScenario(swissGroup.matches)}
-                <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden flex flex-col" style="max-height: calc(100vh - 120px);">
+                <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden flex flex-col h-full" style="max-height: calc(100vh - 120px);">
                     <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center justify-between gap-3 shrink-0">
                         <div class="flex flex-col min-w-0">
                             <div class="flex items-center gap-2">
@@ -464,7 +464,7 @@
                             {/if}
                         </div>
                     </div>
-                    <div class="flex flex-col divide-y divide-border-dark/50 overflow-y-auto p-2">
+                    <div class="flex flex-col divide-y divide-border-dark/50 overflow-y-auto p-2 flex-1 min-h-0">
                         {#each swissGroup.matches as m}
                             {@const winnerName = pickWinnerName(m)}
                             <div class="flex items-center justify-between gap-3 p-2 mx-1 my-0.5 rounded-md bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)] transition-colors">
@@ -489,17 +489,22 @@
             {/if}
         </div>
 
-        <!-- Playoff Bracket (single-elimination cut) — shown below the Swiss section; replaces both the Cut leaderboard and the Cut rounds of the old round viewer -->
+        <!-- Playoff Bracket (single-elimination cut) — below Swiss; non-knockout cuts fall back to tabular rounds -->
         {#if hasCutMatches}
             <div class="mb-8">
                 <div class="bg-terminal-panel border border-border-dark rounded-xl p-4 md:p-6 shadow-xl">
                     <div class="flex items-center gap-3 border-b border-border-dark pb-4 mb-6">
                         <div class="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400">
-                            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline><path d="M6 18h12"></path><path d="M6 6h12"></path></svg>
+                            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M6 13c0 2.2 1.8 4 6 4s6-1.8 6-4v-3H6v3z"></path>
+                                <path d="M18 9V7a4 4 0 0 0 4-4H2a4 4 0 0 0 4 4v2"></path>
+                                <path d="M12 17v4"></path>
+                                <path d="M8 21h8"></path>
+                                <path d="M6 9h12"></path>
+                            </svg>
                         </div>
                         <div>
-                            <h2 class="text-lg font-bold text-primary font-mono tracking-wide uppercase">Playoff Stage — Knockout Bracket</h2>
-                            <p class="text-xs text-secondary font-mono">Single-elimination tree — tap any match to see leads into the next round</p>
+                            <h2 class="text-lg font-bold text-primary font-mono tracking-wide uppercase">Knockout Phase</h2>
                         </div>
                     </div>
                     {#if isKnockoutCut}

@@ -187,14 +187,59 @@
         return null;
     });
 
+    // --- Drag-to-pan (hand tool) state ---
+    let isDragging = $state(false);
+    let dragStartX = $state(0);
+    let dragStartY = $state(0);
+    let dragScrollLeft = $state(0);
+    let dragScrollTop = $state(0);
+    let bracketEl: HTMLDivElement | null = $state(null);
+
+    function onPointerDown(e: PointerEvent) {
+        if (!bracketEl) return;
+        isDragging = true;
+        bracketEl.setPointerCapture(e.pointerId);
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        dragScrollLeft = bracketEl.scrollLeft;
+        dragScrollTop = bracketEl.scrollTop;
+        bracketEl.style.cursor = "grabbing";
+        bracketEl.style.userSelect = "none";
+    }
+
+    function onPointerMove(e: PointerEvent) {
+        if (!isDragging || !bracketEl) return;
+        const dx = e.clientX - dragStartX;
+        const dy = e.clientY - dragStartY;
+        bracketEl.scrollLeft = dragScrollLeft - dx;
+        bracketEl.scrollTop = dragScrollTop - dy;
+    }
+
+    function onPointerUp(e: PointerEvent) {
+        if (!bracketEl) return;
+        isDragging = false;
+        try { bracketEl.releasePointerCapture(e.pointerId); } catch {}
+        bracketEl.style.cursor = "grab";
+        bracketEl.style.userSelect = "";
+    }
+
 
 </script>
 
 <div class="flex flex-col w-full">
-    <!-- Scrollable Bracket View Container -->
+    <!-- Draggable Bracket Map Container (hand-tool panning, no scrollbars) -->
     <div
+        bind:this={bracketEl}
         id="bracket-scroll-container"
-        class="bracket-scroll w-full overflow-x-auto overflow-y-auto max-h-[750px] border border-border-dark rounded-xl bg-terminal-panel p-4 relative"
+        class="bracket-scroll w-full overflow-auto max-h-[750px] border border-border-dark rounded-xl bg-terminal-panel p-4 relative select-none"
+        style="cursor: grab; scrollbar-width: none;"
+        onpointerdown={onPointerDown}
+        onpointermove={onPointerMove}
+        onpointerup={onPointerUp}
+        onpointerleave={onPointerUp}
+        role="region"
+        aria-label="Knockout bracket map — drag to pan"
+
     >
         {#if bracketTreeData.rounds.length === 0}
             <div class="py-12 text-center text-secondary font-mono text-sm">
@@ -418,34 +463,38 @@
                     {/each}
                 {/each}
 
-                <!-- 4. Champion Card Layer -->
+                <!-- 4. Champion Card Layer (trophy / victory yellow) -->
                 {#if championName}
                     {@const champInfo = playerMap.get(championName.toLowerCase())}
                     {@const finalsY = getY(K - 1, 0, bracketTreeData.rounds)}
                     {@const champTop = HEADER_HEIGHT + finalsY - 45}
 
                     <div
-                        class="absolute flex flex-col items-center justify-center bg-gradient-to-b from-[#131d2b] to-[#090e17] border-2 border-green-500/60 rounded-xl p-3 text-center shadow-[0_0_25px_rgba(74,222,128,0.25)]"
+                        class="absolute flex flex-col items-center justify-center bg-gradient-to-b from-[#2a2410] to-[#121008] border-2 border-amber-400/60 rounded-xl p-3 text-center shadow-[0_0_25px_rgba(251,191,36,0.28)]"
                         style="left: {K * COL_STEP}px; top: {champTop}px; width: {COL_WIDTH}px; height: 90px;"
                     >
-                        <div class="flex items-center gap-1.5 text-green-400 mb-1">
-                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M12 2a1 1 0 0 1 .993.883L13 3v2h4a2 2 0 0 1 1.995 1.85L19 7v2a5 5 0 0 1-4.825 4.992l-.175.008h-.5l-.175.008c-.027.02-.054.043-.081.068a6.002 6.002 0 0 1-5.184.03l-.06-.03-.175-.008h-.5A5 5 0 0 1 3 9V7a2 2 0 0 1 1.85-1.995L5 5h4V3a1 1 0 0 1 .883-.993L10 2h2z" />
+                        <div class="flex items-center gap-1.5 text-amber-400 mb-1">
+                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M6 13c0 2.2 1.8 4 6 4s6-1.8 6-4v-3H6v3z"></path>
+                                <path d="M18 9V7a4 4 0 0 0 4-4H2a4 4 0 0 0 4 4v2"></path>
+                                <path d="M12 17v4"></path>
+                                <path d="M8 21h8"></path>
+                                <path d="M6 9h12"></path>
                             </svg>
-                            <span class="font-mono text-[10px] uppercase tracking-widest font-extrabold text-green-400">CHAMPION</span>
+                            <span class="font-mono text-[10px] uppercase tracking-widest font-extrabold text-amber-300">CHAMPION</span>
                         </div>
                         <div class="flex items-center gap-2 min-w-0 justify-center">
                             {#if champInfo?.faction}
                                 <FactionIcon faction={champInfo.faction} size="sm" />
                             {/if}
-                            <span class="font-mono text-sm font-bold text-green-300 truncate max-w-[130px]" title={championName}>
+                            <span class="font-mono text-sm font-bold text-amber-200 truncate max-w-[130px]" title={championName}>
                                 {championName}
                             </span>
                         </div>
                         {#if champInfo?.list_id}
                             <a
                                 href="/list/{champInfo.list_id}"
-                                class="mt-1.5 px-2.5 py-0.5 border border-green-500/40 rounded-md bg-green-500/10 hover:bg-green-500/20 text-[10px] font-mono text-green-300 hover:text-green-200 transition-colors uppercase tracking-wider font-semibold"
+                                class="mt-1.5 px-2.5 py-0.5 border border-amber-400/40 rounded-md bg-amber-500/10 hover:bg-amber-500/20 text-[10px] font-mono text-amber-200 hover:text-amber-100 transition-colors uppercase tracking-wider font-semibold"
                             >
                                 View Deck
                             </a>
@@ -458,19 +507,15 @@
 </div>
 
 <style>
+    /* Draggable map: hide native scrollbars, keep scrolling via pointer drag + wheel */
     .bracket-scroll::-webkit-scrollbar {
-        height: 8px;
-        width: 8px;
+        display: none;
     }
-    .bracket-scroll::-webkit-scrollbar-track {
-        background: rgba(0, 0, 0, 0.2);
-        border-radius: 4px;
+    .bracket-scroll {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
     }
-    .bracket-scroll::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.12);
-        border-radius: 4px;
-    }
-    .bracket-scroll::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.25);
+    .bracket-scroll:active {
+        cursor: grabbing !important;
     }
 </style>
