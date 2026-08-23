@@ -1,22 +1,19 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import EvolutionProgressBar from "$lib/components/EvolutionProgressBar.svelte";
   import HallOfHeroes from "$lib/components/HallOfHeroes.svelte";
   import { API_BASE } from "$lib/api";
   import { cachedFetchJson } from "$lib/api/cache";
 
-  let fundStatus = $state({ total_raised: 0, tiers: [] });
   let supporters = $state([]);
   let loading = $state(true);
+  const SUPPORTER_THRESHOLD = 3;
+
+  let showSupporters = $derived(supporters.length >= SUPPORTER_THRESHOLD);
 
   async function fetchData() {
     try {
-      const [statusData, supportersData] = await Promise.all([
-        cachedFetchJson(`${API_BASE}/support/fund-status`),
-        cachedFetchJson(`${API_BASE}/support/supporters`),
-      ]);
-      fundStatus = statusData;
-      supporters = supportersData;
+      const data = await cachedFetchJson(`${API_BASE}/support/supporters`);
+      supporters = data;
     } catch (e) {
       console.error("Failed to fetch support data", e);
     } finally {
@@ -30,7 +27,7 @@
 </script>
 
 <svelte:head>
-  <title>Support M3taCron | Maintenance & Evolution</title>
+  <title>Support M3taCron</title>
 </svelte:head>
 
 <div
@@ -49,16 +46,20 @@
   <div
     class="grid flex-1 grid-cols-1 items-start gap-8 lg:grid-cols-12 lg:gap-12 lg:min-h-0"
   >
-    <!-- Left Column (2/3) -->
-    <section class="flex flex-col lg:col-span-8 lg:h-full lg:min-h-0 lg:pr-4">
+    <!-- Left Column: full width until threshold, 8/12 after -->
+    <section
+      class="flex flex-col lg:h-full lg:min-h-0 lg:pr-4 {showSupporters || loading
+        ? 'lg:col-span-8'
+        : 'lg:col-span-12 lg:max-w-3xl lg:mx-auto lg:items-center'}"
+    >
       <p
         class="mb-4 text-center font-sans text-base italic leading-relaxed text-secondary/80 md:mb-6"
       >
-        M3taCron runs on passion, community, and free time, far from the
-        Empire's reach and annoying ad networks. This station is free, but
-        keeping it alive requires resources. Every donation goes straight to
-        covering monthly server costs first, while any overflow fuels new
-        development!
+        M3taCron is a fan project I build in my free time. The site is free and
+        has no ads. Running it is not free though. Right now the server runs on
+        free resources from Oracle, so the bill is small, but that machine would
+        cost real money otherwise and keeping everything online takes time and
+        work.
       </p>
 
       <div
@@ -81,17 +82,16 @@
           /></svg
         >
         <p class="text-[13px] text-secondary/90 leading-relaxed font-sans">
-          To those who decide to support the project monthly: thank you! As a
-          gesture of gratitude, you'll have a direct channel to discuss new
-          feature requests with me. If they fit the system, I'll make them a
-          priority.
+          If you want to support the project, thank you. It already means a lot
+          to me. I do not have anything to give back except my thanks. If you
+          leave a name, it will show up with the supporters.
           <br /><em>May the Force be with you, always.</em>
         </p>
       </div>
 
       <div class="mb-10 flex justify-center relative group lg:mb-12">
         <a
-          href="https://ko-fi.com/m3tacron"
+          href="https://ko-fi.com/francespo"
           target="_blank"
           rel="noopener noreferrer"
           class="relative inline-flex px-12 py-6 bg-primary text-terminal-bg font-mono font-bold uppercase tracking-[0.2em] text-lg transition-all hover:scale-[1.02] active:scale-[0.98] overflow-hidden animate-heartbeat hover:![animation-play-state:paused] rounded-xl"
@@ -122,82 +122,53 @@
           ></div>
         </a>
       </div>
+    </section>
 
-      <div class="flex flex-col pt-6 lg:pt-8">
+    <!-- Right Column: only shown after threshold -->
+    {#if loading || showSupporters}
+      <section class="flex flex-col lg:col-span-4 lg:h-full lg:min-h-0">
         <div class="mb-6 flex items-center gap-4">
+          <div
+            class="h-[1px] flex-1 bg-gradient-to-l from-secondary/30 to-transparent"
+          ></div>
           <h2
-            class="text-lg font-mono font-bold uppercase tracking-[0.3em] shrink-0"
+            class="text-lg font-mono font-bold uppercase tracking-[0.3em] shrink-0 text-secondary"
           >
-            Community Fund
+            Galactic Patrons
           </h2>
           <div
-            class="h-[1px] flex-1 bg-gradient-to-r from-border-dark to-transparent"
+            class="h-[1px] flex-1 bg-gradient-to-r from-secondary/30 to-transparent"
           ></div>
         </div>
 
-        {#if loading}
-          <div class="space-y-12 opacity-20">
-            {#each Array(3) as _}
-              <div class="space-y-4">
-                <div class="flex justify-between">
-                  <div class="h-4 w-32 bg-secondary/20 rounded"></div>
-                  <div class="h-4 w-16 bg-secondary/20 rounded"></div>
-                </div>
-                <div
-                  class="h-3 w-full bg-terminal-panel border border-border-dark"
-                ></div>
-              </div>
-            {/each}
-          </div>
-        {:else}
-          <EvolutionProgressBar tiers={fundStatus.tiers} />
-        {/if}
-      </div>
-    </section>
-
-    <!-- Right Column (1/3) -->
-    <section class="flex flex-col lg:col-span-4 lg:h-full lg:min-h-0">
-      <div class="mb-6 flex items-center gap-4">
         <div
-          class="h-[1px] flex-1 bg-gradient-to-l from-secondary/30 to-transparent"
-        ></div>
-        <h2
-          class="text-lg font-mono font-bold uppercase tracking-[0.3em] shrink-0 text-secondary"
+          class="mb-4 space-y-4 custom-scrollbar lg:flex-1 lg:min-h-0 lg:overflow-y-auto lg:pr-2"
         >
-          Galactic Patrons
-        </h2>
-        <div
-          class="h-[1px] flex-1 bg-gradient-to-r from-secondary/30 to-transparent"
-        ></div>
-      </div>
-
-      <div
-        class="mb-4 space-y-4 custom-scrollbar lg:flex-1 lg:min-h-0 lg:overflow-y-auto lg:pr-2"
-      >
-        {#if loading}
-          <div class="space-y-4 opacity-10">
-            {#each Array(6) as _}
-              <div
-                class="h-20 bg-terminal-panel border border-border-dark"
-              ></div>
-            {/each}
-          </div>
-        {:else}
-          <HallOfHeroes {supporters} />
-        {/if}
-      </div>
-
-      {#if !loading && supporters.length > 0}
-        <div class="shrink-0 border-t border-border-dark/30 pt-6 text-center">
-          <p
-            class="text-[9px] text-secondary/30 font-mono tracking-widest uppercase italic max-w-xs mx-auto"
-          >
-            Honoring the galaxy's brightest sparks. Heroes who prefer to stay
-            anonymous are protected by a cloaking device.
-          </p>
+          {#if loading}
+            <div class="space-y-4 opacity-10">
+              {#each Array(6) as _}
+                <div
+                  class="h-20 bg-terminal-panel border border-border-dark"
+                ></div>
+              {/each}
+            </div>
+          {:else}
+            <HallOfHeroes {supporters} />
+          {/if}
         </div>
-      {/if}
-    </section>
+
+        {#if !loading && showSupporters}
+          <div class="shrink-0 border-t border-border-dark/30 pt-6 text-center">
+            <p
+              class="text-[9px] text-secondary/30 font-mono tracking-widest uppercase italic max-w-xs mx-auto"
+            >
+              Honoring the galaxy's brightest sparks. Heroes who prefer to stay
+              anonymous are protected by a cloaking device.
+            </p>
+          </div>
+        {/if}
+      </section>
+    {/if}
   </div>
 </div>
 
