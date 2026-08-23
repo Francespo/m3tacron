@@ -3,10 +3,10 @@
 	let { supporters = [] }: { supporters: Supporter[] } = $props();
 </script>
 
-<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+<div class="flex flex-wrap justify-center gap-3">
 	{#each supporters as supporter}
 		<div
-			class="relative flex min-h-[64px] flex-col items-center justify-center gap-1.5 overflow-hidden rounded-xl border border-primary/10 bg-black/80 px-4 py-4 text-center backdrop-blur-sm"
+			class="relative flex min-h-[64px] w-[calc(50%-6px)] flex-col items-center justify-center gap-1.5 overflow-hidden rounded-xl border border-primary/10 bg-black/80 px-4 py-4 text-center backdrop-blur-sm sm:w-[calc(33.333%-8px)] lg:w-[calc(25%-9px)] xl:w-[calc(20%-9.6px)] max-w-[220px] flex-none"
 		>
 			<span
 				class="block w-full truncate text-xs font-mono font-bold uppercase tracking-tight text-primary"
@@ -25,7 +25,7 @@
 		</div>
 	{:else}
 		<div
-			class="col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed border-border-dark/40 bg-terminal-panel/20 py-12"
+			class="flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-border-dark/40 bg-terminal-panel/20 py-12"
 		>
 			<p
 				class="mb-2 text-xs font-mono uppercase tracking-[0.3em] text-secondary/40"
@@ -33,14 +33,14 @@
 				Awaiting the First Heroes
 			</p>
 			<p class="text-[10px] italic text-secondary/20">
-				The records are empty, but the future is bright.
+				"Help me, Obi-Wan Kenobi, you are my only hope"
 			</p>
 		</div>
 	{/each}
 </div>
 
 <style>
-	.grid > div:not(.col-span-full)::after {
+	.flex > div:not(.w-full)::after {
 		content: "";
 		position: absolute;
 		top: 0;
