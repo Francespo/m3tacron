@@ -327,12 +327,6 @@
             {@const roundGroups = groupRoundsByType(matches)}
             {@const hasCutTpl = (detail.players_cut?.length ?? 0) > 0}
             {@const hasSwissTpl = (detail.players_swiss?.length ?? 0) > 0}
-            {@const activeStandingsTpl = standingsTab === 'cut' ? (detail.players_cut ?? []) : (detail.players_swiss ?? [])}
-            {@const activeTotalPagesTpl = Math.ceil(activeStandingsTpl.length / STANDINGS_PER_PAGE)}
-            {@const activePageTpl = standingsTab === 'cut' ? cutPage : swissPage}
-            {@const activePageItemsTpl = activeStandingsTpl.slice(activePageTpl * STANDINGS_PER_PAGE, (activePageTpl + 1) * STANDINGS_PER_PAGE)}
-            {@const cutIsKnockoutTpl = (() => { const players = (detail.players_cut ?? []) as { rank: number }[]; if (players.length < 2) return false; const ranks = players.map((p) => p.rank); const counts = new Map<number, number>(); for (const r of ranks) counts.set(r, (counts.get(r) ?? 0) + 1); const shared = [...counts.values()].filter((c) => c > 1).reduce((a, b) => a + b, 0); const allPow = ranks.every((r) => r > 0 && (r & (r - 1)) === 0); return shared / players.length > 0.5 || (allPow && shared > 0); })()}
-            {@const cutTierGroupsTpl = (() => { const groups = new Map<number, { rank: number; players: typeof activePageItemsTpl }>(); for (const p of activePageItemsTpl) { const pr = (p as any).rank as number; if (!groups.has(pr)) groups.set(pr, { rank: pr, players: [] as any }); (groups.get(pr)!.players as any).push(p); } return Array.from(groups.values()).sort((a, b) => a.rank - b.rank); })()}
             <!-- Header -->
         <div class="border-b border-border-dark pb-6 mb-6">
             <div class="flex items-center gap-3 mb-2">
@@ -451,14 +445,14 @@
 
                             <!-- Standings Pagination Controls in Top Header -->
                             <div class="flex items-center gap-3">
-                                {#if activeTotalPagesTpl > 1}
+                                {#if Math.ceil((standingsTab === 'cut' ? (detail.players_cut?.length ?? 0) : (detail.players_swiss?.length ?? 0)) / STANDINGS_PER_PAGE) > 1}
                                     <span class="text-xs font-mono text-secondary">
-                                        Page {activePageTpl + 1} / {activeTotalPagesTpl}
+                                        Page {(standingsTab === 'cut' ? cutPage : swissPage) + 1} / {Math.ceil(((standingsTab === 'cut' ? (detail.players_cut ?? []) : (detail.players_swiss ?? [])) as any[]).length / STANDINGS_PER_PAGE)}
                                     </span>
                                     <div class="flex items-center gap-1">
                                         <button
                                             class="p-1.5 rounded-md border border-border-dark text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
-                                            disabled={activePageTpl === 0}
+                                            disabled={(standingsTab === 'cut' ? cutPage : swissPage) === 0}
                                             onclick={prevPage}
                                             aria-label="Previous page"
                                         >
@@ -466,7 +460,7 @@
                                         </button>
                                         <button
                                             class="p-1.5 rounded-md border border-border-dark text-primary hover:bg-[rgba(255,255,255,0.1)] transition-colors disabled:opacity-30 disabled:cursor-default"
-                                            disabled={activePageTpl >= activeTotalPagesTpl - 1}
+                                            disabled={(standingsTab === 'cut' ? cutPage : swissPage) >= Math.ceil(((standingsTab === 'cut' ? (detail.players_cut ?? []) : (detail.players_swiss ?? [])) as any[]).length / STANDINGS_PER_PAGE) - 1}
                                             onclick={nextPage}
                                             aria-label="Next page"
                                         >
@@ -478,10 +472,10 @@
                         </div>
 
                         <!-- Standings Player List -->
-                        {#if standingsTab === 'cut' && cutIsKnockoutTpl}
+                        {#if standingsTab === 'cut' && (() => { const players = (detail.players_cut ?? []) as { rank: number }[]; if (players.length < 2) return false; const ranks = players.map((pp) => pp.rank); const counts = new Map<number, number>(); for (const r of ranks) counts.set(r, (counts.get(r) ?? 0) + 1); const shared = [...counts.values()].filter((c) => c > 1).reduce((a, b) => a + b, 0); const allPow = ranks.every((r) => r > 0 && (r & (r - 1)) === 0); return shared / players.length > 0.5 || (allPow && shared > 0); })()}
                             <!-- Knockout placement: group by reached stage, compact -->
                             <div class="flex flex-col">
-                                {#each cutTierGroupsTpl as g}
+                                {#each (() => { const _items = ((standingsTab === 'cut' ? (detail.players_cut ?? []) : (detail.players_swiss ?? [])) as any[]).slice((standingsTab === 'cut' ? cutPage : swissPage) * STANDINGS_PER_PAGE, ((standingsTab === 'cut' ? cutPage : swissPage) + 1) * STANDINGS_PER_PAGE); const groups = new Map<number, { rank: number; players: typeof _items }>(); for (const pp of _items) { const pr = (pp as any).rank as number; if (!groups.has(pr)) groups.set(pr, { rank: pr, players: [] as any }); (groups.get(pr)!.players as any).push(pp); } return Array.from(groups.values()).sort((a, b) => a.rank - b.rank); })() as g}
                                     <div class="flex items-center gap-3 p-2.5 border-b border-border-dark last:border-0">
                                         <span class="w-20 shrink-0 text-[10px] font-mono uppercase tracking-wide text-right leading-tight {g.rank <= 2 ? 'text-green-400 font-bold' : 'text-amber-300'}">{cutStageLabel(g.rank)}</span>
                                         <div class="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
@@ -497,7 +491,7 @@
                             </div>
                         {:else}
                         <div class="flex flex-col">
-                            {#each activePageItemsTpl as p}
+                            {#each ((standingsTab === 'cut' ? (detail.players_cut ?? []) : (detail.players_swiss ?? [])) as any[]).slice((standingsTab === 'cut' ? cutPage : swissPage) * STANDINGS_PER_PAGE, ((standingsTab === 'cut' ? cutPage : swissPage) + 1) * STANDINGS_PER_PAGE) as p}
                                 <div class="flex items-center gap-3 p-3 border-b border-border-dark last:border-0 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
                                     <span class="w-8 h-8 rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center font-mono text-sm">{p.rank}</span>
                                     <FactionIcon faction={p.faction} size="md" />
