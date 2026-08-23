@@ -4,29 +4,31 @@
   import { API_BASE } from "$lib/api";
   import { cachedFetchJson } from "$lib/api/cache";
 
-  let supporters: { name: string }[] = $state([]);
+  let supporters: { name: string; message?: string | null }[] = $state([]);
   let loading = $state(true);
-  const SUPPORTER_THRESHOLD = 3;
 
-  // Dev-only preview to demo the threshold states on this stack
+  // Dev-only preview to demo the empty vs populated states on this stack
+  // Messages are shown only if you approve them; preview shows both with and without
   type PreviewMode = "live" | "empty" | "below" | "above";
   let previewMode: PreviewMode = $state("live");
   const previewData: Record<Exclude<PreviewMode, "live">, typeof supporters> = {
     empty: [],
-    below: [{ name: "Wedge Antilles" }, { name: "Hera Syndulla" }],
+    below: [
+      { name: "Wedge Antilles", message: "Thanks for the site!" },
+      { name: "Hera Syndulla", message: null },
+    ],
     above: [
-      { name: "Wedge Antilles" },
-      { name: "Hera Syndulla" },
-      { name: "Cassian Andor" },
-      { name: "Ahsoka Tano" },
-      { name: "K-2SO" },
+      { name: "Wedge Antilles", message: "Thanks for keeping the droids working!" },
+      { name: "Hera Syndulla", message: null },
+      { name: "Cassian Andor", message: "For the Rebellion" },
+      { name: "Ahsoka Tano", message: "May the Force be with this project" },
+      { name: "K-2SO", message: null },
     ],
   };
 
   let displaySupporters = $derived(
     previewMode === "live" ? supporters : previewData[previewMode],
   );
-  let showSupporters = $derived(displaySupporters.length >= SUPPORTER_THRESHOLD);
 
   async function fetchData() {
     try {
@@ -63,7 +65,7 @@
             : 'bg-transparent text-secondary border-border-dark hover:border-primary/40'}"
         >{label}</button>
       {/each}
-      <span class="ml-2 self-center text-secondary/40">threshold = {SUPPORTER_THRESHOLD}</span>
+      <span class="ml-2 self-center text-secondary/40">preview</span>
     </div>
   {/if}
 
@@ -151,38 +153,36 @@
       </div>
     </section>
 
-    <!-- Galactic Patrons: below the donation, only after threshold -->
-    {#if loading || showSupporters}
-      <section class="flex flex-col">
-        <div class="mb-6 flex items-center gap-4">
-          <div
-            class="h-[1px] flex-1 bg-gradient-to-l from-secondary/30 to-transparent"
-          ></div>
-          <h2
-            class="text-lg font-mono font-bold uppercase tracking-[0.3em] shrink-0 text-secondary"
-          >
-            Galactic Patrons
-          </h2>
-          <div
-            class="h-[1px] flex-1 bg-gradient-to-r from-secondary/30 to-transparent"
-          ></div>
-        </div>
+    <!-- Galactic Patrons: always below donation so placement is clear -->
+    <section class="flex flex-col">
+      <div class="mb-6 flex items-center gap-4">
+        <div
+          class="h-[1px] flex-1 bg-gradient-to-l from-secondary/30 to-transparent"
+        ></div>
+        <h2
+          class="text-lg font-mono font-bold uppercase tracking-[0.3em] shrink-0 text-secondary"
+        >
+          Galactic Patrons
+        </h2>
+        <div
+          class="h-[1px] flex-1 bg-gradient-to-r from-secondary/30 to-transparent"
+        ></div>
+      </div>
 
-        <div class="space-y-4">
-          {#if loading && previewMode === "live"}
-            <div class="grid grid-cols-1 gap-4 opacity-10 sm:grid-cols-2 lg:grid-cols-3">
-              {#each Array(6) as _}
-                <div
-                  class="h-20 bg-terminal-panel border border-border-dark"
-                ></div>
-              {/each}
-            </div>
-          {:else}
-            <HallOfHeroes supporters={displaySupporters} />
-          {/if}
-        </div>
-      </section>
-    {/if}
+      <div class="space-y-4">
+        {#if loading && previewMode === "live"}
+          <div class="grid grid-cols-2 gap-3 opacity-10 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {#each Array(6) as _}
+              <div
+                class="h-14 rounded-xl border border-border-dark bg-terminal-panel"
+              ></div>
+            {/each}
+          </div>
+        {:else}
+          <HallOfHeroes supporters={displaySupporters} />
+        {/if}
+      </div>
+    </section>
   </div>
 </div>
 
