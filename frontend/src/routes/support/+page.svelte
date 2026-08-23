@@ -82,9 +82,7 @@
         <p class="text-[13px] text-secondary/90 leading-relaxed font-sans">
           If you choose to support the project, thank you. It means a lot and
           helps keep the station running. You can share your name to appear
-          among the supporters, or stay anonymous behind a cloaking device. It
-          is entirely your choice. I have nothing to offer in return except my
-          thanks.
+          among the supporters, or stay anonymous behind a cloaking device.
           <br /><em>May the Force be with you, always.</em>
         </p>
       </div>
