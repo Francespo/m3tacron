@@ -4,16 +4,37 @@
   import { API_BASE } from "$lib/api";
   import { cachedFetchJson } from "$lib/api/cache";
 
-  let supporters = $state([]);
+  let supporters: { name: string; amount: number; date: string; message?: string | null }[] = $state([]);
   let loading = $state(true);
   const SUPPORTER_THRESHOLD = 3;
 
-  let showSupporters = $derived(supporters.length >= SUPPORTER_THRESHOLD);
+  // Dev-only preview to demo the threshold states on this stack
+  type PreviewMode = "live" | "empty" | "below" | "above";
+  let previewMode: PreviewMode = $state("live");
+  const previewData: Record<Exclude<PreviewMode, "live">, typeof supporters> = {
+    empty: [],
+    below: [
+      { name: "Wedge Antilles", amount: 5, date: new Date().toISOString(), message: "Thanks for the site!" },
+      { name: "Hera Syndulla", amount: 10, date: new Date().toISOString(), message: null },
+    ],
+    above: [
+      { name: "Wedge Antilles", amount: 5, date: new Date().toISOString(), message: "Thanks for keeping the station alive!" },
+      { name: "Hera Syndulla", amount: 10, date: new Date().toISOString(), message: null },
+      { name: "Cassian Andor", amount: 20, date: new Date().toISOString(), message: "For the Rebellion" },
+      { name: "Ahsoka Tano", amount: 15, date: new Date().toISOString(), message: "May the Force be with this project" },
+      { name: "K-2SO", amount: 3, date: new Date().toISOString(), message: null },
+    ],
+  };
+
+  let displaySupporters = $derived(
+    previewMode === "live" ? supporters : previewData[previewMode],
+  );
+  let showSupporters = $derived(displaySupporters.length >= SUPPORTER_THRESHOLD);
 
   async function fetchData() {
     try {
       const data = await cachedFetchJson(`${API_BASE}/support/supporters`);
-      supporters = data;
+      supporters = Array.isArray(data) ? data : [];
     } catch (e) {
       console.error("Failed to fetch support data", e);
     } finally {
@@ -33,6 +54,22 @@
 <div
   class="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 px-6 py-8 lg:h-screen lg:gap-8 lg:overflow-hidden lg:py-8"
 >
+  <!-- Dev preview toggle (only shown when ?preview=1) -->
+  {#if typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1"}
+    <div class="shrink-0 flex justify-center gap-2 text-[10px] font-mono">
+      {#each [["live", "Live"], ["empty", "0 — empty"], ["below", "2 — below"], ["above", "5 — above"]] as [mode, label]}
+        <button
+          type="button"
+          onclick={() => (previewMode = mode as PreviewMode)}
+          class="px-2 py-1 rounded border transition-colors {previewMode === mode
+            ? 'bg-primary text-terminal-bg border-primary'
+            : 'bg-transparent text-secondary border-border-dark hover:border-primary/40'}"
+        >{label}</button>
+      {/each}
+      <span class="ml-2 self-center text-secondary/40">threshold = {SUPPORTER_THRESHOLD}</span>
+    </div>
+  {/if}
+
   <!-- Header Section -->
     <header class="shrink-0 text-center">
     <h1
@@ -143,7 +180,7 @@
         <div
           class="mb-4 space-y-4 custom-scrollbar lg:flex-1 lg:min-h-0 lg:overflow-y-auto lg:pr-2"
         >
-          {#if loading}
+          {#if loading && previewMode === "live"}
             <div class="space-y-4 opacity-10">
               {#each Array(6) as _}
                 <div
@@ -152,11 +189,11 @@
               {/each}
             </div>
           {:else}
-            <HallOfHeroes {supporters} />
+            <HallOfHeroes supporters={displaySupporters} />
           {/if}
         </div>
 
-        {#if !loading && showSupporters}
+        {#if previewMode !== "live" ? showSupporters : !loading && showSupporters}
           <div class="shrink-0 border-t border-border-dark/30 pt-6 text-center">
             <p
               class="text-[9px] text-secondary/30 font-mono tracking-widest uppercase italic max-w-xs mx-auto"
