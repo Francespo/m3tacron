@@ -75,8 +75,8 @@ def test_merge_ship_faction_rows_sums_across_factions_and_keeps_breakdown():
     assert ship["different_lists_count"] == 2
     assert ship["wins"] == 4
     assert ship["faction_stats"] == {
-        "rebelalliance": {"games_count": 6, "list_count": 2, "wins": 3},
-        "galacticrepublic": {"games_count": 2, "list_count": 1, "wins": 1},
+        "rebelalliance": {"games_count": 6, "list_count": 2, "wins": 3, "entries_count": 0, "squadron_count": 0},
+        "galacticrepublic": {"games_count": 2, "list_count": 1, "wins": 1, "entries_count": 0, "squadron_count": 0},
     }
 
 
@@ -322,6 +322,8 @@ class TestShipStatsCountingPostgres:
                     "games_count": 8,
                     "list_count": 2,
                     "wins": 4,
+                    "entries_count": 2,
+                    "squadron_count": 2,
                 }
                 # The two lists share one match: that match must count twice.
                 # (4 + 4 = 8 games total would be impossible if the shared
