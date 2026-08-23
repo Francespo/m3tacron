@@ -1,61 +1,75 @@
 import type { PageLoad } from './$types';
 import { API_BASE } from '$lib/api';
 
-/**
- * Upgrade detail loader.
- *
- * Phase G scope: implement the upgrade detail page using ONLY existing
- * backend endpoints. The backend has no dedicated upgrade-detail endpoint
- * (no /api/upgrade/{xws} or /api/upgrades/{xws}); the only upgrade-aware
- * endpoint is the paginated /api/cards/upgrades list. We use that to
- * extract this upgrade's aggregate stats row.
- *
- * The fetch runs against the `upgrade_id` query param (size=1) so we stop
- * over-fetching the whole catalog. If the backend change isn't live yet
- * (no matching row comes back), we fall back to the old size=2000 catalog
- * scan so the page keeps working against older backends.
- *
- * Limitations surfaced to the page (and to the user):
- *  - No endpoint returns lists/squadrons filtered to a single upgrade.
- *  - The static upgrade metadata (name, image, slot, description text,
- *    cost) is loaded client-side from the `xwingData` reactive manifest
- *    store, which is identical to what `UpgradeCard.svelte` uses.
- */
 export const load: PageLoad = async ({ fetch, params, url }) => {
-    url.search; // Force reactivity on URL params
+    url.search; // Force reactivity
     const upgradeXws = params.id;
     const ds = url.searchParams.get('data_source') === 'legacy' ? 'legacy' : 'xwa';
+    const includeEpic = url.searchParams.get('epic') === 'true';
+    const hasEpicParam = url.searchParams.has('epic');
 
-    // Return a promise so SvelteKit navigates immediately and streams data in.
-    // This prevents navigation from blocking on slow API responses.
-    const statsPromise = fetch(
-        `${API_BASE}/cards/upgrades?data_source=${ds}&upgrade_id=${upgradeXws}&size=1&page=0`,
-    )
-        .then(async (statsRes) => {
-            if (!statsRes.ok) return null;
-            const data = await statsRes.json().catch(() => null);
-            if (!data) return null;
-            const items = Array.isArray(data?.items) ? data.items : [];
-            const direct = items.find((it: any) => it?.xws === upgradeXws) ?? null;
-            if (direct) return direct;
+    const formatsFromUrl = url.searchParams.getAll('formats');
+    const formats = formatsFromUrl.length > 0
+        ? formatsFromUrl
+        : (ds === 'xwa'
+            ? (includeEpic ? ['xwa', 'xwa_epic'] : ['xwa'])
+            : (includeEpic ? ['legacy_x2po', 'legacy_xlc', 'ffg', 'legacy_pandorum', 'legacy_epic'] : ['legacy_x2po', 'legacy_xlc', 'ffg', 'legacy_pandorum']));
 
-            // Backend doesn't support `upgrade_id` yet — fall back to the
-            // previous full-catalog scan (old behavior, size=2000).
-            const fallbackRes = await fetch(
-                `${API_BASE}/cards/upgrades?data_source=${ds}&size=2000&page=0`,
-            );
-            if (!fallbackRes.ok) return null;
-            const fallbackData = await fallbackRes.json().catch(() => null);
-            const fallbackItems = Array.isArray(fallbackData?.items)
-                ? fallbackData.items
-                : [];
-            return fallbackItems.find((it: any) => it?.xws === upgradeXws) ?? null;
-        })
-        .catch(() => null);
+    const formatQuery = formats.map((f) => `formats=${encodeURIComponent(f)}`).join('&');
+    const formatSuffix = formatQuery ? `&${formatQuery}` : '';
+
+    const [infoRes, pilotsRes, shipsRes, chartRes, statsRes] = await Promise.allSettled([
+        fetch(`${API_BASE}/upgrade/${upgradeXws}?data_source=${ds}`),
+        fetch(`${API_BASE}/upgrade/${upgradeXws}/pilots?data_source=${ds}${formatSuffix}`),
+        fetch(`${API_BASE}/upgrade/${upgradeXws}/ships?data_source=${ds}${formatSuffix}`),
+        fetch(`${API_BASE}/upgrade/${upgradeXws}/chart?data_source=${ds}${formatSuffix}`),
+        fetch(`${API_BASE}/cards/upgrades?data_source=${ds}&upgrade_id=${upgradeXws}&size=1&page=0`),
+    ]);
+
+    let info: any = null;
+    if (infoRes.status === 'fulfilled' && infoRes.value.ok) {
+        info = await infoRes.value.json().catch(() => null);
+    }
+
+    let pilots: any[] = [];
+    if (pilotsRes.status === 'fulfilled' && pilotsRes.value.ok) {
+        const j = await pilotsRes.value.json().catch(() => null);
+        pilots = Array.isArray(j) ? j : (Array.isArray(j?.items) ? j.items : []);
+    }
+
+    let ships: any[] = [];
+    if (shipsRes.status === 'fulfilled' && shipsRes.value.ok) {
+        const j = await shipsRes.value.json().catch(() => null);
+        ships = Array.isArray(j) ? j : (Array.isArray(j?.items) ? j.items : []);
+    }
+
+    let chart: any[] = [];
+    let chartSeries: string[] = [];
+    if (chartRes.status === 'fulfilled' && chartRes.value.ok) {
+        const j = await chartRes.value.json().catch(() => null);
+        chart = Array.isArray(j?.data) ? j.data : (Array.isArray(j) ? j : []);
+        chartSeries = Array.isArray(j?.series) ? j.series : [];
+    }
+
+    // Fallback stats from cards/upgrades aggregate (for GAMES/LISTS/WR pills) when /upgrade/{xws} has none
+    let stats: any = null;
+    if (statsRes.status === 'fulfilled' && statsRes.value.ok) {
+        const j = await statsRes.value.json().catch(() => null);
+        const items = Array.isArray(j?.items) ? j.items : [];
+        stats = items.find((it: any) => it?.xws === upgradeXws) ?? (items[0] ?? null);
+    }
 
     return {
         upgradeXws,
         ds,
-        statsPromise,
+        includeEpic,
+        hasEpicParam,
+        formats,
+        info,
+        pilots,
+        ships,
+        chart,
+        chartSeries,
+        stats,
     };
 };

@@ -18,13 +18,33 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
     const formatQuery = formats.map((f) => `formats=${encodeURIComponent(f)}`).join('&');
     const formatSuffix = formatQuery ? `&${formatQuery}` : '';
 
-    // Fetch all 4 endpoints in parallel
+    // Fetch all 4 endpoints in parallel — pull enough rows to paginate client-side (20 per page)
     const [infoRes, upgradesRes, chartRes, configRes] = await Promise.allSettled([
         fetch(`${API_BASE}/pilot/${pilotXws}?data_source=${ds}`),
-        fetch(`${API_BASE}/pilot/${pilotXws}/upgrades?data_source=${ds}&size=50${formatSuffix}`),
+        fetch(`${API_BASE}/pilot/${pilotXws}/upgrades?data_source=${ds}&size=200${formatSuffix}`),
         fetch(`${API_BASE}/pilot/${pilotXws}/chart?data_source=${ds}${formatSuffix}`),
-        fetch(`${API_BASE}/pilot/${pilotXws}/configurations?data_source=${ds}&limit=10${formatSuffix}`),
+        fetch(`${API_BASE}/pilot/${pilotXws}/configurations?data_source=${ds}&limit=100${formatSuffix}`),
     ]);
+
+    // Server-paginated Top Lists (SQL-backed): fetch page size 4, total is real (not 12 capped). Keep sync filters minimal for pilot detail.
+    let pilotLists: any[] = [];
+    let pilotListsTotal = 0;
+    let pilotListsPageForLoad = 0;
+    let pilotListsSortForLoad: "Games" | "Win Rate" = "Games";
+    let pilotListsDirForLoad: "asc" | "desc" = "desc";
+    // Initial load: page 0, Games desc, size 4 — real total (often 200+ for popular pilots)
+    {
+        const p = new URLSearchParams({ data_source: ds, sort_metric: pilotListsSortForLoad, sort_direction: pilotListsDirForLoad, size: "4", page: String(pilotListsPageForLoad) });
+        for (const f of formats) p.append("formats", f);
+        try {
+            const r = await fetch(`${API_BASE}/pilot/${pilotXws}/lists?${p.toString()}`);
+            if (r.ok) {
+                const j = await r.json().catch(() => null);
+                pilotLists = Array.isArray(j?.items) ? j.items : [];
+                pilotListsTotal = Number(j?.total ?? 0) || 0;
+            }
+        } catch {}
+    }
 
     const info = infoRes.status === 'fulfilled' && infoRes.value.ok
         ? await infoRes.value.json() : { name: pilotXws, xws: pilotXws, image: '' };
@@ -51,5 +71,7 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
         chartSeries: chartData.series || [],
         configurations: configData.configurations || [],
         configTotal: configData.total || 0,
+        pilotLists,
+        pilotListsTotal,
     };
 };

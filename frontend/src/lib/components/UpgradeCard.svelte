@@ -77,21 +77,9 @@
                         class="text-base font-sans font-bold text-primary leading-tight flex items-center gap-2"
                         title={name}
                     >
-                        <div class="flex items-center gap-1 flex-shrink-0">
-                            {#if slot}
-                                <div
-                                    class="w-6 h-6 rounded-md bg-white/5 flex items-center justify-center border border-white/10"
-                                >
-                                    <StatIcon
-                                        type={slot}
-                                        size="1rem"
-                                        color="white"
-                                        className="drop-shadow-md opacity-90"
-                                        style="filter: brightness(1.1);"
-                                    />
-                                </div>
-                            {/if}
-                        </div>
+                        {#if slot}
+                            <span class="flex-shrink-0 font-xwing text-sm leading-none text-secondary" aria-hidden="true"><StatIcon type={slot} size="1rem" color="rgba(255,255,255,0.55)" /></span>
+                        {/if}
                         <a
                             href="/upgrade/{upgrade.xws}"
                             class="line-clamp-2 border-b border-transparent hover:border-accent/50 hover:text-accent transition-colors"

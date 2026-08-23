@@ -3,12 +3,14 @@
     import { goto } from "$app/navigation";
     import BackLink from "$lib/components/BackLink.svelte";
     import { filters } from "$lib/stores/filters.svelte";
-    import { getFactionColor } from "$lib/data/factions";
-    import SortBy from "$lib/components/SortBy.svelte";
-    import FactionIcon from "$lib/components/FactionIcon.svelte";
+import { getFactionColor } from "$lib/data/factions";
+import SortBy from "$lib/components/SortBy.svelte";
+import FactionIcon from "$lib/components/FactionIcon.svelte";
+import { xwingData } from "$lib/stores/xwingData.svelte";
+import ListRowCard from "$lib/components/ListRowCard.svelte";
 
-    let { data } = $props();
-    import UpgradeCard from "$lib/components/UpgradeCard.svelte";
+    let { data }: { data: any } = $props();
+    import StatIcon from "$lib/components/StatIcon.svelte";
 
     let info = $derived(data.info);
     let upgrades = $derived(data.upgrades);
@@ -16,6 +18,18 @@
     let configurations = $derived(data.configurations);
     let initialized = $state(false);
 
+    $effect(() => { xwingData.setSource(filters.dataSource as any); });
+
+    // Pagination: configs 12/page (4 cols × 3 rows), upgrades 12/page — all backend-sourced (real GAMES/LISTS/WR)
+    const CONFIG_PAGE_SIZE = 12;
+    const UPG_PAGE_SIZE = 12;
+    let configPage = $state(0);
+    let upgPage = $state(0);
+    let pilotListsSort = $state<"Games" | "Win Rate">("Games");
+    let pilotListsDir = $state<"desc" | "asc">("desc");
+    let pilotListsPage = $state(0);
+    const PILOT_LISTS_PAGE_SIZE = 4;
+    // Server-paginated: data.pilotLists is the current page (4 items), data.pilotListsTotal is real total
     // Client-side sort state for "Top Configurations". The backend
     // returns configs pre-sorted by `count` desc; we re-sort in the
     // browser so the SortBy control can flip between "most-played"
@@ -55,11 +69,11 @@
     let upgSortDir = $state<"asc" | "desc">("desc");
 
     function upgGames(u: any): number {
-        return Math.max(0, u.count ?? 0);
+        return Math.max(0, Number(u.games_count ?? u.count ?? 0));
     }
     function upgWinRate(u: any): number {
         const g = upgGames(u);
-        const w = Math.max(0, u.wins ?? 0);
+        const w = Math.max(0, Number(u.wins ?? 0));
         return g > 0 ? (w / g) * 100 : -1;
     }
 
@@ -128,6 +142,39 @@
         return "#ef4444";
     }
 
+    let upgTotalPages = $derived(Math.max(1, Math.ceil(sortedUpgrades.length / UPG_PAGE_SIZE)));
+    let upgItems = $derived(sortedUpgrades.slice(upgPage * UPG_PAGE_SIZE, (upgPage + 1) * UPG_PAGE_SIZE));
+    $effect(() => { void sortedConfigurations; configPage = 0; });
+    $effect(() => { void sortedUpgrades; upgPage = 0; });
+
+    // Server-paginated pilot lists (4/page, SQL): real total (e.g. 266 for Vader), not capped to 12.
+    // Use local $state so mutating after fetch is reactive — mutating data.* from $props is not.
+    let pilotListsItems = $state(data.pilotLists ?? []);
+    let pilotListsTotal = $state(Number(data.pilotListsTotal ?? 0) || 0);
+    let pilotListsTotalPages = $derived(Math.max(1, Math.ceil(pilotListsTotal / PILOT_LISTS_PAGE_SIZE)));
+    $effect(() => {
+        pilotListsItems = data.pilotLists ?? [];
+        pilotListsTotal = Number(data.pilotListsTotal ?? 0) || 0;
+        pilotListsPage = 0;
+    });
+    async function fetchPilotListsPage(page: number, sort: string, dir: string) {
+        const p = new URLSearchParams({
+            data_source: data.ds ?? "xwa",
+            sort_metric: sort,
+            sort_direction: dir,
+            size: String(PILOT_LISTS_PAGE_SIZE),
+            page: String(page),
+        });
+        for (const f of (data.formats ?? [])) p.append("formats", f);
+        const { API_BASE } = await import("$lib/api");
+        const res = await fetch(`${API_BASE}/pilot/${data.pilotXws}/lists?${p.toString()}`);
+        if (!res.ok) return;
+        const j = await res.json().catch(() => null);
+        pilotListsItems = Array.isArray(j?.items) ? j.items : [];
+        pilotListsTotal = Number(j?.total ?? 0) || 0;
+        pilotListsPage = page;
+    }
+
     // Chart.js action for the temporal usage chart
     function chartAction(node: HTMLCanvasElement, config: any) {
         let chartInstance: any;
@@ -182,8 +229,14 @@
                           },
                       },
                       scales: {
-                          x: { grid: { color: "#222" }, ticks: { font: { size: 10 }, maxRotation: 45 } },
-                          y: { grid: { color: "#222" }, beginAtZero: true },
+                          x: {
+                              grid: { color: "#222" },
+                              ticks: { font: { size: 10 }, maxRotation: 45 },
+                          },
+                          y: {
+                              grid: { color: "#222" },
+                              beginAtZero: true,
+                          },
                       },
                   },
               }
@@ -198,20 +251,18 @@
 
 <div class="min-h-screen p-6 md:p-8 font-sans">
     <!-- Back link -->
-    <BackLink href="/cards" ariaLabel="Back to Cards" />
+    <div class="mb-6">
+        <BackLink href="/cards" ariaLabel="Back to Cards" />
+    </div>
 
     <!-- Header Section -->
     <div class="flex flex-col lg:flex-row gap-8 mb-10">
-        <!-- Pilot Image -->
-        <div class="flex-shrink-0">
+        <!-- Pilot Image — bare PNG, no outer container (like upgrade detail header) -->
+        <div class="flex-shrink-0 flex items-center justify-center" style="width: 280px; max-width: 100%;">
             {#if info?.image}
-                <img
-                    src={info.image}
-                    alt={info.name}
-                    class="rounded-xl border border-border-dark max-w-[280px] w-full shadow-lg"
-                />
+                <img src={info.image} alt={info.name} class="max-w-full h-auto object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)]" style="max-height: 380px;" loading="eager" />
             {:else}
-                <div class="w-[280px] h-[380px] bg-terminal-panel border border-border-dark rounded-xl flex items-center justify-center">
+                <div class="w-full h-[300px] flex items-center justify-center">
                     <span class="text-secondary font-mono text-sm">NO IMAGE</span>
                 </div>
             {/if}
@@ -254,28 +305,87 @@
                 </div>
             </div>
 
-            <!-- Usage Over Time Chart -->
+            <!-- Games Played Over Time Chart -->
             <div class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                <h2 class="text-sm font-sans font-bold text-primary mb-3 uppercase tracking-wider">Usage Over Time</h2>
+                <h2 class="text-sm font-sans font-bold text-primary uppercase tracking-wider mb-3">Games Played Over Time</h2>
                 {#if chartConfig}
                     <div class="h-[220px]">
                         <canvas use:chartAction={chartConfig}></canvas>
                     </div>
                 {:else}
-                    <p class="text-secondary font-mono text-xs py-8 text-center">No usage data available for chart.</p>
+                    <p class="text-secondary font-mono text-xs py-8 text-center">No game data available for chart.</p>
                 {/if}
             </div>
         </div>
     </div>
 
-    <!-- Top Configurations Section (NEW) -->
+    <!-- Compatible Upgrades — compact wide capsules (mirrors upgrade detail's Pilots), 12/page, horizontal upgrade cards -->
+    <section class="mb-10">
+        <div class="flex items-center justify-between gap-3 mb-4">
+            <h2 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2">Compatible Upgrades</h2>
+            <SortBy
+                value={upgSortKey}
+                direction={upgSortDir}
+                options={[
+                    { value: "games", label: "Games" },
+                    { value: "winrate", label: "Win Rate" }
+                ]}
+                onChange={(v, d) => {
+                    upgSortKey = v as UpgSortKey;
+                    upgSortDir = d;
+                }}
+            />
+        </div>
+
+        {#if upgItems.length > 0}
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+                {#each upgItems as u (u.xws)}
+                    {@const _uData = xwingData.getUpgrade(u.xws)}
+                    {@const uName = u.name || _uData?.name || u.xws_name || u.xws}
+                    {@const uImage = u.image || _uData?.sides?.[0]?.image || ""}
+                    {@const uSlotRaw = (u.type || _uData?.sides?.[0]?.slots?.[0] || '').trim()}
+                    {@const uSlot = (uSlotRaw || u.type_xws || u.slot_xws || '').toLowerCase()}
+                    {@const uGames = Math.max(0, Number(u.games_count ?? u.count ?? u.games ?? 0))}
+                    {@const uLists = Math.max(0, Number(u.list_count ?? u.lists ?? 0))}
+                    {@const uWr = uGames > 0 ? (Math.max(0, Number(u.wins ?? 0)) / uGames) * 100 : 0}
+                    {@const uSlotLabel = uSlot ? uSlot.charAt(0).toUpperCase() + uSlot.slice(1) : 'Upgrade'}
+                    <a href="/upgrade/{u.xws}" class="bg-terminal-panel border border-border-dark rounded-lg p-3 flex gap-3 items-center hover:border-primary/30 transition-colors group">
+                        {#if uImage}
+                            <img src={uImage} alt={uName} class="w-[6.5rem] h-[3.8rem] object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.45)] flex-shrink-0 self-center rounded-sm" loading="lazy" />
+                        {:else}
+                            <div class="w-[6.5rem] h-[3.8rem] flex-shrink-0 self-center flex items-center justify-center rounded-sm bg-black/20 border border-white/5"><StatIcon type={uSlot || "upgrade"} size="1.6rem" color="rgba(255,255,255,0.15)" /></div>
+                        {/if}
+                        <div class="min-w-0 flex-1 flex flex-col justify-center">
+                            <p class="text-sm font-sans font-bold text-primary truncate group-hover:text-accent transition-colors" title={uName}>{uName}</p>
+                            <p class="text-[11px] font-mono text-secondary uppercase tracking-wider truncate" title={uSlotLabel}>{uSlotLabel}</p>
+                            <div class="flex flex-wrap gap-1 mt-1.5">
+                                <span class="px-1 py-0.5 bg-[#ffffff05] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">GAMES {uGames}</span>
+                                <span class="px-1 py-0.5 bg-[#ffffff05] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">LISTS {uLists}</span>
+                                <span class="px-1 py-0.5 rounded text-[10px] font-mono font-bold" style="background: {wrColor(uWr)}15; color: {wrColor(uWr)};">WR {uWr.toFixed(1)}%</span>
+                            </div>
+                        </div>
+                    </a>
+                {/each}
+            </div>
+            <div class="flex items-center justify-center gap-2 mt-6">
+                <button type="button" class="px-3 py-1.5 rounded-md border text-xs font-mono transition-colors {upgPage === 0 ? 'border-border-dark text-secondary' : 'border-primary text-primary hover:bg-white/[0.04]'}" disabled={upgPage === 0} onclick={() => upgPage = Math.max(0, upgPage - 1)}>← Prev</button>
+                <span class="text-xs font-mono text-secondary">Showing {upgPage * UPG_PAGE_SIZE + 1}–{Math.min((upgPage + 1) * UPG_PAGE_SIZE, sortedUpgrades.length)} of {sortedUpgrades.length} · Page {upgPage + 1}/{upgTotalPages}</span>
+                <button type="button" class="px-3 py-1.5 rounded-md border text-xs font-mono transition-colors {upgPage >= upgTotalPages - 1 ? 'border-border-dark text-secondary' : 'border-primary text-primary hover:bg-white/[0.04]'}" disabled={upgPage >= upgTotalPages - 1} onclick={() => upgPage = Math.min(upgTotalPages - 1, upgPage + 1)}>Next →</button>
+            </div>
+        {:else}
+            <div class="bg-terminal-panel border border-border-dark rounded-lg p-8 text-center">
+                <p class="text-secondary font-mono text-sm">No upgrade data available for this pilot.</p>
+            </div>
+        {/if}
+    </section>
+
+    <!-- Top Configurations — 2 per row, 6/page, upgrades fill full width (flex-1, no fixed w), gap-1, hover-safe -->
     {#if configurations && configurations.length > 0}
-        <section class="mb-10">
+        {@const configTotalPages = Math.max(1, Math.ceil(sortedConfigurations.length / CONFIG_PAGE_SIZE))}
+        {@const configPageItems = sortedConfigurations.slice(configPage * CONFIG_PAGE_SIZE, (configPage + 1) * CONFIG_PAGE_SIZE)}
+        <section>
             <div class="flex items-center justify-between gap-3 mb-4">
-                <h2 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2 flex items-baseline gap-2">
-                    <span>Top Configurations</span>
-                    <span class="text-secondary text-base font-normal">({data.configTotal} unique combos)</span>
-                </h2>
+                <h2 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2">Configurations</h2>
                 <SortBy
                     value={configSortKey}
                     direction={configSortDir}
@@ -291,69 +401,74 @@
                     }}
                 />
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {#each sortedConfigurations as config, i (config.upgrades.map((u: any) => u.xws).join("|"))}
-                    <div class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:border-primary/30 transition-all">
-                        <div class="flex items-center justify-between mb-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {#each configPageItems as config, j (config.upgrades.map((u: any) => u.xws).join("|") + ":" + j)}
+                    {@const i = configPage * CONFIG_PAGE_SIZE + j}
+                    <div class="bg-terminal-panel border border-border-dark rounded-lg p-3 overflow-hidden flex flex-col">
+                        <div class="flex items-center justify-between gap-2 mb-3">
                             <span class="text-xs font-mono text-secondary">#{i + 1}</span>
-                            <div class="flex items-center gap-2">
-                                <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">GAMES {config.count}</span>
-                                <span
-                                    class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold"
-                                    style="background: {wrColor(config.win_rate)}15; color: {wrColor(config.win_rate)};"
-                                >WR {config.win_rate}%</span>
+                            <div class="flex flex-wrap items-center gap-1.5 justify-end">
+                                <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary">LISTS {config.lists ?? config.count}</span>
+                                <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary">GAMES {config.games ?? 0}</span>
+                                <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold" style="background: {wrColor(config.win_rate)}15; color: {wrColor(config.win_rate)};">WR {config.win_rate}%</span>
                             </div>
                         </div>
-                        <div class="flex flex-wrap gap-1.5">
-                            {#each config.upgrades as upg}
-                                <span class="px-2 py-1 text-xs font-mono rounded-md bg-cyan-500/10 text-cyan-300 border border-cyan-500/20" title={upg.type}>
-                                    {upg.name}
-                                </span>
-                            {/each}
-                            {#if config.upgrades.length === 0}
-                                <span class="text-xs font-mono text-secondary italic">No upgrades</span>
-                            {/if}
-                        </div>
+                        {#if config.upgrades.length > 0}
+                            <div class="flex flex-wrap gap-1.5">
+                                {#each config.upgrades as upg}
+                                    {@const upgCost = upg.cost?.value ?? upg.cost ?? null}
+                                    {@const resolvedUpg = xwingData.getUpgrade(upg.xws)}
+                                    {@const slotForIcon = resolvedUpg?.sides?.[0]?.slots?.[0] || upg.type || "upgrade"}
+                                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-[11px]">
+                                        <StatIcon type={slotForIcon} size="0.85rem" color="rgba(255,255,255,0.55)" />
+                                        <a href="/upgrade/{upg.xws}" title="View {upg.name}" class="font-sans font-semibold text-primary underline decoration-transparent hover:decoration-primary/40 hover:text-accent underline-offset-2 transition-colors">{upg.name}</a>
+                                        {#if upgCost !== null && upgCost !== undefined}<span class="ml-1 px-1 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 leading-none">{upgCost} PT</span>{/if}
+                                    </span>
+                                {/each}
+                            </div>
+                        {:else}
+                            <p class="text-xs font-mono text-secondary italic">No upgrades</p>
+                        {/if}
                     </div>
                 {/each}
+            </div>
+            <div class="flex items-center justify-center gap-2 mt-6">
+                <button type="button" class="px-3 py-1.5 rounded-md border text-xs font-mono transition-colors {configPage === 0 ? 'border-border-dark text-secondary' : 'border-primary text-primary hover:bg-white/[0.04]'}" disabled={configPage === 0} onclick={() => configPage = Math.max(0, configPage - 1)}>← Prev</button>
+                <span class="text-xs font-mono text-secondary">Showing {configPage * CONFIG_PAGE_SIZE + 1}–{Math.min((configPage + 1) * CONFIG_PAGE_SIZE, sortedConfigurations.length)} of {sortedConfigurations.length} · Page {configPage + 1}/{configTotalPages}</span>
+                <button type="button" class="px-3 py-1.5 rounded-md border text-xs font-mono transition-colors {configPage >= configTotalPages - 1 ? 'border-border-dark text-secondary' : 'border-primary text-primary hover:bg-white/[0.04]'}" disabled={configPage >= configTotalPages - 1} onclick={() => configPage = Math.min(configTotalPages - 1, configPage + 1)}>Next →</button>
             </div>
         </section>
     {/if}
 
-    <!-- Top Compatible Upgrades Section -->
+    <!-- Lists Featuring This Pilot — reuses existing ListRowCard (SQL-paginated, 4/page, 2 cols) -->
     <section>
         <div class="flex items-center justify-between gap-3 mb-4">
-            <h2 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2 flex items-baseline gap-2">
-                <span>Top Compatible Upgrades</span>
-                <span class="text-secondary text-base font-normal">({data.upgrades_total} total)</span>
-            </h2>
+            <h2 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2">Lists Featuring This Pilot</h2>
             <SortBy
-                value={upgSortKey}
-                direction={upgSortDir}
+                value={pilotListsSort}
+                direction={pilotListsDir}
                 options={[
-                    { value: "games", label: "Games" },
-                    { value: "winrate", label: "Win Rate" }
+                    { value: "Games", label: "Games" },
+                    { value: "Win Rate", label: "Win Rate" }
                 ]}
-                onChange={(v, d) => {
-                    upgSortKey = v as UpgSortKey;
-                    upgSortDir = d;
-                }}
+                onChange={(v, d) => { pilotListsSort = v as "Games" | "Win Rate"; pilotListsDir = d; fetchPilotListsPage(0, v, d); }}
             />
         </div>
 
-        {#if sortedUpgrades && sortedUpgrades.length > 0}
-            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">                {#each sortedUpgrades as u (u.xws)}
-                    <UpgradeCard upgrade={{
-                        ...u,
-                        slot_xws: u.type_xws || u.type,
-                        games: u.count,
-                    }} />
+        {#if pilotListsItems.length > 0}
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                {#each pilotListsItems as lst (lst.signature)}
+                    <ListRowCard list={lst} />
                 {/each}
-
+            </div>
+            <div class="flex items-center justify-center gap-2 mt-6">
+                <button type="button" class="px-3 py-1.5 rounded-md border text-xs font-mono transition-colors {pilotListsPage === 0 ? 'border-border-dark text-secondary' : 'border-primary text-primary hover:bg-white/[0.04]'}" disabled={pilotListsPage === 0} onclick={() => fetchPilotListsPage(Math.max(0, pilotListsPage - 1), pilotListsSort, pilotListsDir)}>← Prev</button>
+                <span class="text-xs font-mono text-secondary">Showing {pilotListsPage * PILOT_LISTS_PAGE_SIZE + 1}–{Math.min((pilotListsPage + 1) * PILOT_LISTS_PAGE_SIZE, pilotListsTotal)} of {pilotListsTotal} · Page {pilotListsPage + 1}/{pilotListsTotalPages}</span>
+                <button type="button" class="px-3 py-1.5 rounded-md border text-xs font-mono transition-colors {pilotListsPage >= pilotListsTotalPages - 1 ? 'border-border-dark text-secondary' : 'border-primary text-primary hover:bg-white/[0.04]'}" disabled={pilotListsPage >= pilotListsTotalPages - 1} onclick={() => fetchPilotListsPage(Math.min(pilotListsTotalPages - 1, pilotListsPage + 1), pilotListsSort, pilotListsDir)}>Next →</button>
             </div>
         {:else}
             <div class="bg-terminal-panel border border-border-dark rounded-lg p-8 text-center">
-                <p class="text-secondary font-mono text-sm">No upgrade data available for this pilot.</p>
+                <p class="text-secondary font-mono text-sm">No lists found featuring this pilot.</p>
             </div>
         {/if}
     </section>

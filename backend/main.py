@@ -17,6 +17,7 @@ from .api.squadrons import router as squadrons_router
 from .api.cards import router as cards_router
 from .api.ships import router as ships_router
 from .api.pilot_detail import router as pilot_detail_router
+from .api.upgrade_detail import router as upgrade_detail_router
 from .api.ship_detail import router as ship_detail_router
 from .api.squadron_detail import router as squadron_detail_router
 from .api.list_detail import router as list_detail_router
@@ -31,6 +32,7 @@ app.include_router(squadrons_router)
 app.include_router(cards_router)
 app.include_router(ships_router)
 app.include_router(pilot_detail_router)
+app.include_router(upgrade_detail_router)
 app.include_router(ship_detail_router)
 app.include_router(squadron_detail_router)
 app.include_router(list_detail_router)

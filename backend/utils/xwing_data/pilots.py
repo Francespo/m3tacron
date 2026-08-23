@@ -42,6 +42,9 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                 for pilot in ship_data.get("pilots", []):
                     xws_id = pilot.get("xws", "")
                     if xws_id:
+                        # Store pilot's legal upgrade slots (used to filter compatible upgrades on detail page)
+                        raw_slots = pilot.get("slots") or []
+                        normalized_slots = [str(s).strip().lower() for s in raw_slots if s]
                         all_pilots[xws_id] = {
                             "name": pilot.get("name", xws_id),
                             "caption": pilot.get("caption", ""),
@@ -55,6 +58,7 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                             "cost": pilot.get("cost", 0),
                             "loadout": pilot.get("loadout", 0),
                             "ability": pilot.get("ability", ""),
+                            "slots": normalized_slots,
                             # Ship stats for filtering
                             "hull": stats_flat.get("hull"),
                             "shields": stats_flat.get("shields"),

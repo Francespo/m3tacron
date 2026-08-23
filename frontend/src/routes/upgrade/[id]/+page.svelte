@@ -1,370 +1,360 @@
 <script lang="ts">
+    import { browser } from "$app/environment";
     import { goto } from "$app/navigation";
-    import { invalidateAll } from "$app/navigation";
-    import SortBy from "$lib/components/SortBy.svelte";
-    import StatIcon from "$lib/components/StatIcon.svelte";
-    import { getWinRateColor } from "$lib/data/factions";
-    import { getSlotIcon } from "$lib/data/slots";
-    import { xwingData } from "$lib/stores/xwingData.svelte";
-    import { filters } from "$lib/stores/filters.svelte";
     import BackLink from "$lib/components/BackLink.svelte";
+    import { filters } from "$lib/stores/filters.svelte";
+    import { xwingData } from "$lib/stores/xwingData.svelte";
+    import { getWinRateColor, getFactionColor } from "$lib/data/factions";
+    import { getSlotIcon } from "$lib/data/slots";
+    import SortBy from "$lib/components/SortBy.svelte";
+    import FactionIcon from "$lib/components/FactionIcon.svelte";
+    import StatIcon from "$lib/components/StatIcon.svelte";
 
-    let { data } = $props();
+    let { data }: { data: any } = $props();
 
-    // The loader streams the aggregate stats in via `statsPromise`
-    // (non-blocking navigation). The {#await} block in the template gates
-    // rendering on it; this state feeds the stat-derived values below.
-    let stats = $state<any>(null);
-    $effect(() => {
-        let cancelled = false;
-        data.statsPromise.then((s: any) => {
-            if (!cancelled) stats = s;
-        });
-        return () => {
-            cancelled = true;
-        };
-    });
-
-    function retry() {
-        invalidateAll();
+    function getDefaultFormats(ds: "xwa" | "legacy", includeEpic: boolean): string[] {
+        if (ds === "xwa") return includeEpic ? ["xwa", "xwa_epic"] : ["xwa"];
+        return includeEpic
+            ? ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum", "legacy_epic"]
+            : ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum"];
     }
 
-    // Static upgrade metadata from the reactive xwing-data manifest.
-    // Loaded client-side; falls back to a placeholder when the manifest
-    // hasn't been initialized yet (e.g. very first render before
-    // xwingData.setSource has resolved).
-    const uData = $derived(xwingData.getUpgrade(data.upgradeXws));
-    const name = $derived(uData?.name || data.upgradeXws);
-    const image = $derived(uData?.sides?.[0]?.image);
-    const slotXws = $derived(
-        uData?.sides?.[0]?.slots?.[0]?.toLowerCase() || "",
-    );
-    const description = $derived(uData?.sides?.[0]?.ability || "");
-    const title = $derived(uData?.sides?.[0]?.title || name);
-    const cost = $derived(uData?.cost?.value ?? 0);
-    const limited = $derived(uData?.limited ?? 0);
-
-    // Aggregate stats pulled from the cards/upgrades list row. The
-    // backend has no dedicated upgrade-detail endpoint yet, so we read
-    // the same shape the /cards page already populates for UpgradeCard.
-    // All counts are defensively clamped to >= 0 in case the backend
-    // returns null/undefined (e.g. upgrade excluded by format filters).
-    const games = $derived(Math.max(0, Number(stats?.games_count ?? 0)));
-    const wins = $derived(Math.max(0, Number(stats?.wins ?? 0)));
-    const listsCount = $derived(
-        Math.max(0, Number(stats?.list_count ?? 0)),
-    );
-    const differentListsCount = $derived(
-        Math.max(0, Number(stats?.different_lists_count ?? 0)),
-    );
-    const wrPct = $derived(games > 0 ? (wins / games) * 100 : 0);
-    const wrColor = $derived(getWinRateColor(wrPct));
-    const wrDisplay = $derived(games > 0 ? `${wrPct.toFixed(1)}%` : "NA");
-
-    // Sort/filter state for related lists. The backend has no endpoint
-    // that returns lists filtered to a single upgrade yet (the
-    // `filter_upgrade_id` slot in aggregate_card_stats is defined but
-    // not wired to the SQL WHERE clause). The SortBy control is wired
-    // up so the UI is in place; once a backend endpoint is added it
-    // can be hooked up without touching the surrounding layout.
-    let sortBy = $state<string>("Lists");
-    let sortDirection = $state<"asc" | "desc">("desc");
-
-    // Drive the URL ?data_source=... param off the shared filter store
-    // and react when it changes (mirrors pilot/[id]/+page.svelte).
     let initialized = $state(false);
     $effect(() => {
         if (initialized) return;
-        if (data.ds === "legacy" || data.ds === "xwa") {
-            filters.dataSource = data.ds;
-        }
+        if (data.ds === "legacy" || data.ds === "xwa") filters.dataSource = data.ds;
+        if (data.hasEpicParam) filters.includeEpic = !!data.includeEpic;
         initialized = true;
     });
     $effect(() => {
         if (!initialized) return;
-        const ds = filters.dataSource;
-        goto(`?data_source=${ds}`, {
-            keepFocus: true,
-            noScroll: true,
-            replaceState: true,
+        const params = new URLSearchParams();
+        params.set("data_source", filters.dataSource);
+        if (filters.includeEpic) params.set("epic", "true");
+        for (const f of getDefaultFormats(filters.dataSource, filters.includeEpic)) params.append("formats", f);
+        goto(`?${params.toString()}`, { keepFocus: true, noScroll: true, replaceState: true });
+    });
+
+    const uData = $derived(xwingData.getUpgrade(data.upgradeXws));
+    const info = $derived(data.info);
+    const chart = $derived(data.chart ?? []);
+    const pilots = $derived(data.pilots ?? []);
+    const ships = $derived(data.ships ?? []);
+    const stats = $derived(data.stats);
+
+    // Resolve display fields: prefer xwingData manifest, fall back to backend info/stats
+    const name = $derived(uData?.name || info?.name || stats?.name || data.upgradeXws);
+    const image = $derived(uData?.sides?.[0]?.image || info?.image || info?.sides?.[0]?.image || "");
+    const slotXws = $derived((uData?.sides?.[0]?.slots?.[0] || info?.sides?.[0]?.slots?.[0] || "").toLowerCase());
+    const slotIconChar = $derived(getSlotIcon(slotXws));
+    const slotLabel = $derived(slotXws ? slotXws.toUpperCase() : (uData ? "UPGRADE" : "UPGRADE"));
+    const title = $derived(uData?.sides?.[0]?.title || info?.sides?.[0]?.title || name);
+    const cost = $derived(uData?.cost?.value ?? info?.cost?.value ?? stats?.cost ?? 0);
+    const limited = $derived(uData?.limited ?? info?.limited ?? stats?.limited ?? 0);
+
+    const games = $derived(Math.max(0, Number(stats?.games_count ?? stats?.games ?? 0)));
+    const wins = $derived(Math.max(0, Number(stats?.wins ?? 0)));
+    const listsCount = $derived(Math.max(0, Number(stats?.list_count ?? stats?.lists ?? 0)));
+    const differentListsCount = $derived(Math.max(0, Number(stats?.different_lists_count ?? stats?.different_list_count ?? 0)));
+    const wrPct = $derived(games > 0 ? (wins / games) * 100 : 0);
+    const wrColor = $derived(getWinRateColor(wrPct));
+    const wrDisplay = $derived(games > 0 ? `${wrPct.toFixed(1)}%` : "NA");
+
+    function wrColorFn(wr: number): string {
+        if (wr >= 55) return "#22c55e";
+        if (wr >= 50) return "#84cc16";
+        if (wr >= 45) return "#eab308";
+        return "#ef4444";
+    }
+
+    // Client-side sort for pilots/ships sections
+    type SortKey = "lists" | "games" | "winrate";
+    let pilotSortKey = $state<SortKey>("lists");
+    let pilotSortDir = $state<"asc" | "desc">("desc");
+    let shipSortKey = $state<SortKey>("lists");
+    let shipSortDir = $state<"asc" | "desc">("desc");
+
+    const PAGE_SIZE = 12;
+    let pilotPage = $state(0);
+    let shipPage = $state(0);
+
+    function sortValue(row: any, key: SortKey): number {
+        if (key === "winrate") return Math.max(0, Number(row.win_rate ?? row.winRate ?? 0));
+        if (key === "games") return Math.max(0, Number(row.games ?? row.games_count ?? 0));
+        return Math.max(0, Number(row.list_count ?? row.lists ?? 0));
+    }
+
+    let sortedPilots = $derived.by(() => {
+        const dir = pilotSortDir === "asc" ? 1 : -1;
+        return [...pilots].sort((a: any, b: any) => {
+            const d = sortValue(a, pilotSortKey) - sortValue(b, pilotSortKey);
+            if (d !== 0) return d * dir;
+            return (b.list_count ?? 0) - (a.list_count ?? 0);
         });
     });
 
-    // Slot icon glyph (or empty string when unknown). font-xwing is the
-    // X-Wing Miniatures font set in app.css; the class name follows the
-    // pattern xwing-miniatures-font-{slot}.
-    const slotIconChar = $derived(getSlotIcon(slotXws));
-    const slotLabel = $derived(slotXws ? slotXws.toUpperCase() : "UPGRADE");
+    let sortedShips = $derived.by(() => {
+        const dir = shipSortDir === "asc" ? 1 : -1;
+        return [...ships].sort((a: any, b: any) => {
+            const d = sortValue(a, shipSortKey) - sortValue(b, shipSortKey);
+            if (d !== 0) return d * dir;
+            return (b.list_count ?? 0) - (a.list_count ?? 0);
+        });
+    });
+
+    let pilotTotalPages = $derived(Math.max(1, Math.ceil(sortedPilots.length / PAGE_SIZE)));
+    let pilotItems = $derived(sortedPilots.slice(pilotPage * PAGE_SIZE, (pilotPage + 1) * PAGE_SIZE));
+    let shipTotalPages = $derived(Math.max(1, Math.ceil(sortedShips.length / PAGE_SIZE)));
+    let shipItems = $derived(sortedShips.slice(shipPage * PAGE_SIZE, (shipPage + 1) * PAGE_SIZE));
+    $effect(() => { void sortedPilots; pilotPage = 0; });
+    $effect(() => { void sortedShips; shipPage = 0; });
+
+    function chartAction(node: HTMLCanvasElement, config: any) {
+        let chartInstance: any;
+        if (browser) {
+            import("chart.js/auto").then((m) => {
+                const ChartJS = m.default;
+                ChartJS.defaults.color = "#AAAAAA";
+                chartInstance = new ChartJS(node, config);
+            });
+        }
+        return {
+            update(newConfig: any) {
+                if (chartInstance) {
+                    chartInstance.destroy();
+                    import("chart.js/auto").then((m) => {
+                        const ChartJS = m.default;
+                        chartInstance = new ChartJS(node, newConfig);
+                    });
+                }
+            },
+            destroy() { if (chartInstance) chartInstance.destroy(); },
+        };
+    }
+
+    let chartConfig = $derived(
+        chart && chart.length > 0
+            ? {
+                  type: "line" as const,
+                  data: {
+                      labels: chart.map((d: any) => d.date),
+                      datasets: [
+                          {
+                              label: name || data.upgradeXws,
+                              data: chart.map((d: any) => d[data.upgradeXws] ?? d[data.chartSeries?.[0]] ?? 0),
+                              borderColor: "#00E0FF",
+                              backgroundColor: "rgba(0,224,255,0.1)",
+                              fill: true,
+                              tension: 0.3,
+                              pointRadius: 3,
+                          },
+                      ],
+                  },
+                  options: {
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                          legend: { display: false },
+                          tooltip: {
+                              backgroundColor: "#0A0A0A",
+                              borderColor: "#333",
+                              borderWidth: 1,
+                          },
+                      },
+                      scales: {
+                          x: {
+                              grid: { color: "#222" },
+                              ticks: { font: { size: 10 }, maxRotation: 45 },
+                          },
+                          y: {
+                              grid: { color: "#222" },
+                              beginAtZero: true,
+                          },
+                      },
+                  },
+              }
+            : null,
+    );
 </script>
 
 <svelte:head>
     <title>{name} — Upgrade Detail | M3taCron</title>
-    <meta
-        name="description"
-        content="Detailed statistics for the {name} upgrade in X-Wing Miniatures."
-    />
+    <meta name="description" content="Detailed statistics for the {name} upgrade in X-Wing Miniatures." />
 </svelte:head>
 
 <div class="min-h-screen p-6 md:p-8 font-sans">
-    <!-- Back link.
-         Content source controls now live in the desktop Sidebar /
-         mobile nav drawer; removed from this page header. -->
-    <div class="mb-4">
+    <div class="mb-6">
         <BackLink href="/cards?tab=upgrades" ariaLabel="Back to Cards" />
     </div>
 
-    {#await data.statsPromise}
-        <div class="text-center py-12">
-            <p class="text-secondary font-mono text-sm animate-pulse mb-6">
-                Loading…
-            </p>
-            <!-- Loading Skeleton (matches detail layout: header card with
-                 image + title, then the stats grid) -->
-            <div class="space-y-6 text-left">
-                <div
-                    class="flex flex-col md:flex-row gap-8 items-center bg-terminal-panel border border-border-dark rounded-lg p-6 md:p-8"
-                >
-                    <div
-                        class="animate-pulse bg-[#ffffff06] rounded-lg w-[220px] h-[300px] shrink-0"
-                    ></div>
-                    <div class="flex-1 w-full space-y-3">
-                        <div
-                            class="animate-pulse bg-[#ffffff06] rounded h-8 w-2/3"
-                        ></div>
-                        <div
-                            class="animate-pulse bg-[#ffffff06] rounded h-4 w-1/3"
-                        ></div>
-                        <div
-                            class="animate-pulse bg-[#ffffff06] rounded h-16 w-full"
-                        ></div>
-                    </div>
+    <!-- Header: upgrade image (horizontal) on the left, chart on the right — bare PNG, no outer container (mirrors pilot header) -->
+    <div class="flex flex-col lg:flex-row gap-8 mb-10">
+        <!-- Upgrade Image — bare PNG, same scale as pilot card (280×~392 → 392×280 horizontal) -->
+        <div class="flex-shrink-0 flex items-center justify-center" style="width: 392px; max-width: 100%;">
+            {#if image}
+                <img src={image} alt={name} class="max-w-full h-auto object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)]" style="max-height: 280px;" loading="eager" />
+            {:else}
+                <div class="w-full h-[240px] flex flex-col items-center justify-center gap-2">
+                    <StatIcon type={slotXws || "upgrade"} size="3.5rem" color="rgba(255,255,255,0.15)" />
+                    <span class="text-secondary font-mono text-xs">NO IMAGE</span>
                 </div>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {#each Array(4) as _}
-                        <div
-                            class="animate-pulse bg-[#ffffff06] rounded-lg h-20"
-                        ></div>
-                    {/each}
-                </div>
-            </div>
-        </div>
-    {:then _resolved}
-        {#if !stats}
-            <!-- Visible failure: the loader resolved null (fetch failed or
-                 the upgrade is filtered out). Never fail silently. -->
-            <div
-                class="bg-red-950/30 border border-red-500/30 rounded-lg p-6 text-center space-y-3 mb-6"
-                role="alert"
-            >
-                <p class="text-red-400 font-sans font-bold text-base tracking-wide">
-                    No data found for this upgrade
-                </p>
-                <p class="text-red-300/80 font-mono text-sm">
-                    The upgrade may be excluded by the current format filters,
-                    or the query failed.
-                </p>
-                <button
-                    type="button"
-                    onclick={retry}
-                    class="px-4 py-1.5 text-xs font-mono border border-red-500/40 text-red-300 rounded-md hover:bg-red-500/10 active:bg-red-500/20 transition-colors"
-                >
-                    Try again
-                </button>
-            </div>
-        {/if}
-        <!-- Header Section -->
-    <div
-        class="flex flex-col md:flex-row gap-8 mb-10 items-center bg-terminal-panel border border-border-dark rounded-lg p-6 md:p-8 shadow-lg"
-    >
-        <!-- Upgrade Image -->
-        <div class="flex-shrink-0">
-            <div
-                class="w-[220px] h-[300px] bg-black/40 rounded-lg border border-white/5 flex items-center justify-center overflow-hidden p-3"
-            >
-                {#if image}
-                    <img
-                        src={image}
-                        alt={name}
-                        class="max-w-full max-h-full object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.08)]"
-                    />
-                {:else}
-                    <div class="text-center">
-                        <StatIcon
-                            type={slotXws || "upgrade"}
-                            size="3.5rem"
-                            color="rgba(255,255,255,0.15)"
-                        />
-                        <p class="text-secondary font-mono text-xs mt-3">
-                            NO IMAGE
-                        </p>
-                    </div>
-                {/if}
-            </div>
-        </div>
-
-        <!-- Upgrade Info + Stat Badges -->
-        <div class="flex-1 min-w-0 w-full">
-            <div class="flex items-start gap-3 flex-wrap">
-                <!-- Slot Badge (xwing font glyph + label) -->
-                <div
-                    class="flex items-center gap-2 px-2 py-1 rounded-md bg-white/5 border border-white/10"
-                    title={slotLabel}
-                >
-                    {#if slotIconChar}
-                        <i
-                            class="font-xwing text-base text-primary"
-                            style="line-height:1"
-                        >
-                            {slotIconChar}
-                        </i>
-                    {/if}
-                    <span class="text-[11px] font-mono text-secondary uppercase tracking-wider">
-                        {slotLabel}
-                    </span>
-                </div>
-                <span
-                    class="px-2 py-1 text-[11px] font-mono font-bold rounded-md bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                >
-                    UPGRADE
-                </span>
-                {#if limited > 0}
-                    <span
-                        class="px-2 py-1 text-[11px] font-mono font-bold rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                    >
-                        LIMITED × {limited}
-                    </span>
-                {/if}
-            </div>
-
-            <h1
-                class="text-3xl md:text-4xl font-sans font-bold text-primary mt-3"
-            >
-                {name}
-            </h1>
-            {#if title && title !== name}
-                <p class="text-secondary font-mono text-sm mt-1">
-                    {title}
-                </p>
             {/if}
+        </div>
 
-            <!-- Stat pills: squadrons→lists→entries→games→winrate→points -->
-            <div class="flex flex-wrap gap-2 mt-5">
-                <span
-                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
-                >
-                    SQ {(stats as any)?.squadron_count ?? 0}
-                </span>
-                <span
-                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
-                >
-                    LISTS {listsCount.toLocaleString()}
-                </span>
-                <span
-                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
-                >
-                    ENTRIES {((stats as any)?.entries_count ?? listsCount).toLocaleString()}
-                </span>
-                <span
-                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
-                >
-                    GAMES {games.toLocaleString()}
-                </span>
-                <span
-                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
-                >
-                    WR <span style="color: {wrColor};">{wrDisplay}</span>
-                </span>
-                <span
-                    class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-mono font-bold"
-                >
-                    PTS {cost}
-                </span>
+        <!-- Upgrade Info + Chart -->
+        <div class="flex-grow flex flex-col gap-6 min-w-0">
+            <div>
+                <div class="flex items-center gap-3 flex-wrap min-w-0">
+                    <h1 class="text-3xl font-sans font-bold text-primary">{name}</h1>
+                    <span class="px-2 py-0.5 text-xs font-mono font-bold rounded-md bg-blue-500/20 text-blue-400 border border-blue-500/30">UPGRADE</span>
+                    {#if slotXws}
+                        <span class="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[11px] font-mono not-italic text-secondary uppercase tracking-wider" title={slotLabel}>
+                            {#if slotIconChar}<i class="font-xwing text-base text-primary not-italic" style="line-height:1; font-style: normal;">{slotIconChar}</i>{/if}
+                            {slotLabel}
+                        </span>
+                    {/if}
+                    {#if limited > 0}
+                        <span class="px-2 py-0.5 text-xs font-mono font-bold rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/30">LIMITED × {limited}</span>
+                    {/if}
+                </div>
+                {#if title && title !== name}
+                    <p class="text-secondary font-mono text-sm mt-1">{title}</p>
+                {/if}
+                <div class="flex items-center gap-2 mt-3 flex-wrap">
+                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold">WR <span style="color: {wrColor};">{wrDisplay}</span></span>
+                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">GAMES {games.toLocaleString()}</span>
+                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">LISTS {listsCount.toLocaleString()}</span>
+                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">(UNIQUE {differentListsCount.toLocaleString()})</span>
+                    <span class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-mono font-bold">PTS {cost}</span>
+                </div>
+            </div>
+
+            <!-- Games Played Over Time Chart -->
+            <div class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                <h2 class="text-sm font-sans font-bold text-primary uppercase tracking-wider mb-3">Games Played Over Time</h2>
+                {#if chartConfig}
+                    <div class="h-[220px]">
+                        <canvas use:chartAction={chartConfig}></canvas>
+                    </div>
+                {:else}
+                    <p class="text-secondary font-mono text-xs py-8 text-center">No game data available for chart.</p>
+                {/if}
             </div>
         </div>
     </div>
 
-    <!-- Description / Card Text -->
+    <!-- Pilots Using This Upgrade -->
     <section class="mb-10">
-        <h2
-            class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2 mb-4 flex items-baseline gap-2"
-        >
-            <span>Card Text</span>
-        </h2>
-        <div
-            class="bg-terminal-panel border border-border-dark rounded-lg p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-        >
-            {#if description}
-                <p
-                    class="text-primary font-sans text-base leading-relaxed whitespace-pre-line"
-                >
-                    {description}
-                </p>
-            {:else}
-                <p class="text-secondary font-mono text-sm italic">
-                    No card text available.
-                </p>
-            {/if}
+        <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
+            <h2 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2">Pilots Using This Upgrade</h2>
+            <SortBy
+                value={pilotSortKey}
+                direction={pilotSortDir}
+                options={[
+                    { value: "lists", label: "Lists" },
+                    { value: "games", label: "Games" },
+                    { value: "winrate", label: "Win Rate" },
+                ]}
+                onChange={(v, d) => { pilotSortKey = v as SortKey; pilotSortDir = d; }}
+            />
         </div>
-    </section>
-
-    <!-- Lists Using This Upgrade (placeholder until backend endpoint exists) -->
-    <section class="mb-10">
-        <div class="flex items-end justify-between gap-4 flex-wrap">
-            <h2
-                class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2 mb-4 flex items-baseline gap-2"
-            >
-                <span>Top Lists Using This Upgrade</span>
-            </h2>
-            <div class="w-full sm:w-72 mb-4">
-                <SortBy
-                    value={sortBy}
-                    direction={sortDirection}
-                    options={[
-                        { value: "Lists", label: "Lists" },
-                        { value: "Win Rate", label: "Win Rate" },
-                        { value: "Games", label: "Games" },
-                    ]}
-                    onChange={(v, d) => {
-                        sortBy = v;
-                        sortDirection = d;
-                    }}
-                />
+                {#if pilotItems.length > 0}
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+                {#each pilotItems as p (p.xws)}
+                    {@const pWr = Math.max(0, Number(p.win_rate ?? 0))}
+                    {@const pGames = Math.max(0, Number(p.games ?? 0))}
+                    {@const pLists = Math.max(0, Number(p.list_count ?? 0))}
+                    {@const isLandscape = !!p.image && p.image.includes('/quickbuilds/')}
+                    <a href="/pilot/{p.xws}" class="bg-terminal-panel border border-border-dark rounded-lg p-3 flex gap-3 hover:border-primary/30 transition-colors group {isLandscape ? 'items-center' : ''}">
+                        {#if p.image}
+                            <img src={p.image} alt={p.name} class="{isLandscape ? 'w-[6.5rem] h-[3.8rem] object-contain' : 'w-14 h-[4.2rem] object-contain'} drop-shadow-[0_2px_8px_rgba(0,0,0,0.45)] flex-shrink-0 rounded-sm" loading="lazy" />
+                        {:else}
+                            <div class="{isLandscape ? 'w-[6.5rem] h-[3.8rem]' : 'w-14 h-[4.2rem]'} flex-shrink-0 flex items-center justify-center rounded-sm bg-black/20 border border-white/5"><StatIcon type={p.ship_xws || ""} size="1.8rem" color="rgba(255,255,255,0.15)" isShip={true} /></div>
+                        {/if}
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-sans font-bold text-primary truncate group-hover:text-accent transition-colors" title={p.name}>{p.name}</p>
+                            <p class="text-[11px] font-mono text-secondary truncate flex items-center gap-1">
+                                {#if p.ship_xws}<i class="xwing-miniatures-ship xwing-miniatures-ship-{p.ship_xws}" style="color: {getFactionColor(p.faction_xws || '')}; font-size: 1rem;"></i>{/if}
+                                {p.ship}
+                            </p>
+                            <div class="flex flex-wrap gap-1 mt-2">
+                                <span class="px-1 py-0.5 bg-[#ffffff05] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">GAMES {pGames}</span>
+                                <span class="px-1 py-0.5 bg-[#ffffff05] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">LISTS {pLists}</span>
+                                <span class="px-1 py-0.5 rounded text-[10px] font-mono font-bold" style="background: {wrColorFn(pWr)}15; color: {wrColorFn(pWr)};">WR {pWr.toFixed(1)}%</span>
+                            </div>
+                        </div>
+                        {#if p.faction_xws}<FactionIcon faction={p.faction_xws} size="sm" />{/if}
+                    </a>
+                {/each}
             </div>
-        </div>
-        <div
-            class="bg-terminal-panel border border-border-dark rounded-lg p-8 text-center"
-        >
-            <p class="text-secondary font-mono text-sm">
-                Lists filtered to a single upgrade are not yet available.
-            </p>
-            <p class="text-secondary font-mono text-xs mt-2 opacity-70">
-                The current backend has no endpoint that returns lists
-                containing a specific upgrade. A follow-up backend change
-                (mirroring the pilot/ship detail endpoints) is required to
-                populate this section.
-            </p>
-        </div>
+            {#if pilotTotalPages > 1}
+                {@const pilotRangeStart = pilotPage * PAGE_SIZE + 1}
+                {@const pilotRangeEnd = Math.min((pilotPage + 1) * PAGE_SIZE, sortedPilots.length)}
+                <div class="flex items-center justify-center gap-2 mt-6">
+                    <button type="button" class="px-3 py-1.5 rounded-md border text-xs font-mono transition-colors {pilotPage === 0 ? 'border-border-dark text-secondary' : 'border-primary text-primary hover:bg-white/[0.04]'}" disabled={pilotPage === 0} onclick={() => pilotPage = Math.max(0, pilotPage - 1)}>← Prev</button>
+                    <span class="text-xs font-mono text-secondary">Showing {pilotRangeStart}–{pilotRangeEnd} of {sortedPilots.length} · Page {pilotPage + 1}/{pilotTotalPages}</span>
+                    <button type="button" class="px-3 py-1.5 rounded-md border text-xs font-mono transition-colors {pilotPage >= pilotTotalPages - 1 ? 'border-border-dark text-secondary' : 'border-primary text-primary hover:bg-white/[0.04]'}" disabled={pilotPage >= pilotTotalPages - 1} onclick={() => pilotPage = Math.min(pilotTotalPages - 1, pilotPage + 1)}>Next →</button>
+                </div>
+            {/if}
+        {:else}
+            <div class="bg-terminal-panel border border-border-dark rounded-lg p-8 text-center">
+                <p class="text-secondary font-mono text-sm">No pilot data available for this upgrade.</p>
+                <p class="text-secondary font-mono text-xs mt-2 opacity-70">Try adjusting the format filters or check back after more tournaments are imported.</p>
+            </div>
+        {/if}
     </section>
 
-    <!-- Squadrons Using This Upgrade (placeholder) -->
+    <!-- Ships Using This Upgrade -->
     <section>
-        <h2
-            class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2 mb-4 flex items-baseline gap-2"
-        >
-            <span>Top Squadrons Using This Upgrade</span>
-        </h2>
-        <div
-            class="bg-terminal-panel border border-border-dark rounded-lg p-8 text-center"
-        >
-            <p class="text-secondary font-mono text-sm">
-                Squadron data filtered to a single upgrade is not yet
-                available.
-            </p>
-            <p class="text-secondary font-mono text-xs mt-2 opacity-70">
-                Same limitation as above — the backend has no per-upgrade
-                squadron endpoint yet.
-            </p>
+        <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
+            <h2 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2">Ships Using This Upgrade</h2>
+            <SortBy
+                value={shipSortKey}
+                direction={shipSortDir}
+                options={[
+                    { value: "lists", label: "Lists" },
+                    { value: "games", label: "Games" },
+                    { value: "winrate", label: "Win Rate" },
+                ]}
+                onChange={(v, d) => { shipSortKey = v as SortKey; shipSortDir = d; }}
+            />
         </div>
+        {#if shipItems.length > 0}
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+                {#each shipItems as s (s.xws)}
+                    {@const sWr = Math.max(0, Number(s.win_rate ?? 0))}
+                    {@const sGames = Math.max(0, Number(s.games ?? 0))}
+                    {@const sLists = Math.max(0, Number(s.list_count ?? 0))}
+                    <a href="/ship/{s.xws}" class="bg-terminal-panel border border-border-dark rounded-lg p-4 flex items-center gap-3 hover:border-primary/30 transition-colors group">
+                        <div class="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
+                            <StatIcon type={s.xws} size="1.4rem" color="white" isShip={true} />
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-sans font-bold text-primary truncate group-hover:text-accent transition-colors">{s.name}</p>
+                            <div class="flex flex-wrap gap-1 mt-1">
+                                <span class="px-1 py-0.5 bg-[#ffffff05] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">GAMES {sGames}</span>
+                                <span class="px-1 py-0.5 bg-[#ffffff05] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">LISTS {sLists}</span>
+                                <span class="px-1 py-0.5 rounded text-[10px] font-mono font-bold" style="background: {wrColorFn(sWr)}15; color: {wrColorFn(sWr)};">WR {sWr.toFixed(1)}%</span>
+                            </div>
+                        </div>
+                        {#if s.faction_xws}<FactionIcon faction={s.faction_xws} size="sm" />{/if}
+                    </a>
+                {/each}
+            </div>
+            {#if shipTotalPages > 1}
+                {@const shipRangeStart = shipPage * PAGE_SIZE + 1}
+                {@const shipRangeEnd = Math.min((shipPage + 1) * PAGE_SIZE, sortedShips.length)}
+                <div class="flex items-center justify-center gap-2 mt-6">
+                    <button type="button" class="px-3 py-1.5 rounded-md border text-xs font-mono transition-colors {shipPage === 0 ? 'border-border-dark text-secondary' : 'border-primary text-primary hover:bg-white/[0.04]'}" disabled={shipPage === 0} onclick={() => shipPage = Math.max(0, shipPage - 1)}>← Prev</button>
+                    <span class="text-xs font-mono text-secondary">Showing {shipRangeStart}–{shipRangeEnd} of {sortedShips.length} · Page {shipPage + 1}/{shipTotalPages}</span>
+                    <button type="button" class="px-3 py-1.5 rounded-md border text-xs font-mono transition-colors {shipPage >= shipTotalPages - 1 ? 'border-border-dark text-secondary' : 'border-primary text-primary hover:bg-white/[0.04]'}" disabled={shipPage >= shipTotalPages - 1} onclick={() => shipPage = Math.min(shipTotalPages - 1, shipPage + 1)}>Next →</button>
+                </div>
+            {/if}
+        {:else}
+            <div class="bg-terminal-panel border border-border-dark rounded-lg p-8 text-center">
+                <p class="text-secondary font-mono text-sm">No ship data available for this upgrade.</p>
+                <p class="text-secondary font-mono text-xs mt-2 opacity-70">This upgrade hasn't appeared on any tracked ship yet for the current filters.</p>
+            </div>
+        {/if}
     </section>
-    {/await}
 </div>
