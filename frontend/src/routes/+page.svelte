@@ -8,6 +8,8 @@
         getFactionLabel,
     } from "$lib/data/factions";
     import { xwingData } from "$lib/stores/xwingData.svelte";
+    import { cachedFetchJson } from "$lib/api/cache";
+    import ErrorPanel from "$lib/components/ErrorPanel.svelte";
     import Chart from "chart.js/auto";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
 
@@ -15,59 +17,18 @@
     let loading = $state(true);
     let error = $state(false);
     let errorMsg = $state("");
+    // Bumped by the "Try again" button so the main fetch $effect re-runs.
+    let retryToken = $state(0);
 
-    /**
-     * Latest tournament date in the current data source (and epic toggle).
-     * Populated by a separate fetch to `/api/tournaments` so the "Last Sync"
-     * stat can show the most recent tournament that actually exists in the
-     * active source, rather than the generic `meta.last_sync` timestamp
-     * (which is just `datetime.now()` formatted as a date on the backend).
-     * Falls back to `meta.last_sync` while the fetch is in flight or if the
-     * source has no tournaments yet.
-     */
-    let latestTournamentDate = $state<string | null>(null);
-
-    /**
-     * Source-aware Total Tournaments and Total Players counts.
-     *
-     * The `/api/meta-snapshot` endpoint computes `total_tournaments` and
-     * `total_players` by counting rows in the tournaments/player_standings
-     * tables with only a `date >= now-90d` filter — it does NOT filter by
-     * `data_source`. As a result the meta-snapshot returns the same number
-     * for XWA and Legacy (e.g. 73 for both), so the Total Tournaments /
-     * Total Players stat cards never change when the user switches source.
-     *
-     * This effect computes the correct source-aware counts by hitting
-     * `/api/tournaments` with the source's `formats` filter and the same
-     * 90-day window, paginating if necessary to sum every tournament's
-     * `players` field. The values are exposed as separate reactive state
-     * (not by mutating `meta`) so there is no race with the meta-snapshot
-     * $effect overwriting the object.
-     *
-     * The template prefers these values and falls back to the meta-snapshot
-     * fields while this fetch is in flight.
-     */
-    let sourceAwareTournaments = $state<number | null>(null);
-    let sourceAwarePlayers = $state<number | null>(null);
-
-    /**
-     * Map a `(dataSource, includeEpic)` pair to the list of `formats` the
-     * tournaments endpoint should filter on. The XWA macro is `{xwa, amg}`
-     * and the Legacy macro is `{legacy_x2po, legacy_xlc}`; the Epic toggle
-     * controls whether the larger squad-size variant (amg / legacy_xlc) is
-     * included.
-     */
-    function formatsForSource(
-        source: "xwa" | "legacy",
-        epic: boolean,
-    ): string[] {
-        if (source === "xwa") {
-            return epic ? ["xwa", "amg"] : ["xwa"];
-        }
-        return epic ? ["legacy_x2po", "legacy_xlc"] : ["legacy_x2po"];
+    function retry() {
+        retryToken++;
     }
 
-    type SortKey = "lists" | "unique" | "winrate" | "games";
+    // `meta` now carries authoritative source-filtered totals and the
+    // real scraper timestamp (`last_sync` = last scrape run, even when
+    // zero tournaments were saved). No extra /tournaments fetches needed.
+
+    type SortKey = "lists" | "entries" | "winrate" | "games";
     type SortDir = "asc" | "desc";
     const DASHBOARD_RANKING_PREFS_KEY = "m3tacron.dashboard.rankingModes.v1";
     const WR_MIN_GAMES = {
@@ -78,7 +39,7 @@
     };
 
     function isSortKey(v: unknown): v is SortKey {
-        return v === "lists" || v === "unique" || v === "winrate" || v === "games";
+        return v === "lists" || v === "entries" || v === "winrate" || v === "games";
     }
 
     function isSortDir(v: unknown): v is SortDir {
@@ -171,9 +132,11 @@
         // Track BOTH the data source AND the epic toggle so the dashboard
         // re-fetches whenever the user changes either one via the
         // ContentSourceToggle. Reading both inside the effect makes them
-        // reactive dependencies under Svelte 5 runes.
+        // reactive dependencies under Svelte 5 runes. `retryToken` is read
+        // so the "Try again" button re-runs this fetch.
         const source = filters.dataSource;
         const epic = filters.includeEpic;
+        const _rt = retryToken;
         // Ensure data is loaded
         xwingData.setSource(source as any);
 
@@ -183,6 +146,11 @@
         error = false;
         errorMsg = "";
 
+        // AbortController so rapid source/filter changes cancel the
+        // in-flight request instead of racing it. `isCancelled` guards the
+        // state updates; the abort actually stops the network request.
+        const controller = new AbortController();
+
         // Pass `epic` to the meta-snapshot even though the backend currently
         // ignores it; the dashboard will already be wired correctly if the
         // endpoint starts honoring it. The `data_source` query param is the
@@ -191,16 +159,7 @@
         params.set("data_source", source);
         if (epic) params.set("epic", "true");
         const targetUrl = `/api/meta-snapshot?${params.toString()}`;
-        fetch(targetUrl)
-            .then(async (res) => {
-                if (!res.ok) {
-                    const errData = await res.json().catch(() => ({}));
-                    throw new Error(
-                        `HTTP error! status: ${res.status}, Details: ${errData.error || "unknown"}`,
-                    );
-                }
-                return res.json();
-            })
+        cachedFetchJson(targetUrl, undefined, controller.signal)
             .then((data) => {
                 if (!isCancelled) {
                     meta = data;
@@ -208,6 +167,7 @@
                 }
             })
             .catch((err) => {
+                if (err?.name === "AbortError") return;
                 console.error("Dashboard Fetch Error:", err);
                 if (!isCancelled) {
                     error = true;
@@ -218,141 +178,7 @@
 
         return () => {
             isCancelled = true;
-        };
-    });
-
-    /**
-     * Fetch the latest tournament date in the current source. This is used
-     * by the "Last Sync" stat so it shows a real tournament date instead of
-     * the generic `last_sync` timestamp. The meta-snapshot endpoint doesn't
-     * expose a "max(date)" field, so we hit `/api/tournaments` with
-     * `size=1&sort=Date desc` and read the first item's `date`.
-     *
-     * Runs as a separate $effect so it re-issues on every (dataSource,
-     * includeEpic) change and is independent of the main meta-snapshot
-     * loading state.
-     */
-    $effect(() => {
-        if (!browser) return;
-        const source = filters.dataSource;
-        const epic = filters.includeEpic;
-
-        let isCancelled = false;
-
-        const params = new URLSearchParams();
-        params.set("page", "0");
-        params.set("size", "1");
-        params.set("sort_metric", "Date");
-        params.set("sort_direction", "desc");
-        for (const f of formatsForSource(source, epic)) {
-            params.append("formats", f);
-        }
-        const url = `/api/tournaments?${params.toString()}`;
-
-        fetch(url)
-            .then(async (res) => {
-                if (!res.ok) {
-                    // Don't blow up the dashboard if this secondary fetch
-                    // fails — the stat will fall back to `meta.last_sync`.
-                    return null;
-                }
-                return res.json();
-            })
-            .then((data) => {
-                if (isCancelled || !data) return;
-                const first = data?.items?.[0];
-                if (first?.date) {
-                    latestTournamentDate = first.date;
-                }
-            })
-            .catch(() => {
-                /* swallow — keep previous / fallback value */
-            });
-
-        return () => {
-            isCancelled = true;
-        };
-    });
-
-    /**
-     * Fetch source-aware Total Tournaments and Total Players counts for the
-     * 90-day window that the meta-snapshot uses. See the
-     * `sourceAwareTournaments` / `sourceAwarePlayers` declarations above
-     * for why this exists.
-     *
-     * Hits `/api/tournaments?date_start=…&formats=…` (paginated at 100/page
-     * which is the backend's hard cap) and:
-     *   - reads `data.total` for Total Tournaments
-     *   - sums `players` across every page for Total Players
-     *
-     * Re-issues on every (dataSource, includeEpic) change and is independent
-     * of the meta-snapshot and latestTournamentDate $effects.
-     */
-    $effect(() => {
-        if (!browser) return;
-        const source = filters.dataSource;
-        const epic = filters.includeEpic;
-
-        // Reset to null on every source change so the template falls back
-        // to the (stale) meta-snapshot values for the brief moment before
-        // the new counts arrive, then snaps to the correct values.
-        sourceAwareTournaments = null;
-        sourceAwarePlayers = null;
-
-        let isCancelled = false;
-
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - 90);
-        const dateStart = startDate.toISOString().slice(0, 10);
-
-        const formats = formatsForSource(source, epic);
-        const pageSize = 100;
-
-        const fetchPage = (page: number): Promise<any> => {
-            const params = new URLSearchParams();
-            params.set("page", String(page));
-            params.set("size", String(pageSize));
-            params.set("date_start", dateStart);
-            for (const f of formats) {
-                params.append("formats", f);
-            }
-            return fetch(`/api/tournaments?${params.toString()}`)
-                .then((r) => (r.ok ? r.json() : null))
-                .catch(() => null);
-        };
-
-        fetchPage(0).then(async (data) => {
-            if (isCancelled || !data) return;
-            const items: any[] = data?.items || [];
-            const total: number = typeof data?.total === "number" ? data.total : items.length;
-            let allPlayers = items.reduce(
-                (sum: number, t: any) => sum + (Number(t?.players) || 0),
-                0,
-            );
-
-            // Paginate to sum players across every page. The backend caps
-            // `size` at 100, so anything beyond that needs additional
-            // requests. In practice the 90-day window is well under 100
-            // tournaments per source, but we paginate defensively so the
-            // counts stay correct as the dataset grows.
-            const totalPages = Math.ceil(total / pageSize);
-            for (let p = 1; p < totalPages; p++) {
-                if (isCancelled) return;
-                const pageData = await fetchPage(p);
-                if (!pageData) break;
-                for (const item of pageData?.items || []) {
-                    allPlayers += Number(item?.players) || 0;
-                }
-            }
-
-            if (!isCancelled) {
-                sourceAwareTournaments = total;
-                sourceAwarePlayers = allPlayers;
-            }
-        });
-
-        return () => {
-            isCancelled = true;
+            controller.abort();
         };
     });
 
@@ -360,20 +186,6 @@
         if (!xws) return "";
         // If we want accurate icons from manifest, we might need a mapping or just rely on font classes
         return "xwing-miniatures-ship-" + xws.replace(/[^a-z0-9]/g, "");
-    }
-
-    function getFactionIconClass(xws: string) {
-        const normalized = (xws || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-        const icons: Record<string, string> = {
-            rebelalliance: "xwing-miniatures-font-rebel",
-            galacticempire: "xwing-miniatures-font-empire",
-            scumandvillainy: "xwing-miniatures-font-scum",
-            resistance: "xwing-miniatures-font-resistance",
-            firstorder: "xwing-miniatures-font-firstorder",
-            galacticrepublic: "xwing-miniatures-font-republic",
-            separatistalliance: "xwing-miniatures-font-separatists",
-        };
-        return icons[normalized] || "";
     }
 
     function getUpgradeIconClass(type: string) {
@@ -406,14 +218,12 @@
                 else cmp = gamesB - gamesA;
             } else if (key === "games") {
                 cmp = gamesB - gamesA;
-            } else if (key === "unique") {
-                // unique lists: distinct lists, with games count tiebreaker
-                const uniqA = Number(a.different_lists_count ?? 0);
-                const uniqB = Number(b.different_lists_count ?? 0);
-                if (uniqB !== uniqA) cmp = uniqB - uniqA;
+            } else if (key === "entries") {
+                const eA = Number(a.entries_count ?? a.list_count ?? 0);
+                const eB = Number(b.entries_count ?? b.list_count ?? 0);
+                if (eB !== eA) cmp = eB - eA;
                 else cmp = gamesB - gamesA;
             } else {
-                // lists: by list count, with games count tiebreaker
                 const listA = Number(a.list_count ?? 0);
                 const listB = Number(b.list_count ?? 0);
                 if (listB !== listA) cmp = listB - listA;
@@ -445,6 +255,7 @@
             shipName: ship?.name || pilot?.ship || "Unknown Ship",
             faction: pilot?.faction || "unknown",
             shipXws: pilot?.ship || "",
+            pack: (pilot as any)?.pack,
         };
     }
 
@@ -640,17 +451,68 @@
         </div>
     </header>
 
-    {#if loading || !meta}
-        <div
-            class="p-6 bg-terminal-panel border border-border-dark shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] rounded-md text-center"
-        >
-            <p class="text-secondary font-mono animate-pulse">
-                {#if error}
-                    Failed to fetch data: {errorMsg}
-                {:else}
-                    Loading or fetching data...
-                {/if}
-            </p>
+    {#if error}
+        <ErrorPanel
+            title="Failed to load dashboard data"
+            message={errorMsg}
+            onRetry={retry}
+        />
+    {:else if loading || !meta}
+        <!-- Loading Skeleton (matches dashboard shape: stat cards, chart
+             panels, leaderboard columns) -->
+        <div class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {#each Array(3) as _}
+                    <div
+                        class="bg-terminal-panel border border-border-dark rounded-lg p-4 h-24 space-y-2"
+                    >
+                        <div
+                            class="animate-pulse bg-[#ffffff06] rounded h-3 w-24"
+                        ></div>
+                        <div
+                            class="animate-pulse bg-[#ffffff06] rounded h-8 w-16"
+                        ></div>
+                    </div>
+                {/each}
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div
+                    class="bg-terminal-panel border border-border-dark rounded-lg p-5 h-[280px]"
+                >
+                    <div
+                        class="animate-pulse bg-[#ffffff06] rounded h-4 w-40 mb-4"
+                    ></div>
+                    <div
+                        class="animate-pulse bg-[#ffffff06] rounded h-[220px] w-full"
+                    ></div>
+                </div>
+                <div
+                    class="bg-terminal-panel border border-border-dark rounded-lg p-5 h-[280px]"
+                >
+                    <div
+                        class="animate-pulse bg-[#ffffff06] rounded h-4 w-40 mb-4"
+                    ></div>
+                    <div
+                        class="animate-pulse bg-[#ffffff06] rounded h-[220px] w-full"
+                    ></div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {#each Array(3) as _}
+                    <div
+                        class="bg-terminal-panel border border-border-dark rounded-lg p-5 space-y-3"
+                    >
+                        <div
+                            class="animate-pulse bg-[#ffffff06] rounded h-4 w-32"
+                        ></div>
+                        {#each Array(4) as _}
+                            <div
+                                class="animate-pulse bg-[#ffffff06] rounded h-6 w-full"
+                            ></div>
+                        {/each}
+                    </div>
+                {/each}
+            </div>
         </div>
     {:else}
         <!-- Period Banner: prominent "Last 90 Days" indicator -->
@@ -711,7 +573,7 @@
                     data-testid="dashboard-total-tournaments"
                     class="text-4xl font-bold font-mono text-primary"
                 >
-                    {sourceAwareTournaments ?? meta.total_tournaments ?? 0}
+                    {meta.total_tournaments ?? 0}
                 </div>
             </div>
 
@@ -747,7 +609,7 @@
                     data-testid="dashboard-total-players"
                     class="text-4xl font-bold font-mono text-primary"
                 >
-                    {sourceAwarePlayers ?? meta.total_players ?? 0}
+                    {meta.total_players ?? 0}
                 </div>
             </div>
 
@@ -781,7 +643,7 @@
                     data-testid="dashboard-last-sync"
                     class="text-2xl font-bold font-mono text-primary leading-tight mt-1"
                 >
-                    {latestTournamentDate || meta.last_sync || "Unknown"}
+                    {meta.last_sync || "Unknown"}
                 </div>
             </div>
         </div>
@@ -861,7 +723,6 @@
                         direction={pilotSortDir}
                         options={[
                             { value: "lists", label: "Lists" },
-                            { value: "unique", label: "Unique Lists" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}
@@ -872,7 +733,7 @@
                     />
                 </div>
                 <div class="w-full flex flex-col">
-                    {#each sortedPilots.slice(0, 5) as pilot}
+                    {#each sortedPilots.slice(0, 6) as pilot}
                         {@const p = getPilotDisplay(pilot.xws)}
                         {@const wr = getWinRate(pilot.wins || 0, pilot.games_count || 0)}
                         <div
@@ -900,14 +761,11 @@
                                     <div
                                         class="flex items-center gap-1 min-w-0 mt-0.5"
                                     >
-                                        <i
-                                            class="xwing-miniatures-font {getFactionIconClass(
-                                                p.faction,
-                                            )} text-[11px]"
-                                            style="color: {getFactionColor(
-                                                p.faction,
-                                            )}"
-                                        ></i>
+                                        <FactionIcon
+                                            faction={p.faction}
+                                            size="xs"
+                                            className="text-[11px]"
+                                        />
                                         <span
                                             class="text-[12px] text-secondary truncate min-w-0 pointer-events-none"
                                         >
@@ -948,7 +806,6 @@
                         direction={upgradeSortDir}
                         options={[
                             { value: "lists", label: "Lists" },
-                            { value: "unique", label: "Unique Lists" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}
@@ -1029,7 +886,6 @@
                         direction={shipSortDir}
                         options={[
                             { value: "lists", label: "Lists" },
-                            { value: "unique", label: "Unique Lists" },
                             { value: "winrate", label: "Win Rate" },
                             { value: "games", label: "Games" }
                         ]}
@@ -1040,7 +896,7 @@
                     />
                 </div>
                 <div class="w-full flex flex-col">
-                    {#each sortedShips.slice(0, 5) as ship}
+                    {#each sortedShips.slice(0, 6) as ship}
                         {@const shipData = xwingData.getShip(ship.xws)}
                         {@const shipName = shipData?.name || ship.xws}
                         {@const factionXws = ship.faction_xws}
@@ -1071,18 +927,14 @@
                                     <div
                                         class="flex items-center gap-1 min-w-0 mt-0.5"
                                     >
-                                        <i
-                                            class="xwing-miniatures-font {getFactionIconClass(
-                                                factionXws,
-                                            )} text-[11px]"
-                                            style="color: {getFactionColor(
-                                                factionXws,
-                                            )}"
-                                        ></i>
+                                        <FactionIcon
+                                            faction={factionXws}
+                                            size="xs"
+                                            className="text-[11px]"
+                                        />
                                         <span
                                             class="text-[12px] text-secondary truncate min-w-0 pointer-events-none"
-                                            >{getFactionLabel(factionXws)}</span
-                                        >
+                                            >{getFactionLabel(factionXws)}</span>
                                     </div>
                                 </div>
                             </div>
@@ -1119,9 +971,9 @@
                         value={listSortKey}
                         direction={listSortDir}
                         options={[
-                            { value: "lists", label: "Lists" },
                             { value: "winrate", label: "Win Rate" },
-                            { value: "games", label: "Games" }
+                            { value: "games", label: "Games" },
+                            { value: "entries", label: "Entries" }
                         ]}
                         onChange={(newValue, newDirection) => {
                             listSortKey = newValue as SortKey;
@@ -1134,7 +986,8 @@
                         {@const factionXws = list.faction_xws}
                         {@const wr = getWinRate(list.wins || 0, list.games || 0)}
                         <div
-                            class="p-4 bg-[rgba(255,255,255,0.01)] border border-border-dark hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer w-full flex flex-col gap-3 rounded-lg"
+                            class="p-4 bg-[rgba(255,255,255,0.01)] border border-border-dark border-l-[3px] hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer w-full flex flex-col gap-3 rounded-lg overflow-hidden"
+                            style="border-left: 3px solid {getFactionColor(factionXws)};"
                         >
                             <div
                                 class="flex w-full items-start justify-between border-b border-border-dark pb-3"
@@ -1168,7 +1021,7 @@
                                         >{wr.toFixed(1)}% WR</span
                                     >
                                     <span class="text-[11px] text-secondary"
-                                        >{list.games} games · {list.count ?? 0} lists</span
+                                        >{list.games} games · {(list.entries ?? list.entries_count ?? list.count ?? 1)} entries</span
                                     >
                                 </div>
                             </div>
@@ -1186,7 +1039,11 @@
                                             <div class="text-sm text-secondary truncate">
                                                 {p.name}
                                             </div>
-                                            {#if pilot.upgrades?.length}
+                                            {#if p.pack}
+                                                <div class="text-[11px] text-secondary/80 italic truncate">
+                                                    {p.pack}
+                                                </div>
+                                            {:else if pilot.upgrades?.length}
                                                 <div class="text-[11px] text-secondary/80 truncate">
                                                     {pilot.upgrades
                                                         .slice(0, 3)

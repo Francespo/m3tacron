@@ -57,6 +57,9 @@ export interface XWingShip {
     pilots?: any[]; 
     icon?: string;
     factions: string[];
+    /** Epic-only ships (no standard-legal pilots). Used by the ships page
+     *  epic toggle: only shown when "Include Epic" is on. */
+    epic?: boolean;
 }
 
 export interface XWingUpgrade {
@@ -86,6 +89,26 @@ export interface XWingDataManifest {
     ships: Record<string, XWingShip>;
     pilots: Record<string, XWingPilot>;
     upgrades: Record<string, XWingUpgrade>;
+}
+
+export const PACK_INFO_MAP: Record<string, { pack: string }> = {
+    'armedanddangerous': { pack: 'Armed and Dangerous' },
+    'evacuationofdqar': { pack: 'Evacuation of D\'QAR' },
+    'battleoverendor': { pack: 'Battle Over Endor' },
+    'battleofyavin': { pack: 'Battle of Yavin' },
+    'siegeofcoruscant': { pack: 'Siege of Coruscant' },
+    'alphastrike': { pack: 'Alpha Strike' },
+};
+
+export function getPackNameFromXws(xws: string): string | null {
+    if (!xws) return null;
+    const lower = xws.toLowerCase();
+    for (const [key, info] of Object.entries(PACK_INFO_MAP)) {
+        if (lower.includes(key)) {
+            return info.pack;
+        }
+    }
+    return null;
 }
 
 class XwingDataStore {
@@ -178,10 +201,45 @@ class XwingDataStore {
     /**
      * Get pilot details by XWS.
      */
-    getPilot(xws: string): XWingPilot | null {
+    getPilot(xws: string): (XWingPilot & { pack?: string }) | null {
         const d = this.getData();
         if (!d || !d.pilots) return null;
-        return d.pilots[xws] ?? null;
+        if (!xws) return null;
+
+        const pack = getPackNameFromXws(xws);
+
+        if (d.pilots[xws]) {
+            const p = d.pilots[xws];
+            return pack && !(p as any).pack ? { ...p, pack } : p;
+        }
+
+        const suffixes = [
+            '-armedanddangerous',
+            '-evacuationofdqar',
+            '-battleoverendor',
+            '-battleofyavin',
+            '-siegeofcoruscant',
+            '-alphastrike',
+            '-lsl'
+        ];
+
+        let cleanId = xws;
+        for (const suf of suffixes) {
+            if (cleanId.endsWith(suf)) {
+                cleanId = cleanId.slice(0, -suf.length);
+            }
+        }
+
+        if (d.pilots[cleanId]) {
+            const basePilot = d.pilots[cleanId];
+            return {
+                ...basePilot,
+                xws,
+                pack: pack ?? undefined
+            };
+        }
+
+        return null;
     }
 
     /**
@@ -190,7 +248,37 @@ class XwingDataStore {
     getUpgrade(xws: string): XWingUpgrade | null {
         const d = this.getData();
         if (!d || !d.upgrades) return null;
-        return d.upgrades[xws] ?? null;
+        if (!xws) return null;
+
+        if (d.upgrades[xws]) {
+            return d.upgrades[xws];
+        }
+
+        const suffixes = [
+            '-armedanddangerous',
+            '-evacuationofdqar',
+            '-battleoverendor',
+            '-battleofyavin',
+            '-siegeofcoruscant',
+            '-alphastrike',
+            '-lsl'
+        ];
+
+        let cleanId = xws;
+        for (const suf of suffixes) {
+            if (cleanId.endsWith(suf)) {
+                cleanId = cleanId.slice(0, -suf.length);
+            }
+        }
+
+        if (d.upgrades[cleanId]) {
+            return {
+                ...d.upgrades[cleanId],
+                xws
+            };
+        }
+
+        return null;
     }
 
     /**
@@ -199,6 +287,30 @@ class XwingDataStore {
      */
     getPilotCountByShip(shipXws: string, source: XWingSource = this.currentSource): number {
         return this.pilotCountByShip[source]?.[shipXws] ?? 0;
+    }
+
+    /**
+     * Get number of pilots for a ship filtered by faction.
+     * When faction is null/"all"/"unknown" the total is returned.
+     */
+    getPilotCountByShipForFaction(
+        shipXws: string,
+        faction: string | null,
+        source: XWingSource = this.currentSource,
+    ): number {
+        if (!faction || faction === "all" || faction.toLowerCase() === "unknown") {
+            return this.getPilotCountByShip(shipXws, source);
+        }
+        const data = this.data[source];
+        if (!data?.pilots) return 0;
+        const normWanted = faction.toLowerCase().replace(/[\s-]/g, "");
+        let count = 0;
+        for (const pilot of Object.values(data.pilots) as XWingPilot[]) {
+            if (pilot.ship !== shipXws) continue;
+            const pf = (pilot.faction ?? "").toLowerCase().replace(/[\s-]/g, "");
+            if (pf === normWanted) count++;
+        }
+        return count;
     }
 }
 

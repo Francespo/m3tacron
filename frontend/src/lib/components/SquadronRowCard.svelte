@@ -70,7 +70,7 @@
 </script>
 
 <div
-    class="flex relative bg-terminal-panel border border-border-dark border-l-[3px] rounded-lg overflow-hidden group hover:bg-[#ffffff05] hover:border-primary/40 transition-colors"
+    class="flex relative bg-terminal-panel border border-border-dark border-l-[3px] rounded-lg overflow-hidden group hover:bg-[#ffffff05] hover:border-primary/40 active:bg-[#ffffff08] transition-colors"
     style="border-left: 3px solid {fColor};"
 >
     <!-- Stretched link covers the whole card so the rest of the area
@@ -95,23 +95,28 @@
                 </span>
             </div>
 
-            <!-- Stats Badges (standardized pill pattern) -->
+            <!-- Stats Badges: squadrons→lists→entries→games→winrate -->
             <div class="flex items-center gap-1.5 flex-wrap font-mono text-xs font-bold">
                 <span
                     class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
                 >
-                    LISTS {list.count} (UNIQUE {list.count})
+                    LISTS {list.different_lists_count ?? list.count}
+                </span>
+                <span
+                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
+                >
+                    ENTRIES {list.count}
+                </span>
+                <span
+                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
+                >
+                    GAMES {list.games ?? 0}
                 </span>
                 <span
                     class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
                     style="color: {wrColor};"
                 >
                     WR {list.games === 0 ? "NA" : wr.toFixed(1) + "%"}
-                </span>
-                <span
-                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
-                >
-                    GAMES {list.games ?? 0}
                 </span>
             </div>
         </div>

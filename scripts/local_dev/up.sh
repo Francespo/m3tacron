@@ -3,6 +3,12 @@
 # Starts Docker stack + Vite in background. Binds to 0.0.0.0 for tailnet access.
 set -euo pipefail
 
+find_free_port() {
+  local p="$1"
+  while ss -tlnH "sport = :$p" 2>/dev/null | grep -q ":$p" || docker ps --format '{{.Ports}}' 2>/dev/null | grep -q "0.0.0.0:$p->"; do p=$((p+1)); done
+  echo "$p"
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DUMPS_DIR="$REPO_ROOT/local-data/dumps"
@@ -97,6 +103,22 @@ if [[ ! -f "$DUMP_FILE" ]]; then
 fi
 
 cleanup_vite
+
+BACKEND_PORT="${BACKEND_PORT:-8890}"
+POSTGRES_PORT="${POSTGRES_PORT:-5435}"
+ORIG_BACKEND_PORT="$BACKEND_PORT"
+ORIG_POSTGRES_PORT="$POSTGRES_PORT"
+ORIG_VITE_PORT="$VITE_PORT"
+BACKEND_PORT="$(find_free_port "$BACKEND_PORT")"
+POSTGRES_PORT="$(find_free_port "$POSTGRES_PORT")"
+VITE_PORT="$(find_free_port "$VITE_PORT")"
+export BACKEND_PORT POSTGRES_PORT VITE_PORT
+if [ "$BACKEND_PORT" != "$ORIG_BACKEND_PORT" ] || [ "$POSTGRES_PORT" != "$ORIG_POSTGRES_PORT" ] || [ "$VITE_PORT" != "$ORIG_VITE_PORT" ]; then
+  echo "==> Ports auto-adjusted (occupied ports skipped):"
+  [ "$BACKEND_PORT"  != "$ORIG_BACKEND_PORT"  ] && echo "    Backend:  $ORIG_BACKEND_PORT -> $BACKEND_PORT"
+  [ "$POSTGRES_PORT" != "$ORIG_POSTGRES_PORT" ] && echo "    Postgres: $ORIG_POSTGRES_PORT -> $POSTGRES_PORT"
+  [ "$VITE_PORT"     != "$ORIG_VITE_PORT"     ] && echo "    Frontend: $ORIG_VITE_PORT -> $VITE_PORT"
+fi
 
 echo "==> Bringing up backend stack (postgres + backend in Docker)..."
 BACKEND_PORT="${BACKEND_PORT:-8890}"

@@ -36,9 +36,19 @@ RUN if [ "$INSTALL_PLAYWRIGHT_BROWSER" = "true" ]; then playwright install chrom
 
 # Copy application code
 COPY . .
+COPY external_data /tmp/external_data
+
+RUN if [ ! -d /tmp/external_data/xwing-data2/data ] || [ ! -d /tmp/external_data/xwing-data2-legacy/data ]; then \
+    apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*; \
+    rm -rf /tmp/external_data; \
+    git clone --depth 1 --recurse-submodules https://github.com/Francespo/xwing-unified-data.git /tmp/external_data; \
+    fi \
+    && mkdir -p /app/external_data \
+    && cp -a /tmp/external_data/. /app/external_data/ \
+    && rm -rf /tmp/external_data
 
 EXPOSE 8888
 
 ENV PYTHONUNBUFFERED=1
 
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8888"]
+CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port 8888 --workers ${UVICORN_WORKERS:-2}"]

@@ -69,55 +69,39 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                         }
             except Exception:
                 continue
-    
-    # Manual patches for missing scenario pilots (e.g. Battle of Yavin / D'Qar)
-    # Only apply to XWA, they don't exist in Legacy.
-    # For safety, applying generally if missing.
-    MANUAL_PILOT_DATA = {
-        "longshot-evacuationofdqar": {
-            "name": "Longshot", "ship": "TIE/fo Fighter", "ship_xws": "tiefofighter", "faction": "First Order", "ship_icon": "tiefofighter"
-        },
-        "stomeronistarck-evacuationofdqar": {
-            "name": "Stomeroni Starck", "ship": "T-70 X-wing", "ship_xws": "t70xwing", "faction": "Resistance", "ship_icon": "t70xwing"
-        },
-        "zizitlo-evacuationofdqar": {
-            "name": "Zizi Tlo", "ship": "RZ-2 A-wing", "ship_xws": "rz2awing", "faction": "Resistance", "ship_icon": "rz2awing"
-        },
-        "caithrenalli-evacuationofdqar": {
-            "name": "C'ai Threnalli", "ship": "T-70 X-wing", "ship_xws": "t70xwing", "faction": "Resistance", "ship_icon": "t70xwing"
-        },
-        "fennrau-armedanddangerous": {
-            "name": "Fenn Rau", "ship": "Fang Fighter", "ship_xws": "fangfighter", "faction": "Scum and Villainy", "ship_icon": "fangfighter"
-        },
-        "themandalorian-armedanddangerous": {
-            "name": "The Mandalorian", "ship": "ST-70 Assault Ship", "ship_xws": "st70assaultship", "faction": "Scum and Villainy", "ship_icon": "st70assaultship"
-        },
-        "dengar-armedanddangerous": {
-            "name": "Dengar", "ship": "JumpMaster 5000", "ship_xws": "jumpmaster5000", "faction": "Scum and Villainy", "ship_icon": "jumpmaster5000"
-        },
-        "bossk-armedanddangerous": {
-            "name": "Bossk", "ship": "YV-666", "ship_xws": "yv666lightfreighter", "faction": "Scum and Villainy", "ship_icon": "yv666lightfreighter"
-        },
-        "cadbane-armedanddangerous": {
-            "name": "Cad Bane", "ship": "Rogue-class Starfighter", "ship_xws": "rogueclassstarfighter", "faction": "Scum and Villainy", "ship_icon": "rogueclassstarfighter"
-        }
-    }
-    
-    for pid, pdata in MANUAL_PILOT_DATA.items():
-        if pid not in all_pilots:
-            all_pilots[pid] = pdata
-
     return all_pilots
+
+PACK_SUFFIXES = [
+    "-armedanddangerous",
+    "-evacuationofdqar",
+    "-battleoverendor",
+    "-battleofyavin",
+    "-siegeofcoruscant",
+    "-alphastrike",
+    "-lsl",
+]
 
 def get_pilot_info(xws_pilot: str, source: DataSource = DataSource.XWA) -> dict | None:
     """Get full pilot info from XWS ID."""
     pilots = load_all_pilots(source)
-    return pilots.get(xws_pilot)
+    if xws_pilot in pilots:
+        return pilots[xws_pilot]
+
+    # Try fallback stripping of pack/variant suffixes
+    clean_id = xws_pilot
+    for suf in PACK_SUFFIXES:
+        if clean_id.endswith(suf):
+            clean_id = clean_id[:-len(suf)]
+    
+    if clean_id in pilots:
+        base_p = pilots[clean_id]
+        return {**base_p, "xws": xws_pilot}
+
+    return None
 
 def get_pilot_name(xws_pilot: str) -> str:
     """Get human-readable pilot name from XWS ID (uses Default XWA source for name lookup)."""
-    pilots = load_all_pilots()
-    pilot = pilots.get(xws_pilot)
+    pilot = get_pilot_info(xws_pilot)
     return pilot["name"] if pilot else xws_pilot
 
 def get_pilot_image(xws_pilot: str, source: DataSource = DataSource.XWA) -> str:

@@ -173,11 +173,12 @@ class ListFortressScraper(BaseScraper):
             p_map = {p["id"]: p["name"] for p in data.get("participants", [])}
 
             for r in rounds:
-                r_type = RoundType.SWISS if r["roundtype_id"] == 1 else RoundType.CUT
-                # Note: roundtype_id mapping is a guess/standard. 1=Swiss usually.
-                # Just assuming 'swiss' for now unless we see distinct ID.
-                # Actually, ListFortress might use "round_type" field?
-                # rounds json: [{"roundtype_id": 1, "matches": [...]}]
+                r_type = RoundType.SWISS if r.get(
+                    "roundtype_id", 1) == 1 else RoundType.CUT
+                # Note: roundtype_id 1 = Swiss, anything else (e.g. 2) = cut.
+                scenario = self._parse_scenario(
+                    r.get("scenario") or "") if r.get("scenario") else None
+                r_number = r.get("round_number", 0)
 
                 for m in r.get("matches", []):
                     p1_id = m.get("player1_id")
@@ -195,14 +196,20 @@ class ListFortressScraper(BaseScraper):
                     elif winner_id == p2_id:
                         winner_name = p2_name
 
+                    is_bye = (not p2_id) or "bye" in p2_name.lower()
+                    if is_bye:
+                        winner_name = p1_name
+
                     match = {
-                        "round_number": r.get("round_number", 0),
+                        "round_number": r_number,
                         "round_type": r_type,
+                        "scenario": scenario,
                         "p1_name_temp": p1_name,
                         "p2_name_temp": p2_name,
                         "player1_score": m.get("player1_points", 0),
                         "player2_score": m.get("player2_points", 0),
-                        "winner_name_temp": winner_name
+                        "winner_name_temp": winner_name,
+                        "is_bye": is_bye,
                     }
                     matches.append(match)
 
@@ -210,6 +217,59 @@ class ListFortressScraper(BaseScraper):
             logger.error(f"Error fetching matches for {tournament_id}: {e}")
 
         return matches
+
+    def run_full_scrape(
+        self, tournament_id: str
+    ) -> tuple[Tournament, list[PlayerStanding], list[Match]]:
+        """Full scrape, then derive W/L/D from match results.
+
+        The ListFortress API does not expose per-player win/loss/draw counts,
+        so they are computed from the round match data (winner_id per match).
+        """
+        tournament, players, matches = super().run_full_scrape(tournament_id)
+
+        if players and matches:
+            from ..data_structures.round_types import RoundType
+            p_map = {
+                p.player_name.lower().strip(): p for p in players
+            }
+
+            def _get(name) -> PlayerStanding | None:
+                return p_map.get((name or "").lower().strip())
+
+            for m in matches:
+                if not isinstance(m, dict) or m.get("round_type") != RoundType.SWISS:
+                    continue
+                p1 = _get(m.get("p1_name_temp"))
+                p2 = _get(m.get("p2_name_temp"))
+                if not p1 and not p2:
+                    continue
+
+                w = m.get("winner_name_temp")
+                w_norm = (w or "").lower().strip()
+                s1 = m.get("player1_score", -1)
+                s2 = m.get("player2_score", -1)
+
+                p1_win = bool(w and p1 and w_norm == p1.player_name.lower().strip())
+                p2_win = bool(w and p2 and w_norm == p2.player_name.lower().strip())
+                draw = (not w) and s1 >= 0 and s2 >= 0 and s1 == s2 and s1 > 0
+
+                if p1:
+                    if p1_win:
+                        p1.swiss_wins = (p1.swiss_wins or 0) + 1
+                    elif p2_win:
+                        p1.swiss_losses = (p1.swiss_losses or 0) + 1
+                    elif draw:
+                        p1.swiss_draws = (p1.swiss_draws or 0) + 1
+                if p2:
+                    if p2_win:
+                        p2.swiss_wins = (p2.swiss_wins or 0) + 1
+                    elif p1_win:
+                        p2.swiss_losses = (p2.swiss_losses or 0) + 1
+                    elif draw:
+                        p2.swiss_draws = (p2.swiss_draws or 0) + 1
+
+        return tournament, players, matches
 
     def _map_format(self, fmt_id: int) -> Format:
         # Standard=1, Extended=2? Guessing based on common knowledge of X-Wing legacy.
