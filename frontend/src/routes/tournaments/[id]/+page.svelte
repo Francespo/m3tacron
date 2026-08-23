@@ -431,10 +431,7 @@
                 <div class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden flex flex-col" style="height: {swissStandingsHeight ? `${swissStandingsHeight}px` : 'auto'};">
                     <div class="bg-[rgba(255,255,255,0.02)] border-b border-border-dark p-3 flex items-center justify-between gap-3 shrink-0">
                         <div class="flex flex-col min-w-0">
-                            <div class="flex items-center gap-2">
-                                <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">{swissGroup.label}</h2>
-                                <span class="px-1.5 py-0.5 text-[10px] font-mono rounded font-semibold uppercase bg-blue-500/20 text-blue-300 border border-blue-500/30">Swiss</span>
-                            </div>
+                            <h2 class="text-sm font-bold text-primary font-mono uppercase tracking-wider">{swissGroup.label}</h2>
                             {#if swissDom}
                                 <span class="text-[11px] font-mono text-secondary uppercase tracking-wider truncate">{humanizeScenario(swissDom)}</span>
                             {/if}
