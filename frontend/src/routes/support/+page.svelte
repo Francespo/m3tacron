@@ -4,7 +4,7 @@
   import { API_BASE } from "$lib/api";
   import { cachedFetchJson } from "$lib/api/cache";
 
-  let supporters: { name: string; amount: number; date: string; message?: string | null }[] = $state([]);
+  let supporters: { name: string }[] = $state([]);
   let loading = $state(true);
   const SUPPORTER_THRESHOLD = 3;
 
@@ -13,16 +13,13 @@
   let previewMode: PreviewMode = $state("live");
   const previewData: Record<Exclude<PreviewMode, "live">, typeof supporters> = {
     empty: [],
-    below: [
-      { name: "Wedge Antilles", amount: 5, date: new Date().toISOString(), message: "Thanks for the site!" },
-      { name: "Hera Syndulla", amount: 10, date: new Date().toISOString(), message: null },
-    ],
+    below: [{ name: "Wedge Antilles" }, { name: "Hera Syndulla" }],
     above: [
-      { name: "Wedge Antilles", amount: 5, date: new Date().toISOString(), message: "Thanks for keeping the station alive!" },
-      { name: "Hera Syndulla", amount: 10, date: new Date().toISOString(), message: null },
-      { name: "Cassian Andor", amount: 20, date: new Date().toISOString(), message: "For the Rebellion" },
-      { name: "Ahsoka Tano", amount: 15, date: new Date().toISOString(), message: "May the Force be with this project" },
-      { name: "K-2SO", amount: 3, date: new Date().toISOString(), message: null },
+      { name: "Wedge Antilles" },
+      { name: "Hera Syndulla" },
+      { name: "Cassian Andor" },
+      { name: "Ahsoka Tano" },
+      { name: "K-2SO" },
     ],
   };
 
@@ -87,9 +84,9 @@
         class="mb-4 text-center font-sans text-base italic leading-relaxed text-secondary/80 md:mb-6"
       >
         I build M3taCron with passion in my spare time, far from the
-        Empire's reach and annoying ad networks. The station is free to use.
-        Keeping the lights on and the droids working still takes resources, and
-        a little help goes a long way.
+        Empire's reach and annoying ad networks. It is free to use, and keeping
+        the lights on and the droids working still takes resources, and a little
+        help goes a long way.
       </p>
 
       <div
@@ -113,7 +110,7 @@
         >
         <p class="text-[13px] text-secondary/90 leading-relaxed font-sans">
           If you choose to support the project, thank you. It means a lot and
-          helps keep the station running. You can share your name to appear
+          helps keep the website running. You can share your name to appear
           among the supporters, or stay anonymous behind a cloaking device.
           <br /><em>May the Force be with you, always.</em>
         </p>
