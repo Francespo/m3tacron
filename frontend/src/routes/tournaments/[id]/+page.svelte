@@ -4,6 +4,7 @@
     import BackLink from "$lib/components/BackLink.svelte";
     import ErrorPanel from "$lib/components/ErrorPanel.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
+    import BracketView from "./BracketView.svelte";
     import { invalidateAll } from "$app/navigation";
     import type { PageData } from "./$types";
 
@@ -190,6 +191,24 @@
     let swissPage = $state(0);
     let cutPage = $state(0);
     let standingsTab = $state<"swiss" | "cut">("swiss");
+    let cutViewMode = $state<"bracket" | "list">("bracket");
+
+    const playerMap = $derived.by(() => {
+        const map = new Map<string, any>();
+        if (detail?.players_cut) {
+            for (const p of detail.players_cut) {
+                if (p.name) map.set(p.name.trim().toLowerCase(), p);
+            }
+        }
+        if (detail?.players_swiss) {
+            for (const p of detail.players_swiss) {
+                if (p.name && !map.has(p.name.trim().toLowerCase())) {
+                    map.set(p.name.trim().toLowerCase(), p);
+                }
+            }
+        }
+        return map;
+    });
 
     // Reset pagination and tab when tournament ID changes
     let prevTournamentId: string | undefined = undefined;
@@ -201,6 +220,7 @@
             cutPage = 0;
             standingsTab = "swiss";
             currentRoundIndex = 0;
+            cutViewMode = "bracket";
         }
     });
 
@@ -362,6 +382,120 @@
             >
             <span class="text-base text-primary font-sans">{t.location}</span>
         </div>
+
+        <!-- Playoff Cut Stage Section -->
+        {#if (matches ?? []).some((m: Match) => (m.type || "").toLowerCase().trim() === "cut")}
+            <div class="mb-8">
+                <div class="bg-terminal-panel border border-border-dark rounded-xl p-4 md:p-6 shadow-xl">
+                    <!-- Header with Title and View Toggle -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border-dark pb-4 mb-6">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                    <path d="M6 18h12"></path>
+                                    <path d="M6 6h12"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h2 class="text-lg font-bold text-primary font-mono tracking-wide uppercase">
+                                    Playoff Stage — Knockout Bracket
+                                </h2>
+                                <p class="text-xs text-secondary font-mono">
+                                    Single-elimination tree progression
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- View Toggle Button: Bracket View / List View -->
+                        <div class="flex items-center bg-[#070a10] border border-border-dark rounded-lg p-1 self-start sm:self-auto">
+                            <button
+                                type="button"
+                                class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-mono font-bold uppercase tracking-wider transition-all duration-150 {cutViewMode === 'bracket' ? 'bg-primary/20 text-primary border border-primary/30 shadow-sm' : 'text-secondary hover:text-primary'}"
+                                onclick={() => { cutViewMode = 'bracket'; }}
+                            >
+                                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="7" height="7"></rect>
+                                    <rect x="14" y="3" width="7" height="7"></rect>
+                                    <rect x="14" y="14" width="7" height="7"></rect>
+                                    <rect x="3" y="14" width="7" height="7"></rect>
+                                </svg>
+                                <span>Bracket View</span>
+                            </button>
+                            <button
+                                type="button"
+                                class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-mono font-bold uppercase tracking-wider transition-all duration-150 {cutViewMode === 'list' ? 'bg-primary/20 text-primary border border-primary/30 shadow-sm' : 'text-secondary hover:text-primary'}"
+                                onclick={() => { cutViewMode = 'list'; }}
+                            >
+                                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="8" y1="6" x2="21" y2="6"></line>
+                                    <line x1="8" y1="12" x2="21" y2="12"></line>
+                                    <line x1="8" y1="18" x2="21" y2="18"></line>
+                                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                                </svg>
+                                <span>List View</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Content: Bracket View vs List View -->
+                    {#if cutViewMode === 'bracket'}
+                        <BracketView matches={detail.matches ?? []} {playerMap} />
+                    {:else}
+                        <!-- Tabular List View of Cut Matches -->
+                        <div class="flex flex-col gap-6">
+                            {#each roundGroups.filter(g => g.type === 'cut') as group}
+                                <div class="border border-border-dark/60 rounded-lg overflow-hidden bg-[#090d16]">
+                                    <div class="bg-[rgba(255,255,255,0.03)] border-b border-border-dark/60 p-3 flex items-center justify-between">
+                                        <span class="font-mono text-sm font-bold text-amber-300 uppercase tracking-wider">{group.label}</span>
+                                        <span class="text-xs font-mono text-secondary">{group.matches.length} Match{group.matches.length === 1 ? '' : 'es'}</span>
+                                    </div>
+                                    <div class="divide-y divide-border-dark/40">
+                                        {#each group.matches as m}
+                                            {@const winnerName = pickWinnerName(m)}
+                                            {@const p1Info = playerMap.get(m.player1.trim().toLowerCase())}
+                                            {@const p2Info = playerMap.get(m.player2.trim().toLowerCase())}
+                                            <div class="flex items-center justify-between gap-4 p-3 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
+                                                <!-- Player 1 -->
+                                                <div class="flex items-center gap-2 flex-1 min-w-0 justify-end">
+                                                    {#if p1Info?.list_id}
+                                                        <a href="/list/{p1Info.list_id}" class="text-xs font-mono text-secondary hover:text-green-400 border border-border-dark px-1.5 py-0.5 rounded">List</a>
+                                                    {/if}
+                                                    <span class="font-mono text-sm truncate text-right {winnerName === m.player1 ? 'text-green-400 font-bold' : winnerName === null ? 'text-secondary' : 'text-primary'}" title={m.player1}>{m.player1}</span>
+                                                    {#if p1Info?.faction}
+                                                        <FactionIcon faction={p1Info.faction} size="sm" />
+                                                    {/if}
+                                                </div>
+
+                                                <!-- Score -->
+                                                <div class="flex items-center justify-center gap-1.5 font-mono text-sm px-3 py-1 rounded bg-[rgba(255,255,255,0.04)] border border-border-dark shrink-0 font-bold">
+                                                    <span class={winnerName === m.player1 ? 'text-green-400' : 'text-secondary'}>{m.score1}</span>
+                                                    <span class="text-secondary/60">-</span>
+                                                    <span class={winnerName === m.player2 ? 'text-green-400' : 'text-secondary'}>{m.score2}</span>
+                                                </div>
+
+                                                <!-- Player 2 -->
+                                                <div class="flex items-center gap-2 flex-1 min-w-0 justify-start">
+                                                    {#if p2Info?.faction}
+                                                        <FactionIcon faction={p2Info.faction} size="sm" />
+                                                    {/if}
+                                                    <span class="font-mono text-sm truncate text-left {winnerName === m.player2 ? 'text-green-400 font-bold' : winnerName === null ? 'text-secondary' : 'text-primary'}" title={m.player2}>{m.player2}</span>
+                                                    {#if p2Info?.list_id}
+                                                        <a href="/list/{p2Info.list_id}" class="text-xs font-mono text-secondary hover:text-green-400 border border-border-dark px-1.5 py-0.5 rounded">List</a>
+                                                    {/if}
+                                                </div>
+                                            </div>
+                                        {/each}
+                                    </div>
+                                </div>
+                            {/each}
+                        </div>
+                    {/if}
+                </div>
+            </div>
+        {/if}
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             <div class="flex flex-col gap-6">
