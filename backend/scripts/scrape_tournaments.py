@@ -1165,8 +1165,14 @@ def main() -> int:
     elif args.sqlite_output and not all_saved_items:
         logger.info("No new tournaments saved; skipping SQLite artifact.")
 
-    # Bump data_version to invalidate API cache
+    # Bump data_version to invalidate API cache and record last scrape time.
+    # This runs unconditionally — even when total_saved == 0 — so the dashboard's
+    # Last Sync proves the scraper is active ("everything is working") even on
+    # days with no new tournaments.
     try:
+        from datetime import timezone as _tz
+
+        now_iso = datetime.now(_tz.utc).isoformat()
         with engine.begin() as conn:
             row = conn.execute(text("SELECT value FROM scrape_meta WHERE key = 'data_version'")).first()
             if row:
@@ -1182,9 +1188,17 @@ def main() -> int:
                 conn.execute(
                     text("INSERT INTO scrape_meta (key, value) VALUES ('data_version', '1')")
                 )
-        print("[cache] data_version bumped — API cache will invalidate on next check")
+            # Upsert last scrape timestamp (authoritative Last Sync source).
+            conn.execute(
+                text(
+                    "INSERT INTO scrape_meta (key, value) VALUES ('last_scrape_at', :now) "
+                    "ON CONFLICT (key) DO UPDATE SET value = :now"
+                ),
+                {"now": now_iso},
+            )
+        print(f"[cache] data_version bumped + last_scrape_at={now_iso} — API cache will invalidate on next check")
     except Exception as e:
-        print(f"[cache] WARNING: Could not bump data_version: {e}")
+        print(f"[cache] WARNING: Could not bump data_version/last_scrape_at: {e}")
 
     return 0
 
