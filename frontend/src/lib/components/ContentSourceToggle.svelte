@@ -44,13 +44,13 @@
         aria-pressed={filters.dataSource === 'xwa'}
         class="flex items-center gap-1.5 px-2.5 py-1 text-xs transition-colors border-r border-border-dark cursor-pointer select-none
             {filters.dataSource === 'xwa'
-                ? 'bg-cyan-500/15 text-cyan-400 active:bg-cyan-500/25'
+                ? 'bg-amber-500/15 text-amber-400 active:bg-amber-500/25'
                 : 'text-secondary hover:text-primary hover:bg-[#ffffff08] active:bg-[#ffffff14]'}"
     >
         <span
             class="inline-block w-1.5 h-1.5 rounded-full transition-all
                 {filters.dataSource === 'xwa'
-                    ? 'bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.7)]'
+                    ? 'bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.7)]'
                     : 'bg-transparent border border-border-dark'}"
             aria-hidden="true"
         ></span>
@@ -64,13 +64,13 @@
         aria-pressed={filters.dataSource === 'legacy'}
         class="flex items-center gap-1.5 px-2.5 py-1 text-xs transition-colors border-r border-border-dark cursor-pointer select-none
             {filters.dataSource === 'legacy'
-                ? 'bg-purple-500/15 text-purple-400 active:bg-purple-500/25'
+                ? 'bg-violet-500/15 text-violet-400 active:bg-violet-500/25'
                 : 'text-secondary hover:text-primary hover:bg-[#ffffff08] active:bg-[#ffffff14]'}"
     >
         <span
             class="inline-block w-1.5 h-1.5 rounded-full transition-all
                 {filters.dataSource === 'legacy'
-                    ? 'bg-purple-400 shadow-[0_0_6px_rgba(168,85,247,0.7)]'
+                    ? 'bg-violet-400 shadow-[0_0_6px_rgba(139,92,246,0.7)]'
                     : 'bg-transparent border border-border-dark'}"
             aria-hidden="true"
         ></span>
@@ -84,15 +84,14 @@
         aria-hidden="true"
     ></div>
 
-    <!-- Epic modifier toggle. Uses a button so the on/off state toggles cleanly
-         and the label reuses the same tinted-bg + colored-text pattern as the source buttons. -->
+    <!-- Epic modifier toggle — just a checkbox, not colored (as requested). -->
     <button
         type="button"
         onclick={() => setIncludeEpic(!filters.includeEpic)}
         aria-pressed={filters.includeEpic}
         class="flex items-center gap-1.5 px-2.5 py-1 text-xs cursor-pointer select-none transition-colors
             {filters.includeEpic
-                ? 'bg-amber-500/15 text-amber-400 active:bg-amber-500/25'
+                ? 'text-primary hover:bg-[#ffffff08] active:bg-[#ffffff14]'
                 : 'text-secondary hover:text-primary hover:bg-[#ffffff08] active:bg-[#ffffff14]'}"
     >
         <span

@@ -24,12 +24,12 @@ export const FORMAT_FULL_LABELS: Record<string, string> = {
 };
 
 export const FORMAT_COLORS: Record<string, string> = {
-    // 2.5 — two distinct identities (same macro, both premium)
+    // 2.5 — two distinct premium identities
     amg: '#22d3ee',         // Cyan 400 — AMG, cool / official
     xwa: '#f59e0b',         // Amber 500 — XWA, warm / community
 
-    // 2.0 — FFG stands out; Legacy variants share one family hue
-    ffg: '#6366f1',         // Indigo 500 — FFG (stands out)
+    // 2.0 — FFG stands out in green (nothing else is green; legacy trio is violet)
+    ffg: '#4ade80',         // Green 400 — FFG (stands out from legacy violet)
     legacy_x2po: '#8b5cf6', // Violet 500 — Legacy family
     legacy_xlc: '#8b5cf6',  // Violet 500 — Legacy family
     legacy_pandorum: '#8b5cf6', // Violet 500 — Legacy family
