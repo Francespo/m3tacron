@@ -55,10 +55,10 @@
       <p
         class="mb-4 text-center font-sans text-base italic leading-relaxed text-secondary/80 md:mb-6"
       >
-        M3taCron runs on passion and free time, far from the Empire's
-        reach and annoying ad networks. The station is free to use. Keeping the
-        lights on and the droids working still takes resources, and a little
-        help goes a long way.
+        I build M3taCron with passion in my spare time, far from the
+        Empire's reach and annoying ad networks. The station is free to use.
+        Keeping the lights on and the droids working still takes resources, and
+        a little help goes a long way.
       </p>
 
       <div
