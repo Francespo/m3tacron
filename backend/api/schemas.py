@@ -77,6 +77,8 @@ class ShipFactionStats(BaseModel):
     games_count: int
     list_count: int
     wins: int
+    entries_count: int = 0
+    squadron_count: int = 0
 
 
 class ShipStats(BaseModel):
