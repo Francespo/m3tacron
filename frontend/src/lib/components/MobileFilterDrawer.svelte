@@ -182,37 +182,36 @@
 		</button>
 	</header>
 
-	<!-- Body: two stacked filter sections. The data section renders in a
-	     non-scrolling wrapper so TournamentFilters' info tooltip
-	     (absolutely positioned, extends below the icon) is never clipped
-	     by overflow. The page-specific section sits in its own scrollable
-	     area below, separated by the same strong divider as the desktop
-	     panel; bottom safe-area padding on the scroll area keeps the iOS
-	     home indicator from covering the last control. Section ids match
-	     the desktop FilterPanel so the persisted collapse preference is
-	     shared between the two. -->
-	<div class="relative z-50 p-4 pb-0 min-w-0">
-		<FilterSection
-			id="data"
-			label={dataFilterTitle}
-			description={dataFilterDescription}
-		>
-			<TournamentFilters />
-		</FilterSection>
-	</div>
-	{#if pageFilterTitle && children}
+	<!-- Body: single scroll region for the whole sheet. Previously
+	     the Data filter lived outside scroll (non-scrolling wrapper) and
+	     only the page section scrolled — two scrollbars, jumpy gutter,
+	     and the data section resized when the scrollbar appeared. Now
+	     the entire body is one scroll with [scrollbar-gutter:stable] so
+	     the gutter is reserved even when there is no overflow (no
+	     resize), matching CardFilters. Section ids still match
+	     FilterPanel so collapsed preference stays shared. -->
+	<div
+		class="flex-1 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable] px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+	>
+		<div class="min-w-0">
+			<FilterSection
+				id="data"
+				label={dataFilterTitle}
+				description={dataFilterDescription}
+			>
+				<TournamentFilters />
+			</FilterSection>
+		</div>
+		{#if pageFilterTitle && children}
 		<div class="h-0.5 bg-border-dark mt-3 mb-4 shrink-0"></div>
-		<div
-			class="flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
-		>
 			<FilterSection
 				id={'page:' + slugify(pageFilterTitle)}
 				label={pageFilterTitle}
 			>
 				{@render children()}
 			</FilterSection>
-		</div>
-	{/if}
+		{/if}
+	</div>
 
 	<!-- Footer: custom snippet wins; otherwise render default Reset + Apply. -->
 	{#if footer}
