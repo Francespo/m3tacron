@@ -86,9 +86,9 @@
         class="mb-4 text-center font-sans text-base italic leading-relaxed text-secondary/80 md:mb-6"
       >
         I build M3taCron with passion in my spare time, far from the
-        Empire's reach and annoying ad networks. It is free to use, and keeping
-        the lights on and the droids working still takes resources, and a little
-        help goes a long way.
+        Empire's reach and annoying ad networks. It is free to use, but keeping
+        the lights on and the droids working costs credits, if you use it often
+        and find it useful, a little help goes a long way.
       </p>
 
       <div
