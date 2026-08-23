@@ -24,18 +24,18 @@ export const FORMAT_FULL_LABELS: Record<string, string> = {
 };
 
 export const FORMAT_COLORS: Record<string, string> = {
-    // Macro 2.5 (Cyan shades)
-    amg: '#22d3ee',         // Cyan 400
-    xwa: '#0891b2',         // Cyan 600
+    // 2.5 — keep AMG cyan, warm up XWA to amber/gold (pairs with Champion amber)
+    amg: '#22d3ee',         // Cyan 400 — current-era, premium
+    xwa: '#f59e0b',         // Amber 500 — community XWA, warm
 
-    // Macro 2.0 (Purple/Violet shades)
-    ffg: '#a855f7',         // Purple 500
-    legacy_x2po: '#7c3aed', // Violet 600
-    legacy_xlc: '#6d28d9',  // Violet 700
-    legacy_pandorum: '#9333ea', // Violet 500 (Pandorum, distinct hue)
+    // 2.0 — separate FFG legacy distinctly
+    ffg: '#6366f1',         // Indigo 500 — 1.0 era
+    legacy_x2po: '#8b5cf6', // Violet 500 — X2PO
+    legacy_xlc: '#ec4899',  // Rose 500 — XLC (playful, avoids faction greens/blues)
+    legacy_pandorum: '#a78bfa', // Violet 300 — Pandorum, lighter
 
-    // Low importance/Non-stats
-    other: '#475569'         // Slate 600 (Gisio/Dead)
+    // Unknown / Other
+    other: '#475569'         // Slate 600
 };
 
 export function getFormatLabel(formatXws: string): string {

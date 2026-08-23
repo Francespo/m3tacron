@@ -1,5 +1,9 @@
 <script lang="ts">
-    import { getDisplayFormatFullLabel } from "$lib/data/formats";
+    import {
+        getDisplayFormatFullLabel,
+        resolveDisplayFormat,
+        getFormatColor,
+    } from "$lib/data/formats";
     import { getSourceLabel } from "$lib/data/source";
     import BackLink from "$lib/components/BackLink.svelte";
     import ErrorPanel from "$lib/components/ErrorPanel.svelte";
@@ -275,7 +279,7 @@
                 <span class="text-xs text-secondary font-mono uppercase mb-1"
                     >Format</span
                 >
-                <span class="text-base font-bold text-primary font-mono truncate"
+                <span class="text-base font-bold font-mono truncate" style="color: {getFormatColor(getDisplayFormatFullLabel(t.format, t.date) === 'Unknown' ? 'other' : resolveDisplayFormat(t.format, t.date))};"
                     >{getDisplayFormatFullLabel(t.format, t.date)}</span
                 >
             </div>
