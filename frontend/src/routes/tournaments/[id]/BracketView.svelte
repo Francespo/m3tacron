@@ -406,7 +406,7 @@
                             {@const p2Info = playerMap.get(m.player2.trim().toLowerCase())}
 
                             <div
-                                class="absolute flex flex-col justify-between bg-terminal-panel border rounded-lg overflow-hidden shadow-lg transition-all duration-200 hover:border-primary/50 hover:shadow-[0_0_15px_rgba(0,163,255,0.15)] {p1Winner || p2Winner ? 'border-border-dark' : 'border-border-dark/60'}"
+                                class="absolute flex flex-col justify-between bg-terminal-panel border rounded-lg overflow-hidden shadow-lg {p1Winner || p2Winner ? 'border-border-dark' : 'border-border-dark/60'}"
                                 style="left: {left}px; top: {top}px; width: {COL_WIDTH}px; height: {CARD_HEIGHT}px;"
                             >
                                 <!-- Player 1 Row -->
