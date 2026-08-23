@@ -52,7 +52,7 @@
 </svelte:head>
 
 <div
-  class="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 px-6 py-8 lg:h-screen lg:gap-8 lg:overflow-hidden lg:py-8"
+  class="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 px-6 py-8 lg:py-8"
 >
   <!-- Dev preview toggle (only shown when ?preview=1) -->
   {#if typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1"}
@@ -80,15 +80,9 @@
     </h1>
   </header>
 
-  <div
-    class="grid flex-1 grid-cols-1 items-start gap-8 lg:grid-cols-12 lg:gap-12 lg:min-h-0"
-  >
-    <!-- Left Column: full width until threshold, 8/12 after -->
-    <section
-      class="flex flex-col lg:h-full lg:min-h-0 lg:pr-4 {showSupporters || loading
-        ? 'lg:col-span-8'
-        : 'lg:col-span-12 lg:max-w-3xl lg:mx-auto lg:items-center'}"
-    >
+  <div class="flex flex-col gap-10">
+    <!-- Main donation block: centered, full width -->
+    <section class="mx-auto w-full max-w-3xl flex flex-col items-center">
       <p
         class="mb-4 text-center font-sans text-base italic leading-relaxed text-secondary/80 md:mb-6"
       >
@@ -99,7 +93,7 @@
       </p>
 
       <div
-        class="mb-8 flex flex-col items-center gap-2 rounded-sm border border-primary/20 bg-primary/5 px-5 py-4 text-center"
+        class="mb-8 flex w-full flex-col items-center gap-2 rounded-sm border border-primary/20 bg-primary/5 px-5 py-4 text-center"
       >
         <!-- Lucide Heart Icon -->
         <svg
@@ -125,7 +119,7 @@
         </p>
       </div>
 
-      <div class="mb-10 flex justify-center relative group lg:mb-12">
+      <div class="mb-2 flex justify-center relative group">
         <a
           href="https://ko-fi.com/francespo"
           target="_blank"
@@ -160,9 +154,9 @@
       </div>
     </section>
 
-    <!-- Right Column: only shown after threshold -->
+    <!-- Galactic Patrons: below the donation, only after threshold -->
     {#if loading || showSupporters}
-      <section class="flex flex-col lg:col-span-4 lg:h-full lg:min-h-0">
+      <section class="flex flex-col">
         <div class="mb-6 flex items-center gap-4">
           <div
             class="h-[1px] flex-1 bg-gradient-to-l from-secondary/30 to-transparent"
@@ -177,11 +171,9 @@
           ></div>
         </div>
 
-        <div
-          class="mb-4 space-y-4 custom-scrollbar lg:flex-1 lg:min-h-0 lg:overflow-y-auto lg:pr-2"
-        >
+        <div class="space-y-4">
           {#if loading && previewMode === "live"}
-            <div class="space-y-4 opacity-10">
+            <div class="grid grid-cols-1 gap-4 opacity-10 sm:grid-cols-2 lg:grid-cols-3">
               {#each Array(6) as _}
                 <div
                   class="h-20 bg-terminal-panel border border-border-dark"
@@ -192,17 +184,6 @@
             <HallOfHeroes supporters={displaySupporters} />
           {/if}
         </div>
-
-        {#if previewMode !== "live" ? showSupporters : !loading && showSupporters}
-          <div class="shrink-0 border-t border-border-dark/30 pt-6 text-center">
-            <p
-              class="text-[9px] text-secondary/30 font-mono tracking-widest uppercase italic max-w-xs mx-auto"
-            >
-              Honoring the galaxy's brightest sparks. Heroes who prefer to stay
-              anonymous are protected by a cloaking device.
-            </p>
-          </div>
-        {/if}
       </section>
     {/if}
   </div>
