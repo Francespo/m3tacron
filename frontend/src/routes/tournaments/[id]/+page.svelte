@@ -5,8 +5,9 @@
     import ErrorPanel from "$lib/components/ErrorPanel.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
     import { invalidateAll } from "$app/navigation";
+    import type { PageData } from "./$types";
 
-    let { data } = $props();
+    let { data }: { data: PageData } = $props();
 
     // The loader streams the detail payload in via `detailPromise`
     // (non-blocking navigation). The {#await} block in the template gates
@@ -15,9 +16,11 @@
     let detail = $state<any>(null);
     $effect(() => {
         let cancelled = false;
-        data.detailPromise.then((d: any) => {
-            if (!cancelled) detail = d;
-        });
+        if (data?.detailPromise) {
+            data.detailPromise.then((d: any) => {
+                if (!cancelled) detail = d;
+            });
+        }
         return () => {
             cancelled = true;
         };
@@ -175,94 +178,43 @@
     // --- Match round carousel state ---
     let currentRoundIndex = $state(0);
 
-    // Derived round groups for clamping/navigation (reacts to streamed detail)
-    const detailMatches = $derived(detail?.matches ?? []);
-    const roundGroupsDerived = $derived(groupRoundsByType(detailMatches));
-
-    $effect(() => {
-        const max = roundGroupsDerived.length - 1;
-        if (currentRoundIndex > max) currentRoundIndex = max;
-        if (currentRoundIndex < 0) currentRoundIndex = 0;
-    });
-
     function prevRound() {
         if (currentRoundIndex > 0) currentRoundIndex--;
     }
     function nextRound() {
-        if (currentRoundIndex < roundGroupsDerived.length - 1) currentRoundIndex++;
+        currentRoundIndex++;
     }
 
     // --- Standings pagination ---
     const STANDINGS_PER_PAGE = 10;
     let swissPage = $state(0);
     let cutPage = $state(0);
-
-    const swissTotalPages = $derived(
-        Math.ceil((detail?.players_swiss?.length ?? 0) / STANDINGS_PER_PAGE)
-    );
-    const cutTotalPages = $derived(
-        Math.ceil((detail?.players_cut?.length ?? 0) / STANDINGS_PER_PAGE)
-    );
-
-    // --- Standings tab toggle ---
-    const hasCut = $derived((detail?.players_cut?.length ?? 0) > 0);
-    const hasSwiss = $derived((detail?.players_swiss?.length ?? 0) > 0);
     let standingsTab = $state<"swiss" | "cut">("swiss");
 
-    // Reset pagination and tab when tournament changes
+    // Reset pagination and tab when tournament ID changes
+    let prevTournamentId: string | undefined = undefined;
     $effect(() => {
-        void data.detailPromise;
-        void detail;
-        swissPage = 0;
-        cutPage = 0;
-        standingsTab = "swiss";
-        currentRoundIndex = 0;
+        const curId = data?.id;
+        if (curId && curId !== prevTournamentId) {
+            prevTournamentId = curId;
+            swissPage = 0;
+            cutPage = 0;
+            standingsTab = "swiss";
+            currentRoundIndex = 0;
+        }
     });
 
-    // Active standings based on tab
-    const activeStandings = $derived(
-        standingsTab === "cut"
-            ? (detail?.players_cut ?? [])
-            : (detail?.players_swiss ?? [])
-    );
-    const activeTotalPages = $derived(
-        standingsTab === "cut" ? cutTotalPages : swissTotalPages
-    );
-    const activePage = $derived(
-        standingsTab === "cut" ? cutPage : swissPage
-    );
-    // Page slice — the list renders this, not the full array
-    const activePageItems = $derived(
-        activeStandings.slice(
-            activePage * STANDINGS_PER_PAGE,
-            (activePage + 1) * STANDINGS_PER_PAGE
-        )
-    );
     function prevPage() {
-        if (standingsTab === "cut") cutPage--;
-        else swissPage--;
+        if (standingsTab === "cut") {
+            if (cutPage > 0) cutPage--;
+        } else {
+            if (swissPage > 0) swissPage--;
+        }
     }
     function nextPage() {
         if (standingsTab === "cut") cutPage++;
         else swissPage++;
     }
-
-    // --- Knockout placement detection ---
-    // Canonical standings have unique sequential ranks (1, 2, 3, ...).
-    // Knockout brackets share ranks: everyone eliminated at the same stage
-    // gets the bracket size as rank (1=winner, 2=runner-up, 4=semi-final,
-    // 8=quarter-final, 16=round of 16, ...). When that pattern is present we
-    // render a compact "reached this stage" view instead of a standings table.
-    const cutIsKnockout = $derived.by(() => {
-        const players: { rank: number }[] = detail?.players_cut ?? [];
-        if (players.length < 2) return false;
-        const ranks = players.map((p) => p.rank);
-        const counts = new Map<number, number>();
-        for (const r of ranks) counts.set(r, (counts.get(r) ?? 0) + 1);
-        const shared = [...counts.values()].filter((c) => c > 1).reduce((a, b) => a + b, 0);
-        const allPowersOfTwo = ranks.every((r) => r > 0 && (r & (r - 1)) === 0);
-        return shared / players.length > 0.5 || (allPowersOfTwo && shared > 0);
-    });
 
     function cutStageLabel(rank: number): string {
         if (rank === 1) return "Winner";
@@ -275,17 +227,6 @@
         if (rank === 128) return "Round of 128";
         return `Place ${rank}`;
     }
-
-    // Group the current cut page by bracket rank (knockout view only)
-    const cutTierGroups = $derived.by(() => {
-        const groups = new Map<number, { rank: number; players: typeof activePageItems }>();
-        for (const p of activePageItems) {
-            const pr = (p as any).rank as number;
-            if (!groups.has(pr)) groups.set(pr, { rank: pr, players: [] as any });
-            (groups.get(pr)!.players as any).push(p);
-        }
-        return Array.from(groups.values()).sort((a, b) => a.rank - b.rank);
-    });
 </script>
 
 <svelte:head>
@@ -293,7 +234,7 @@
 </svelte:head>
 
 <div class="p-6 md:p-8 max-w-[1400px] mx-auto">
-    {#await data.detailPromise}
+    {#await data?.detailPromise}
         <p class="text-secondary font-mono text-sm mb-6">Loading…</p>
 
         <!-- Loading Skeleton (matches detail layout: title row, info grid,
@@ -622,5 +563,9 @@
             </div>
         </div>
         {/if}
+    {:catch error}
+        <div class="py-12">
+            <ErrorPanel message={error?.message || "Failed to load tournament detail"} onRetry={retry} />
+        </div>
     {/await}
 </div>
