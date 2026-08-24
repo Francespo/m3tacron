@@ -55,20 +55,44 @@ def get_supporters():
     create_db_and_tables()
 
     with Session(engine) as session:
-        # Get public contributions with supporter names
-        query = select(Contribution, Supporter).join(Supporter).where(Supporter.is_anonymous == False).order_by(Contribution.date.desc()).limit(20)
-        results = session.exec(query).all()
-        
-        return [
-            SupporterResponse(
-                name=sup.name,
-                amount=con.amount,
-                date=con.date,
-                message=con.message,
-                isMonthly=bool(con.is_subscription_payment or (con.type == "Subscription")),
-                tierName=con.tier_name,
-            ) for con, sup in results
-        ]
+        # One entry per supporter: latest public contribution determines isMonthly.
+        # Someone who had a monthly and then stops should appear as one-time.
+        query = (
+            select(Contribution, Supporter)
+            .join(Supporter)
+            .where(Supporter.is_anonymous == False)
+            .order_by(Contribution.date.desc())
+        )
+        all_rows = session.exec(query).all()
+
+        seen: set[int] = set()
+        out: list[SupporterResponse] = []
+        cutoff = datetime.now()  # contributions older than 35 days are not considered "active monthly"
+        from datetime import timedelta
+        grace = cutoff - timedelta(days=35)
+        for con, sup in all_rows:
+            if sup.id in seen:
+                continue
+            seen.add(sup.id)
+            # A supporter is monthly only if their latest public contribution is a
+            # subscription payment within the last ~35 days. Cancelled/expired
+            # members naturally fall back to one-time display.
+            latest_is_monthly = bool(con.is_subscription_payment or (con.type == "Subscription"))
+            is_monthly_active = bool(latest_is_monthly and con.date and con.date >= grace)
+            out.append(
+                SupporterResponse(
+                    name=sup.name,
+                    amount=con.amount,
+                    date=con.date,
+                    message=con.message,
+                    isMonthly=is_monthly_active,
+                    tierName=con.tier_name if is_monthly_active else None,
+                )
+            )
+            if len(out) >= 20:
+                break
+
+        return out
 
 @router.post("/webhook/ko-fi")
 async def kofi_webhook(request: Request):
