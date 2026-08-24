@@ -30,6 +30,56 @@
     previewMode === "live" ? supporters : previewData[previewMode],
   );
 
+  // Ko-fi overlay popup preview (?popup=1): Donate opens a themed Ko-fi overlay instead of navigating away
+  let kofiReady = $state(false);
+  let kofiLoading = $state(false);
+  function loadKofiOverlay(): Promise<void> {
+    if (kofiReady) return Promise.resolve();
+    if (kofiLoading) return new Promise<void>((resolve) => {
+      const i = setInterval(() => {
+        if (kofiReady) { clearInterval(i); resolve(); }
+      }, 100);
+    });
+    kofiLoading = true;
+    return new Promise<void>((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://storage.ko-fi.com/cdn/scripts/overlay-widget.js";
+      script.async = true;
+      script.onload = () => { kofiReady = true; kofiLoading = false; resolve(); };
+      script.onerror = () => { kofiLoading = false; reject(new Error("Ko-fi overlay failed to load")); };
+      document.body.appendChild(script);
+    });
+  }
+
+  function openKofiPopup(e: MouseEvent) {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("popup") !== "1") return; // let normal link navigation happen
+    e.preventDefault();
+    loadKofiOverlay().then(() => {
+      const w = window as unknown as { kofiWidgetOverlay?: { draw: (id: string, opts: Record<string, string>) => void } };
+      if (!w.kofiWidgetOverlay) return;
+      // Draw themed overlay; button colors match site primary
+      w.kofiWidgetOverlay.draw("francespo", {
+        type: "floating-chat",
+        "floating-chat.donateButton.text": "Support M3taCron",
+        "floating-chat.donateButton.background-color": "#e5c07a",
+        "floating-chat.donateButton.text-color": "#0a0a0a",
+      });
+      // The widget injects a floating container; trigger its click to open immediately
+      setTimeout(() => {
+        const btn = document.querySelector<HTMLElement>(".floatingchat-container-wrap [role='button'], .floatingchat-container-wrap button, #kofi-wo-container button");
+        if (btn) btn.click();
+        else {
+          // Fallback: trigger the floating button if selector differs
+          const alt = document.querySelector<HTMLElement>("[id*='kofi'] button, .kofi-button");
+          if (alt) alt.click();
+        }
+      }, 300);
+    }).catch(() => {
+      window.open("https://ko-fi.com/francespo", "_blank", "noopener");
+    });
+  }
+
   async function fetchData() {
     try {
       const data = await cachedFetchJson(`${API_BASE}/support/supporters`);
@@ -43,6 +93,10 @@
 
   onMount(() => {
     fetchData();
+    // Preload overlay script in popup preview so first click is instant
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("popup") === "1") {
+      loadKofiOverlay().catch(() => {});
+    }
   });
 </script>
 
@@ -53,8 +107,8 @@
 <div
   class="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 px-6 py-8 lg:py-8"
 >
-  <!-- Dev preview toggles (only shown when ?preview=1 or ?embed=1) -->
-  {#if typeof window !== "undefined" && (new URLSearchParams(window.location.search).get("preview") === "1" || new URLSearchParams(window.location.search).get("embed") === "1")}
+  <!-- Dev preview toggles (only shown when ?preview=1, ?embed=1 or ?popup=1) -->
+  {#if typeof window !== "undefined" && (new URLSearchParams(window.location.search).get("preview") === "1" || new URLSearchParams(window.location.search).get("embed") === "1" || new URLSearchParams(window.location.search).get("popup") === "1")}
     <div class="shrink-0 flex flex-wrap justify-center gap-2 text-[10px] font-mono">
       {#each [["live", "Live"], ["empty", "0 — empty"], ["below", "2 — below"], ["above", "5 — above"]] as [mode, label]}
         <button
@@ -68,6 +122,9 @@
       <span class="ml-2 self-center text-secondary/40">preview</span>
       {#if typeof window !== "undefined" && new URLSearchParams(window.location.search).get("embed") === "1"}
         <span class="ml-2 self-center rounded bg-secondary/20 px-2 py-0.5 text-secondary">embed preview active</span>
+      {/if}
+      {#if typeof window !== "undefined" && new URLSearchParams(window.location.search).get("popup") === "1"}
+        <span class="ml-2 self-center rounded bg-primary/20 px-2 py-0.5 text-primary">popup preview active — Donate opens themed Ko-fi overlay</span>
       {/if}
     </div>
   {/if}
@@ -126,6 +183,7 @@
           href="https://ko-fi.com/francespo"
           target="_blank"
           rel="noopener noreferrer"
+          onclick={openKofiPopup}
           class="relative inline-flex px-12 py-6 bg-primary text-terminal-bg font-mono font-bold uppercase tracking-[0.2em] text-lg transition-all hover:scale-[1.02] active:scale-[0.98] overflow-hidden animate-heartbeat hover:![animation-play-state:paused] rounded-xl"
         >
           <span class="relative z-10 flex items-center gap-4">
