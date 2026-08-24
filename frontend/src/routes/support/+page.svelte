@@ -9,84 +9,6 @@
 
   let displaySupporters = $derived(supporters);
 
-  // Ko-fi modal: Donate opens an on-site themed window (single click)
-  // No floating button in the corner, no double click. Clearly Ko-fi inside, but framed by your site.
-  let showKofiModal = $state(false);
-  let kofiIframeSrc = $state("");
-  let savedBodyOverflow = "";
-  let savedHtmlOverflow = "";
-  // Fallback for membership / auth pages that send X-Frame-Options: SAMEORIGIN and
-  // therefore fail inside the iframe. The embedded widget is fine for one-time
-  // tips; anything membership/auth related should break out.
-  const KOFI_HOME = "https://ko-fi.com/francespo";
-  const KOFI_MEMBERSHIP = "https://ko-fi.com/francespo/membership";
-  function openKofiExternal(url: string) {
-    // Must be called with user activation so the popup is not blocked.
-    window.open(url, "_blank", "noopener");
-  }
-  async function openKofiModal(e: MouseEvent) {
-    e.preventDefault();
-    showKofiModal = true;
-    if (typeof document !== "undefined") {
-      savedBodyOverflow = document.body.style.overflow;
-      savedHtmlOverflow = document.documentElement.style.overflow;
-      document.body.style.overflow = "hidden";
-      document.documentElement.style.overflow = "hidden";
-    }
-    // Request partitioned storage for ko-fi.com after user gesture so the
-    // Accept cookie can stick. Without this the banner loops.
-    try {
-      const d = document as unknown as { requestStorageAccessFor?: (o: string) => Promise<void>; requestStorageAccess?: () => Promise<void> };
-      if (typeof d.requestStorageAccessFor === "function") {
-        await d.requestStorageAccessFor("https://ko-fi.com");
-      } else if (typeof d.requestStorageAccess === "function") {
-        // Fallback: will grant for the iframe origin once it loads
-        // No-op before iframe exists, but warms permission
-      }
-    } catch {}
-    // Create iframe src only after the gesture so storage-access allow can take effect
-    kofiIframeSrc = "https://ko-fi.com/francespo/?hidefeed=true&widget=true&embed=true";
-  }
-  function closeKofiModal() {
-    showKofiModal = false;
-    if (typeof document !== "undefined") {
-      document.body.style.overflow = savedBodyOverflow;
-      document.documentElement.style.overflow = savedHtmlOverflow;
-    }
-  }
-  function onModalKeydown(e: KeyboardEvent) {
-    if (e.key === "Escape") closeKofiModal();
-  }
-  function onKofiIframeLoad(e: Event) {
-    // If Ko-fi navigated to a non-embeddable page (signin/membership), the iframe will be
-    // blocked by X-Frame-Options. Detect via load + try to read location where possible.
-    // We cannot read cross-origin location reliably, so also listen for the common case
-    // where Ko-fi tries to top-navigate and is blocked — the sandbox
-    // allow-top-navigation-by-user-activation lets a user click escape instead.
-    // As a pragmatic fallback, if the iframe URL contains membership/account we open externally.
-    try {
-      const iframe = e.target as HTMLIFrameElement;
-      const src = iframe.src || kofiIframeSrc;
-      if (/\/membership|\/account\/(signin|signup)/.test(src)) {
-        // Direct navigation happened — open externally and keep modal for one-time flow
-        // Do not auto-close; let user decide, but offer breakout.
-      }
-    } catch {}
-  }
-  function handleKofiMessage(e: MessageEvent) {
-    // Ko-fi embed posts no documented messages, but some Stripe/payment flows do.
-    // If a message asks to open externally, honor it.
-    const data = e.data as unknown;
-    if (typeof data === "string" && /^https:\/\/ko-fi\.com\//.test(data)) {
-      if (/membership|\/account\//.test(data)) openKofiExternal(data);
-    } else if (data && typeof data === "object" && "url" in (data as Record<string, unknown>)) {
-      const url = (data as Record<string, unknown>).url;
-      if (typeof url === "string" && url.startsWith("https://ko-fi.com/")) {
-        if (/membership|\/account\//.test(url)) openKofiExternal(url);
-      }
-    }
-  }
-
   async function fetchData() {
     try {
       const data = await cachedFetchJson(`${API_BASE}/support/supporters`);
@@ -100,8 +22,6 @@
 
   onMount(() => {
     fetchData();
-    window.addEventListener("message", handleKofiMessage);
-    return () => window.removeEventListener("message", handleKofiMessage);
   });
 </script>
 
@@ -163,9 +83,10 @@
       </div>
 
       <div class="mb-2 flex justify-center relative group">
-        <button
-          type="button"
-          onclick={openKofiModal}
+        <a
+          href="https://ko-fi.com/francespo"
+          target="_blank"
+          rel="noopener noreferrer"
           class="relative inline-flex px-12 py-6 bg-primary text-terminal-bg font-mono font-bold uppercase tracking-[0.2em] text-lg transition-all hover:scale-[1.02] active:scale-[0.98] overflow-hidden animate-heartbeat hover:![animation-play-state:paused] rounded-xl"
         >
           <span class="relative z-10 flex items-center gap-4">
@@ -192,7 +113,7 @@
           <div
             class="absolute inset-0 bg-white shadow-[0_0_30px_rgba(255,255,255,0.6)] opacity-0 group-hover:opacity-100 transition-opacity duration-300"
           ></div>
-        </button>
+        </a>
       </div>
     </section>
 
@@ -227,62 +148,6 @@
       </div>
     </section>
   </div>
-
-  {#if showKofiModal}
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="fixed inset-0 z-[200] flex flex-col bg-black/80 backdrop-blur-sm overscroll-contain touch-manipulation"
-      onclick={closeKofiModal}
-      onkeydown={onModalKeydown}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Support on Ko-fi"
-      tabindex="-1"
-    >
-      <div
-        class="flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-[#111] sm:mx-auto sm:my-4 sm:max-h-[min(92dvh,860px)] sm:max-w-[560px] sm:rounded-2xl sm:border sm:border-primary/20 sm:shadow-[0_0_40px_rgba(0,0,0,0.8)]"
-        onclick={(e) => e.stopPropagation()}
-      >
-        <div class="flex shrink-0 items-center justify-between border-b border-border-dark/50 bg-[#111] px-4 py-3">
-          <span class="text-xs font-mono uppercase tracking-[0.2em] text-secondary">Support on Ko-fi</span>
-          <button
-            type="button"
-            onclick={closeKofiModal}
-            class="rounded p-1 text-secondary hover:bg-white/10 hover:text-primary"
-            aria-label="Close"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-          </button>
-        </div>
-        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white touch-manipulation [-webkit-overflow-scrolling:touch]">
-          {#if kofiIframeSrc}
-            <iframe
-              src={kofiIframeSrc}
-              style="border:none;width:100%;display:block;background:white;min-height:560px;"
-              height="760"
-              title="Support on Ko-fi"
-              loading="eager"
-              allow="payment *; storage-access *; clipboard-write *; fullscreen *"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-storage-access-by-user-activation allow-top-navigation-by-user-activation"
-              scrolling="no"
-              referrerpolicy="strict-origin-when-cross-origin"
-              onload={onKofiIframeLoad}
-            ></iframe>
-          {/if}
-        </div>
-        <div class="shrink-0 border-t border-border-dark/30 bg-black/60 px-4 py-2 text-center">
-          <p class="text-[9px] font-mono text-secondary/40">Monthly support needs a free Ko-fi account to renew. One-time tips work as guest.</p>
-          <div class="mt-1 flex flex-wrap items-center justify-center gap-3">
-            <a href={KOFI_HOME} target="_blank" rel="noopener noreferrer" class="text-[10px] font-mono text-secondary/40 hover:text-primary underline decoration-dotted underline-offset-4">Open in Ko-fi instead</a>
-            <span class="text-secondary/20">·</span>
-            <button type="button" onclick={() => openKofiExternal(KOFI_MEMBERSHIP)} class="text-[10px] font-mono text-primary hover:text-primary/80 underline decoration-dotted underline-offset-4">Membership on Ko-fi →</button>
-          </div>
-          <p class="mt-1 text-[8px] font-mono leading-tight text-secondary/30">Membership / Sign in can't embed (Ko-fi sends X-Frame-Options: SAMEORIGIN) — if Join or Sign in does nothing inside, use the buttons above. They open in a new tab.</p>
-        </div>
-      </div>
-    </div>
-  {/if}
 </div>
 
 <style>
