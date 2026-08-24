@@ -17,6 +17,8 @@
     import { filters } from "$lib/stores/filters.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
     import Pagination from "$lib/components/Pagination.svelte";
+    import { page as currentPage } from "$app/state";
+    import { untrack } from "svelte";
 
     let { data } = $props();
 
@@ -67,12 +69,20 @@
         filters.sortBy = "Games";
     }
 
-    // Re-fetch when filters change (URL synchronization)
+    // Re-fetch when filters/page change. Read page so pagination triggers sync.
     $effect(() => {
+        const curPage = page;
         const params = filters.toSearchParams('squadrons');
-        params.set('page', String(page - 1));
+        params.set('page', String(curPage - 1));
         params.set('size', String(size));
         scheduleSync(0, params);
+    });
+
+    // Keep page in sync with URL (direct navigation ?page=2)
+    $effect(() => {
+        const urlPage = Number(currentPage.url.searchParams.get('page') ?? '0');
+        const desiredPage = urlPage + 1;
+        if (untrack(() => page) !== desiredPage) page = desiredPage;
     });
 
     function prevPage() {

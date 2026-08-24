@@ -23,6 +23,8 @@
     import { goto } from "$app/navigation";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
     import Pagination from "$lib/components/Pagination.svelte";
+    import { page as currentPage } from "$app/state";
+    import { untrack } from "svelte";
 
     let { data } = $props();
 
@@ -87,15 +89,22 @@
     // Ensure data is loaded for the current data source, then push the
     // store + route-local overlay (page, size, tab) to the URL.
     $effect(() => {
-        xwingData.setSource(filters.dataSource as any);
-
+        const curPage = page;
         const params = filters.toSearchParams('cards');
         // Overlay route-local URL state (page is 0-indexed in the URL,
         // 1-indexed in the UI; tab/size are route-local concerns).
-        params.set('page', String(page - 1));
+        params.set('page', String(curPage - 1));
         params.set('size', String(size));
         if (data.tab) params.set('tab', data.tab);
+        untrack(() => xwingData.setSource(filters.dataSource as any));
         scheduleSync(0, params);
+    });
+
+    // Keep page in sync with URL (direct navigation ?page=2)
+    $effect(() => {
+        const urlPage = Number(currentPage.url.searchParams.get('page') ?? '0');
+        const desiredPage = urlPage + 1;
+        if (untrack(() => page) !== desiredPage) page = desiredPage;
     });
 
     function prevPage() {
