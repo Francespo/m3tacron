@@ -7,29 +7,7 @@
   let supporters: { name: string; message?: string | null; isMonthly?: boolean }[] = $state([]);
   let loading = $state(true);
 
-  // Dev-only preview to demo the empty vs populated states on this stack
-  // Messages are shown only if you approve them; preview shows both with and without
-  // isMonthly marks the small gold star for monthly supporters
-  type PreviewMode = "live" | "empty" | "below" | "above";
-  let previewMode: PreviewMode = $state("live");
-  const previewData: Record<Exclude<PreviewMode, "live">, typeof supporters> = {
-    empty: [],
-    below: [
-      { name: "Wedge Antilles", message: "Thanks for the site!", isMonthly: true },
-      { name: "Hera Syndulla", message: null },
-    ],
-    above: [
-      { name: "Wedge Antilles", message: "Thanks for keeping the droids working!", isMonthly: true },
-      { name: "Hera Syndulla", message: null },
-      { name: "Cassian Andor", message: "For the Rebellion", isMonthly: true },
-      { name: "Ahsoka Tano", message: "May the Force be with this project" },
-      { name: "K-2SO", message: null, isMonthly: true },
-    ],
-  };
-
-  let displaySupporters = $derived(
-    previewMode === "live" ? supporters : previewData[previewMode],
-  );
+  let displaySupporters = $derived(supporters);
 
   // Ko-fi modal: Donate opens an on-site themed window (single click)
   // No floating button in the corner, no double click. Clearly Ko-fi inside, but framed by your site.
@@ -80,21 +58,6 @@
 <div
   class="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 px-6 py-8 lg:py-8"
 >
-  <!-- Dev preview toggles (only shown when ?preview=1) -->
-  {#if typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1"}
-    <div class="shrink-0 flex flex-wrap justify-center gap-2 text-[10px] font-mono">
-      {#each [["live", "Live"], ["empty", "0 — empty"], ["below", "2 — below"], ["above", "5 — above"]] as [mode, label]}
-        <button
-          type="button"
-          onclick={() => (previewMode = mode as PreviewMode)}
-          class="px-2 py-1 rounded border transition-colors {previewMode === mode
-            ? 'bg-primary text-terminal-bg border-primary'
-            : 'bg-transparent text-secondary border-border-dark hover:border-primary/40'}"
-        >{label}</button>
-      {/each}
-      <span class="ml-2 self-center text-secondary/40">preview</span>
-    </div>
-  {/if}
 
   <!-- Header Section -->
     <header class="shrink-0 text-center">
@@ -196,7 +159,7 @@
       </div>
 
       <div class="space-y-4">
-        {#if loading && previewMode === "live"}
+        {#if loading}
           <div class="grid grid-cols-2 gap-3 opacity-10 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {#each Array(6) as _}
               <div
