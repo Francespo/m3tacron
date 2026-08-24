@@ -86,31 +86,52 @@ def on_startup():
 # ---------------------------------------------------------------------------
 
 def _warm_endpoint_list() -> list[str]:
-    """Canonical list of API paths to warm. Used by startup and auto-rewarm."""
-    return [
+    """Canonical list of API paths to warm. Used by startup and auto-rewarm.
+
+    Covers: dashboard (4 combos xwa/legacy x epic), ships (4 combos, all pages
+    via single aggregation page/size excluded), lists/squadrons page 0 (4 combos
+    each — page 1..N are slices of same cached aggregation), cards (8 combos),
+    tournaments page 0 (2 entries). Total ~22 keys, <20s. Per-ship detail is
+    warmed separately via _warm_ship_details() with parallel workers.
+    """
+    endpoints: list[str] = [
         # Dashboard meta-snapshot (xwa + legacy, with and without epic)
-        # These are the heaviest but most impactful: dashboard is the landing page.
         "meta-snapshot?data_source=xwa",
         "meta-snapshot?data_source=xwa&epic=true",
         "meta-snapshot?data_source=legacy",
         "meta-snapshot?data_source=legacy&epic=true",
-        # Lists - default landing, with and without min_games/factions
-        "lists?page=0&size=20&sort_metric=Games&sort_direction=desc&min_games=3&data_source=xwa",
-        "lists?page=0&size=20&sort_metric=Games&sort_direction=desc&data_source=xwa",
-        "lists?page=0&size=20&sort_metric=Win%20Rate&sort_direction=desc&min_games=3&data_source=xwa",
-        # Squadrons - default + Win Rate
-        "squadrons?page=0&size=20&sort_metric=Games&sort_direction=desc&data_source=xwa",
-        "squadrons?page=0&size=20&sort_metric=Win%20Rate&sort_direction=desc&data_source=xwa",
-        # Ships - Popularity + Games
-        "ships?page=0&size=50&sort_metric=Lists&sort_direction=desc&data_source=xwa",
-        "ships?page=0&size=50&sort_metric=Games&sort_direction=desc&data_source=xwa",
-        # Cards/Pilots - default
-        "cards/pilots?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=xwa",
-        "cards/pilots?page=0&size=20&sort_metric=Win%20Rate&sort_direction=desc&data_source=xwa",
-        # Cards/Upgrades - default
-        "cards/upgrades?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=xwa",
-        "cards/upgrades?page=0&size=20&sort_metric=Win%20Rate&sort_direction=desc&data_source=xwa",
     ]
+    # Ships — all pages are slices of one cached aggregation (page/size excluded
+    # from key, see backend/api/ships.py). Warm 4 combos: xwa/legacy x epic.
+    for ds in ("xwa", "legacy"):
+        for epic in ("", "&epic=true"):
+            endpoints.append(f"ships?page=0&size=21&sort_metric=Lists&sort_direction=desc&data_source={ds}{epic}")
+    # Lists page 0 — 4 combos. page/size/sort excluded from cache key, so
+    # page 1..9 are already warm if page 0 is.
+    for ds in ("xwa", "legacy"):
+        for epic in ("", "&epic=true"):
+            endpoints.append(f"lists?page=0&size=20&sort_metric=Games&sort_direction=desc&min_games=3&data_source={ds}{epic}")
+    # Squadrons page 0 — 4 combos (same page-excluded caching)
+    for ds in ("xwa", "legacy"):
+        for epic in ("", "&epic=true"):
+            endpoints.append(f"squadrons?page=0&size=20&sort_metric=Games&sort_direction=desc&data_source={ds}{epic}")
+    # Tournaments page 0 — 2 entries (tournaments key DOES include page, but
+    # only page 0 is warmed; page 1..4 are on-demand ~80ms each).
+    for ds in ("xwa", "legacy"):
+        endpoints.append(f"tournaments?page=0&size=20&sort_metric=Date&sort_direction=desc&data_source={ds}")
+    endpoints.extend([
+        # Cards/Pilots - 4 combos
+        "cards/pilots?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=xwa",
+        "cards/pilots?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=xwa&epic=true",
+        "cards/pilots?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=legacy",
+        "cards/pilots?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=legacy&epic=true",
+        # Cards/Upgrades - 4 combos
+        "cards/upgrades?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=xwa",
+        "cards/upgrades?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=xwa&epic=true",
+        "cards/upgrades?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=legacy",
+        "cards/upgrades?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=legacy&epic=true",
+    ])
+    return endpoints
 
 
 def _warm_detail_snapshots() -> None:
@@ -135,6 +156,90 @@ def _warm_detail_snapshots() -> None:
                   f"(header {len(snap['header'])} pilots, upg keys {n_upg})")
         except Exception as e:
             print(f"[prewarm] detail snapshot {ds.value}: FAILED ({e})")
+
+
+def _warm_ship_details(base: str = "http://127.0.0.1:8888") -> None:
+    """Prewarm all ship detail pages (xwa/legacy × epic × 4 endpoints) in parallel.
+
+    Each ship has 4 endpoints: /ship/{xws}, /{xws}/pilots, /{xws}/lists, /{xws}/squadrons
+    All are cached via get_cached_or_compute with key ship_*|{xws}|ds|...|epic
+    Sequential would be ~320 ships × 0.3s = ~100s; parallel with 8 workers ~12s.
+    This is the most impactful warm for perceived navigability: click on a ship
+    in /ships otherwise pays 1-2.5s cold for 4 parallel GROUP BYs.
+    Controlled by env SHIP_DETAIL_WARM (default true) and SHIP_DETAIL_WARM_WORKERS.
+    """
+    import time as _t
+    import urllib.request
+    import urllib.error
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    if os.getenv("SHIP_DETAIL_WARM", "true").lower() != "true":
+        print("[prewarm] ship details: skipped (SHIP_DETAIL_WARM=false)")
+        return
+
+    try:
+        from .utils.xwing_data.ships import load_all_ships
+        from .data_structures.data_source import DataSource
+    except Exception as e:
+        print(f"[prewarm] ship details: FAILED to load ship list ({e})")
+        return
+
+    # Collect unique ship xws across both data sources
+    all_xws: set[str] = set()
+    for ds in (DataSource.XWA, DataSource.LEGACY):
+        try:
+            all_xws.update(load_all_ships(ds).keys())
+        except Exception:
+            pass
+
+    if not all_xws:
+        print("[prewarm] ship details: no ships found")
+        return
+
+    workers = int(os.getenv("SHIP_DETAIL_WARM_WORKERS", "8"))
+    endpoints = ["", "/pilots", "/lists?limit=10", "/squadrons?limit=10"]
+    # 4 combos: xwa/xwa+epic/legacy/legacy+epic — but pilot/lists/squadrons
+    # also vary by epic param. Warm all 4.
+    combos = [
+        ("xwa", ""),
+        ("xwa", "&epic=true"),
+        ("legacy", ""),
+        ("legacy", "&epic=true"),
+    ]
+
+    # Build URL list
+    urls: list[str] = []
+    for xws in sorted(all_xws):
+        for ds, epic_qs in combos:
+            for ep in endpoints:
+                # ep already contains ?limit, so append &data_source
+                sep = "&" if "?" in ep else "?"
+                urls.append(f"{base}/api/ship/{xws}{ep}{sep}data_source={ds}{epic_qs}")
+
+    t0 = _t.time()
+    ok = 0
+    fail = 0
+
+    def fetch_one(url: str) -> bool:
+        try:
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                resp.read()  # consume
+            return True
+        except Exception:
+            return False
+
+    # Bound concurrency to avoid overwhelming the DB pool (default 8)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(fetch_one, u): u for u in urls}
+        for fut in as_completed(futures):
+            if fut.result():
+                ok += 1
+            else:
+                fail += 1
+
+    elapsed = _t.time() - t0
+    print(f"[prewarm] ship details: {ok} ok, {fail} fail in {elapsed:.1f}s ({len(all_xws)} ships × 4 combos × 4 endpoints, {workers} workers) ✓")
 
 
 def _probe_warm_endpoints(base: str, endpoints: list[str]) -> None:
@@ -162,7 +267,7 @@ def _prewarm_cache():
     Runs in a daemon thread so startup returns immediately. Uses internal
     HTTP requests (no external port needed) via the same uvicorn worker.
     Also eagerly builds the card-detail snapshots (xwa + legacy) so detail pages
-    are warm on first visit.
+    are warm on first visit, and all ship detail pages (xwa/legacy × epic).
     """
     import threading
 
@@ -170,6 +275,7 @@ def _prewarm_cache():
         time.sleep(1.5)  # wait for uvicorn to finish binding
         _warm_detail_snapshots()
         _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
+        _warm_ship_details("http://127.0.0.1:8888")
         print("[prewarm] done")
 
     thread = threading.Thread(target=_run, daemon=True, name="cache-prewarm")
@@ -211,6 +317,7 @@ def _start_cache_auto_rewarm():
                         time.sleep(debounce_s)
                     _warm_detail_snapshots()
                     _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
+                    _warm_ship_details("http://127.0.0.1:8888")
                     print("[auto-rewarm] done")
                     last_seen = cur
                 elif cur is not None:
