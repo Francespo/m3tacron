@@ -248,9 +248,9 @@ def _persist_list_rows(
         payloads in the input (whether newly inserted or pre-existing).
         The caller uses get_list_key(player.list_json) to look up the list_id.
 
-    Skips payloads that are empty (``{}``) or missing a 'faction' key, since
-    those cannot be inserted (the schema requires `faction` and `ship_list`
-    NOT NULL) and should leave list_id NULL on the playerstanding row.
+    Skips payloads that are empty, missing a faction, or have no pilots.
+    Faction-only payloads are valid standings metadata but are not squad lists,
+    so they must leave ``list_id`` null.
 
     The ``canonical_signature`` is computed via ``get_list_key(lj)`` to match
     the rest of the codebase and `migrate_normalize_list.py`.
@@ -267,7 +267,7 @@ def _persist_list_rows(
     for lj in list_jsons:
         if not lj or not isinstance(lj, dict):
             continue
-        if not lj.get("faction"):
+        if not lj.get("faction") or not lj.get("pilots"):
             continue
         sig = get_list_key(lj)
         if not sig:
@@ -408,8 +408,8 @@ def save_tournament_data(
     lj_sig_to_lid = _persist_list_rows(session, list_jsons)
     for player in players:
         lj = player.list_json
-        if not lj or not isinstance(lj, dict) or not lj.get("faction"):
-            # Skip — no list_id for empty/missing-faction lists.
+        if not lj or not isinstance(lj, dict) or not lj.get("faction") or not lj.get("pilots"):
+            # Skip — faction-only payloads are standings metadata, not lists.
             continue
         sig = get_list_key(lj)
         lid = lj_sig_to_lid.get(sig)

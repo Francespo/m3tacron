@@ -93,23 +93,41 @@ class LongshanksScraper(BaseScraper):
         except Exception:
             pass
 
-    def _games_panel_shows_round(self, page, round_num: int) -> bool:
-        """Return True when the #games panel has rendered the given round.
-
-        Each match's .details block contains "Round N", so we can distinguish
-        the requested round from the previous round's stale content.
-        """
+    def _games_panel_shows_round(self, page, round_num: int, round_value: str | None = None) -> bool:
+        """Return True when the games panel has rendered the requested round."""
         try:
+            selected = page.locator("#round_selector").input_value()
+            if round_value is not None and str(selected) != str(round_value):
+                return False
             first_game = page.locator("#games .game").first
             if first_game.count() == 0:
                 return False
             details = first_game.locator(".details").all_inner_texts()
-            for d in details:
-                if re.search(rf"Round\s*C?\s*{round_num}\b", d):
-                    return True
+            return any(
+                re.search(rf"Round\s*C?\s*{round_num}\b", detail, re.IGNORECASE)
+                for detail in details
+            )
         except Exception:
-            pass
-        return False
+            return False
+
+    @staticmethod
+    def _parse_round_option(text: str, value: object) -> tuple[int, RoundType]:
+        """Normalize current and legacy Longshanks round option labels."""
+        round_type = (
+            RoundType.CUT
+            if re.search(r"\b(?:cut|top)\b|round\s*c\s*\d+", text, re.IGNORECASE)
+            else RoundType.SWISS
+        )
+        match = re.search(
+            r"(?:round\s*c?|cut\s*round|top\s*cut\s*round)\s*(\d+)",
+            text,
+            re.IGNORECASE,
+        )
+        if match:
+            return int(match.group(1)), round_type
+
+        value_match = re.search(r"\d+", str(value))
+        return (int(value_match.group(0)) if value_match else 0), round_type
 
     def _goto_with_retry(self, page, url: str, wait_until="domcontentloaded",
                          timeout: int = 30000, tries: int = 5) -> None:
@@ -132,9 +150,54 @@ class LongshanksScraper(BaseScraper):
         raise last_exc or RuntimeError(f"Navigation failed: {url}")
 
     def _parse_faction(self, value: str) -> str | None:
-        """Parse faction from image alt/src."""
-        faction = Faction.from_xws(value)
+        """Parse a Longshanks faction image title, alt text, or path."""
+        candidate = value.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+        faction = Faction.from_xws(candidate)
+        if faction == Faction.UNKNOWN:
+            faction = Faction.from_xws(value)
         return faction.value if faction != Faction.UNKNOWN else None
+
+    @staticmethod
+    def _parse_record(wins: object, losses: object, draws: object, row_text: str) -> tuple[int, int, int]:
+        """Parse W/L/D, falling back to Longshanks' compact ``W/L[/D]`` record."""
+        def parse(value: object) -> int | None:
+            match = re.search(r"-?\d+", str(value))
+            return int(match.group(0)) if match else None
+
+        parsed_wins = parse(wins)
+        parsed_losses = parse(losses)
+        parsed_draws = parse(draws)
+        record = re.search(r"\b(\d+)\s*/\s*(\d+)(?:\s*/\s*(\d+))?\b", row_text)
+        if record:
+            if parsed_wins is None:
+                parsed_wins = int(record.group(1))
+            if parsed_losses is None:
+                parsed_losses = int(record.group(2))
+            if parsed_draws is None and record.group(3) is not None:
+                parsed_draws = int(record.group(3))
+
+        return parsed_wins or 0, parsed_losses or 0, parsed_draws or 0
+
+    def _extract_faction_from_row(self, row) -> str | None:
+        """Read faction independently from list availability.
+
+        Longshanks renders a faction logo even when a player has not uploaded
+        an encoded list. Keeping a faction-only ``list_json`` lets the existing
+        persistence/API path expose that information without pretending that a
+        squad list exists.
+        """
+        try:
+            image = row.locator(
+                ".factions img[src*='/factions/'], .faction img[src*='/factions/']"
+            ).first
+            if image.count() == 0:
+                return None
+            for value in (image.get_attribute("title"), image.get_attribute("alt"), image.get_attribute("src")):
+                if value and (faction := self._parse_faction(value)):
+                    return faction
+        except Exception as exc:
+            logger.debug(f"Faction extraction skipped: {exc}")
+        return None
 
     def get_tournament_data(self, tournament_id: str, inferred_format: Format | None = None) -> Tournament:
         """
@@ -435,20 +498,23 @@ class LongshanksScraper(BaseScraper):
                                 continue
 
                             wins_el = el.locator(".wins").first
-                            wins_txt = wins_el.text_content() if wins_el.count() > 0 else "0"
+                            wins_txt = wins_el.text_content() if wins_el.count() > 0 else ""
 
                             loss_el = el.locator(".loss").first
-                            loss_txt = loss_el.text_content() if loss_el.count() > 0 else "0"
+                            loss_txt = loss_el.text_content() if loss_el.count() > 0 else ""
 
                             draws_el = el.locator(".draws").first
-                            draws_txt = draws_el.text_content() if draws_el.count() > 0 else "0"
+                            draws_txt = draws_el.text_content() if draws_el.count() > 0 else ""
+                            row_text = el.inner_text()
+                            faction = self._extract_faction_from_row(el)
 
                             # Stats
                             stats_items = []
                             for s in el.locator(".stat").all():
                                 stats_items.append({
                                     'text': s.inner_text().strip() or s.text_content().strip(),
-                                    'title': s.get_attribute("title") or ''
+                                    'title': s.get_attribute("title") or '',
+                                    'class': s.get_attribute("class") or '',
                                 })
 
                             list_icon = el.locator("a.list_link.pop").first
@@ -514,7 +580,9 @@ class LongshanksScraper(BaseScraper):
                                 'wins': wins_txt,
                                 'loss': loss_txt,
                                 'draw': draws_txt,
+                                'row_text': row_text,
                                 'stats': stats_items,
+                                'faction': faction,
                                 'xws': xws_raw,
                                 'pid': pid,
                                 'team_name': team_name if is_team_pass else member_to_team.get(pid),
@@ -546,24 +614,18 @@ class LongshanksScraper(BaseScraper):
                                 if "bye" in name.lower() or "drop" in name.lower() or pid == "308":
                                     continue
 
-                                # Filter column headers
-                                wins_raw = str(item.get('wins', '0')).strip()
-                                if not re.search(r"\d", wins_raw):
-                                    continue
-
                                 r_match = re.search(
                                     r"(\d+)", str(item.get('rankRaw', '0')))
                                 rank = int(r_match.group(1)) if r_match else 0
                                 if rank == 0:
                                     continue
 
-                                def _safe_stat(value) -> int:
-                                    match = re.search(r"-?\d+", str(value))
-                                    return int(match.group(0)) if match else 0
-
-                                wins = _safe_stat(item.get('wins'))
-                                losses = _safe_stat(item.get('loss'))
-                                draws = _safe_stat(item.get('draw'))
+                                wins, losses, draws = self._parse_record(
+                                    item.get('wins'),
+                                    item.get('loss'),
+                                    item.get('draw'),
+                                    str(item.get('row_text', '')),
+                                )
 
                                 tp = 0
                                 vps = 0
@@ -612,28 +674,38 @@ class LongshanksScraper(BaseScraper):
                                         except:
                                             pass
 
-                                # Longshanks 2026 layout: the TP value is rendered
-                                # as a bare number with no label (e.g. the
-                                # .stat.mono.skinny.desktop cell shows "12"), or as
-                                # "12 TP" inside the .mobile variant. The label-
-                                # based patterns above can't capture either, so fall
-                                # back to those layouts here.
+                                # Longshanks' desktop TP cell is an unlabeled
+                                # ``.stat.mono.skinny`` number. Only inspect that
+                                # specific cell; using the last arbitrary stat can
+                                # accidentally read VPS/SOS instead.
                                 if not tp:
-                                    clean = txt.strip()
-                                    if re.fullmatch(r"-?\d+", clean):
-                                        tp = int(clean)
-                                    else:
+                                    for st in item.get('stats', []):
+                                        clean = st['text'].strip()
+                                        if "skinny" in st.get('class', '') and re.fullmatch(r"-?\d+", clean):
+                                            tp = int(clean)
+                                            break
                                         m_tp = re.search(
                                             r"(-?\d+)\s*TP\b", clean, re.IGNORECASE)
                                         if m_tp:
                                             tp = int(m_tp.group(1))
+                                            break
 
                                 if not tp and (wins or draws):
                                     tp = (wins * 3) + (draws * 1)
 
-                                final_ep = tp if "xwing-legacy" not in self.base_url else None
+                                # Longshanks exposes the event's own tournament
+                                # points for every ruleset. Preserve that source
+                                # value instead of suppressing it for Legacy/FFG;
+                                # those formats differ in calculation, not in
+                                # whether the accumulated total is useful.
+                                final_ep = tp
                                 final_tb = vps if "xwing-legacy" not in self.base_url else (
                                     mov if mov else vps)
+                                faction_only = (
+                                    {"faction": item["faction"]}
+                                    if item.get("faction")
+                                    else {}
+                                )
 
                                 if is_team_pass and t_name:
                                     name = t_name
@@ -739,6 +811,8 @@ class LongshanksScraper(BaseScraper):
                                             pr.swiss_event_points, pr.swiss_tie_breaker_points = final_ep, final_tb
                                         participants_dict[key] = pr
 
+                                    if faction_only and not participants_dict[key].list_json:
+                                        participants_dict[key].list_json = faction_only
                                     if item.get('xws'):
                                         try:
                                             xws_json = json.loads(item['xws'])
@@ -775,6 +849,8 @@ class LongshanksScraper(BaseScraper):
                                         pr.swiss_event_points, pr.swiss_tie_breaker_points = final_ep, final_tb
                                     participants_dict[key] = pr
 
+                                if faction_only and not participants_dict[key].list_json:
+                                    participants_dict[key].list_json = faction_only
                                 if item.get('xws') and not team_results_only:
                                     try:
                                         xws_json = json.loads(item['xws'])
@@ -863,6 +939,17 @@ class LongshanksScraper(BaseScraper):
                     import re
                     clean_name = re.sub(r"\s*#\d+$", "", raw_name).strip()
                     clean_name_lower = clean_name.lower()
+
+                    # Preserve a faction even when no encoded list exists.
+                    faction = self._extract_faction_from_row(row)
+                    if faction:
+                        for participant in participants:
+                            if participant.player_name.lower().strip() == clean_name_lower:
+                                if not participant.list_json:
+                                    participant.list_json = {"faction": faction}
+                                elif not participant.list_json.get("faction"):
+                                    participant.list_json["faction"] = faction
+                                break
 
                     # Extract ID
                     # Try onclick="pop_user(13326, ...)"
@@ -1025,6 +1112,9 @@ class LongshanksScraper(BaseScraper):
                             break
 
                     if target_p:
+                        faction = self._extract_faction_from_row(row)
+                        if faction and not target_p.list_json:
+                            target_p.list_json = {"faction": faction}
                         try:
                             xws = json.loads(xws_str)
                             target_p.list_json = xws
@@ -1177,22 +1267,15 @@ class LongshanksScraper(BaseScraper):
                         round_text = opt["text"]
                         round_val = opt["value"]
 
-                        # Parse round number and type from dropdown text
-                        round_num = 0
-                        round_type = RoundType.SWISS
-                        rm = re.search(r"Round (\d+)", round_text)
-                        if rm:
-                            round_num = int(rm.group(1))
-                        elif "Cut" in round_text or "Top" in round_text:
-                            round_type = RoundType.CUT
-                            cm = re.search(r"(\d+)", round_text)
-                            round_num = int(cm.group(1)) if cm else 0
-                        else:
-                            # Fallback: use dropdown value as round number
-                            try:
-                                round_num = int(round_val)
-                            except (ValueError, TypeError):
-                                round_num = 0
+                        # Parse round number and type from dropdown text/value.
+                        round_num, round_type = self._parse_round_option(
+                            round_text, round_val
+                        )
+                        if round_num == 0:
+                            logger.warning(
+                                f"Skipping unrecognized round option: {opt}"
+                            )
+                            continue
 
                         # Parse scenario from round text ("Round 1 - Scramble")
                         scenario = None
@@ -1235,7 +1318,7 @@ class LongshanksScraper(BaseScraper):
                             _last_game_count = -1
                             for _poll in range(30):
                                 page.wait_for_timeout(500)
-                                if self._games_panel_shows_round(page, round_num):
+                                if self._games_panel_shows_round(page, round_num, round_val):
                                     _count = page.locator("#games .game").count()
                                     if _count > 0 and _count == _last_game_count:
                                         break
@@ -1286,8 +1369,12 @@ class LongshanksScraper(BaseScraper):
                                     if p1_link.count() == 0 or p2_link.count() == 0:
                                         continue
 
-                                    p1_name = p1_link.inner_text().strip()
-                                    p2_name = p2_link.inner_text().strip()
+                                    # Nested nickname spans and HTML whitespace
+                                    # can produce repeated spaces. Normalize names
+                                    # exactly as standings parsing does so match
+                                    # foreign keys resolve during persistence.
+                                    p1_name = " ".join(p1_link.inner_text().split())
+                                    p2_name = " ".join(p2_link.inner_text().split())
 
                                     # The game's .details block is the authoritative
                                     # source for the round AND the scenario: it

@@ -125,6 +125,13 @@
         return "Cut Round";
     }
 
+    function tieBreakerLabel(format: string): string {
+        if (["ffg", "legacy_x2po", "legacy_xlc", "legacy_pandorum"].includes(format)) {
+            return "Margin / Tie Breaker";
+        }
+        return "Victory Points";
+    }
+
     // Group matches by type and round, distinguishing Swiss from Cut rounds.
     function groupRoundsByType(matches: Match[]): RoundGroup[] {
         const map = new Map<string, { roundNum: number; type: "swiss" | "cut"; matches: Match[] }>();
@@ -412,7 +419,15 @@
                                             <span class="text-green-400 font-bold">{p.wins}W</span>
                                             <span class="mx-0.5">-</span>
                                             <span class="text-red-400 font-bold">{p.losses}L</span>
+                                            {#if p.draws > 0}<span class="ml-1">- {p.draws}D</span>{/if}
                                         </span>
+                                        {#if p.event_points != null || p.tie_breaker_points != null}
+                                            <span class="text-[11px] text-secondary font-mono">
+                                                {#if p.event_points != null}<span title="Tournament Points">{p.event_points} TP</span>{/if}
+                                                {#if p.event_points != null && p.tie_breaker_points != null}<span class="mx-1">·</span>{/if}
+                                                {#if p.tie_breaker_points != null}<span title={tieBreakerLabel(t.format)}>{p.tie_breaker_points} {t.format === "amg" || t.format === "xwa" ? "VP" : "TB"}</span>{/if}
+                                            </span>
+                                        {/if}
                                     </div>
                                     <div class="flex-1"></div>
                                     {#if p.list_id}
