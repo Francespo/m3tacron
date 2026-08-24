@@ -269,6 +269,13 @@ def get_tournament_detail(tournament_id: int):
                 cut_rank=p.cut_rank,
                 wins=(p.swiss_wins or 0) + (p.cut_wins or 0),
                 losses=(p.swiss_losses or 0) + (p.cut_losses or 0),
+                draws=(p.swiss_draws or 0) + (p.cut_draws or 0),
+                event_points=p.swiss_event_points,
+                tie_breaker_points=p.swiss_tie_breaker_points,
+                swiss_event_points=p.swiss_event_points,
+                swiss_tie_breaker_points=p.swiss_tie_breaker_points,
+                cut_event_points=p.cut_event_points,
+                cut_tie_breaker_points=p.cut_tie_breaker_points,
                 faction=faction_enum,
                 list_json=p.list_json if has_list else None,
                 list_id=p.list_id,
@@ -276,8 +283,16 @@ def get_tournament_detail(tournament_id: int):
 
             players_swiss.append(p_res)
             if p.cut_rank is not None:
-                p_cut = p_res.copy()
-                p_cut.rank = p.cut_rank
+                p_cut = p_res.model_copy(
+                    update={
+                        "rank": p.cut_rank,
+                        "wins": p.cut_wins or 0,
+                        "losses": p.cut_losses or 0,
+                        "draws": p.cut_draws or 0,
+                        "event_points": p.cut_event_points,
+                        "tie_breaker_points": p.cut_tie_breaker_points,
+                    }
+                )
                 players_cut.append(p_cut)
                 
         players_swiss.sort(key=lambda x: x.swiss_rank)
