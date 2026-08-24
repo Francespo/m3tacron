@@ -140,18 +140,25 @@ def get_pilot_chart(
     formats: list[str] | None = Query(None),
     comparison: list[str] | None = Query(None),
 ):
-    """Return monthly usage history for the pilot and optional comparisons."""
-    filters = {
-        "allowed_formats": formats,
-        "include_epic": False,
-    }
-    chart_data = get_card_usage_history(
-        filters,
-        pilot_xws,
-        comparison or [],
-        is_upgrade=False,
+    """Return monthly usage history for the pilot and optional comparisons (cached)."""
+    key = (
+        f"pilot_chart|{pilot_xws}|{data_source}"
+        f"|{','.join(sorted(formats or []))}"
+        f"|{','.join(sorted(comparison or []))}"
     )
-    return {"data": chart_data, "series": [pilot_xws] + (comparison or [])}
+    def _compute():
+        filters = {
+            "allowed_formats": formats,
+            "include_epic": False,
+        }
+        chart_data = get_card_usage_history(
+            filters,
+            pilot_xws,
+            comparison or [],
+            is_upgrade=False,
+        )
+        return {"data": chart_data, "series": [pilot_xws] + (comparison or [])}
+    return get_cached_or_compute(key, _compute)
 
 
 @router.get("/{pilot_xws}/configurations")

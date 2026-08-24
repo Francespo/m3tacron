@@ -8,6 +8,7 @@ from sqlmodel import Session
 from sqlalchemy import text
 
 from ..analytics.charts import get_card_usage_history
+from ..cache import get_cached_or_compute
 from ..data_structures.data_source import DataSource
 from ..utils.xwing_data.pilots import load_all_pilots
 from ..utils.xwing_data.upgrades import load_all_upgrades, get_upgrade_info
@@ -35,8 +36,26 @@ def get_upgrade_pilots(
     data_source: str = Query("xwa"),
     formats: list[str] | None = Query(None),
 ):
-    """Return stats for pilots who equip this upgrade."""
+    """Return stats for pilots who equip this upgrade (cached by xws+source+formats)."""
+    return _get_upgrade_pilots(upgrade_xws, data_source, formats)
+
+
+def _get_upgrade_pilots(
+    upgrade_xws: str,
+    data_source: str,
+    formats: list[str] | None,
+):
     ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
+    key = (
+        f"upg_pilots|{upgrade_xws}|{data_source}"
+        f"|{','.join(sorted(formats or []))}"
+    )
+    def _compute():
+        return _compute_upgrade_pilots(upgrade_xws, ds, formats)
+    return get_cached_or_compute(key, _compute)
+
+
+def _compute_upgrade_pilots(upgrade_xws, ds, formats):
     all_pilots = load_all_pilots(ds)
     
     pilot_stats = {}
@@ -124,8 +143,18 @@ def get_upgrade_ships(
     data_source: str = Query("xwa"),
     formats: list[str] | None = Query(None),
 ):
-    """Return stats for ships whose pilots equip this upgrade."""
-    pilots_data = get_upgrade_pilots(upgrade_xws, data_source, formats)
+    """Return stats for ships whose pilots equip this upgrade (cached by xws+source+formats)."""
+    key = (
+        f"upg_ships|{upgrade_xws}|{data_source}"
+        f"|{','.join(sorted(formats or []))}"
+    )
+    def _compute():
+        pilots_data = _get_upgrade_pilots(upgrade_xws, data_source, formats)
+        return _build_upgrade_ships(pilots_data)
+    return get_cached_or_compute(key, _compute)
+
+
+def _build_upgrade_ships(pilots_data):
     
     ship_stats = {}
     for p in pilots_data:
@@ -169,15 +198,22 @@ def get_upgrade_chart(
     formats: list[str] | None = Query(None),
     comparison: list[str] | None = Query(None),
 ):
-    """Return monthly usage history for the upgrade."""
-    filters = {
-        "allowed_formats": formats,
-        "include_epic": False,
-    }
-    chart_data = get_card_usage_history(
-        filters,
-        upgrade_xws,
-        comparison or [],
-        is_upgrade=True,
+    """Return monthly usage history for the upgrade (cached)."""
+    key = (
+        f"upg_chart|{upgrade_xws}|{data_source}"
+        f"|{','.join(sorted(formats or []))}"
+        f"|{','.join(sorted(comparison or []))}"
     )
-    return {"data": chart_data, "series": [upgrade_xws] + (comparison or [])}
+    def _compute():
+        filters = {
+            "allowed_formats": formats,
+            "include_epic": False,
+        }
+        chart_data = get_card_usage_history(
+            filters,
+            upgrade_xws,
+            comparison or [],
+            is_upgrade=True,
+        )
+        return {"data": chart_data, "series": [upgrade_xws] + (comparison or [])}
+    return get_cached_or_compute(key, _compute)
