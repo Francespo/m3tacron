@@ -1,16 +1,39 @@
 <script lang="ts">
-	type Supporter = { name: string; message?: string | null };
+	type Supporter = { name: string; message?: string | null; isMonthly?: boolean };
 	let { supporters = [] }: { supporters: Supporter[] } = $props();
 </script>
 
 <div class="flex flex-wrap justify-center gap-3">
 	{#each supporters as supporter}
 		<div
-			class="relative flex min-h-[64px] w-[calc(50%-6px)] flex-col items-center justify-center gap-1.5 overflow-hidden rounded-xl border border-primary/10 bg-black/80 px-4 py-4 text-center backdrop-blur-sm sm:w-[calc(33.333%-8px)] lg:w-[calc(25%-9px)] xl:w-[calc(20%-9.6px)] max-w-[220px] flex-none"
+			class="relative flex min-h-[64px] w-[calc(50%-6px)] flex-col items-center justify-center gap-1.5 overflow-hidden rounded-xl border bg-black/80 px-4 py-4 text-center backdrop-blur-sm sm:w-[calc(33.333%-8px)] lg:w-[calc(25%-9px)] xl:w-[calc(20%-9.6px)] max-w-[220px] flex-none {supporter.isMonthly
+				? 'border-amber-400/30 shadow-[0_0_12px_rgba(251,191,36,0.15)]'
+				: 'border-primary/10'}"
+			title={supporter.isMonthly ? `${supporter.name} — monthly supporter` : supporter.name}
 		>
+			{#if supporter.isMonthly}
+				<!-- Small Rebel starbird-inspired star in the corner for monthly supporters -->
+				<span
+					class="absolute right-1.5 top-1.5 leading-none text-amber-400/90"
+					aria-label="Monthly supporter"
+					title="Monthly supporter"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						width="11"
+						height="11"
+						viewBox="0 0 24 24"
+						fill="currentColor"
+						stroke="none"
+						class="drop-shadow-[0_0_4px_rgba(251,191,36,0.6)]"
+						><path d="M12 2l2.4 7.2H22l-6.2 4.5 2.4 7.3L12 16.9 5.8 21l2.4-7.3L2 9.2h7.6z" /></svg
+					>
+				</span>
+			{/if}
 			<span
-				class="block w-full truncate text-xs font-mono font-bold uppercase tracking-tight text-primary"
-				title={supporter.name}
+				class="block w-full truncate text-xs font-mono font-bold uppercase tracking-tight {supporter.isMonthly
+					? 'text-amber-300'
+					: 'text-primary'}"
 			>
 				{supporter.name}
 			</span>
