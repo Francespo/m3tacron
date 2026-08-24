@@ -105,7 +105,32 @@ def build_snapshot(ds: DataSource) -> dict:
         """)
         rows = session.execute(sql).fetchall()
 
-    # Pass 1a: pilot->upgrade + upgrade->pilot + charts.
+        # ---- Pass 1c: per-pilot chart data (INCLUDES pilots with no upgrades,
+        # e.g. standard-loadout / horizontal quickbuild cards). One scan grouped
+        # by (pilot, format, month). Kept separate so upgrade-unnest drops never
+        # lose chart rows for upgrade-less pilots.
+        sql_chart = text("""
+            SELECT
+                p->>'id' AS pilot_xws,
+                t.format,
+                to_char(t.date, 'YYYY-MM') AS month,
+                SUM(GREATEST(0, COALESCE(ps.swiss_wins,0)) + GREATEST(0, COALESCE(ps.swiss_losses,0))
+                    + GREATEST(0, COALESCE(ps.swiss_draws,0)) + GREATEST(0, COALESCE(ps.cut_wins,0))
+                    + GREATEST(0, COALESCE(ps.cut_losses,0)) + GREATEST(0, COALESCE(ps.cut_draws,0))) AS games
+            FROM playerstanding ps
+            JOIN tournament t ON t.id = ps.tournament_id
+            JOIN list l ON l.id = ps.list_id
+            JOIN jsonb_array_elements(l.list_json::jsonb->'pilots') p ON true
+            WHERE (NOT t.is_team_event OR ps.is_team_member)
+            GROUP BY p->>'id', t.format, to_char(t.date, 'YYYY-MM')
+        """)
+        chart_rows = session.execute(sql_chart).fetchall()
+
+    # Pass 1a: pilot->upgrade + upgrade->pilot + charts (from dedicated chart pass).
+    for pilot_xws, fmt, month, games in chart_rows:
+        f = _fmt_of(fmt)
+        pilot_chart[f][pilot_xws][month or "unknown"] += int(games or 0)
+
     for pilot_xws, upg_xws, fmt, month, games, wins in rows:
         f = _fmt_of(fmt)
         games = int(games or 0)
@@ -126,8 +151,7 @@ def build_snapshot(ds: DataSource) -> dict:
         if has_game:
             up["lists"] += 1
 
-        # charts
-        pilot_chart[f][pilot_xws][month or "unknown"] += games
+        # upgrade chart (only upgrade carriers — upgrades have no chart without rows)
         upgrade_chart[f][upg_xws][month or "unknown"] += games
 
     # Pass 1b: pilot config combos — separate GROUP BY over the full list (pilot->combo).

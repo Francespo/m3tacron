@@ -267,12 +267,12 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
 
     <!-- Header Section -->
     {#if isHorizontal}
-        <!-- Horizontal (standard-loadout) pilot: SAME ZOOM as vertical (280×380 portrait → 380×280 landscape, swapped).
-             Row: image (horizontal) + name/ship/capsules to its right; chart FULL-WIDTH BELOW (like upgrades page). -->
+        <!-- Horizontal (standard-loadout) pilot: SAME ZOOM as vertical (280×~392 portrait → ~610×380 landscape, quickbuilds are ~1.6:1).
+             Image on the left at vertical height, name/ship/capsules to its right; chart FULL-WIDTH BELOW (like upgrades page). -->
         <div class="flex flex-col lg:flex-row gap-8 mb-6">
-            <div class="flex-shrink-0 flex items-center justify-center" style="width: 392px; max-width: 100%;">
+            <div class="flex-shrink-0 flex items-center justify-center" style="width: 620px; max-width: 100%;">
                 {#if info?.image}
-                    <img src={info.image} alt={info.name} class="max-w-full h-auto object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)]" style="max-height: 280px;" loading="eager" />
+                    <img src={info.image} alt={info.name} class="w-full h-auto object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)]" style="max-height: 380px;" loading="eager" />
                 {:else}
                     <div class="w-full h-[240px] flex items-center justify-center"><span class="text-secondary font-mono text-sm">NO IMAGE</span></div>
                 {/if}
