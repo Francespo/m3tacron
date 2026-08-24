@@ -12,7 +12,9 @@ const config = {
 				'http://localhost:*',
 				'http://127.0.0.1:*',
 				'https://ko-fi.com',
-				'https://*.ko-fi.com'
+				'https://*.ko-fi.com',
+				'https://m3tacron.com',
+				'https://*.m3tacron.com'
 			]
 		}
 	}
