@@ -266,9 +266,10 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
     </div>
 
     <!-- Header Section -->
-    <div class="flex flex-col gap-8 mb-10 {isHorizontal ? '' : 'lg:flex-row'}">
-        <!-- Pilot Image — bare PNG, no outer container; horizontal (standard loadout) pilots use upgrade scale 392×280 -->
-        {#if isHorizontal}
+    {#if isHorizontal}
+        <!-- Horizontal (standard-loadout) pilot: SAME ZOOM as vertical (280×380 portrait → 380×280 landscape, swapped).
+             Row: image (horizontal) + name/ship/capsules to its right; chart FULL-WIDTH BELOW (like upgrades page). -->
+        <div class="flex flex-col lg:flex-row gap-8 mb-6">
             <div class="flex-shrink-0 flex items-center justify-center" style="width: 392px; max-width: 100%;">
                 {#if info?.image}
                     <img src={info.image} alt={info.name} class="max-w-full h-auto object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)]" style="max-height: 280px;" loading="eager" />
@@ -276,7 +277,35 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
                     <div class="w-full h-[240px] flex items-center justify-center"><span class="text-secondary font-mono text-sm">NO IMAGE</span></div>
                 {/if}
             </div>
-        {:else}
+            <div class="flex-1 min-w-0 flex flex-col justify-center gap-3">
+                <div class="flex items-center gap-3 flex-wrap min-w-0">
+                    <h1 class="text-3xl font-sans font-bold text-primary">{info?.name || data.pilotXws}</h1>
+                    <span class="px-2 py-0.5 text-xs font-mono font-bold rounded-md bg-blue-500/20 text-blue-400 border border-blue-500/30">PILOT</span>
+                    {#if info?.faction_xws}<FactionIcon faction={info.faction_xws} size="lg" />{/if}
+                </div>
+                {#if info?.ship}
+                    <p class="text-secondary font-mono text-sm">
+                        {#if info.ship_xws}<i class="xwing-miniatures-ship xwing-miniatures-ship-{info.ship_xws}" style="color: {getFactionColor(info.faction_xws || '')}; font-size: 1.2rem;"></i>{/if}
+                        {info.ship}
+                    </p>
+                {/if}
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">SQUADRONS {headerSq}</span>
+                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">LISTS {headerLists}</span>
+                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">ENTRIES {headerEntries}</span>
+                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">GAMES {headerGames}</span>
+                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold" style="color: {wrColor(headerWr)};">WR {headerWr.toFixed(1)}%</span>
+                    {#if info?.cost != null}<span class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-mono font-bold">PTS {info.cost}</span>{/if}
+                    {#if info?.loadout != null && info.loadout > 0}<span class="px-1.5 py-0.5 bg-violet-500/20 text-violet-400 border border-violet-500/30 rounded-md text-[10px] font-mono font-bold">LV {info.loadout}</span>{/if}
+                </div>
+            </div>
+        </div>
+        <div class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] mb-10">
+            <h2 class="text-sm font-sans font-bold text-primary uppercase tracking-wider mb-3">Games Played Over Time</h2>
+            {#if chartConfig}<div class="h-[220px]"><canvas use:chartAction={chartConfig}></canvas></div>{:else}<p class="text-secondary font-mono text-xs py-8 text-center">No game data available for chart.</p>{/if}
+        </div>
+    {:else}
+        <div class="flex flex-col lg:flex-row gap-8 mb-10">
             <div class="flex-shrink-0 flex items-center justify-center" style="width: 280px; max-width: 100%;">
                 {#if info?.image}
                     <img src={info.image} alt={info.name} class="max-w-full h-auto object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)]" style="max-height: 380px;" loading="eager" />
@@ -284,34 +313,19 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
                     <div class="w-full h-[300px] flex items-center justify-center"><span class="text-secondary font-mono text-sm">NO IMAGE</span></div>
                 {/if}
             </div>
-        {/if}
-
-        <!-- Pilot Info + Chart -->
-        <div class="flex-grow flex flex-col gap-6">
-            <!-- Name & Badges -->
-            <div>
+            <div class="flex-grow flex flex-col gap-6">
                 <div>
                     <div class="flex items-center gap-3 flex-wrap min-w-0">
                         <h1 class="text-3xl font-sans font-bold text-primary">{info?.name || data.pilotXws}</h1>
                         <span class="px-2 py-0.5 text-xs font-mono font-bold rounded-md bg-blue-500/20 text-blue-400 border border-blue-500/30">PILOT</span>
-                        {#if info?.faction_xws}
-                            <FactionIcon
-                                faction={info.faction_xws}
-                                size="lg"
-                            />
-                        {/if}
+                        {#if info?.faction_xws}<FactionIcon faction={info.faction_xws} size="lg" />{/if}
                     </div>
                     {#if info?.ship}
                         <p class="text-secondary font-mono text-sm mt-1">
-                            {#if info.ship_xws}
-                                <i class="xwing-miniatures-ship xwing-miniatures-ship-{info.ship_xws}" style="color: {getFactionColor(info.faction_xws || '')}; font-size: 1.2rem;"></i>
-                            {/if}
+                            {#if info.ship_xws}<i class="xwing-miniatures-ship xwing-miniatures-ship-{info.ship_xws}" style="color: {getFactionColor(info.faction_xws || '')}; font-size: 1.2rem;"></i>{/if}
                             {info.ship}
                         </p>
                     {/if}
-                    <!-- The right-column ContentSourceToggle card was removed
-                         here; the XWA / LEGACY / Epic controls now live in
-                         the desktop Sidebar / mobile nav drawer. -->
                 </div>
                 <div class="flex items-center gap-2 mt-3 flex-wrap">
                     <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">SQUADRONS {headerSq}</span>
@@ -319,28 +333,16 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
                     <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">ENTRIES {headerEntries}</span>
                     <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">GAMES {headerGames}</span>
                     <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold" style="color: {wrColor(headerWr)};">WR {headerWr.toFixed(1)}%</span>
-                    {#if info?.cost != null}
-                        <span class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-mono font-bold">PTS {info.cost}</span>
-                    {/if}
-                    {#if info?.loadout != null && info.loadout > 0}
-                        <span class="px-1.5 py-0.5 bg-violet-500/20 text-violet-400 border border-violet-500/30 rounded-md text-[10px] font-mono font-bold">LV {info.loadout}</span>
-                    {/if}
+                    {#if info?.cost != null}<span class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-mono font-bold">PTS {info.cost}</span>{/if}
+                    {#if info?.loadout != null && info.loadout > 0}<span class="px-1.5 py-0.5 bg-violet-500/20 text-violet-400 border border-violet-500/30 rounded-md text-[10px] font-mono font-bold">LV {info.loadout}</span>{/if}
+                </div>
+                <div class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                    <h2 class="text-sm font-sans font-bold text-primary uppercase tracking-wider mb-3">Games Played Over Time</h2>
+                    {#if chartConfig}<div class="h-[220px]"><canvas use:chartAction={chartConfig}></canvas></div>{:else}<p class="text-secondary font-mono text-xs py-8 text-center">No game data available for chart.</p>{/if}
                 </div>
             </div>
-
-            <!-- Games Played Over Time Chart -->
-            <div class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                <h2 class="text-sm font-sans font-bold text-primary uppercase tracking-wider mb-3">Games Played Over Time</h2>
-                {#if chartConfig}
-                    <div class="h-[220px]">
-                        <canvas use:chartAction={chartConfig}></canvas>
-                    </div>
-                {:else}
-                    <p class="text-secondary font-mono text-xs py-8 text-center">No game data available for chart.</p>
-                {/if}
-            </div>
         </div>
-    </div>
+    {/if}
 
     <!-- Compatible Upgrades — hidden for standard-loadout (horizontal) pilots that have no upgrade slots -->
     {#if !hasNoUpgradesConfig}
