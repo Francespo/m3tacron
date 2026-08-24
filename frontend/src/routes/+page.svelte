@@ -24,56 +24,9 @@
         retryToken++;
     }
 
-    /**
-     * Latest tournament date in the current data source (and epic toggle).
-     * Populated by a separate fetch to `/api/tournaments` so the "Last Sync"
-     * stat can show the most recent tournament that actually exists in the
-     * active source, rather than the generic `meta.last_sync` timestamp
-     * (which is just `datetime.now()` formatted as a date on the backend).
-     * Falls back to `meta.last_sync` while the fetch is in flight or if the
-     * source has no tournaments yet.
-     */
-    let latestTournamentDate = $state<string | null>(null);
-
-    /**
-     * Source-aware Total Tournaments and Total Players counts.
-     *
-     * The `/api/meta-snapshot` endpoint computes `total_tournaments` and
-     * `total_players` by counting rows in the tournaments/player_standings
-     * tables with only a `date >= now-90d` filter — it does NOT filter by
-     * `data_source`. As a result the meta-snapshot returns the same number
-     * for XWA and Legacy (e.g. 73 for both), so the Total Tournaments /
-     * Total Players stat cards never change when the user switches source.
-     *
-     * This effect computes the correct source-aware counts by hitting
-     * `/api/tournaments` with the source's `formats` filter and the same
-     * 90-day window, paginating if necessary to sum every tournament's
-     * `players` field. The values are exposed as separate reactive state
-     * (not by mutating `meta`) so there is no race with the meta-snapshot
-     * $effect overwriting the object.
-     *
-     * The template prefers these values and falls back to the meta-snapshot
-     * fields while this fetch is in flight.
-     */
-    let sourceAwareTournaments = $state<number | null>(null);
-    let sourceAwarePlayers = $state<number | null>(null);
-
-    /**
-     * Map a `(dataSource, includeEpic)` pair to the list of `formats` the
-     * tournaments endpoint should filter on. The XWA macro is `{xwa, amg}`
-     * and the Legacy macro is `{legacy_x2po, legacy_xlc, legacy_pandorum}`; the Epic toggle
-     * controls whether the larger squad-size variant (amg / legacy_xlc) is
-     * included.
-     */
-    function formatsForSource(
-        source: "xwa" | "legacy",
-        epic: boolean,
-    ): string[] {
-        if (source === "xwa") {
-            return epic ? ["xwa", "amg"] : ["xwa"];
-        }
-        return epic ? ["legacy_x2po", "legacy_xlc", "legacy_pandorum"] : ["legacy_x2po", "legacy_xlc", "legacy_pandorum"];
-    }
+    // `meta` now carries authoritative source-filtered totals and the
+    // real scraper timestamp (`last_sync` = last scrape run, even when
+    // zero tournaments were saved). No extra /tournaments fetches needed.
 
     type SortKey = "lists" | "entries" | "winrate" | "games";
     type SortDir = "asc" | "desc";
@@ -222,144 +175,6 @@
                     loading = false;
                 }
             });
-
-        return () => {
-            isCancelled = true;
-            controller.abort();
-        };
-    });
-
-    /**
-     * Fetch the latest tournament date in the current source. This is used
-     * by the "Last Sync" stat so it shows a real tournament date instead of
-     * the generic `last_sync` timestamp. The meta-snapshot endpoint doesn't
-     * expose a "max(date)" field, so we hit `/api/tournaments` with
-     * `size=1&sort=Date desc` and read the first item's `date`.
-     *
-     * Runs as a separate $effect so it re-issues on every (dataSource,
-     * includeEpic) change and is independent of the main meta-snapshot
-     * loading state.
-     */
-    $effect(() => {
-        if (!browser) return;
-        const source = filters.dataSource;
-        const epic = filters.includeEpic;
-
-        let isCancelled = false;
-
-        // Abort the in-flight request when the source toggles again.
-        const controller = new AbortController();
-
-        const params = new URLSearchParams();
-        params.set("page", "0");
-        params.set("size", "1");
-        params.set("sort_metric", "Date");
-        params.set("sort_direction", "desc");
-        for (const f of formatsForSource(source, epic)) {
-            params.append("formats", f);
-        }
-        const url = `/api/tournaments?${params.toString()}`;
-
-        cachedFetchJson(url, undefined, controller.signal)
-            .then((data) => {
-                if (isCancelled || !data) return;
-                const first = data?.items?.[0];
-                if (first?.date) {
-                    latestTournamentDate = first.date;
-                }
-            })
-            .catch((err) => {
-                if (err?.name === "AbortError") return;
-                /* swallow — keep previous / fallback value */
-            });
-
-        return () => {
-            isCancelled = true;
-            controller.abort();
-        };
-    });
-
-    /**
-     * Fetch source-aware Total Tournaments and Total Players counts for the
-     * 90-day window that the meta-snapshot uses. See the
-     * `sourceAwareTournaments` / `sourceAwarePlayers` declarations above
-     * for why this exists.
-     *
-     * Hits `/api/tournaments?date_start=…&formats=…` (paginated at 100/page
-     * which is the backend's hard cap) and:
-     *   - reads `data.total` for Total Tournaments
-     *   - sums `players` across every page for Total Players
-     *
-     * Re-issues on every (dataSource, includeEpic) change and is independent
-     * of the meta-snapshot and latestTournamentDate $effects.
-     */
-    $effect(() => {
-        if (!browser) return;
-        const source = filters.dataSource;
-        const epic = filters.includeEpic;
-
-        // Reset to null on every source change so the template falls back
-        // to the (stale) meta-snapshot values for the brief moment before
-        // the new counts arrive, then snaps to the correct values.
-        sourceAwareTournaments = null;
-        sourceAwarePlayers = null;
-
-        let isCancelled = false;
-
-        // Abort the in-flight pagination when the source toggles again.
-        const controller = new AbortController();
-
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - 90);
-        const dateStart = startDate.toISOString().slice(0, 10);
-
-        const formats = formatsForSource(source, epic);
-        const pageSize = 100;
-
-        const fetchPage = (page: number): Promise<any> => {
-            const params = new URLSearchParams();
-            params.set("page", String(page));
-            params.set("size", String(pageSize));
-            params.set("date_start", dateStart);
-            for (const f of formats) {
-                params.append("formats", f);
-            }
-            return cachedFetchJson(
-                `/api/tournaments?${params.toString()}`,
-                undefined,
-                controller.signal,
-            ).catch(() => null);
-        };
-
-        fetchPage(0).then(async (data) => {
-            if (isCancelled || !data) return;
-            const items: any[] = data?.items || [];
-            const total: number = typeof data?.total === "number" ? data.total : items.length;
-            let allPlayers = items.reduce(
-                (sum: number, t: any) => sum + (Number(t?.players) || 0),
-                0,
-            );
-
-            // Paginate to sum players across every page. The backend caps
-            // `size` at 100, so anything beyond that needs additional
-            // requests. In practice the 90-day window is well under 100
-            // tournaments per source, but we paginate defensively so the
-            // counts stay correct as the dataset grows.
-            const totalPages = Math.ceil(total / pageSize);
-            for (let p = 1; p < totalPages; p++) {
-                if (isCancelled) return;
-                const pageData = await fetchPage(p);
-                if (!pageData) break;
-                for (const item of pageData?.items || []) {
-                    allPlayers += Number(item?.players) || 0;
-                }
-            }
-
-            if (!isCancelled) {
-                sourceAwareTournaments = total;
-                sourceAwarePlayers = allPlayers;
-            }
-        });
 
         return () => {
             isCancelled = true;
@@ -758,7 +573,7 @@
                     data-testid="dashboard-total-tournaments"
                     class="text-4xl font-bold font-mono text-primary"
                 >
-                    {sourceAwareTournaments ?? meta.total_tournaments ?? 0}
+                    {meta.total_tournaments ?? 0}
                 </div>
             </div>
 
@@ -794,7 +609,7 @@
                     data-testid="dashboard-total-players"
                     class="text-4xl font-bold font-mono text-primary"
                 >
-                    {sourceAwarePlayers ?? meta.total_players ?? 0}
+                    {meta.total_players ?? 0}
                 </div>
             </div>
 
@@ -828,7 +643,7 @@
                     data-testid="dashboard-last-sync"
                     class="text-2xl font-bold font-mono text-primary leading-tight mt-1"
                 >
-                    {latestTournamentDate || meta.last_sync || "Unknown"}
+                    {meta.last_sync || "Unknown"}
                 </div>
             </div>
         </div>

@@ -29,7 +29,7 @@
     let filterOpen = $state(false);
     let page = $state(1);
     let factionOpen = $state(false);
-    const size = 20;
+    const size = 21;
 
     // The loader streams card rows in via `itemsPromise` (non-blocking
     // navigation). `resolved` keeps the LAST good payload so filter/sort/
@@ -406,6 +406,7 @@
                             </a>
                         {/each}
                     </div>
+
                 {:else}
                     <!-- Empty state: no cards matched the current filters -->
                     <div
@@ -430,8 +431,9 @@
                         </div>
                     </div>
                 {/if}
-
-                <Pagination total={resolvedTotal} {page} {size} onPrev={prevPage} onNext={nextPage} />
+                {#if resolvedTotal > 0}
+                    <Pagination total={resolvedTotal} {page} {size} onPrev={prevPage} onNext={nextPage} />
+                {/if}
             </div>
         {/if}
     </main>
