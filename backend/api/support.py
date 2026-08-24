@@ -64,7 +64,9 @@ def get_supporters():
                 name=sup.name,
                 amount=con.amount,
                 date=con.date,
-                message=con.message
+                message=con.message,
+                isMonthly=bool(con.is_subscription_payment or (con.type == "Subscription")),
+                tierName=con.tier_name,
             ) for con, sup in results
         ]
 
@@ -133,6 +135,10 @@ async def kofi_webhook(request: Request):
     message = payload.get("message")
     is_public = payload.get("is_public", True)
     transaction_id = payload.get("kofi_transaction_id")
+    kofi_type = payload.get("type")
+    is_subscription_payment = payload.get("is_subscription_payment")
+    is_first_subscription_payment = payload.get("is_first_subscription_payment")
+    tier_name = payload.get("tier_name")
 
     with Session(engine) as session:
         # Find or create supporter
@@ -162,7 +168,11 @@ async def kofi_webhook(request: Request):
                 amount=amount,
                 currency=currency,
                 message=message,
-                ko_fi_transaction_id=transaction_id
+                ko_fi_transaction_id=transaction_id,
+                type=kofi_type,
+                is_subscription_payment=bool(is_subscription_payment) if is_subscription_payment is not None else None,
+                is_first_subscription_payment=bool(is_first_subscription_payment) if is_first_subscription_payment is not None else None,
+                tier_name=tier_name,
             )
             session.add(contribution)
             
