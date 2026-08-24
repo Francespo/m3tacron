@@ -37,6 +37,9 @@
 			>
 				{supporter.name}
 			</span>
+			{#if supporter.isMonthly}
+				<span class="text-[8px] font-mono uppercase tracking-[0.2em] text-amber-400/70">monthly</span>
+			{/if}
 			{#if supporter.message}
 				<p
 					class="line-clamp-3 w-full text-[11px] italic leading-snug text-white/80"
