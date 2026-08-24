@@ -4,25 +4,26 @@
   import { API_BASE } from "$lib/api";
   import { cachedFetchJson } from "$lib/api/cache";
 
-  let supporters: { name: string; message?: string | null }[] = $state([]);
+  let supporters: { name: string; message?: string | null; isMonthly?: boolean }[] = $state([]);
   let loading = $state(true);
 
   // Dev-only preview to demo the empty vs populated states on this stack
   // Messages are shown only if you approve them; preview shows both with and without
+  // isMonthly marks the small gold star for monthly supporters
   type PreviewMode = "live" | "empty" | "below" | "above";
   let previewMode: PreviewMode = $state("live");
   const previewData: Record<Exclude<PreviewMode, "live">, typeof supporters> = {
     empty: [],
     below: [
-      { name: "Wedge Antilles", message: "Thanks for the site!" },
+      { name: "Wedge Antilles", message: "Thanks for the site!", isMonthly: true },
       { name: "Hera Syndulla", message: null },
     ],
     above: [
-      { name: "Wedge Antilles", message: "Thanks for keeping the droids working!" },
+      { name: "Wedge Antilles", message: "Thanks for keeping the droids working!", isMonthly: true },
       { name: "Hera Syndulla", message: null },
-      { name: "Cassian Andor", message: "For the Rebellion" },
+      { name: "Cassian Andor", message: "For the Rebellion", isMonthly: true },
       { name: "Ahsoka Tano", message: "May the Force be with this project" },
-      { name: "K-2SO", message: null },
+      { name: "K-2SO", message: null, isMonthly: true },
     ],
   };
 
