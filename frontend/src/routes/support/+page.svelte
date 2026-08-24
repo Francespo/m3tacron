@@ -31,54 +31,20 @@
     previewMode === "live" ? supporters : previewData[previewMode],
   );
 
-  // Ko-fi overlay popup preview (?popup=1): Donate opens a themed Ko-fi overlay instead of navigating away
-  let kofiReady = $state(false);
-  let kofiLoading = $state(false);
-  function loadKofiOverlay(): Promise<void> {
-    if (kofiReady) return Promise.resolve();
-    if (kofiLoading) return new Promise<void>((resolve) => {
-      const i = setInterval(() => {
-        if (kofiReady) { clearInterval(i); resolve(); }
-      }, 100);
-    });
-    kofiLoading = true;
-    return new Promise<void>((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = "https://storage.ko-fi.com/cdn/scripts/overlay-widget.js";
-      script.async = true;
-      script.onload = () => { kofiReady = true; kofiLoading = false; resolve(); };
-      script.onerror = () => { kofiLoading = false; reject(new Error("Ko-fi overlay failed to load")); };
-      document.body.appendChild(script);
-    });
-  }
-
-  function openKofiPopup(e: MouseEvent) {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("popup") !== "1") return; // let normal link navigation happen
+  // Ko-fi modal: Donate opens an on-site themed window (single click)
+  // No floating button in the corner, no double click. Clearly Ko-fi inside, but framed by your site.
+  let showKofiModal = $state(false);
+  function openKofiModal(e: MouseEvent) {
     e.preventDefault();
-    loadKofiOverlay().then(() => {
-      const w = window as unknown as { kofiWidgetOverlay?: { draw: (id: string, opts: Record<string, string>) => void } };
-      if (!w.kofiWidgetOverlay) return;
-      // Draw themed overlay; button colors match site primary
-      w.kofiWidgetOverlay.draw("francespo", {
-        type: "floating-chat",
-        "floating-chat.donateButton.text": "Support M3taCron",
-        "floating-chat.donateButton.background-color": "#e5c07a",
-        "floating-chat.donateButton.text-color": "#0a0a0a",
-      });
-      // The widget injects a floating container; trigger its click to open immediately
-      setTimeout(() => {
-        const btn = document.querySelector<HTMLElement>(".floatingchat-container-wrap [role='button'], .floatingchat-container-wrap button, #kofi-wo-container button");
-        if (btn) btn.click();
-        else {
-          // Fallback: trigger the floating button if selector differs
-          const alt = document.querySelector<HTMLElement>("[id*='kofi'] button, .kofi-button");
-          if (alt) alt.click();
-        }
-      }, 300);
-    }).catch(() => {
-      window.open("https://ko-fi.com/francespo", "_blank", "noopener");
-    });
+    showKofiModal = true;
+    if (typeof document !== "undefined") document.body.style.overflow = "hidden";
+  }
+  function closeKofiModal() {
+    showKofiModal = false;
+    if (typeof document !== "undefined") document.body.style.overflow = "";
+  }
+  function onModalKeydown(e: KeyboardEvent) {
+    if (e.key === "Escape") closeKofiModal();
   }
 
   async function fetchData() {
@@ -94,10 +60,6 @@
 
   onMount(() => {
     fetchData();
-    // Preload overlay script in popup preview so first click is instant
-    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("popup") === "1") {
-      loadKofiOverlay().catch(() => {});
-    }
   });
 </script>
 
@@ -108,8 +70,8 @@
 <div
   class="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 px-6 py-8 lg:py-8"
 >
-  <!-- Dev preview toggles (only shown when ?preview=1, ?embed=1 or ?popup=1) -->
-  {#if typeof window !== "undefined" && (new URLSearchParams(window.location.search).get("preview") === "1" || new URLSearchParams(window.location.search).get("embed") === "1" || new URLSearchParams(window.location.search).get("popup") === "1")}
+  <!-- Dev preview toggles (only shown when ?preview=1) -->
+  {#if typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1"}
     <div class="shrink-0 flex flex-wrap justify-center gap-2 text-[10px] font-mono">
       {#each [["live", "Live"], ["empty", "0 — empty"], ["below", "2 — below"], ["above", "5 — above"]] as [mode, label]}
         <button
@@ -121,12 +83,6 @@
         >{label}</button>
       {/each}
       <span class="ml-2 self-center text-secondary/40">preview</span>
-      {#if typeof window !== "undefined" && new URLSearchParams(window.location.search).get("embed") === "1"}
-        <span class="ml-2 self-center rounded bg-secondary/20 px-2 py-0.5 text-secondary">embed preview active</span>
-      {/if}
-      {#if typeof window !== "undefined" && new URLSearchParams(window.location.search).get("popup") === "1"}
-        <span class="ml-2 self-center rounded bg-primary/20 px-2 py-0.5 text-primary">popup preview active — Donate opens themed Ko-fi overlay</span>
-      {/if}
     </div>
   {/if}
 
@@ -180,11 +136,9 @@
       </div>
 
       <div class="mb-2 flex justify-center relative group">
-        <a
-          href="https://ko-fi.com/francespo"
-          target="_blank"
-          rel="noopener noreferrer"
-          onclick={openKofiPopup}
+        <button
+          type="button"
+          onclick={openKofiModal}
           class="relative inline-flex px-12 py-6 bg-primary text-terminal-bg font-mono font-bold uppercase tracking-[0.2em] text-lg transition-all hover:scale-[1.02] active:scale-[0.98] overflow-hidden animate-heartbeat hover:![animation-play-state:paused] rounded-xl"
         >
           <span class="relative z-10 flex items-center gap-4">
@@ -211,24 +165,8 @@
           <div
             class="absolute inset-0 bg-white shadow-[0_0_30px_rgba(255,255,255,0.6)] opacity-0 group-hover:opacity-100 transition-opacity duration-300"
           ></div>
-        </a>
+        </button>
       </div>
-
-      {#if typeof window !== "undefined" && new URLSearchParams(window.location.search).get("embed") === "1"}
-        <div class="mt-8 w-full flex flex-col gap-2">
-          <p class="text-center text-[10px] font-mono uppercase tracking-widest text-secondary/40">Inline Ko-fi widget preview (embed=1)</p>
-          <div class="overflow-hidden rounded-xl border border-primary/20 bg-primary/5 p-2">
-            <iframe
-              src="https://ko-fi.com/francespo/?hidefeed=true&widget=true&embed=true"
-              style="border:none;width:100%;padding:0;background:transparent;display:block;"
-              height="712"
-              title="Support on Ko-fi"
-              loading="lazy"
-            ></iframe>
-          </div>
-          <p class="text-center text-[10px] font-mono text-secondary/30">Compare with the Donate button above. The iframe is light-themed and cannot be recolored.</p>
-        </div>
-      {/if}
     </section>
 
     <!-- Galactic Patrons: always below donation so placement is clear -->
@@ -262,6 +200,46 @@
       </div>
     </section>
   </div>
+
+  {#if showKofiModal}
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      onclick={closeKofiModal}
+      onkeydown={onModalKeydown}
+    >
+      <div
+        class="relative flex max-h-[90vh] w-full max-w-[560px] flex-col overflow-hidden rounded-2xl border border-primary/20 bg-[#111] shadow-[0_0_40px_rgba(0,0,0,0.8)]"
+        onclick={(e) => e.stopPropagation()}
+      >
+        <div class="flex items-center justify-between border-b border-border-dark/50 px-4 py-3">
+          <span class="text-xs font-mono uppercase tracking-[0.2em] text-secondary">Support on Ko-fi</span>
+          <button
+            type="button"
+            onclick={closeKofiModal}
+            class="rounded p-1 text-secondary hover:bg-white/10 hover:text-primary"
+            aria-label="Close"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+        <div class="flex-1 overflow-hidden bg-white">
+          <iframe
+            src="https://ko-fi.com/francespo/?hidefeed=true&widget=true&embed=true"
+            style="border:none;width:100%;display:block;background:white;"
+            height="680"
+            title="Support on Ko-fi"
+            loading="eager"
+            allow="payment"
+          ></iframe>
+        </div>
+        <div class="border-t border-border-dark/30 bg-black/60 px-4 py-2 text-center">
+          <a href="https://ko-fi.com/francespo" target="_blank" rel="noopener noreferrer" class="text-[10px] font-mono text-secondary/40 hover:text-primary">Open in Ko-fi instead</a>
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
