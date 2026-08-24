@@ -34,14 +34,24 @@
   // Ko-fi modal: Donate opens an on-site themed window (single click)
   // No floating button in the corner, no double click. Clearly Ko-fi inside, but framed by your site.
   let showKofiModal = $state(false);
+  let savedBodyOverflow = "";
+  let savedHtmlOverflow = "";
   function openKofiModal(e: MouseEvent) {
     e.preventDefault();
     showKofiModal = true;
-    if (typeof document !== "undefined") document.body.style.overflow = "hidden";
+    if (typeof document !== "undefined") {
+      savedBodyOverflow = document.body.style.overflow;
+      savedHtmlOverflow = document.documentElement.style.overflow;
+      document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
+    }
   }
   function closeKofiModal() {
     showKofiModal = false;
-    if (typeof document !== "undefined") document.body.style.overflow = "";
+    if (typeof document !== "undefined") {
+      document.body.style.overflow = savedBodyOverflow;
+      document.documentElement.style.overflow = savedHtmlOverflow;
+    }
   }
   function onModalKeydown(e: KeyboardEvent) {
     if (e.key === "Escape") closeKofiModal();
@@ -205,15 +215,19 @@
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      class="fixed inset-0 z-[200] flex flex-col bg-black/80 backdrop-blur-sm overscroll-contain touch-manipulation"
       onclick={closeKofiModal}
       onkeydown={onModalKeydown}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Support on Ko-fi"
+      tabindex="-1"
     >
       <div
-        class="relative flex max-h-[90vh] w-full max-w-[560px] flex-col overflow-hidden rounded-2xl border border-primary/20 bg-[#111] shadow-[0_0_40px_rgba(0,0,0,0.8)]"
+        class="flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-[#111] sm:mx-auto sm:my-4 sm:max-h-[min(92dvh,860px)] sm:max-w-[560px] sm:rounded-2xl sm:border sm:border-primary/20 sm:shadow-[0_0_40px_rgba(0,0,0,0.8)]"
         onclick={(e) => e.stopPropagation()}
       >
-        <div class="flex items-center justify-between border-b border-border-dark/50 px-4 py-3">
+        <div class="flex shrink-0 items-center justify-between border-b border-border-dark/50 bg-[#111] px-4 py-3">
           <span class="text-xs font-mono uppercase tracking-[0.2em] text-secondary">Support on Ko-fi</span>
           <button
             type="button"
@@ -224,17 +238,19 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
           </button>
         </div>
-        <div class="flex-1 overflow-hidden bg-white">
+        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white touch-manipulation [-webkit-overflow-scrolling:touch]">
           <iframe
             src="https://ko-fi.com/francespo/?hidefeed=true&widget=true&embed=true"
-            style="border:none;width:100%;display:block;background:white;"
-            height="680"
+            style="border:none;width:100%;display:block;background:white;min-height:560px;"
+            height="760"
             title="Support on Ko-fi"
             loading="eager"
             allow="payment"
+            scrolling="no"
+            referrerpolicy="strict-origin-when-cross-origin"
           ></iframe>
         </div>
-        <div class="border-t border-border-dark/30 bg-black/60 px-4 py-2 text-center">
+        <div class="shrink-0 border-t border-border-dark/30 bg-black/60 px-4 py-2 text-center">
           <a href="https://ko-fi.com/francespo" target="_blank" rel="noopener noreferrer" class="text-[10px] font-mono text-secondary/40 hover:text-primary">Open in Ko-fi instead</a>
         </div>
       </div>
