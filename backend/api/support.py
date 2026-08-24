@@ -66,7 +66,8 @@ def get_supporters():
         all_rows = session.exec(query).all()
 
         seen: set[int] = set()
-        out: list[SupporterResponse] = []
+        monthly: list[SupporterResponse] = []
+        onetime: list[SupporterResponse] = []
         cutoff = datetime.now()  # contributions older than 35 days are not considered "active monthly"
         from datetime import timedelta
         grace = cutoff - timedelta(days=35)
@@ -79,20 +80,23 @@ def get_supporters():
             # members naturally fall back to one-time display.
             latest_is_monthly = bool(con.is_subscription_payment or (con.type == "Subscription"))
             is_monthly_active = bool(latest_is_monthly and con.date and con.date >= grace)
-            out.append(
-                SupporterResponse(
-                    name=sup.name,
-                    amount=con.amount,
-                    date=con.date,
-                    message=con.message,
-                    isMonthly=is_monthly_active,
-                    tierName=con.tier_name if is_monthly_active else None,
-                )
+            entry = SupporterResponse(
+                name=sup.name,
+                amount=con.amount,
+                date=con.date,
+                message=con.message,
+                isMonthly=is_monthly_active,
+                tierName=con.tier_name if is_monthly_active else None,
             )
-            if len(out) >= 20:
+            if is_monthly_active:
+                monthly.append(entry)
+            else:
+                onetime.append(entry)
+            if len(monthly) + len(onetime) >= 30:
                 break
 
-        return out
+        # Monthly first, then one-time, both newest-first within group
+        return (monthly + onetime)[:30]
 
 @router.post("/webhook/ko-fi")
 async def kofi_webhook(request: Request):
