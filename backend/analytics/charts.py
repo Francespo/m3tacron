@@ -109,14 +109,27 @@ def get_card_usage_history(
                 main_present = main_card_xws in list_upgrades
             
             if main_present:
+                # Calculate total games played for this player standing
+                swiss_wins = result.swiss_wins or 0
+                swiss_losses = result.swiss_losses or 0
+                swiss_draws = result.swiss_draws or 0
+                cut_wins = result.cut_wins or 0
+                cut_losses = result.cut_losses or 0
+                cut_draws = result.cut_draws or 0
+                
+                games_count = (
+                    max(0, swiss_wins) + max(0, swiss_losses) + max(0, swiss_draws) +
+                    max(0, cut_wins) + max(0, cut_losses) + max(0, cut_draws)
+                )
+                
                 # Increment Main Card
-                history[date_key][main_card_xws] += 1
+                history[date_key][main_card_xws] += games_count
                 
                 # Check Comparisons
                 for comp_xws in comparison_xws_list:
                     # Comparison could be pilot or upgrade. Check both.
                     if comp_xws in list_pilots or comp_xws in list_upgrades:
-                        history[date_key][comp_xws] += 1
+                        history[date_key][comp_xws] += games_count
                         
         # Format for Recharts
         # Sort by date

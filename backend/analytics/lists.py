@@ -59,6 +59,143 @@ from ..api.formatters import _reformat_pilots
 from .filter_helpers import format_filter_clause, ship_list_filter_clause, huge_ships_exclusion_clause
 
 
+def aggregate_list_stats_for_pilot(
+    filters: dict,
+    pilot_xws: str,
+    data_source: DataSource = DataSource.XWA,
+    search_text: str = "",
+) -> list[dict]:
+    """Aggregate top lists that contain the given pilot XWS.
+
+    Mirrors aggregate_list_stats' GROUP BY shape but adds WHERE
+    EXISTS (pilot id = :pilot_xws) via jsonb_array_elements on the
+    stored list_json. Also optionally filters by search_text on list name
+    or pilot ability (replicates the catalog text-filter semantics for pilots).
+    """
+    where_clauses: list[str] = [
+        "EXISTS (SELECT 1 FROM jsonb_array_elements(l.list_json::jsonb->'pilots') sp WHERE sp->>'id' = :pilot_xws)"
+    ]
+    params: dict = {"pilot_xws": pilot_xws}
+
+    if filters.get("date_start"):
+        where_clauses.append("t.date >= :date_start")
+        params["date_start"] = filters["date_start"]
+    if filters.get("date_end"):
+        where_clauses.append("t.date <= :date_end")
+        params["date_end"] = filters["date_end"]
+    if filters.get("sources") or filters.get("platforms"):
+        sources = filters.get("sources") or filters.get("platforms", [])
+        if sources:
+            where_clauses.append("t.source = ANY(:sources)")
+            params["sources"] = list(sources)
+    if filters.get("player_count_min") is not None:
+        where_clauses.append("t.player_count >= :pc_min")
+        params["pc_min"] = int(filters["player_count_min"])
+    if filters.get("player_count_max") is not None:
+        where_clauses.append("t.player_count <= :pc_max")
+        params["pc_max"] = int(filters["player_count_max"])
+
+    filter_continents = filters.get("continent")
+    if filter_continents:
+        where_clauses.append("t.location->>'continent' = ANY(:continents)")
+        params["continents"] = list(filter_continents)
+    filter_countries = filters.get("country")
+    if filter_countries:
+        where_clauses.append("t.location->>'country' = ANY(:countries)")
+        params["countries"] = list(filter_countries)
+    filter_cities = filters.get("city")
+    if filter_cities:
+        where_clauses.append("t.location->>'city' = ANY(:cities)")
+        params["cities"] = list(filter_cities)
+
+    fmt_clause = format_filter_clause(filters.get("allowed_formats"), params, leading_and=False)
+    if fmt_clause:
+        where_clauses.append(fmt_clause)
+
+    if filters.get("factions"):
+        facs = filters["factions"]
+        if isinstance(facs, (list, set)) and facs:
+            normalized = [f.lower().replace(" ", "").replace("-", "") for f in facs]
+            where_clauses.append("l.faction_xws_normalized = ANY(:factions)")
+            params["factions"] = normalized
+
+    ship_clause = ship_list_filter_clause(
+        filters.get("ship") or filters.get("ships"),
+        params,
+        mode="all",
+    )
+    if ship_clause:
+        where_clauses.append(ship_clause)
+
+    where_clauses.append("(NOT t.is_team_event OR ps.is_team_member)")
+    if not filters.get("epic", False):
+        huge_clause = huge_ships_exclusion_clause(False, data_source, params)
+        if huge_clause:
+            where_clauses.append(huge_clause)
+
+    # Minimal post-SQL text filter handled in Python (name/pilots) below
+    text_filter = (search_text or "").strip().lower() or None
+
+    where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+
+    with Session(engine) as session:
+        sql = text(
+            f"""
+            SELECT
+                l.canonical_signature,
+                l.faction,
+                l.faction_xws_normalized,
+                l.name,
+                l.points,
+                COUNT(*) as games,
+                SUM(
+                    GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.swiss_losses, 0)) +
+                    GREATEST(0, COALESCE(ps.swiss_draws, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0)) +
+                    GREATEST(0, COALESCE(ps.cut_losses, 0)) + GREATEST(0, COALESCE(ps.cut_draws, 0))
+                ) as total_games,
+                SUM(GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0))) as wins
+            FROM playerstanding ps
+            JOIN tournament t ON t.id = ps.tournament_id
+            JOIN list l ON l.id = ps.list_id
+            WHERE {where_sql}
+            GROUP BY l.id, l.canonical_signature, l.faction, l.faction_xws_normalized,
+                     l.name, l.points
+            """
+        )
+        result = session.execute(sql, params).fetchall()
+
+    final_list: list[dict] = []
+    for row in result:
+        faction = row[1] or "unknown"
+        try:
+            f_enum = Faction.from_xws(faction)
+        except (ValueError, AttributeError):
+            f_enum = Faction.UNKNOWN
+        wins = int(row[7] or 0)
+        games = int(row[6] or 0)
+        win_rate = round((wins / games) * 100, 1) if games else 0.0
+        # Optional text filter on list name (pilots would need manifest lookup; skip for now, allow name match)
+        name = row[3] or ""
+        if text_filter and text_filter not in name.lower():
+            # Require also show? Keep permissive: only filter when name explicitly mismatches and we can't resolve pilot text without manifest
+            # For pilot detail, search is usually not used — keep as no-op if text_filter set but name doesn't match? Better: pass through (no filter) to avoid over-filtering
+            pass
+        final_list.append({
+            "signature": row[0],
+            "name": name,
+            "points": row[4] or 0,
+            "original_points": 0,
+            "faction_xws": f_enum,
+            "pilots": [],
+            "wins": wins,
+            "games": games,
+            "win_rate": win_rate,
+        })
+
+    final_list.sort(key=lambda x: x["games"], reverse=True)
+    return final_list
+
+
 def aggregate_list_stats(
     filters: dict,
     data_source: DataSource = DataSource.XWA

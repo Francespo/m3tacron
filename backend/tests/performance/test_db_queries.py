@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from sqlmodel import Session, select, func
 
 from backend.database import engine
-from backend.models import Tournament, PlayerResult, Match
+from backend.models import Tournament, PlayerStanding, Match
 from backend.analytics.factions import get_meta_snapshot
 from backend.data_structures.data_source import DataSource
 
@@ -64,7 +64,7 @@ class TestDatabaseQueries:
 
         def query():
             return db_session.exec(
-                select(PlayerResult).join(Tournament).limit(100)
+                select(PlayerStanding).join(Tournament).limit(100)
             ).all()
 
         result = benchmark(query)
@@ -92,7 +92,7 @@ class TestDatabaseQueries:
             ).all()
             for t in tournaments:
                 db_session.exec(
-                    select(PlayerResult).where(PlayerResult.tournament_id == t.id)
+                    select(PlayerStanding).where(PlayerStanding.tournament_id == t.id)
                 ).all()
             return tournaments
 
@@ -106,7 +106,7 @@ class TestDatabaseQueries:
 
         def query():
             return db_session.exec(
-                select(PlayerResult.list_json).limit(500)
+                select(PlayerStanding.list_json).limit(500)
             ).all()
 
         result = benchmark(query)
@@ -144,8 +144,8 @@ class TestDatabaseQueries:
         def query():
             return db_session.exec(
                 select(
-                    func.count(PlayerResult.id),
-                    func.avg(PlayerResult.swiss_wins)
+                    func.count(PlayerStanding.id),
+                    func.avg(PlayerStanding.swiss_wins)
                 ).join(Tournament)
             ).one()
 
