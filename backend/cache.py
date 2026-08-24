@@ -172,9 +172,27 @@ def invalidate_cache():
 
 def cache_stats() -> dict:
     """Return cache statistics for debugging."""
+    import sys
     with _lock:
+        # Rough memory estimate: sum of pickled sizes (cheap approximation)
+        total_bytes = 0
+        sample_keys: list[str] = []
+        for k, v in list(_cache.items())[:50]:
+            try:
+                total_bytes += sys.getsizeof(k) + sys.getsizeof(v)
+            except Exception:
+                pass
+            if len(sample_keys) < 10:
+                sample_keys.append(k[:120])
+        avg_bytes = total_bytes // max(1, min(len(_cache), 50)) if _cache else 0
+        estimated_bytes = avg_bytes * len(_cache) if _cache else 0
         return {
             "entries": len(_cache),
             "version": _cached_version,
             "last_check": _last_version_check,
+            "in_flight": len(_in_flight),
+            "errors": len(_in_flight_errors),
+            "estimated_bytes": estimated_bytes,
+            "estimated_mb": round(estimated_bytes / (1024 * 1024), 2),
+            "sample_keys": sample_keys,
         }

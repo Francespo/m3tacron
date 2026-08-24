@@ -82,6 +82,25 @@ def on_startup():
 
 
 # ---------------------------------------------------------------------------
+# Warm state — exposed via GET /api/cache/stats for live verification
+# ---------------------------------------------------------------------------
+
+_warm_state: dict = {
+    "last_warm_at": None,          # ISO timestamp of last warm completion
+    "last_warm_duration_s": None,  # seconds of last full warm (snapshots + endpoints + ship details)
+    "detail_snapshots": {},        # {ds: {elapsed_s, pilots, upgrades}}
+    "endpoints": {"ok": 0, "fail": 0, "elapsed_s": None, "items": []},  # last _probe_warm_endpoints
+    "ship_details": {"ok": 0, "fail": 0, "elapsed_s": None, "total_urls": 0, "workers": None},
+    "history": [],                 # last 5 warm runs (for debugging)
+}
+
+def _record_warm_history(entry: dict) -> None:
+    _warm_state["history"].append(entry)
+    if len(_warm_state["history"]) > 5:
+        _warm_state["history"].pop(0)
+
+
+# ---------------------------------------------------------------------------
 # Cache warm helpers: shared endpoint list + HTTP probing
 # ---------------------------------------------------------------------------
 
@@ -102,10 +121,10 @@ def _warm_endpoint_list() -> list[str]:
         "meta-snapshot?data_source=legacy&epic=true",
     ]
     # Ships — all pages are slices of one cached aggregation (page/size excluded
-    # from key, see backend/api/ships.py). Warm 4 combos: xwa/legacy x epic.
+    # from key, see backend/api/ships.py). Warm 2 combos: xwa/legacy (ships
+    # endpoint has no epic param — epic filtering is client-side via xwingData).
     for ds in ("xwa", "legacy"):
-        for epic in ("", "&epic=true"):
-            endpoints.append(f"ships?page=0&size=21&sort_metric=Lists&sort_direction=desc&data_source={ds}{epic}")
+        endpoints.append(f"ships?page=0&size=21&sort_metric=Lists&sort_direction=desc&data_source={ds}")
     # Lists page 0 — 4 combos. page/size/sort excluded from cache key, so
     # page 1..9 are already warm if page 0 is.
     for ds in ("xwa", "legacy"):
@@ -115,10 +134,9 @@ def _warm_endpoint_list() -> list[str]:
     for ds in ("xwa", "legacy"):
         for epic in ("", "&epic=true"):
             endpoints.append(f"squadrons?page=0&size=20&sort_metric=Games&sort_direction=desc&data_source={ds}{epic}")
-    # Tournaments page 0 — 2 entries (tournaments key DOES include page, but
-    # only page 0 is warmed; page 1..4 are on-demand ~80ms each).
-    for ds in ("xwa", "legacy"):
-        endpoints.append(f"tournaments?page=0&size=20&sort_metric=Date&sort_direction=desc&data_source={ds}")
+    # Tournaments page 0 — 1 entry (tournaments has no data_source param; its
+    # cache key includes page so only page 0 is warmed, page 1..4 on-demand).
+    endpoints.append("tournaments?page=0&size=20&sort_metric=Date&sort_direction=desc")
     endpoints.extend([
         # Cards/Pilots - 4 combos
         "cards/pilots?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=xwa",
@@ -144,6 +162,7 @@ def _warm_detail_snapshots() -> None:
     data_version change.
     """
     import time as _t
+    from datetime import datetime, timezone
     from .analytics.precompute import get_snapshot
     from .data_structures.data_source import DataSource
 
@@ -152,10 +171,18 @@ def _warm_detail_snapshots() -> None:
         try:
             snap = get_snapshot(ds)
             n_upg = sum(len(v) for f, v in snap["pilot_upgrades"].items() if f == ds.value)
-            print(f"[prewarm] detail snapshot {ds.value}: {_t.time() - t0:.1f}s ✓ "
+            elapsed = _t.time() - t0
+            print(f"[prewarm] detail snapshot {ds.value}: {elapsed:.1f}s ✓ "
                   f"(header {len(snap['header'])} pilots, upg keys {n_upg})")
+            _warm_state["detail_snapshots"][ds.value] = {
+                "elapsed_s": round(elapsed, 2),
+                "pilots": len(snap["header"]),
+                "upg_keys": n_upg,
+                "at": datetime.now(timezone.utc).isoformat(),
+            }
         except Exception as e:
             print(f"[prewarm] detail snapshot {ds.value}: FAILED ({e})")
+            _warm_state["detail_snapshots"][ds.value] = {"error": str(e)}
 
 
 def _warm_ship_details(base: str = "http://127.0.0.1:8888") -> None:
@@ -163,7 +190,7 @@ def _warm_ship_details(base: str = "http://127.0.0.1:8888") -> None:
 
     Each ship has 4 endpoints: /ship/{xws}, /{xws}/pilots, /{xws}/lists, /{xws}/squadrons
     All are cached via get_cached_or_compute with key ship_*|{xws}|ds|...|epic
-    Sequential would be ~320 ships × 0.3s = ~100s; parallel with 8 workers ~12s.
+    Sequential would be ~320 ships × 0.3s = ~100s; parallel with 4 workers ~20s.
     This is the most impactful warm for perceived navigability: click on a ship
     in /ships otherwise pays 1-2.5s cold for 4 parallel GROUP BYs.
     Controlled by env SHIP_DETAIL_WARM (default true) and SHIP_DETAIL_WARM_WORKERS.
@@ -172,9 +199,11 @@ def _warm_ship_details(base: str = "http://127.0.0.1:8888") -> None:
     import urllib.request
     import urllib.error
     from concurrent.futures import ThreadPoolExecutor, as_completed
+    from datetime import datetime, timezone
 
     if os.getenv("SHIP_DETAIL_WARM", "true").lower() != "true":
         print("[prewarm] ship details: skipped (SHIP_DETAIL_WARM=false)")
+        _warm_state["ship_details"] = {"skipped": True}
         return
 
     try:
@@ -182,6 +211,7 @@ def _warm_ship_details(base: str = "http://127.0.0.1:8888") -> None:
         from .data_structures.data_source import DataSource
     except Exception as e:
         print(f"[prewarm] ship details: FAILED to load ship list ({e})")
+        _warm_state["ship_details"] = {"error": str(e)}
         return
 
     # Collect unique ship xws across both data sources
@@ -194,12 +224,11 @@ def _warm_ship_details(base: str = "http://127.0.0.1:8888") -> None:
 
     if not all_xws:
         print("[prewarm] ship details: no ships found")
+        _warm_state["ship_details"] = {"error": "no ships"}
         return
 
     workers = int(os.getenv("SHIP_DETAIL_WARM_WORKERS", "4"))
     endpoints = ["", "/pilots", "/lists?limit=10", "/squadrons?limit=10"]
-    # 4 combos: xwa/xwa+epic/legacy/legacy+epic — but pilot/lists/squadrons
-    # also vary by epic param. Warm all 4.
     combos = [
         ("xwa", ""),
         ("xwa", "&epic=true"),
@@ -207,12 +236,10 @@ def _warm_ship_details(base: str = "http://127.0.0.1:8888") -> None:
         ("legacy", "&epic=true"),
     ]
 
-    # Build URL list
     urls: list[str] = []
     for xws in sorted(all_xws):
         for ds, epic_qs in combos:
             for ep in endpoints:
-                # ep already contains ?limit, so append &data_source
                 sep = "&" if "?" in ep else "?"
                 urls.append(f"{base}/api/ship/{xws}{ep}{sep}data_source={ds}{epic_qs}")
 
@@ -224,12 +251,11 @@ def _warm_ship_details(base: str = "http://127.0.0.1:8888") -> None:
         try:
             req = urllib.request.Request(url)
             with urllib.request.urlopen(req, timeout=30) as resp:
-                resp.read()  # consume
+                resp.read()
             return True
         except Exception:
             return False
 
-    # Bound concurrency to avoid overwhelming the DB pool (default 8)
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {pool.submit(fetch_one, u): u for u in urls}
         for fut in as_completed(futures):
@@ -240,13 +266,23 @@ def _warm_ship_details(base: str = "http://127.0.0.1:8888") -> None:
 
     elapsed = _t.time() - t0
     print(f"[prewarm] ship details: {ok} ok, {fail} fail in {elapsed:.1f}s ({len(all_xws)} ships × 4 combos × 4 endpoints, {workers} workers) ✓")
+    _warm_state["ship_details"] = {
+        "ok": ok, "fail": fail, "elapsed_s": round(elapsed, 1),
+        "total_urls": len(urls), "ships": len(all_xws), "workers": workers,
+        "at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 def _probe_warm_endpoints(base: str, endpoints: list[str]) -> None:
-    """Sequentially GET each endpoint; logs timing or failure."""
+    """Sequentially GET each endpoint; logs timing or failure and records warm state."""
     import urllib.request
     import json
+    from datetime import datetime, timezone
 
+    t0_all = time.time()
+    ok = 0
+    fail = 0
+    items: list[dict] = []
     for path in endpoints:
         name = path.split("?")[0].split("/")[-1] or "root"
         try:
@@ -257,8 +293,18 @@ def _probe_warm_endpoints(base: str, endpoints: list[str]) -> None:
             count = data.get("total", len(data.get("items", [])))
             elapsed = time.time() - t0
             print(f"[prewarm] {name}: {count} items in {elapsed:.1f}s ✓")
+            ok += 1
+            items.append({"path": path, "count": count, "elapsed_s": round(elapsed, 2)})
         except Exception as e:
             print(f"[prewarm] {name}: FAILED ({e})")
+            fail += 1
+            items.append({"path": path, "error": str(e)})
+    elapsed_all = time.time() - t0_all
+    _warm_state["endpoints"] = {
+        "ok": ok, "fail": fail, "elapsed_s": round(elapsed_all, 1),
+        "total": len(endpoints), "items": items,
+        "at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 def _prewarm_cache():
@@ -272,11 +318,24 @@ def _prewarm_cache():
     import threading
 
     def _run():
+        import datetime as _dt
+        t0 = time.time()
         time.sleep(1.5)  # wait for uvicorn to finish binding
         _warm_detail_snapshots()
         _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
         _warm_ship_details("http://127.0.0.1:8888")
-        print("[prewarm] done")
+        elapsed = time.time() - t0
+        now = _dt.datetime.now(_dt.timezone.utc).isoformat()
+        _warm_state["last_warm_at"] = now
+        _warm_state["last_warm_duration_s"] = round(elapsed, 1)
+        _record_warm_history({
+            "at": now, "elapsed_s": round(elapsed, 1),
+            "endpoints": dict(_warm_state["endpoints"]),
+            "ship_details": dict(_warm_state["ship_details"]),
+            "detail_snapshots": dict(_warm_state["detail_snapshots"]),
+            "trigger": "startup",
+        })
+        print(f"[prewarm] done in {elapsed:.1f}s")
 
     thread = threading.Thread(target=_run, daemon=True, name="cache-prewarm")
     thread.start()
@@ -302,6 +361,7 @@ def _start_cache_auto_rewarm():
 
     def _loop():
         from backend.cache import get_db_version  # local import avoids cycle; available after engine init
+        import datetime as _dt
 
         # Seed last_seen so we don't rewarm immediately on startup (startup
         # already did _prewarm_cache). Wait one poll so data_version is readable.
@@ -315,10 +375,22 @@ def _start_cache_auto_rewarm():
                     print(f"[auto-rewarm] data_version {last_seen} -> {cur}, rewarming cache…")
                     if debounce_s > 0:
                         time.sleep(debounce_s)
+                    t0 = time.time()
                     _warm_detail_snapshots()
                     _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
                     _warm_ship_details("http://127.0.0.1:8888")
-                    print("[auto-rewarm] done")
+                    elapsed = time.time() - t0
+                    now = _dt.datetime.now(_dt.timezone.utc).isoformat()
+                    _warm_state["last_warm_at"] = now
+                    _warm_state["last_warm_duration_s"] = round(elapsed, 1)
+                    _record_warm_history({
+                        "at": now, "elapsed_s": round(elapsed, 1),
+                        "endpoints": dict(_warm_state["endpoints"]),
+                        "ship_details": dict(_warm_state["ship_details"]),
+                        "detail_snapshots": dict(_warm_state["detail_snapshots"]),
+                        "trigger": f"auto-rewarm {last_seen}->{cur}",
+                    })
+                    print(f"[auto-rewarm] done in {elapsed:.1f}s")
                     last_seen = cur
                 elif cur is not None:
                     last_seen = cur
@@ -328,6 +400,27 @@ def _start_cache_auto_rewarm():
 
     thread = threading.Thread(target=_loop, daemon=True, name="cache-auto-rewarm")
     thread.start()
+
+
+@app.get("/api/cache/stats")
+def cache_stats_endpoint():
+    """Live cache inspection: entries, warm history, timings, memory estimate.
+
+    No auth — read-only. Use to verify that all caches are loaded in prod/preview:
+      curl https://162.dev.m3tacron.com/api/cache/stats | jq
+    """
+    from .cache import cache_stats as _cache_stats
+    cs = _cache_stats()
+    # _warm_state is populated by _prewarm_cache / _start_cache_auto_rewarm
+    return {
+        "cache": cs,
+        "warm": dict(_warm_state),
+        "config": {
+            "warm_endpoints": len(_warm_endpoint_list()),
+            "ship_detail_total_urls": 1472,  # 92 ships × 4 combos × 4 endpoints
+            "max_cache_entries": 1000,
+        },
+    }
 
 
 @app.get("/")
