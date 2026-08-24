@@ -221,10 +221,10 @@
                     <p class="text-secondary font-mono text-sm mt-1">{title}</p>
                 {/if}
                 <div class="flex items-center gap-2 mt-3 flex-wrap">
-                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold">WR <span style="color: {wrColor};">{wrDisplay}</span></span>
-                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">GAMES {games.toLocaleString()}</span>
-                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">LISTS {listsCount.toLocaleString()}</span>
-                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">(UNIQUE {differentListsCount.toLocaleString()})</span>
+                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">LISTS {listsCount}</span>
+                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">ENTRIES {Math.max(0, Number((stats as any)?.entries_count ?? listsCount))}</span>
+                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">GAMES {games}</span>
+                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold" style="color: {wrColor};">WR {wrDisplay}</span>
                     <span class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-mono font-bold">PTS {cost}</span>
                 </div>
             </div>
@@ -278,8 +278,8 @@
                                 {p.ship}
                             </p>
                             <div class="flex flex-wrap gap-1 mt-2">
-                                <span class="px-1 py-0.5 bg-[#ffffff05] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">GAMES {pGames}</span>
                                 <span class="px-1 py-0.5 bg-[#ffffff05] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">LISTS {pLists}</span>
+                                <span class="px-1 py-0.5 bg-[#ffffff05] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">GAMES {pGames}</span>
                                 <span class="px-1 py-0.5 rounded text-[10px] font-mono font-bold" style="background: {wrColorFn(pWr)}15; color: {wrColorFn(pWr)};">WR {pWr.toFixed(1)}%</span>
                             </div>
                         </div>
@@ -332,8 +332,8 @@
                         <div class="min-w-0 flex-1">
                             <p class="text-sm font-sans font-bold text-primary truncate group-hover:text-accent transition-colors">{s.name}</p>
                             <div class="flex flex-wrap gap-1 mt-1">
-                                <span class="px-1 py-0.5 bg-[#ffffff05] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">GAMES {sGames}</span>
                                 <span class="px-1 py-0.5 bg-[#ffffff05] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">LISTS {sLists}</span>
+                                <span class="px-1 py-0.5 bg-[#ffffff05] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">GAMES {sGames}</span>
                                 <span class="px-1 py-0.5 rounded text-[10px] font-mono font-bold" style="background: {wrColorFn(sWr)}15; color: {wrColorFn(sWr)};">WR {sWr.toFixed(1)}%</span>
                             </div>
                         </div>

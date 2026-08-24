@@ -26,11 +26,29 @@ def get_pilot_info(
     pilot_xws: str,
     data_source: str = Query("xwa"),
 ):
-    """Return static pilot info (name, image, ship, faction, cost, loadout)."""
+    """Return static pilot info (name, image, ship, faction, cost, loadout) + header stats (SQ/LISTS/ENTRIES/GAMES/WR)."""
     ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
     all_pilots = load_all_pilots(ds)
-    info = all_pilots.get(pilot_xws, {"name": pilot_xws, "xws": pilot_xws, "image": ""})
-    return info
+    info = all_pilots.get(pilot_xws, {"name": pilot_xws, "xws": pilot_xws, "image": "", "slots": []})
+    # Attach header stats directly (one GROUP BY filtered to this pilot via headerStats filter) — avoids the frontend doing 8 sequential /cards fetches
+    header = {}
+    try:
+        from ..analytics.core import aggregate_card_stats
+        from ..data_structures.sorting_order import SortingCriteria, SortDirection
+        rows = aggregate_card_stats({"pilot_id": pilot_xws, "allowed_formats": None}, SortingCriteria.LISTS, SortDirection.DESCENDING, "pilots", ds)
+        row = next((r for r in rows if r.get("xws") == pilot_xws), None)
+        if row:
+            header = {
+                "squadron_count": int(row.get("squadron_count") or 0),
+                "list_count": int(row.get("list_count") or 0),
+                "different_lists_count": int(row.get("different_lists_count") or 0),
+                "entries_count": int(row.get("entries_count") or 0),
+                "games_count": int(row.get("games_count") or 0),
+                "wins": int(row.get("wins") or 0),
+            }
+    except Exception:
+        pass
+    return {**info, "_headerStats": header}
 
 
 @router.get("/{pilot_xws}/upgrades")

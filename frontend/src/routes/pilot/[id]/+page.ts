@@ -26,6 +26,8 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
         fetch(`${API_BASE}/pilot/${pilotXws}/configurations?data_source=${ds}&limit=100${formatSuffix}`),
     ]);
 
+    // Header stats come from /api/pilot/{xws} (_headerStats) — no extra /cards fetches needed
+
     // Server-paginated Top Lists (SQL-backed): fetch page size 4, total is real (not 12 capped). Keep sync filters minimal for pilot detail.
     let pilotLists: any[] = [];
     let pilotListsTotal = 0;
@@ -48,6 +50,7 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
 
     const info = infoRes.status === 'fulfilled' && infoRes.value.ok
         ? await infoRes.value.json() : { name: pilotXws, xws: pilotXws, image: '' };
+    const headerStats = (info as any)?._headerStats ?? null;
 
     const upgradesData = upgradesRes.status === 'fulfilled' && upgradesRes.value.ok
         ? await upgradesRes.value.json() : { items: [], total: 0 };
@@ -73,5 +76,6 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
         configTotal: configData.total || 0,
         pilotLists,
         pilotListsTotal,
+        headerStats,
     };
 };

@@ -16,6 +16,16 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
     let upgrades = $derived(data.upgrades);
     let chart = $derived(data.chart);
     let configurations = $derived(data.configurations);
+    let headerStats = $derived(data.headerStats);
+    // Horizontal / standard-loadout pilots (quickbuilds, slots==[], no loadout) — treated like upgrades for sizing
+    let isHorizontal = $derived(!!info?.image && String(info.image).includes("/quickbuilds/"));
+    let hasNoUpgradesConfig = $derived(isHorizontal || (info?.slots && info.slots.length === 0));
+    let headerSq = $derived(Math.max(0, Number((headerStats ?? {}).squadron_count ?? 0)));
+    let headerLists = $derived(Math.max(0, Number((headerStats ?? {}).list_count ?? (headerStats ?? {}).different_lists_count ?? 0)));
+    let headerEntries = $derived(Math.max(0, Number((headerStats ?? {}).entries_count ?? 0)));
+    let headerGames = $derived(Math.max(0, Number((headerStats ?? {}).games_count ?? 0)));
+    let headerWins = $derived(Math.max(0, Number((headerStats ?? {}).wins ?? 0)));
+    let headerWr = $derived(headerGames > 0 ? (headerWins / headerGames) * 100 : 0);
     let initialized = $state(false);
 
     $effect(() => { xwingData.setSource(filters.dataSource as any); });
@@ -256,17 +266,25 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
     </div>
 
     <!-- Header Section -->
-    <div class="flex flex-col lg:flex-row gap-8 mb-10">
-        <!-- Pilot Image — bare PNG, no outer container (like upgrade detail header) -->
-        <div class="flex-shrink-0 flex items-center justify-center" style="width: 280px; max-width: 100%;">
-            {#if info?.image}
-                <img src={info.image} alt={info.name} class="max-w-full h-auto object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)]" style="max-height: 380px;" loading="eager" />
-            {:else}
-                <div class="w-full h-[300px] flex items-center justify-center">
-                    <span class="text-secondary font-mono text-sm">NO IMAGE</span>
-                </div>
-            {/if}
-        </div>
+    <div class="flex flex-col gap-8 mb-10 {isHorizontal ? '' : 'lg:flex-row'}">
+        <!-- Pilot Image — bare PNG, no outer container; horizontal (standard loadout) pilots use upgrade scale 392×280 -->
+        {#if isHorizontal}
+            <div class="flex-shrink-0 flex items-center justify-center" style="width: 392px; max-width: 100%;">
+                {#if info?.image}
+                    <img src={info.image} alt={info.name} class="max-w-full h-auto object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)]" style="max-height: 280px;" loading="eager" />
+                {:else}
+                    <div class="w-full h-[240px] flex items-center justify-center"><span class="text-secondary font-mono text-sm">NO IMAGE</span></div>
+                {/if}
+            </div>
+        {:else}
+            <div class="flex-shrink-0 flex items-center justify-center" style="width: 280px; max-width: 100%;">
+                {#if info?.image}
+                    <img src={info.image} alt={info.name} class="max-w-full h-auto object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)]" style="max-height: 380px;" loading="eager" />
+                {:else}
+                    <div class="w-full h-[300px] flex items-center justify-center"><span class="text-secondary font-mono text-sm">NO IMAGE</span></div>
+                {/if}
+            </div>
+        {/if}
 
         <!-- Pilot Info + Chart -->
         <div class="flex-grow flex flex-col gap-6">
@@ -296,6 +314,11 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
                          the desktop Sidebar / mobile nav drawer. -->
                 </div>
                 <div class="flex items-center gap-2 mt-3 flex-wrap">
+                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">SQUADRONS {headerSq}</span>
+                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">LISTS {headerLists}</span>
+                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">ENTRIES {headerEntries}</span>
+                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary">GAMES {headerGames}</span>
+                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold" style="color: {wrColor(headerWr)};">WR {headerWr.toFixed(1)}%</span>
                     {#if info?.cost != null}
                         <span class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-mono font-bold">PTS {info.cost}</span>
                     {/if}
@@ -319,7 +342,8 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
         </div>
     </div>
 
-    <!-- Compatible Upgrades — compact wide capsules (mirrors upgrade detail's Pilots), 12/page, horizontal upgrade cards -->
+    <!-- Compatible Upgrades — hidden for standard-loadout (horizontal) pilots that have no upgrade slots -->
+    {#if !hasNoUpgradesConfig}
     <section class="mb-10">
         <div class="flex items-center justify-between gap-3 mb-4">
             <h2 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2">Compatible Upgrades</h2>
@@ -359,8 +383,8 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
                             <p class="text-sm font-sans font-bold text-primary truncate group-hover:text-accent transition-colors" title={uName}>{uName}</p>
                             <p class="text-[11px] font-mono text-secondary uppercase tracking-wider truncate" title={uSlotLabel}>{uSlotLabel}</p>
                             <div class="flex flex-wrap gap-1 mt-1.5">
-                                <span class="px-1 py-0.5 bg-[#ffffff05] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">GAMES {uGames}</span>
                                 <span class="px-1 py-0.5 bg-[#ffffff05] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">LISTS {uLists}</span>
+                                <span class="px-1 py-0.5 bg-[#ffffff05] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">GAMES {uGames}</span>
                                 <span class="px-1 py-0.5 rounded text-[10px] font-mono font-bold" style="background: {wrColor(uWr)}15; color: {wrColor(uWr)};">WR {uWr.toFixed(1)}%</span>
                             </div>
                         </div>
@@ -378,9 +402,10 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
             </div>
         {/if}
     </section>
+    {/if}
 
-    <!-- Top Configurations — 2 per row, 6/page, upgrades fill full width (flex-1, no fixed w), gap-1, hover-safe -->
-    {#if configurations && configurations.length > 0}
+    <!-- Configurations — hidden for standard-loadout pilots (no configs) -->
+    {#if !hasNoUpgradesConfig && configurations && configurations.length > 0}
         {@const configTotalPages = Math.max(1, Math.ceil(sortedConfigurations.length / CONFIG_PAGE_SIZE))}
         {@const configPageItems = sortedConfigurations.slice(configPage * CONFIG_PAGE_SIZE, (configPage + 1) * CONFIG_PAGE_SIZE)}
         <section>
