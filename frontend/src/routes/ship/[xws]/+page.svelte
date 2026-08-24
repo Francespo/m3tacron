@@ -101,8 +101,9 @@
 
     // Fetch pilots whenever the selected faction changes. The server-scoped
     // data from +page.ts is already correct for the initial faction, so skip
-    // the first run (that's what `data.faction` matched).
-    let fetchedFaction = $state<string | null>(null);
+    // the first run. Initialize to the current faction to avoid a duplicate
+    // 4x fetch on mount (load already fetched this faction).
+    let fetchedFaction = $state<string | null>(selectedFaction);
     $effect(() => {
         // This effect drives client-side refetches (window) — never run it
         // during SSR. In the browser, `window` exists and the fetch fires.
