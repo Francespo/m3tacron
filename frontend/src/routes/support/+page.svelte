@@ -53,9 +53,9 @@
 <div
   class="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 px-6 py-8 lg:py-8"
 >
-  <!-- Dev preview toggle (only shown when ?preview=1) -->
-  {#if typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1"}
-    <div class="shrink-0 flex justify-center gap-2 text-[10px] font-mono">
+  <!-- Dev preview toggles (only shown when ?preview=1 or ?embed=1) -->
+  {#if typeof window !== "undefined" && (new URLSearchParams(window.location.search).get("preview") === "1" || new URLSearchParams(window.location.search).get("embed") === "1")}
+    <div class="shrink-0 flex flex-wrap justify-center gap-2 text-[10px] font-mono">
       {#each [["live", "Live"], ["empty", "0 — empty"], ["below", "2 — below"], ["above", "5 — above"]] as [mode, label]}
         <button
           type="button"
@@ -66,6 +66,9 @@
         >{label}</button>
       {/each}
       <span class="ml-2 self-center text-secondary/40">preview</span>
+      {#if typeof window !== "undefined" && new URLSearchParams(window.location.search).get("embed") === "1"}
+        <span class="ml-2 self-center rounded bg-secondary/20 px-2 py-0.5 text-secondary">embed preview active</span>
+      {/if}
     </div>
   {/if}
 
@@ -151,6 +154,22 @@
           ></div>
         </a>
       </div>
+
+      {#if typeof window !== "undefined" && new URLSearchParams(window.location.search).get("embed") === "1"}
+        <div class="mt-8 w-full flex flex-col gap-2">
+          <p class="text-center text-[10px] font-mono uppercase tracking-widest text-secondary/40">Inline Ko-fi widget preview (embed=1)</p>
+          <div class="overflow-hidden rounded-xl border border-primary/20 bg-primary/5 p-2">
+            <iframe
+              src="https://ko-fi.com/francespo/?hidefeed=true&widget=true&embed=true"
+              style="border:none;width:100%;padding:0;background:transparent;display:block;"
+              height="712"
+              title="Support on Ko-fi"
+              loading="lazy"
+            ></iframe>
+          </div>
+          <p class="text-center text-[10px] font-mono text-secondary/30">Compare with the Donate button above. The iframe is light-themed and cannot be recolored.</p>
+        </div>
+      {/if}
     </section>
 
     <!-- Galactic Patrons: always below donation so placement is clear -->
