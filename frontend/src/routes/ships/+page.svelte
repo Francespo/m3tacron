@@ -18,13 +18,14 @@
     import { xwingData } from "$lib/stores/xwingData.svelte";
     import Toggle from "$lib/components/Toggle.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
+    import Pagination from "$lib/components/Pagination.svelte";
 
     let { data } = $props();
 
     let filterOpen = $state(false);
     let page = $state(1);
     let factionOpen = $state(false);
-    const size = 50;
+    const size = 21;
 
     // Default sort for the ships page when the URL didn't specify one.
     // "Lists" = list_count, the most useful default for browsing ships.
@@ -51,7 +52,16 @@
     // `filters.applyFromSearchParams` + `clearPendingSync`; routes only need
     // the round-trip write effect below.
 
+    import { page as currentPage } from "$app/state";
+
     // Merge API data with xwingData when any dependency changes
+    $effect(() => {
+        // Keep page in sync with URL (page is 1-indexed in UI, 0-indexed in URL)
+        const urlPage = Number(currentPage.url.searchParams.get('page') ?? '0');
+        const desiredPage = urlPage + 1;
+        if (page !== desiredPage) page = desiredPage;
+    });
+
     $effect(() => {
         // Read reactive values synchronously so $effect tracks them
         const epic = filters.includeEpic;
@@ -85,7 +95,7 @@
             const merged: any[] = [];
             for (const [xws, ship] of Object.entries(xwingShips)) {
                 // Skip epic-only ships (ships with no standard-legal pilots) unless includeEpic is on
-                if (!epic && ship.epic) continue;
+                if (!epic && (ship as any).epic) continue;
                 // Skip ships not in the chassis filter (when one is active)
                 if (selectedShips.length > 0 && !selectedShips.includes(xws)) continue;
 
@@ -127,6 +137,10 @@
             mergedShips = merged;
             hasLoaded = true;
             pending = false;
+
+            // Clamp page if filters reduced total pages
+            const maxPage = Math.max(1, Math.ceil(merged.length / size));
+            if (page > maxPage) page = maxPage;
         }).catch(() => {
             failed = true;
             pending = false;
@@ -534,29 +548,7 @@
                     </div>
                 {/if}
 
-                <!-- Pagination -->
-                {#if resolvedTotal > size}
-                    <div
-                        class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
-                    >
-                        <button
-                            class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                            onclick={prevPage}
-                            disabled={page <= 1}
-                        >
-                            ← Prev
-                        </button>
-                        <span class="text-xs font-mono text-secondary">Page {page}</span
-                        >
-                        <button
-                            class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                            onclick={nextPage}
-                            disabled={page * size >= resolvedTotal}
-                        >
-                            Next →
-                        </button>
-                    </div>
-                {/if}
+                <Pagination total={resolvedTotal} {page} {size} onPrev={prevPage} onNext={nextPage} />
             </div>
         {/if}
     </main>
