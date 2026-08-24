@@ -20,15 +20,12 @@
     import FactionIcon from "$lib/components/FactionIcon.svelte";
     import Pagination from "$lib/components/Pagination.svelte";
     import { page as appPage } from "$app/state";
+    import { untrack } from "svelte";
 
     let { data } = $props();
 
     let filterOpen = $state(false);
-    // Page is now driven solely by client-side pagination over mergedShips.
-    // URL's ?page param is only used to seed initial page after navigation.
-    let page = $state(typeof window !== 'undefined'
-        ? Math.max(1, Number(new URLSearchParams(window.location.search).get('page') || 0) + 1)
-        : 1);
+    let page = $state(1);
     let factionOpen = $state(false);
     const size = 21;
 
@@ -64,10 +61,14 @@
 
     // Keep page in sync with URL (page is 1-indexed in UI, 0-indexed in URL).
     // `appPage` is the SvelteKit page state imported at the top.
+    // Use `untrack` so writing `page` here doesn't make this effect re-run
+    // when `page` itself changes (that would create a feedback loop:
+    // click Next -> page++ -> scheduleSync -> URL update -> this effect
+    // -> page reset -> scheduleSync -> ...).
     $effect(() => {
         const urlPage = Number(appPage.url.searchParams.get('page') ?? '0');
         const desiredPage = urlPage + 1;
-        if (page !== desiredPage) page = desiredPage;
+        if (untrack(() => page) !== desiredPage) page = desiredPage;
     });
 
     // Merge API data with xwingData when any dependency changes
@@ -164,14 +165,15 @@
         });
     });
 
-    // Trigger URL updates on filter changes
+    // Trigger URL updates on filter/page changes.
+    // Reading `page`/`filters` inside the effect makes it re-run when they
+    // change; `xwingData.setSource` is side-effect only and untracked.
     $effect(() => {
-        // Ensure data is active
-        xwingData.setSource(filters.dataSource as any);
-
+        const curPage = page;
         const params = filters.toSearchParams('ships');
-        params.set('page', String(page - 1));
+        params.set('page', String(curPage - 1));
         params.set('size', String(size));
+        untrack(() => xwingData.setSource(filters.dataSource as any));
         scheduleSync(0, params);
     });
 
