@@ -123,7 +123,7 @@ async def kofi_webhook(request: Request):
         # We don't raise 401 to keep it silent vs scanners, but log it internally
         return {"status": "unauthorized"}
 
-    if payload.get("type") not in ["Donation", "Subscription"]:
+    if payload.get("type") not in ["Donation", "Subscription", "Tip", "Shop Order", "Commission"]:
         return {"status": "ignored", "type": payload.get("type")}
 
     name = payload.get("from_name", "Anonymous Supporter")
