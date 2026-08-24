@@ -196,7 +196,7 @@ def _warm_ship_details(base: str = "http://127.0.0.1:8888") -> None:
         print("[prewarm] ship details: no ships found")
         return
 
-    workers = int(os.getenv("SHIP_DETAIL_WARM_WORKERS", "8"))
+    workers = int(os.getenv("SHIP_DETAIL_WARM_WORKERS", "4"))
     endpoints = ["", "/pilots", "/lists?limit=10", "/squadrons?limit=10"]
     # 4 combos: xwa/xwa+epic/legacy/legacy+epic — but pilot/lists/squadrons
     # also vary by epic param. Warm all 4.
