@@ -18,25 +18,43 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
     const formatQuery = formats.map((f) => `formats=${encodeURIComponent(f)}`).join('&');
     const formatSuffix = formatQuery ? `&${formatQuery}` : '';
 
-    // Fetch all 4 endpoints in parallel
-    const [infoRes, upgradesRes, chartRes, configRes] = await Promise.allSettled([
-        fetch(`${API_BASE}/pilot/${pilotXws}?data_source=${ds}`),
-        fetch(`${API_BASE}/pilot/${pilotXws}/upgrades?data_source=${ds}&size=50${formatSuffix}`),
-        fetch(`${API_BASE}/pilot/${pilotXws}/chart?data_source=${ds}${formatSuffix}`),
-        fetch(`${API_BASE}/pilot/${pilotXws}/configurations?data_source=${ds}&limit=10${formatSuffix}`),
-    ]);
+    // All fetches fire in parallel (no sequential awaits). Each resolves independently.
+    const infoP = fetch(`${API_BASE}/pilot/${pilotXws}?data_source=${ds}`);
+    const upgradesP = fetch(`${API_BASE}/pilot/${pilotXws}/upgrades?data_source=${ds}&size=200${formatSuffix}`);
+    const chartP = fetch(`${API_BASE}/pilot/${pilotXws}/chart?data_source=${ds}${formatSuffix}`);
+    const configP = fetch(`${API_BASE}/pilot/${pilotXws}/configurations?data_source=${ds}&limit=100${formatSuffix}`);
+    const listsP = (async () => {
+        const p = new URLSearchParams({ data_source: ds, sort_metric: "Games", sort_direction: "desc", size: "4", page: "0" });
+        for (const f of formats) p.append("formats", f);
+        const r = await fetch(`${API_BASE}/pilot/${pilotXws}/lists?${p.toString()}`);
+        if (!r.ok) return { items: [], total: 0 };
+        const j = await r.json().catch(() => null);
+        return { items: Array.isArray(j?.items) ? j.items : [], total: Number(j?.total ?? 0) || 0 };
+    })();
 
-    const info = infoRes.status === 'fulfilled' && infoRes.value.ok
-        ? await infoRes.value.json() : { name: pilotXws, xws: pilotXws, image: '' };
+    const infoRes = await infoP;
+    const upgradesRes = await upgradesP;
+    const chartRes = await chartP;
+    const configRes = await configP;
+    const listsRes = await listsP;
 
-    const upgradesData = upgradesRes.status === 'fulfilled' && upgradesRes.value.ok
-        ? await upgradesRes.value.json() : { items: [], total: 0 };
+    // Header stats come from /api/pilot/{xws} (_headerStats) — no extra /cards fetches needed
 
-    const chartData = chartRes.status === 'fulfilled' && chartRes.value.ok
-        ? await chartRes.value.json() : { data: [], series: [] };
+    const pilotLists = Array.isArray(listsRes.items) ? listsRes.items : [];
+    const pilotListsTotal = Number(listsRes.total ?? 0) || 0;
 
-    const configData = configRes.status === 'fulfilled' && configRes.value.ok
-        ? await configRes.value.json() : { configurations: [], total: 0 };
+    const info = infoRes.ok
+        ? await infoRes.json().catch(() => ({ name: pilotXws, xws: pilotXws, image: '' })) : { name: pilotXws, xws: pilotXws, image: '' };
+    const headerStats = (info as any)?._headerStats ?? null;
+
+    const upgradesData = upgradesRes.ok
+        ? await upgradesRes.json().catch(() => ({ items: [], total: 0 })) : { items: [], total: 0 };
+
+    const chartData = chartRes.ok
+        ? await chartRes.json().catch(() => ({ data: [], series: [] })) : { data: [], series: [] };
+
+    const configData = configRes.ok
+        ? await configRes.json().catch(() => ({ configurations: [], total: 0 })) : { configurations: [], total: 0 };
 
     return {
         pilotXws,
@@ -51,5 +69,8 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
         chartSeries: chartData.series || [],
         configurations: configData.configurations || [],
         configTotal: configData.total || 0,
+        pilotLists,
+        pilotListsTotal,
+        headerStats,
     };
 };

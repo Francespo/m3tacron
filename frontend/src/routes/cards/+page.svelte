@@ -27,7 +27,7 @@
     let filterOpen = $state(false);
     let page = $state(1);
     let factionOpen = $state(false);
-    const size = 20;
+    const size = 21;
 
     // The loader streams card rows in via `itemsPromise` (non-blocking
     // navigation). `resolved` keeps the LAST good payload so filter/sort/
@@ -396,6 +396,22 @@
                             </a>
                         {/each}
                     </div>
+                    {@const _totalPages = Math.max(1, Math.ceil(resolvedTotal / size))}
+                    {@const _from = resolvedTotal === 0 ? 0 : (page - 1) * size + 1}
+                    {@const _to = Math.min(page * size, resolvedTotal)}
+                    <div class="flex items-center justify-center gap-2 mt-6">
+                        <button
+                            class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            onclick={prevPage}
+                            disabled={page <= 1}>← Prev</button
+                        >
+                        <span class="text-xs font-mono text-secondary">Showing {_from}–{_to} of {resolvedTotal} · Page {page}/{_totalPages}</span>
+                        <button
+                            class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            onclick={nextPage}
+                            disabled={page * size >= resolvedTotal}>Next →</button
+                        >
+                    </div>
                 {:else}
                     <!-- Empty state: no cards matched the current filters -->
                     <div
@@ -418,26 +434,6 @@
                                 Try again
                             </button>
                         </div>
-                    </div>
-                {/if}
-
-                <!-- Pagination -->
-                {#if resolvedTotal > size}
-                    <div
-                        class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
-                    >
-                        <button
-                            class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                            onclick={prevPage}
-                            disabled={page <= 1}>← Prev</button
-                        >
-                        <span class="text-xs font-mono text-secondary">Page {page}</span
-                        >
-                        <button
-                            class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                            onclick={nextPage}
-                            disabled={page * size >= resolvedTotal}>Next →</button
-                        >
                     </div>
                 {/if}
             </div>
