@@ -113,6 +113,30 @@ def _warm_endpoint_list() -> list[str]:
     ]
 
 
+def _warm_detail_snapshots() -> None:
+    """Eagerly build the precomputed card-detail snapshots (xwa + legacy).
+
+    Without this, the first detail-page request after a scrape/restart pays the
+    ~12s snapshot build. Warm here at startup and after every data_version bump
+    (auto-rewarm) so no user ever sees a cold detail page. The snapshot is cached
+    under card_detail_snapshot|<ds> and is automatically invalidated on the next
+    data_version change.
+    """
+    import time as _t
+    from .analytics.precompute import get_snapshot
+    from .data_structures.data_source import DataSource
+
+    for ds in (DataSource.XWA, DataSource.LEGACY):
+        t0 = _t.time()
+        try:
+            snap = get_snapshot(ds)
+            n_upg = sum(len(v) for f, v in snap["pilot_upgrades"].items() if f == ds.value)
+            print(f"[prewarm] detail snapshot {ds.value}: {_t.time() - t0:.1f}s ✓ "
+                  f"(header {len(snap['header'])} pilots, upg keys {n_upg})")
+        except Exception as e:
+            print(f"[prewarm] detail snapshot {ds.value}: FAILED ({e})")
+
+
 def _probe_warm_endpoints(base: str, endpoints: list[str]) -> None:
     """Sequentially GET each endpoint; logs timing or failure."""
     import urllib.request
@@ -137,11 +161,14 @@ def _prewarm_cache():
 
     Runs in a daemon thread so startup returns immediately. Uses internal
     HTTP requests (no external port needed) via the same uvicorn worker.
+    Also eagerly builds the card-detail snapshots (xwa + legacy) so detail pages
+    are warm on first visit.
     """
     import threading
 
     def _run():
         time.sleep(1.5)  # wait for uvicorn to finish binding
+        _warm_detail_snapshots()
         _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
         print("[prewarm] done")
 
@@ -182,6 +209,7 @@ def _start_cache_auto_rewarm():
                     print(f"[auto-rewarm] data_version {last_seen} -> {cur}, rewarming cache…")
                     if debounce_s > 0:
                         time.sleep(debounce_s)
+                    _warm_detail_snapshots()
                     _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
                     print("[auto-rewarm] done")
                     last_seen = cur
