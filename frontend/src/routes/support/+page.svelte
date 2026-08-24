@@ -245,12 +245,13 @@
             height="760"
             title="Support on Ko-fi"
             loading="eager"
-            allow="payment"
+            allow="payment *; storage-access *; clipboard-write *; fullscreen *"
             scrolling="no"
             referrerpolicy="strict-origin-when-cross-origin"
           ></iframe>
         </div>
         <div class="shrink-0 border-t border-border-dark/30 bg-black/60 px-4 py-2 text-center">
+          <p class="text-[9px] font-mono text-secondary/40">Monthly support needs a free Ko-fi account to renew. One-time tips work as guest.</p>
           <a href="https://ko-fi.com/francespo" target="_blank" rel="noopener noreferrer" class="text-[10px] font-mono text-secondary/40 hover:text-primary">Open in Ko-fi instead</a>
         </div>
       </div>
