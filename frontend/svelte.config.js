@@ -6,7 +6,14 @@ const config = {
 		adapter: adapter(),
 		csrf: {
 			checkOrigin: true,
-			trustedOrigins: ['http://server-francesco:*', 'http://100.69.158.7:*', 'http://localhost:*', 'http://127.0.0.1:*']
+			trustedOrigins: [
+				'http://server-francesco:*',
+				'http://100.69.158.7:*',
+				'http://localhost:*',
+				'http://127.0.0.1:*',
+				'https://ko-fi.com',
+				'https://*.ko-fi.com'
+			]
 		}
 	}
 };

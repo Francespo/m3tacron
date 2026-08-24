@@ -55,18 +55,48 @@ def get_supporters():
     create_db_and_tables()
 
     with Session(engine) as session:
-        # Get public contributions with supporter names
-        query = select(Contribution, Supporter).join(Supporter).where(Supporter.is_anonymous == False).order_by(Contribution.date.desc()).limit(20)
-        results = session.exec(query).all()
-        
-        return [
-            SupporterResponse(
+        # One entry per supporter: latest public contribution determines isMonthly.
+        # Someone who had a monthly and then stops should appear as one-time.
+        query = (
+            select(Contribution, Supporter)
+            .join(Supporter)
+            .where(Supporter.is_anonymous == False)
+            .order_by(Contribution.date.desc())
+        )
+        all_rows = session.exec(query).all()
+
+        seen: set[int] = set()
+        monthly: list[SupporterResponse] = []
+        onetime: list[SupporterResponse] = []
+        cutoff = datetime.now()  # contributions older than 35 days are not considered "active monthly"
+        from datetime import timedelta
+        grace = cutoff - timedelta(days=35)
+        for con, sup in all_rows:
+            if sup.id in seen:
+                continue
+            seen.add(sup.id)
+            # A supporter is monthly only if their latest public contribution is a
+            # subscription payment within the last ~35 days. Cancelled/expired
+            # members naturally fall back to one-time display.
+            latest_is_monthly = bool(con.is_subscription_payment or (con.type == "Subscription"))
+            is_monthly_active = bool(latest_is_monthly and con.date and con.date >= grace)
+            entry = SupporterResponse(
                 name=sup.name,
                 amount=con.amount,
                 date=con.date,
-                message=con.message
-            ) for con, sup in results
-        ]
+                message=con.message,
+                isMonthly=is_monthly_active,
+                tierName=con.tier_name if is_monthly_active else None,
+            )
+            if is_monthly_active:
+                monthly.append(entry)
+            else:
+                onetime.append(entry)
+            if len(monthly) + len(onetime) >= 30:
+                break
+
+        # Monthly first, then one-time, both newest-first within group
+        return (monthly + onetime)[:30]
 
 @router.post("/webhook/ko-fi")
 async def kofi_webhook(request: Request):
@@ -123,7 +153,7 @@ async def kofi_webhook(request: Request):
         # We don't raise 401 to keep it silent vs scanners, but log it internally
         return {"status": "unauthorized"}
 
-    if payload.get("type") not in ["Donation", "Subscription"]:
+    if payload.get("type") not in ["Donation", "Subscription", "Tip", "Shop Order", "Commission"]:
         return {"status": "ignored", "type": payload.get("type")}
 
     name = payload.get("from_name", "Anonymous Supporter")
@@ -133,6 +163,10 @@ async def kofi_webhook(request: Request):
     message = payload.get("message")
     is_public = payload.get("is_public", True)
     transaction_id = payload.get("kofi_transaction_id")
+    kofi_type = payload.get("type")
+    is_subscription_payment = payload.get("is_subscription_payment")
+    is_first_subscription_payment = payload.get("is_first_subscription_payment")
+    tier_name = payload.get("tier_name")
 
     with Session(engine) as session:
         # Find or create supporter
@@ -162,7 +196,11 @@ async def kofi_webhook(request: Request):
                 amount=amount,
                 currency=currency,
                 message=message,
-                ko_fi_transaction_id=transaction_id
+                ko_fi_transaction_id=transaction_id,
+                type=kofi_type,
+                is_subscription_payment=bool(is_subscription_payment) if is_subscription_payment is not None else None,
+                is_first_subscription_payment=bool(is_first_subscription_payment) if is_first_subscription_payment is not None else None,
+                tier_name=tier_name,
             )
             session.add(contribution)
             

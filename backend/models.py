@@ -278,5 +278,10 @@ class Contribution(SQLModel, table=True):
     message: str | None = Field(default=None)
     date: datetime = Field(default_factory=datetime.now)
     ko_fi_transaction_id: str | None = Field(default=None, index=True)
+    # Ko-fi webhook extras — needed to distinguish monthly vs one-time
+    type: str | None = Field(default=None)  # Donation/Tip vs Subscription
+    is_subscription_payment: bool | None = Field(default=None)
+    is_first_subscription_payment: bool | None = Field(default=None)
+    tier_name: str | None = Field(default=None)
 
     supporter: Supporter | None = Relationship(back_populates="contributions")
