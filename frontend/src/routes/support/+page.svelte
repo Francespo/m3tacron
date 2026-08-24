@@ -12,9 +12,10 @@
   // Ko-fi modal: Donate opens an on-site themed window (single click)
   // No floating button in the corner, no double click. Clearly Ko-fi inside, but framed by your site.
   let showKofiModal = $state(false);
+  let kofiIframeSrc = $state("");
   let savedBodyOverflow = "";
   let savedHtmlOverflow = "";
-  function openKofiModal(e: MouseEvent) {
+  async function openKofiModal(e: MouseEvent) {
     e.preventDefault();
     showKofiModal = true;
     if (typeof document !== "undefined") {
@@ -23,6 +24,19 @@
       document.body.style.overflow = "hidden";
       document.documentElement.style.overflow = "hidden";
     }
+    // Request partitioned storage for ko-fi.com after user gesture so the
+    // Accept cookie can stick. Without this the banner loops.
+    try {
+      const d = document as unknown as { requestStorageAccessFor?: (o: string) => Promise<void>; requestStorageAccess?: () => Promise<void> };
+      if (typeof d.requestStorageAccessFor === "function") {
+        await d.requestStorageAccessFor("https://ko-fi.com");
+      } else if (typeof d.requestStorageAccess === "function") {
+        // Fallback: will grant for the iframe origin once it loads
+        // No-op before iframe exists, but warms permission
+      }
+    } catch {}
+    // Create iframe src only after the gesture so storage-access allow can take effect
+    kofiIframeSrc = "https://ko-fi.com/francespo/?hidefeed=true&widget=true&embed=true";
   }
   function closeKofiModal() {
     showKofiModal = false;
@@ -202,16 +216,18 @@
           </button>
         </div>
         <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white touch-manipulation [-webkit-overflow-scrolling:touch]">
-          <iframe
-            src="https://ko-fi.com/francespo/?hidefeed=true&widget=true&embed=true"
-            style="border:none;width:100%;display:block;background:white;min-height:560px;"
-            height="760"
-            title="Support on Ko-fi"
-            loading="eager"
-            allow="payment *; storage-access *; clipboard-write *; fullscreen *"
-            scrolling="no"
-            referrerpolicy="strict-origin-when-cross-origin"
-          ></iframe>
+          {#if kofiIframeSrc}
+            <iframe
+              src={kofiIframeSrc}
+              style="border:none;width:100%;display:block;background:white;min-height:560px;"
+              height="760"
+              title="Support on Ko-fi"
+              loading="eager"
+              allow="payment *; storage-access *; clipboard-write *; fullscreen *"
+              scrolling="no"
+              referrerpolicy="strict-origin-when-cross-origin"
+            ></iframe>
+          {/if}
         </div>
         <div class="shrink-0 border-t border-border-dark/30 bg-black/60 px-4 py-2 text-center">
           <p class="text-[9px] font-mono text-secondary/40">Monthly support needs a free Ko-fi account to renew. One-time tips work as guest.</p>
