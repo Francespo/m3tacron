@@ -3,11 +3,13 @@ Upgrade Detail API endpoints.
 
 Provides upgrade info, compatible pilot stats, ship stats, and temporal usage chart.
 """
+from collections import defaultdict
 from fastapi import APIRouter, Query
 from sqlmodel import Session
 from sqlalchemy import text
 
 from ..analytics.charts import get_card_usage_history
+from ..analytics.precompute import get_snapshot
 from ..cache import get_cached_or_compute
 from ..data_structures.data_source import DataSource
 from ..utils.xwing_data.pilots import load_all_pilots
@@ -36,27 +38,46 @@ def get_upgrade_pilots(
     data_source: str = Query("xwa"),
     formats: list[str] | None = Query(None),
 ):
-    """Return stats for pilots who equip this upgrade (cached by xws+source+formats)."""
-    return _get_upgrade_pilots(upgrade_xws, data_source, formats)
-
-
-def _get_upgrade_pilots(
-    upgrade_xws: str,
-    data_source: str,
-    formats: list[str] | None,
-):
+    """Return stats for pilots who equip this upgrade (reads precomputed snapshot)."""
     ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
-    key = (
-        f"upg_pilots|{upgrade_xws}|{data_source}"
-        f"|{','.join(sorted(formats or []))}"
-    )
+    key = f"upg_pilots_snap|{upgrade_xws}|{data_source}|{','.join(sorted(formats or []))}"
     def _compute():
-        return _compute_upgrade_pilots(upgrade_xws, ds, formats)
+        return _pilots_from_snapshot(upgrade_xws, ds, formats)
     return get_cached_or_compute(key, _compute)
 
 
-def _compute_upgrade_pilots(upgrade_xws, ds, formats):
+def _pilots_from_snapshot(upgrade_xws, ds, formats):
+    snap = get_snapshot(ds)
+    fmt_keys = [f for f in snap["upgrade_pilots"] if not formats or f in formats]
+    by_pilot = {}
+    for f in fmt_keys:
+        for p_xws, st in (snap["upgrade_pilots"][f].get(upgrade_xws) or {}).items():
+            if p_xws not in by_pilot:
+                by_pilot[p_xws] = {"lists": 0, "games": 0, "wins": 0}
+            by_pilot[p_xws]["lists"] += st["lists"]
+            by_pilot[p_xws]["games"] += st["games"]
+            by_pilot[p_xws]["wins"] += st["wins"]
     all_pilots = load_all_pilots(ds)
+    results = []
+    for p_xws, st in by_pilot.items():
+        p_info = all_pilots.get(p_xws, {})
+        wr = round((st["wins"] / st["games"]) * 100, 1) if st["games"] > 0 else 0
+        results.append({
+            "xws": p_xws,
+            "name": p_info.get("name", p_xws),
+            "ship": p_info.get("ship", "Unknown Ship"),
+            "ship_xws": p_info.get("ship_xws", ""),
+            "faction_xws": p_info.get("faction", "").lower().replace(" ", "").replace("-", ""),
+            "image": p_info.get("image", ""),
+            "cost": p_info.get("cost", 0),
+            "loadout": p_info.get("loadout", 0),
+            "list_count": st["lists"],
+            "games": st["games"],
+            "wins": st["wins"],
+            "win_rate": wr,
+        })
+    results.sort(key=lambda x: x["list_count"], reverse=True)
+    return results
     
     pilot_stats = {}
     with Session(engine) as session:
@@ -143,15 +164,17 @@ def get_upgrade_ships(
     data_source: str = Query("xwa"),
     formats: list[str] | None = Query(None),
 ):
-    """Return stats for ships whose pilots equip this upgrade (cached by xws+source+formats)."""
-    key = (
-        f"upg_ships|{upgrade_xws}|{data_source}"
-        f"|{','.join(sorted(formats or []))}"
-    )
+    """Return stats for ships whose pilots equip this upgrade (reads precomputed snapshot)."""
+    ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
+    key = f"upg_ships_snap|{upgrade_xws}|{data_source}|{','.join(sorted(formats or []))}"
     def _compute():
-        pilots_data = _get_upgrade_pilots(upgrade_xws, data_source, formats)
-        return _build_upgrade_ships(pilots_data)
+        return _ships_from_snapshot(upgrade_xws, ds, formats)
     return get_cached_or_compute(key, _compute)
+
+
+def _ships_from_snapshot(upgrade_xws, ds, formats):
+    pilots_data = _pilots_from_snapshot(upgrade_xws, ds, formats)
+    return _build_upgrade_ships(pilots_data)
 
 
 def _build_upgrade_ships(pilots_data):
@@ -198,7 +221,22 @@ def get_upgrade_chart(
     formats: list[str] | None = Query(None),
     comparison: list[str] | None = Query(None),
 ):
-    """Return monthly usage history for the upgrade (cached)."""
+    """Return monthly usage history for the upgrade (reads precomputed snapshot; comparisons fall back to live)."""
+    ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
+    if not comparison:
+        key = f"upg_chart_snap|{upgrade_xws}|{data_source}|{','.join(sorted(formats or []))}"
+        def _compute():
+            snap = get_snapshot(ds)
+            months = defaultdict(int)
+            for f in snap["upgrade_chart"]:
+                if formats and f not in formats:
+                    continue
+                for m, v in (snap["upgrade_chart"][f].get(upgrade_xws) or {}).items():
+                    months[m] += v
+            data = [{"date": m, upgrade_xws: months[m]} for m in sorted(months)]
+            return {"data": data, "series": [upgrade_xws]}
+        return get_cached_or_compute(key, _compute)
+    # comparisons — fall back to live computation (rare path)
     key = (
         f"upg_chart|{upgrade_xws}|{data_source}"
         f"|{','.join(sorted(formats or []))}"
