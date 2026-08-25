@@ -72,6 +72,11 @@
         xwingData.setSource(filters.dataSource as any);
     });
 
+    // True when the ship can be flown by more than one canonical faction.
+    let hasMultipleFactions = $derived(
+        (info.factions ?? []).filter((f: string) => f && f !== "unknown").length > 1,
+    );
+
     // Primary faction for the glow / accent color.
     // When "all" is selected, use the ship's first faction for a subtle
     // default accent; when a specific faction is selected, use it.
@@ -83,20 +88,18 @@
     let factionColor = $derived(getFactionColor(primaryFaction));
 
     // Accent color for borders/glows on sub-capsules: GRAY when "All" is
-    // selected, faction-colored when a specific faction is selected.
+    // selected for multi-faction ships, faction-colored otherwise.
+    // For single-faction ships, always use the faction color so the page
+    // has the themed glow/halo by default (single-faction detail should be
+    // colored without needing a faction toggle).
     let accentColor = $derived(
-        selectedFaction === "all" ? "#888888" : factionColor,
+        selectedFaction === "all" && hasMultipleFactions ? "#888888" : factionColor,
     );
     let accentBorder = $derived(
         `color-mix(in srgb, ${accentColor} 30%, transparent)`,
     );
     let accentGlow = $derived(
         `0 0 14px color-mix(in srgb, ${accentColor} 10%, transparent)`,
-    );
-
-    // True when the ship can be flown by more than one canonical faction.
-    let hasMultipleFactions = $derived(
-        (info.factions ?? []).filter((f: string) => f && f !== "unknown").length > 1,
     );
 
     // Fetch pilots whenever the selected faction changes. The server-scoped
