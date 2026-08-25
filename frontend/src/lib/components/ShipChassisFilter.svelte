@@ -4,11 +4,12 @@
     import { fetchAllShips, type ShipChassis } from "$lib/api/ships";
     import Toggle from "./Toggle.svelte";
     import FactionIcon from "./FactionIcon.svelte";
+    import FilterAnyAllToggle from "./FilterAnyAllToggle.svelte";
 
     /** Page-local selected factions — hides ships not playable in these factions. */
     let { selectedFactions = [] }: { selectedFactions?: string[] } = $props();
 
-    let isOpen = $state(false);
+    let isOpen = $state(true);
     let search = $state("");
     let ships = $state<ShipChassis[]>([]);
     let isLoading = $state(false);
@@ -61,6 +62,7 @@
 
     /** How many are currently selected? */
     let selectedCount = $derived(filters.selectedShips.length);
+    let showModeToggle = $derived(selectedCount > 1);
 </script>
 
 <div>
@@ -69,9 +71,6 @@
         onclick={() => (isOpen = !isOpen)}
     >
         <span class="flex items-center gap-1.5">
-            <span class="w-5 h-5 rounded-md bg-white/[0.06] border border-white/10 inline-flex items-center justify-center text-secondary">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h3l2-4 2 4h3l2-4 2 4h3"/><path d="M12 2v4"/><path d="M12 18v4"/></svg>
-            </span>
             <span class="text-[11px] font-mono font-bold tracking-widest uppercase">Ship Chassis</span>
             {#if selectedCount > 0}
                 <span class="min-w-5 h-5 px-1 rounded-full bg-primary text-black text-[10px] font-mono font-bold inline-flex items-center justify-center">{selectedCount}</span>
@@ -82,6 +81,10 @@
 
     {#if isOpen}
         <div class="pt-3 space-y-3">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+                <FilterAnyAllToggle bind:value={filters.shipFilterMode} label="Match" />
+                <span class="text-[11px] font-mono text-secondary/60">Any = O · All = E</span>
+            </div>
             <input
                 type="text"
                 placeholder="Search ships..."

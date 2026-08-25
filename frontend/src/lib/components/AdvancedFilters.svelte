@@ -17,9 +17,6 @@
 
 <div class="w-full space-y-4">
     <div class="flex items-center gap-2">
-        <span class="w-5 h-5 rounded-md bg-white/[0.06] border border-white/10 inline-flex items-center justify-center text-secondary">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5z"/><path d="M2 17 12 22l10-5"/><path d="M2 12 12 17l10-5"/></svg>
-        </span>
         <span class="text-[11px] font-bold tracking-[0.14em] text-secondary font-mono uppercase">Advanced Filters</span>
         <span class="flex-1 h-px bg-white/5 ml-2"></span>
     </div>

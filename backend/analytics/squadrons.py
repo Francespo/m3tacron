@@ -11,7 +11,7 @@ from sqlalchemy import text
 from ..database import engine
 from ..data_structures.data_source import DataSource
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
-from .filter_helpers import format_filter_clause, ship_list_filter_clause, huge_ships_exclusion_clause
+from .filter_helpers import format_filter_clause, ship_list_filter_clause, huge_ships_exclusion_clause, pilot_filter_clause
 
 
 def aggregate_squadron_stats(
@@ -73,18 +73,11 @@ def aggregate_squadron_stats(
         where_clauses.append("l.faction_xws_normalized = ANY(:factions)")
         params["factions"] = normalized
 
-    # Ship filter — use list.ship_list (comma-joined) for fast filter.
-    # Accept both "ship" (singular, used by ship_detail.py) and "ships"
-    # (plural, used by the broader API surface).
-    #
-    # mode="all" → AND semantics: a squadron matches only when EVERY
-    # selected ship is present in its ship_list. This is the natural
-    # choice for squadrons — selecting X-wing + A-wing should show
-    # squadrons that contain BOTH, not the union.
+    ship_mode = filters.get("ship_mode", "all")
     ship_clause = ship_list_filter_clause(
         filters.get("ship") or filters.get("ships"),
         params,
-        mode="all",
+        mode=ship_mode if ship_mode in ("any","all") else "all",
     )
     if ship_clause:
         where_clauses.append(ship_clause)

@@ -81,7 +81,10 @@
         </span>
         <span class="flex items-center gap-1.5 shrink-0">
             {#if onClear && activeCount > 0}
-                <button type="button" onclick={(e) => { e.stopPropagation(); onClear(); }} class="text-xs font-mono text-secondary hover:text-primary underline underline-offset-2 decoration-white/20 hover:decoration-primary/40 transition-colors">Clear</button>
+                <button type="button" onclick={(e) => { e.stopPropagation(); onClear(); }} class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white text-black text-[11px] font-mono font-bold shadow-sm hover:bg-white/90 active:bg-white/80 transition-colors">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                    Clear
+                </button>
             {/if}
             <span class="w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 transition-all duration-200 {open ? 'rotate-180 bg-white border-white text-black shadow-sm' : 'bg-black/30 border-white/10 text-secondary group-hover:border-white/20 group-hover:text-primary'}">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>

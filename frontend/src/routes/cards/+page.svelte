@@ -3,6 +3,7 @@
     import MobileFilterTrigger from "$lib/components/MobileFilterTrigger.svelte";
     import AdvancedFilters from "$lib/components/AdvancedFilters.svelte";
     import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
+    import StatRangeFilter from "$lib/components/StatRangeFilter.svelte";
     import PilotCard from "$lib/components/PilotCard.svelte";
     import UpgradeCard from "$lib/components/UpgradeCard.svelte";
     import PendingIndicator from "$lib/components/PendingIndicator.svelte";
@@ -26,7 +27,7 @@
 
     let filterOpen = $state(false);
     let page = $state(1);
-    let factionOpen = $state(false);
+    let factionOpen = $state(true);
     const size = 21;
     let isAdvanced = $state(false);
     const cardSortOpts = [{ value: "Name", label: "Name" },{ value: "Cost", label: "Points Cost" },{ value: "Games", label: "Games" },{ value: "Lists", label: "Lists" },{ value: "Entries", label: "Entries" },{ value: "Squadrons", label: "Squadrons" },{ value: "Win Rate", label: "Win Rate" }] as const;
@@ -34,6 +35,15 @@
     const tabStyle: "text" = "text";
 
     let globalInputOpen = $state(false);
+    // Restore per-route local filters from storage if URL has no local params
+    let _localRestored = false;
+    $effect(() => {
+        if (_localRestored) return;
+        // Trigger on first mount by reading search string
+        const _sp = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+        filters.restoreLocalFilters('cards', _sp);
+        _localRestored = true;
+    });
     let globalActive = $derived(
         filters.selectedFormats.length +
         filters.selectedContinents.length +
@@ -121,6 +131,8 @@
         if (data.tab) params.set('tab', data.tab);
 
         scheduleSync(0, params);
+        // Persist local filters per route (survives navigation, not shared across routes)
+        queueMicrotask(() => filters.saveLocalFilters('cards'));
     });
 
     function prevPage() {
@@ -146,9 +158,6 @@
         <!-- Col 1: Find — Text Search -->
         <div class="rounded-xl border border-white/5 bg-black/20 p-3.5 space-y-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
             <div class="flex items-center gap-1.5">
-                <span class="w-5 h-5 rounded-md bg-white/[0.06] border border-white/10 inline-flex items-center justify-center text-secondary">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21 16 16"/></svg>
-                </span>
                 <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Text Search</span>
             </div>
             <DebouncedTextInput value={filters.searchName} onDebouncedChange={(v) => { filters.searchName = v; scheduleSync(250); }} placeholder="Search card text" ariaLabel="Search card text" />
@@ -157,9 +166,6 @@
         <div class="rounded-xl border border-white/5 bg-black/20 p-3.5 space-y-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
             <div class="flex items-center justify-between gap-2">
                 <span class="flex items-center gap-1.5 text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">
-                    <span class="w-5 h-5 rounded-md bg-white/[0.06] border border-white/10 inline-flex items-center justify-center shrink-0 text-secondary">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 3 7v6c0 4 3.5 7 9 8 5.5-1 9-4 9-8V7z"/></svg>
-                    </span>
                     Faction
                     {#if filters.selectedFactions.length > 0}<span class="min-w-5 h-5 px-1 rounded-full bg-primary text-black text-[10px] font-mono font-bold inline-flex items-center justify-center">{filters.selectedFactions.length}</span>{/if}
                 </span>
@@ -245,6 +251,7 @@
                 {#if resolved}
                     <span class="hidden lg:inline text-xs font-mono text-secondary">{Math.max(0, Math.floor(Number(resolved.total ?? 0)))} {data.tab === "pilots" ? "Pilots" : "Upgrades"} Found</span>
                     <span class="hidden lg:inline w-px h-4 bg-white/10 shrink-0" aria-hidden="true"></span>
+                {#if pending}<span class="hidden lg:inline"><PendingIndicator active mode="tag" label="Updating…" /></span>{/if}
                 {/if}
                 <span class="hidden sm:inline text-xs font-mono text-secondary uppercase tracking-wider">Sort by</span>
                 <select class="bg-terminal-panel border border-border-dark rounded-md text-xs font-mono text-primary px-2 py-1.5 focus:outline-none" value={filters.sortBy || "Lists"} onchange={(e) => { filters.sortBy = (e.target as HTMLSelectElement).value; }} aria-label="Sort by">
@@ -276,6 +283,8 @@
                     {:else}
                         {@render advancedFiltersContent()}
                     {/if}
+                    <!-- Stat ranges apply to the aggregated card rows (games/lists/etc.) — same component as squadrons/lists/ships -->
+                    <StatRangeFilter label="Stat ranges (cards)" />
                 </div>
             </LocalFilterBar>
         </div>
@@ -336,13 +345,11 @@
             }))}
 
             <!-- Count: header (always next to Sort) + footer pagination — no duplicate "below filters" row -->
-            <div class="flex items-center gap-2.5 mb-6 lg:hidden">
+            <div class="flex items-center gap-2.5 mt-1.5 mb-2 lg:hidden">
                 <p class="text-secondary font-mono text-sm">{resolvedTotal} {data.tab === "pilots" ? "Pilots" : "Upgrades"} Found</p>
                 <PendingIndicator active={pending} mode="tag" label="Updating…" />
             </div>
-            <div class="hidden lg:flex items-center gap-2.5 mb-6 hidden" aria-hidden="true">
-                <PendingIndicator active={pending} mode="tag" label="Updating…" />
-            </div>
+
 
             <div
                 class="transition-opacity duration-200 {pending

@@ -150,7 +150,7 @@
 			</h2>
 			{#if activeCount > 0}
 				<span
-					class="shrink-0 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-[10px] font-mono font-bold bg-primary text-terminal-bg"
+					class="shrink-0 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-[10px] font-mono font-bold bg-white text-black"
 					aria-label="{activeCount} active filters"
 				>
 					{activeCount}
