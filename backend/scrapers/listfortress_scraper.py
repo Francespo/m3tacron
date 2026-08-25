@@ -220,6 +220,23 @@ class ListFortressScraper(BaseScraper):
 
         return matches
 
+    @staticmethod
+    def _estimate_swiss_rounds(num_players: int) -> int:
+        """Estimate Swiss rounds from attendance (FFG/AMG table).
+
+        FFG/AMG regulations: 4-8→3, 9-16→4, 17-32→4, 33-64→5, 65-128→6, 129+→7.
+        This matches observed ListFortress events (e.g. 99 players → 6 rounds).
+        """
+        if num_players <= 8:
+            return 3
+        if num_players <= 32:
+            return 4
+        if num_players <= 64:
+            return 5
+        if num_players <= 128:
+            return 6
+        return 7
+
     def run_full_scrape(
         self, tournament_id: str
     ) -> tuple[Tournament, list[PlayerStanding], list[Match]]:
@@ -227,6 +244,10 @@ class ListFortressScraper(BaseScraper):
 
         The ListFortress API does not expose per-player win/loss/draw counts,
         so they are computed from the round match data (winner_id per match).
+        When no rounds are present (common for pre-2019 ListFortress events)
+        W/L are inferred from tournament points — as the user noted, given
+        that ties do not exist for 12808/Nordics 2018, wins = TP / pt_win
+        and losses = inferred_rounds − wins.
         """
         tournament, players, matches = super().run_full_scrape(tournament_id)
 
@@ -270,6 +291,72 @@ class ListFortressScraper(BaseScraper):
                         p2.swiss_losses = (p2.swiss_losses or 0) + 1
                     elif draw:
                         p2.swiss_draws = (p2.swiss_draws or 0) + 1
+
+        # Fallback when no round data is available (e.g. 12808/Nordics 2018).
+        # The API still provides `score` (event_points) and `mov`, so we can
+        # reconstruct W/L even though there are no rounds to iterate — given
+        # that a tie does not exist, losses = inferred_rounds − wins.
+        if players and not matches:
+            has_points = any(
+                p.swiss_event_points not in (None, 0) for p in players
+            )
+            all_zero = all(
+                (p.swiss_wins or 0) == 0 and (p.swiss_losses or 0) == 0
+                for p in players
+            )
+            if has_points and all_zero:
+                fmt = tournament.format
+                # Try to resolve UNKNOWN via XWS inference on the squad lists.
+                if fmt == Format.UNKNOWN or fmt is None:
+                    for pl in players[:20]:
+                        if pl.list_json:
+                            inferred = infer_format_from_xws(pl.list_json)
+                            if inferred != Format.UNKNOWN:
+                                fmt = inferred
+                                break
+                # Points per win depends on ruleset.
+                pt_win = 1 if fmt in (
+                    Format.FFG,
+                    Format.LEGACY_X2PO,
+                    Format.LEGACY_PANDORUM,
+                ) else 3
+                if fmt == Format.UNKNOWN or fmt is None:
+                    max_pts = max((p.swiss_event_points or 0) for p in players)
+                    # Heuristic: small maxima (≤8) with 1-pt scores imply 1 pt/win.
+                    pt_win = 1 if max_pts <= 8 else 3
+                # Infer total Swiss rounds from both points and attendance so we
+                # don't underestimate when the winner is not undefeated.
+                max_pts = max((p.swiss_event_points or 0) for p in players)
+                if pt_win == 1:
+                    rounds_from_points = max_pts  # wins = pts
+                else:
+                    # 3 pt/win (+1 per draw). For 12808-style no-draw events
+                    # wins = pts // 3, draws = pts % 3.
+                    # Inferred rounds is max wins+draws (undefeated assumption).
+                    rounds_from_points = max(
+                        ((p.swiss_event_points or 0) // 3) + ((p.swiss_event_points or 0) % 3)
+                        for p in players
+                    )
+                rounds_from_attendance = self._estimate_swiss_rounds(len(players))
+                inferred_rounds = max(rounds_from_points, rounds_from_attendance)
+                # Extra guard: rounds should be at least max_pts//pt_win (handles draws).
+                inferred_rounds = max(inferred_rounds, max_pts // pt_win if pt_win else max_pts)
+                for p in players:
+                    pts = p.swiss_event_points or 0
+                    if pt_win == 1:
+                        wins = pts
+                        draws = 0
+                    else:
+                        wins = pts // 3
+                        draws = pts % 3  # 4 = 1W+1D, 7 = 2W+1D, etc.
+                    p.swiss_wins = wins
+                    p.swiss_draws = draws
+                    p.swiss_losses = max(0, inferred_rounds - wins - draws)
+                logger.info(
+                    f"Inferred W/L from points for {tournament.name} "
+                    f"(no rounds): pt_win={pt_win}, rounds={inferred_rounds}, "
+                    f"max_pts={max_pts}, fmt={fmt}"
+                )
 
         return tournament, players, matches
 
