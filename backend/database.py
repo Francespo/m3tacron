@@ -67,6 +67,7 @@ def _ensure_performance_indexes(conn) -> None:
         ("ix_tournament_format", "tournament", "format"),
         ("ix_playerstanding_faction_xws_normalized", "playerstanding", "faction_xws_normalized"),
         ("ix_list_faction_xws_normalized", "list", "faction_xws_normalized"),
+        ("ix_pilot_ship_mapping_ship_xws", "pilot_ship_mapping", "ship_xws"),
     ]
     for name, table, col in indexes:
         try:
