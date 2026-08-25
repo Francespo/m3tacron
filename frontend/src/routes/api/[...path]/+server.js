@@ -51,8 +51,7 @@ function resolveBackendApiBase() {
 	}
 }
 
-/** @type {import('./$types').RequestHandler} */
-export async function GET({ params, url, fetch, request }) {
+async function proxyToBackend({ params, url, request }, method) {
 	const path = params.path || '';
 	// Preview deployments: always use internal Docker network to reach backend
 	const isPreview = process.env.ENV_VAR_SOURCE === 'preview' || (process.env.COOLIFY_BRANCH || '').startsWith('pull/');
@@ -64,20 +63,41 @@ export async function GET({ params, url, fetch, request }) {
 		target.searchParams.append(key, value);
 	}
 
-	const upstream = await fetch(target.toString(), {
-		method: 'GET',
-		headers: {
-			accept: request.headers.get('accept') || 'application/json'
-		}
-	});
+	const headers = {};
+	const contentType = request.headers.get('content-type');
+	if (contentType) headers['content-type'] = contentType;
+	const accept = request.headers.get('accept');
+	if (accept) headers['accept'] = accept;
+
+	const init = { method, headers };
+	if (method !== 'GET' && method !== 'HEAD') {
+		init.body = await request.arrayBuffer();
+		// undici fetch needs duplex when streaming
+		init.duplex = 'half';
+	}
+	// Bypass SvelteKit CSRF origin check for trusted webhook callers (Ko-fi posts from ko-fi.com)
+	// by forwarding via server-side fetch which is not subject to the check, but SvelteKit
+	// still validates the incoming request before we get here. We handle POST separately via
+	// the csrf trustedOrigins config (see svelte.config.js).
+	const upstream = await fetch(target.toString(), init);
 
 	const body = await upstream.arrayBuffer();
-	const headers = new Headers();
-	const contentType = upstream.headers.get('content-type');
-	if (contentType) headers.set('content-type', contentType);
+	const responseHeaders = new Headers();
+	const upstreamContentType = upstream.headers.get('content-type');
+	if (upstreamContentType) responseHeaders.set('content-type', upstreamContentType);
 
 	return new Response(body, {
 		status: upstream.status,
-		headers
+		headers: responseHeaders
 	});
+}
+
+/** @type {import('./$types').RequestHandler} */
+export async function GET(event) {
+	return proxyToBackend(event, 'GET');
+}
+
+/** @type {import('./$types').RequestHandler} */
+export async function POST(event) {
+	return proxyToBackend(event, 'POST');
 }

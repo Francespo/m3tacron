@@ -207,3 +207,5 @@ class SupporterResponse(BaseModel):
     amount: float
     date: datetime
     message: str | None = None
+    isMonthly: bool = False
+    tierName: str | None = None

@@ -63,6 +63,17 @@ def create_db_and_tables():
         from sqlmodel import Session as _Session
 
         with engine.begin() as conn:
+            # Back-compat: add new Contribution columns for older DBs/migrations
+            for ddl in [
+                "ALTER TABLE contribution ADD COLUMN IF NOT EXISTS type TEXT",
+                "ALTER TABLE contribution ADD COLUMN IF NOT EXISTS is_subscription_payment BOOLEAN",
+                "ALTER TABLE contribution ADD COLUMN IF NOT EXISTS is_first_subscription_payment BOOLEAN",
+                "ALTER TABLE contribution ADD COLUMN IF NOT EXISTS tier_name TEXT",
+            ]:
+                try:
+                    conn.execute(_text(ddl))
+                except Exception:
+                    pass
             try:
                 conn.execute(_text("ALTER TABLE pilot_ship_mapping ADD COLUMN IF NOT EXISTS faction TEXT"))
             except Exception:
