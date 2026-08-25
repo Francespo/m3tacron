@@ -6,7 +6,7 @@ import os
 import time
 
 from .database import engine, create_db_and_tables
-from .models import Tournament, PlayerStanding
+from .models import List, Match, Tournament, PlayerStanding
 from .analytics.factions import get_meta_snapshot
 from .data_structures.data_source import DataSource
 from .cache import get_cached_or_compute
@@ -255,6 +255,8 @@ def get_snapshot(
 
         total_tournaments = 0
         total_players = 0
+        total_lists = 0
+        total_games = 0
 
         try:
             with Session(engine) as session:
@@ -276,6 +278,25 @@ def get_snapshot(
                 )
                 res_players = session.exec(total_players_query).one_or_none()
                 total_players = res_players if res_players else 0
+
+                total_lists_query = (
+                    select(func.count(List.id))
+                    .join(PlayerStanding, PlayerStanding.list_id == List.id)
+                    .join(Tournament, PlayerStanding.tournament_id == Tournament.id)
+                    .where(Tournament.date >= start_date)
+                    .where(Tournament.format.in_(allowed_formats))
+                )
+                res_lists = session.exec(total_lists_query).one_or_none()
+                total_lists = res_lists if res_lists else 0
+
+                total_games_query = (
+                    select(func.count(Match.id))
+                    .join(Tournament, Match.tournament_id == Tournament.id)
+                    .where(Tournament.date >= start_date)
+                    .where(Tournament.format.in_(allowed_formats))
+                )
+                res_games = session.exec(total_games_query).one_or_none()
+                total_games = res_games if res_games else 0
         except Exception as e:
             # Fallback to 0 if database fails or is empty initially
             print(f"Error reading DB: {e}")
@@ -290,6 +311,8 @@ def get_snapshot(
             "date_range": snapshot.get("date_range", "Unknown"),
             "total_tournaments": total_tournaments,
             "total_players": total_players,
+            "total_lists": total_lists,
+            "total_games": total_games,
         }
 
     cached = get_cached_or_compute(f"meta_snapshot|{ds_enum.value}|{epic}", compute)

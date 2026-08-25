@@ -146,6 +146,8 @@ class MetaSnapshotResponse(BaseModel):
     date_range: str
     total_tournaments: int
     total_players: int
+    total_lists: int
+    total_games: int
 
 
 class PaginatedTournamentsResponse(BaseModel):
