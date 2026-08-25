@@ -49,10 +49,18 @@ def get_fund_status():
 def get_supporters():
     """
     Returns the latest public supporters for the Hall of Heroes.
+
+    Monthly vs one-time is not decided by only the latest row: a donor who
+    first tips (Donation) and later starts a Subscription should appear as
+    monthly as soon as any subscription payment within the last 35 days
+    exists. Internally we persist is_subscription_payment / type per
+    Contribution and at read time check whether this supporter has any
+    (public) subscription payment within the grace window.
     """
     with Session(engine) as session:
-        # One entry per supporter: latest public contribution determines isMonthly.
-        # Someone who had a monthly and then stops should appear as one-time.
+        # All public contributions, newest-first. We dedup per supporter but
+        # keep the full list so we can look for *any* recent subscription,
+        # not just the latest row.
         query = (
             select(Contribution, Supporter)
             .join(Supporter)
@@ -61,37 +69,48 @@ def get_supporters():
         )
         all_rows = session.exec(query).all()
 
-        seen: set[int] = set()
+        from datetime import timedelta
+        grace = datetime.now() - timedelta(days=35)
+
+        # supporter_id -> list[(Contribution, Supporter)] newest-first
+        from collections import defaultdict
+        grouped: dict[int, list] = defaultdict(list)
+        name_by_id: dict[int, str] = {}
+        for con, sup in all_rows:
+            grouped[sup.id].append((con, sup))
+            name_by_id[sup.id] = sup.name
+
         monthly: list[SupporterResponse] = []
         onetime: list[SupporterResponse] = []
-        cutoff = datetime.now()  # contributions older than 35 days are not considered "active monthly"
-        from datetime import timedelta
-        grace = cutoff - timedelta(days=35)
-        for con, sup in all_rows:
-            if sup.id in seen:
-                continue
-            seen.add(sup.id)
-            # A supporter is monthly only if their latest public contribution is a
-            # subscription payment within the last ~35 days. Cancelled/expired
-            # members naturally fall back to one-time display.
-            latest_is_monthly = bool(con.is_subscription_payment or (con.type == "Subscription"))
-            is_monthly_active = bool(latest_is_monthly and con.date and con.date >= grace)
+
+        for sid, rows in grouped.items():
+            # Display entry is built from the latest contribution (amount/date/message)
+            con_latest, sup_latest = rows[0]
+            # But isMonthly checks the entire history within the window
+            recent_sub_con = None
+            for con, _ in rows:
+                if con.date and con.date >= grace and bool(
+                    con.is_subscription_payment or (con.type == "Subscription")
+                ):
+                    recent_sub_con = con
+                    break
+            is_monthly_active = recent_sub_con is not None
             entry = SupporterResponse(
-                name=sup.name,
-                amount=con.amount,
-                date=con.date,
-                message=con.message,
+                name=sup_latest.name,
+                amount=con_latest.amount,
+                date=con_latest.date,
+                message=con_latest.message,
                 isMonthly=is_monthly_active,
-                tierName=con.tier_name if is_monthly_active else None,
+                tierName=(recent_sub_con.tier_name if is_monthly_active and recent_sub_con else None),
             )
             if is_monthly_active:
                 monthly.append(entry)
             else:
                 onetime.append(entry)
-            if len(monthly) + len(onetime) >= 30:
-                break
 
         # Monthly first, then one-time, both newest-first within group
+        monthly.sort(key=lambda s: s.date, reverse=True)
+        onetime.sort(key=lambda s: s.date, reverse=True)
         return (monthly + onetime)[:30]
 
 @router.post("/webhook/ko-fi")
