@@ -4,7 +4,7 @@ from datetime import datetime
 import os
 import json
 
-from ..database import engine, create_db_and_tables
+from ..database import engine
 from ..models import Supporter, Contribution
 from .schemas import FundStatusResponse, FundTier, SupporterResponse
 
@@ -15,8 +15,6 @@ def get_fund_status():
     """
     Returns the current status of the Project Evolution Fund.
     """
-    create_db_and_tables()
-
     with Session(engine) as session:
         # Sum of all contributions
         total_query = select(func.sum(Contribution.amount))
@@ -52,8 +50,6 @@ def get_supporters():
     """
     Returns the latest public supporters for the Hall of Heroes.
     """
-    create_db_and_tables()
-
     with Session(engine) as session:
         # One entry per supporter: latest public contribution determines isMonthly.
         # Someone who had a monthly and then stops should appear as one-time.
@@ -103,8 +99,6 @@ async def kofi_webhook(request: Request):
     """
     Handles incoming webhooks from Ko-fi to update supporter recognition.
     """
-    create_db_and_tables()
-
     try:
         # Ko-fi usually sends data as a form field 'data' containing JSON
         # We try manual parsing first to avoid python-multipart dependency issues in some environments
