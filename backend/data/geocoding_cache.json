@@ -775,7 +775,7 @@
     "continent": "North America"
   },
   "SC, US": {
-    "city": "South Carolina",
+    "city": "Charleston",
     "country": "United States",
     "continent": "North America"
   },
@@ -3150,7 +3150,7 @@
     "continent": "Asia"
   },
   "UK Games Expo, Birmingham, GB": {
-    "city": "Unknown",
+    "city": "Birmingham",
     "country": "United Kingdom",
     "continent": "Europe"
   },
@@ -3836,7 +3836,7 @@
   },
   "The Hobby Matrix, South Australia, AU": {
     "city": "Unknown",
-    "country": "Australia",
+    "country": "Unknown",
     "continent": "Oceania"
   },
   "IQ Games, Kirklees, GB": {
@@ -4546,7 +4546,7 @@
   },
   "RS": {
     "city": "Unknown",
-    "country": "RS",
+    "country": "Serbia",
     "continent": "Europe"
   },
   "Phoenix, Belgrade, RS": {
@@ -4800,7 +4800,7 @@
     "continent": "North America"
   },
   "VIC, AU": {
-    "city": "Victoria",
+    "city": "Warragul",
     "country": "Australia",
     "continent": "Oceania"
   },
@@ -5875,7 +5875,7 @@
     "continent": "North America"
   },
   "Milton Keynes, GB": {
-    "city": "Unknown",
+    "city": "City of Milton Keynes",
     "country": "United Kingdom",
     "continent": "Europe"
   },
@@ -6225,7 +6225,7 @@
     "continent": "North America"
   },
   "Tabletop Tyrant, Leicestershire, GB": {
-    "city": "Unknown",
+    "city": "England",
     "country": "United Kingdom",
     "continent": "Europe"
   },
@@ -6530,7 +6530,7 @@
     "continent": "North America"
   },
   "MOB Games, WA, US": {
-    "city": "Unknown",
+    "city": "Cary",
     "country": "United States",
     "continent": "North America"
   },
@@ -6925,7 +6925,7 @@
     "continent": "Europe"
   },
   "Cloud Cap Games, Oregon, US": {
-    "city": "Unknown",
+    "city": "Portland",
     "country": "United States",
     "continent": "North America"
   },
@@ -7480,7 +7480,7 @@
     "continent": "South America"
   },
   "GMI Games / Riverside, Californa, US": {
-    "city": "Unknown",
+    "city": "Temecula",
     "country": "United States",
     "continent": "North America"
   },
@@ -7600,9 +7600,9 @@
     "continent": "North America"
   },
   "Warmaster, RU": {
-    "city": "Unknown",
-    "country": "Russia",
-    "continent": "Asia"
+    "city": "Bra\u0219ov",
+    "country": "Romania",
+    "continent": "Europe"
   },
   "Armchair Adventurer, Honolulu, HI, US": {
     "city": "Unknown",
@@ -7950,12 +7950,12 @@
     "continent": "Oceania"
   },
   "Adelaide, SA, AU": {
-    "city": "Unknown",
+    "city": "South Australia",
     "country": "Australia",
     "continent": "Oceania"
   },
   "Dragon's Lair, SE": {
-    "city": "Unknown",
+    "city": "Stockholm",
     "country": "Sweden",
     "continent": "Europe"
   },
@@ -7970,7 +7970,7 @@
     "continent": "Europe"
   },
   "GMI Games, Califorina, US": {
-    "city": "Unknown",
+    "city": "Santa Clara",
     "country": "United States",
     "continent": "North America"
   },
@@ -7980,7 +7980,7 @@
     "continent": "Europe"
   },
   "Hall of Heroes, NSW, AU": {
-    "city": "Unknown",
+    "city": "Sydney",
     "country": "Australia",
     "continent": "Oceania"
   },
@@ -8000,7 +8000,7 @@
     "continent": "Asia"
   },
   "Akihabara JIGG, Tokyo, JP": {
-    "city": "Unknown",
+    "city": "Tokyo",
     "country": "Japan",
     "continent": "Asia"
   },
@@ -8030,7 +8030,7 @@
     "continent": "Europe"
   },
   "Guild House Games, Colorado, US": {
-    "city": "Unknown",
+    "city": "Boulder",
     "country": "United States",
     "continent": "North America"
   },
@@ -8050,7 +8050,7 @@
     "continent": "North America"
   },
   "TMK Clubhouse, CA, US": {
-    "city": "Unknown",
+    "city": "Casper",
     "country": "United States",
     "continent": "North America"
   },
@@ -8061,7 +8061,7 @@
   },
   "Honeycomb Manila, METRO MANILA, PH": {
     "city": "Unknown",
-    "country": "PH",
+    "country": "Philippines",
     "continent": "Asia"
   },
   "Funbox Curitib, Paran\u00e1, BR": {
@@ -8080,17 +8080,17 @@
     "continent": "Europe"
   },
   "War Room, METRO MANILA, PH": {
-    "city": "Unknown",
-    "country": "PH",
+    "city": "Manila",
+    "country": "Philippines",
     "continent": "Asia"
   },
   "UG Card Shop, Minas Gerais, BR": {
-    "city": "Unknown",
+    "city": "Sabar\u00e1",
     "country": "Brazil",
     "continent": "South America"
   },
   "Game Time, Indiana, US": {
-    "city": "Unknown",
+    "city": "Indianapolis",
     "country": "United States",
     "continent": "North America"
   },
@@ -8115,7 +8115,7 @@
     "continent": "South America"
   },
   "Outland Storgata, NO": {
-    "city": "Unknown",
+    "city": "Oslo",
     "country": "Norway",
     "continent": "Europe"
   },
@@ -8145,7 +8145,7 @@
     "continent": "North America"
   },
   "Next Level Games Ringwood , VIC, AU": {
-    "city": "Unknown",
+    "city": "Warragul",
     "country": "Australia",
     "continent": "Oceania"
   },
@@ -8155,7 +8155,7 @@
     "continent": "North America"
   },
   "Game Goblins, AR, US": {
-    "city": "Unknown",
+    "city": "Little Rock",
     "country": "United States",
     "continent": "North America"
   },
@@ -8165,7 +8165,7 @@
     "continent": "Europe"
   },
   "Hall of Heroes, Nsw, AU": {
-    "city": "Unknown",
+    "city": "Sydney",
     "country": "Australia",
     "continent": "Oceania"
   },
@@ -8175,12 +8175,12 @@
     "continent": "North America"
   },
   "The Game Table Cafe/Mechanicsburg, PA, US": {
-    "city": "Unknown",
+    "city": "College Park",
     "country": "United States",
     "continent": "North America"
   },
   "Trondheim, NO": {
-    "city": "Unknown",
+    "city": "Tr\u00f8ndelag",
     "country": "Norway",
     "continent": "Europe"
   },
@@ -8190,22 +8190,22 @@
     "continent": "Europe"
   },
   "Comic World and Games, Iowa, US": {
-    "city": "Unknown",
+    "city": "Newport News",
     "country": "United States",
     "continent": "North America"
   },
   "Comic World and Games, Iow, US": {
-    "city": "Unknown",
+    "city": "Newport News",
     "country": "United States",
     "continent": "North America"
   },
   "Wizard's Chest / Denver, Colorado, US": {
-    "city": "Unknown",
+    "city": "Denver",
     "country": "United States",
     "continent": "North America"
   },
   "Wizards Chest / Denver, Colorado, US": {
-    "city": "Unknown",
+    "city": "Denver",
     "country": "United States",
     "continent": "North America"
   },
@@ -8220,7 +8220,7 @@
     "continent": "North America"
   },
   "MJ's Cards and Comics, AK, US": {
-    "city": "Unknown",
+    "city": "Corvallis",
     "country": "United States",
     "continent": "North America"
   },
@@ -8230,7 +8230,7 @@
     "continent": "Europe"
   },
   "EchoLAN, Auckland, NZ": {
-    "city": "Unknown",
+    "city": "Waitemat\u0101",
     "country": "New Zealand",
     "continent": "Oceania"
   },
@@ -8245,7 +8245,7 @@
     "continent": "North America"
   },
   "Comic Readers Downtown Regina, Saskatchewan, CA": {
-    "city": "Unknown",
+    "city": "Regina",
     "country": "Canada",
     "continent": "North America"
   },
@@ -8281,7 +8281,7 @@
   },
   "Gilda Igraca NS, Vojvodina, RS": {
     "city": "Unknown",
-    "country": "RS",
+    "country": "Serbia",
     "continent": "Europe"
   },
   "JeuxJubes / Ste-Therese, Quebec, CA": {
@@ -8300,18 +8300,18 @@
     "continent": "North America"
   },
   "Conectr Team, Gelrode, BE": {
-    "city": "Unknown",
+    "city": "Aarschot",
     "country": "Belgium",
     "continent": "Europe"
   },
   "Hairy Tarantula, Ontario, CA": {
-    "city": "Unknown",
+    "city": "Toronto",
     "country": "Canada",
     "continent": "North America"
   },
   "Stratagem, Western Australia, AU": {
     "city": "Unknown",
-    "country": "Australia",
+    "country": "Unknown",
     "continent": "Oceania"
   },
   "Barakaldo, Bizkaia, ES": {
@@ -8325,17 +8325,17 @@
     "continent": "Oceania"
   },
   "BoardCrunch @ The Side Deck, SC, US": {
-    "city": "Unknown",
+    "city": "Charleston",
     "country": "United States",
     "continent": "North America"
   },
   "Gyor, Gyor-Moson-Sopron Area, HU": {
-    "city": "Unknown",
+    "city": "Transdanubia",
     "country": "Hungary",
     "continent": "Europe"
   },
   "Aalborg Spilforsyning / Nordkraft, DK": {
-    "city": "Unknown",
+    "city": "Aalborg",
     "country": "Denmark",
     "continent": "Europe"
   },
@@ -8360,7 +8360,7 @@
     "continent": "North America"
   },
   "Philadelphia , PA, US": {
-    "city": "Unknown",
+    "city": "Philadelphia",
     "country": "United States",
     "continent": "North America"
   },
@@ -8395,7 +8395,7 @@
     "continent": "North America"
   },
   "Gaming Goat/Saint Paul, Minnesota/MN, US": {
-    "city": "Unknown",
+    "city": "Ramsey",
     "country": "United States",
     "continent": "North America"
   },
@@ -8410,7 +8410,7 @@
     "continent": "Europe"
   },
   "Beersandships, Albacete, ES": {
-    "city": "Unknown",
+    "city": "Albacete",
     "country": "Spain",
     "continent": "Europe"
   },
@@ -8425,12 +8425,12 @@
     "continent": "North America"
   },
   "Krolm, PL": {
-    "city": "Unknown",
+    "city": "Gdansk",
     "country": "Poland",
     "continent": "Europe"
   },
   "Gaurdian Games / Portland, Oregon, US": {
-    "city": "Unknown",
+    "city": "Portland",
     "country": "United States",
     "continent": "North America"
   },
@@ -8445,18 +8445,18 @@
     "continent": "Europe"
   },
   "Lille, FR": {
-    "city": "Unknown",
+    "city": "Lille",
     "country": "France",
     "continent": "Europe"
   },
   "TW": {
     "city": "Unknown",
-    "country": "TW",
+    "country": "Taiwan",
     "continent": "Asia"
   },
   "NTU Dorm B1 Common Room, TW": {
     "city": "Unknown",
-    "country": "TW",
+    "country": "Taiwan",
     "continent": "Asia"
   },
   "Denver, CO, US": {
@@ -8490,7 +8490,7 @@
     "continent": "Europe"
   },
   "MAZE OF FITZROY, VIC, AU": {
-    "city": "Unknown",
+    "city": "Victoria",
     "country": "Australia",
     "continent": "Oceania"
   },
@@ -8540,13 +8540,13 @@
     "continent": "North America"
   },
   "GamesU Mesa, Arizona, US": {
-    "city": "Unknown",
+    "city": "Maricopa",
     "country": "United States",
     "continent": "North America"
   },
   "Gilda Igraca NS, RS": {
     "city": "Unknown",
-    "country": "RS",
+    "country": "Serbia",
     "continent": "Europe"
   },
   "Auckland, NZ": {
@@ -8585,7 +8585,7 @@
     "continent": "North America"
   },
   "Slotracing & Tabletopcenter Kamp-Lintfort , NRW, DE": {
-    "city": "Unknown",
+    "city": "Recklinghausen",
     "country": "Germany",
     "continent": "Europe"
   },
@@ -8595,8 +8595,8 @@
     "continent": "Europe"
   },
   "Stalo Zaidimai EU, Vilnius, LT": {
-    "city": "Unknown",
-    "country": "LT",
+    "city": "Vilnius city municipality",
+    "country": "Lithuania",
     "continent": "Europe"
   },
   "Good Games Top Ryde, NSW, AU": {
@@ -8605,7 +8605,7 @@
     "continent": "Oceania"
   },
   "Cool Stuff Waterford - Orlando, Florida, US": {
-    "city": "Unknown",
+    "city": "Alafaya",
     "country": "United States",
     "continent": "North America"
   },
@@ -8620,7 +8620,7 @@
     "continent": "Europe"
   },
   "Oasis / SLC, Utah, US": {
-    "city": "Unknown",
+    "city": "Millard",
     "country": "United States",
     "continent": "North America"
   },
@@ -8645,7 +8645,7 @@
     "continent": "North America"
   },
   "Flint's / Kitchener, Ontario, CA": {
-    "city": "Unknown",
+    "city": "Kitchener",
     "country": "Canada",
     "continent": "North America"
   },
@@ -8660,7 +8660,7 @@
     "continent": "North America"
   },
   "Game Haven, Utah, US": {
-    "city": "Unknown",
+    "city": "St. George",
     "country": "United States",
     "continent": "North America"
   },
@@ -8670,7 +8670,7 @@
     "continent": "Oceania"
   },
   "Big Daddy Games - St Augustine , Florida, US": {
-    "city": "Unknown",
+    "city": "Apalachicola",
     "country": "United States",
     "continent": "North America"
   },
@@ -8690,7 +8690,7 @@
     "continent": "South America"
   },
   "Atomic Games West / Golden, Colorado, US": {
-    "city": "Unknown",
+    "city": "Golden",
     "country": "United States",
     "continent": "North America"
   },
@@ -8715,12 +8715,12 @@
     "continent": "North America"
   },
   "Outland, Trondheim, NO": {
-    "city": "Unknown",
+    "city": "Trondheim",
     "country": "Norway",
     "continent": "Europe"
   },
   "Aachen, DE": {
-    "city": "Unknown",
+    "city": "Aachen (district)",
     "country": "Germany",
     "continent": "Europe"
   },
@@ -8735,12 +8735,12 @@
     "continent": "Europe"
   },
   "Astal, Beograd, Srbija, RS": {
-    "city": "Unknown",
-    "country": "RS",
+    "city": "Belgrade",
+    "country": "Serbia",
     "continent": "Europe"
   },
   "Midgard Games, Newfoundland, CA": {
-    "city": "Unknown",
+    "city": "Corner Brook",
     "country": "Canada",
     "continent": "North America"
   },
@@ -8755,17 +8755,17 @@
     "continent": "Europe"
   },
   "Adepticon, IL, US": {
-    "city": "Unknown",
+    "city": "Chicago",
     "country": "United States",
     "continent": "North America"
   },
   "Convention des Alchis 2019, Alsace / Soultz-les-Bains, FR": {
-    "city": "Unknown",
+    "city": "Bas-Rhin",
     "country": "France",
     "continent": "Europe"
   },
   "GamesCaf\u00e8 Cesena, IT": {
-    "city": "Unknown",
+    "city": "Emilia-Romagna",
     "country": "Italy",
     "continent": "Europe"
   },
@@ -8795,7 +8795,7 @@
     "continent": "North America"
   },
   "Krakow, Malopolska, PL": {
-    "city": "Unknown",
+    "city": "Krakow",
     "country": "Poland",
     "continent": "Europe"
   },
@@ -8805,12 +8805,12 @@
     "continent": "Europe"
   },
   "GMI Games / Riverside, CA, US": {
-    "city": "Unknown",
+    "city": "Murrieta",
     "country": "United States",
     "continent": "North America"
   },
   "Second Star Games, Arizona, US": {
-    "city": "Unknown",
+    "city": "Mishongnovi",
     "country": "United States",
     "continent": "North America"
   },
@@ -8845,7 +8845,7 @@
     "continent": "Europe"
   },
   "Rainy Day Games / Aloha, Oregon, US": {
-    "city": "Unknown",
+    "city": "Beaverton",
     "country": "United States",
     "continent": "North America"
   },
@@ -8865,7 +8865,7 @@
     "continent": "North America"
   },
   "Pooler, GA, US": {
-    "city": "Unknown",
+    "city": "Chatham",
     "country": "United States",
     "continent": "North America"
   },
@@ -8885,7 +8885,7 @@
     "continent": "North America"
   },
   "Game On Bathurst, NSW, AU": {
-    "city": "Unknown",
+    "city": "Bathurst",
     "country": "Australia",
     "continent": "Oceania"
   },
@@ -9735,7 +9735,7 @@
     "continent": "North America"
   },
   "NRW, DE": {
-    "city": "North Rhine-Westphalia",
+    "city": "Recklinghausen",
     "country": "Germany",
     "continent": "Europe"
   },
@@ -9745,7 +9745,7 @@
     "continent": "Europe"
   },
   "Washington, US": {
-    "city": "Washington",
+    "city": "Unknown",
     "country": "United States",
     "continent": "North America"
   },
@@ -10553,5 +10553,25 @@
     "city": "Mahwah",
     "country": "United States",
     "continent": "North America"
+  },
+  "Gelrode, BE": {
+    "city": "Aarschot",
+    "country": "Belgium",
+    "continent": "Europe"
+  },
+  "Leicestershire, GB": {
+    "city": "England",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Vilnius, LT": {
+    "city": "Vilnius city municipality",
+    "country": "Lithuania",
+    "continent": "Europe"
+  },
+  "Alsace / Soultz-les-Bains, FR": {
+    "city": "Bas-Rhin",
+    "country": "France",
+    "continent": "Europe"
   }
 }
