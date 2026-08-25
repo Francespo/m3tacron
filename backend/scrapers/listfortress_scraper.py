@@ -200,14 +200,16 @@ class ListFortressScraper(BaseScraper):
                     if is_bye:
                         winner_name = p1_name
 
+                    p1_pts = m.get("player1_points")
+                    p2_pts = m.get("player2_points")
                     match = {
                         "round_number": r_number,
                         "round_type": r_type,
                         "scenario": scenario,
                         "p1_name_temp": p1_name,
                         "p2_name_temp": p2_name,
-                        "player1_score": m.get("player1_points", 0),
-                        "player2_score": m.get("player2_points", 0),
+                        "player1_score": p1_pts if isinstance(p1_pts, int) else 0,
+                        "player2_score": p2_pts if isinstance(p2_pts, int) else 0,
                         "winner_name_temp": winner_name,
                         "is_bye": is_bye,
                     }

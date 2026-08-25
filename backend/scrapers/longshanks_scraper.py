@@ -1363,18 +1363,25 @@ class LongshanksScraper(BaseScraper):
                                     if len(player_divs) < 2:
                                         continue
 
-                                    # Extract player names from .player_link
-                                    p1_link = player_divs[0].locator(".player_link")
-                                    p2_link = player_divs[1].locator(".player_link")
-                                    if p1_link.count() == 0 or p2_link.count() == 0:
-                                        continue
+                                    # Extract player names.  BYE rows have no
+                                    # .player_link — just <span class="player_disp">BYE</span> —
+                                    # so fall back to .player_disp / .name.
+                                    def _name_from_player_div(div):
+                                        link = div.locator(".player_link")
+                                        if link.count() > 0:
+                                            return " ".join(link.inner_text().split())
+                                        disp = div.locator(".player_disp")
+                                        if disp.count() > 0:
+                                            return " ".join(disp.inner_text().split())
+                                        name_el = div.locator(".name")
+                                        if name_el.count() > 0:
+                                            return " ".join(name_el.inner_text().split())
+                                        return ""
 
-                                    # Nested nickname spans and HTML whitespace
-                                    # can produce repeated spaces. Normalize names
-                                    # exactly as standings parsing does so match
-                                    # foreign keys resolve during persistence.
-                                    p1_name = " ".join(p1_link.inner_text().split())
-                                    p2_name = " ".join(p2_link.inner_text().split())
+                                    p1_name = _name_from_player_div(player_divs[0])
+                                    p2_name = _name_from_player_div(player_divs[1])
+                                    if not p1_name or not p2_name:
+                                        continue
 
                                     # The game's .details block is the authoritative
                                     # source for the round AND the scenario: it

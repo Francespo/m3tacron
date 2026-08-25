@@ -101,6 +101,8 @@
      * `m.player1` / `m.player2`), or null for ties / invalid matches.
      */
     function pickWinnerName(m: Match): string | null {
+        if ((m.player2 || "").trim().toLowerCase() === "bye") return m.player1;
+        if ((m.player1 || "").trim().toLowerCase() === "bye") return m.player2;
         if (m.score1 > m.score2) return m.player1;
         if (m.score2 > m.score1) return m.player2;
         return null;
@@ -415,19 +417,9 @@
                                     <FactionIcon faction={p.faction} size="md" />
                                     <div class="flex flex-col">
                                         <span class="font-mono text-primary font-medium">{p.name}</span>
-                                        <span class="text-xs text-secondary">
-                                            <span class="text-green-400 font-bold">{p.wins}W</span>
-                                            <span class="mx-0.5">-</span>
-                                            <span class="text-red-400 font-bold">{p.losses}L</span>
-                                            {#if p.draws > 0}<span class="ml-1">- {p.draws}D</span>{/if}
+                                        <span class="text-xs text-secondary font-mono">
+                                            <span class="text-green-400 font-bold">{p.wins}W</span><span class="mx-0.5">-</span><span class="text-red-400 font-bold">{p.losses}L</span>{#if p.draws > 0}<span> - {p.draws}D</span>{/if}{#if p.event_points != null}<span class="mx-1.5 text-secondary/40">|</span><span title="Tournament Points">{p.event_points} TP</span>{/if}{#if p.tie_breaker_points != null}<span class="mx-1.5 text-secondary/40">·</span><span title={tieBreakerLabel(t.format)}>{p.tie_breaker_points} {t.format === "amg" || t.format === "xwa" ? "VP" : "TB"}</span>{/if}
                                         </span>
-                                        {#if p.event_points != null || p.tie_breaker_points != null}
-                                            <span class="text-[11px] text-secondary font-mono">
-                                                {#if p.event_points != null}<span title="Tournament Points">{p.event_points} TP</span>{/if}
-                                                {#if p.event_points != null && p.tie_breaker_points != null}<span class="mx-1">·</span>{/if}
-                                                {#if p.tie_breaker_points != null}<span title={tieBreakerLabel(t.format)}>{p.tie_breaker_points} {t.format === "amg" || t.format === "xwa" ? "VP" : "TB"}</span>{/if}
-                                            </span>
-                                        {/if}
                                     </div>
                                     <div class="flex-1"></div>
                                     {#if p.list_id}

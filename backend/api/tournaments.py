@@ -301,13 +301,20 @@ def get_tournament_detail(tournament_id: int):
         matches_db = session.exec(select(Match).where(Match.tournament_id == tournament_id).order_by(Match.round_number)).all()  # pyright: ignore[reportArgumentType,reportAttributeAccessIssue]
         player_map = {p.id: p.player_name for p in all_results}
         
+        def _bye_aware_score(v: int | None, is_bye: bool) -> int:
+            if is_bye:
+                return 0
+            if v is None or v < 0:
+                return 0
+            return v
+
         matches = [MatchData(
             round=m.round_number or 0,
             type=m.round_type or "",
             player1=player_map.get(m.player1_id, "Unknown"),
             player2=player_map.get(m.player2_id, "Bye") if not m.is_bye else "BYE",
-            score1=m.player1_score or 0,
-            score2=m.player2_score or 0,
+            score1=_bye_aware_score(m.player1_score, bool(m.is_bye)),
+            score2=_bye_aware_score(m.player2_score, bool(m.is_bye)),
             winner_id=m.winner_id,
             scenario=m.scenario or ""
         ) for m in matches_db]
