@@ -27,21 +27,20 @@
     import ListRowCard from "$lib/components/ListRowCard.svelte";
     import BackLink from "$lib/components/BackLink.svelte";
     import SortBy from "$lib/components/SortBy.svelte";
+    import PendingIndicator from "$lib/components/PendingIndicator.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
     import { API_BASE } from "$lib/api";
 
     let { data } = $props();
 
-    let info = $derived(data.info ?? { name: data.shipXws, factions: [] });
-    // `stats` is replaced by client-side refetches when the faction toggle
-    // changes, so the key metrics recompute per faction.
+    let info = $state(data.info ?? { name: data.shipXws, factions: [] });
     let stats = $state(data.stats ?? {});
-    // `pilots` is replaced by client-side refetches when the faction toggle
-    // changes; starts with the server-loaded data (which may already be
-    // faction-scoped via ?faction=).
     let pilots = $state([...(data.pilots ?? [])]);
     let lists = $state([...(data.lists ?? [])]);
     let squadrons = $state([...(data.squadrons ?? [])]);
+    let listsPending = $state(false);
+    let squadronsPending = $state(false);
+    let initialLoadDone = $state(false);
 
     // Selected faction for the detail view. Initialized from the URL
     // (?faction=rebelalliance carried over from the ships page per-card
@@ -70,6 +69,29 @@
     // the page renders. setSource is a no-op once data is loaded.
     $effect(() => {
         xwingData.setSource(filters.dataSource as any);
+    });
+
+    // Streaming detail load: SvelteKit load is non-blocking — it returns
+    // promises that resolve shortly after navigation. Wire them here with
+    // generation guards so only the latest navigation populates the page.
+    let loadGen = $state(0);
+    $effect(() => {
+        const gen = ++loadGen;
+        const d: any = data;
+        const p = d.infoData as Promise<any> | undefined;
+        if (p && !initialLoadDone) {
+            p.then(v => { if (loadGen !== gen) return; info = v.info ?? info; stats = v.stats ?? stats; });
+            const pp = d.pilotsData as Promise<any> | undefined;
+            if (pp) pp.then(v => { if (loadGen !== gen) return; pilots = [...(v.pilots ?? [])]; });
+            const lp = d.listsData as Promise<any> | undefined;
+            if (lp) { listsPending = true; lp.then(v => { if (loadGen !== gen) return; lists = [...(v.lists ?? [])]; }).finally(() => { if (loadGen === gen) listsPending = false; }); }
+            const sp = d.squadronsData as Promise<any> | undefined;
+            if (sp) { squadronsPending = true; sp.then(v => { if (loadGen !== gen) return; squadrons = [...(v.squadrons ?? [])]; }).finally(() => { if (loadGen === gen) squadronsPending = false; }); }
+            Promise.allSettled([p, pp, lp, sp].filter(Boolean) as Promise<any>[]).finally(() => { if (loadGen === gen) initialLoadDone = true; });
+        } else if (!p && !initialLoadDone) {
+            // Back-compat: old shape where load was blocking (tests / SSR edge)
+            initialLoadDone = true;
+        }
     });
 
     // Primary faction for the glow / accent color.
@@ -914,8 +936,10 @@
     <!-- ====================================================================
          TOP PERFORMING LISTS
          Uses the existing ListRowCard component for visual consistency.
+         Streaming: shows a thin Updating… tag while the lazy lists warm.
     ===================================================================== -->
-    <section class="mb-12">
+    <section class="mb-12 relative">
+        <PendingIndicator active={listsPending} mode="bar" />
         <div class="flex items-center justify-between gap-3 mb-4">
             <h2
                 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2 flex items-baseline gap-2"
@@ -924,6 +948,9 @@
                 <span class="text-secondary text-base font-normal"
                     >({lists.length})</span
                 >
+                {#if listsPending}
+                    <PendingIndicator active={true} mode="tag" label="Updating…" />
+                {/if}
             </h2>
             {#if lists.length > 0}
                 <SortBy
@@ -943,9 +970,15 @@
         </div>
 
         {#if lists.length > 0}
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" class:opacity-60={listsPending} class:transition-opacity={true}>
                 {#each sortedLists as list (list.signature || list.name)}
                     <ListRowCard {list} />
+                {/each}
+            </div>
+        {:else if listsPending}
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 opacity-90">
+                {#each Array(2) as _}
+                    <div class="bg-terminal-panel border border-border-dark rounded-lg p-4 h-28 animate-pulse"><div class="bg-[#ffffff06] rounded h-3 w-2/3 mb-2"></div><div class="bg-[#ffffff06] rounded h-3 w-1/2"></div></div>
                 {/each}
             </div>
         {:else}
@@ -963,7 +996,8 @@
          TOP SQUADRONS
          Custom cards: ship composition icons + stats.
     ===================================================================== -->
-    <section class="mb-12">
+    <section class="mb-12 relative">
+        <PendingIndicator active={squadronsPending} mode="bar" />
         <div class="flex items-center justify-between gap-3 mb-4">
             <h2
                 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2 flex items-baseline gap-2"
@@ -972,6 +1006,9 @@
                 <span class="text-secondary text-base font-normal"
                     >({squadrons.length})</span
                 >
+                {#if squadronsPending}
+                    <PendingIndicator active={true} mode="tag" label="Updating…" />
+                {/if}
             </h2>
             {#if squadrons.length > 0}
                 <SortBy
@@ -992,7 +1029,7 @@
         </div>
 
         {#if squadrons.length > 0}
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" class:opacity-60={squadronsPending} class:transition-opacity={true}>
                 {#each sortedSquadrons as squad (squad.signature)}
                     {@const sFaction = squad.faction || "unknown"}
                     {@const sFactionColor = getFactionColor(sFaction)}
@@ -1120,6 +1157,12 @@
                             </div>
                         </div>
                     </a>
+                {/each}
+            </div>
+        {:else if squadronsPending}
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 opacity-90">
+                {#each Array(3) as _}
+                    <div class="bg-terminal-panel border border-border-dark rounded-lg p-4 h-24 animate-pulse"><div class="bg-[#ffffff06] rounded h-3 w-2/3 mb-2"></div><div class="bg-[#ffffff06] rounded h-3 w-1/3"></div></div>
                 {/each}
             </div>
         {:else}

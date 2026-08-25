@@ -31,33 +31,30 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
     const qs = fwd.toString();
     const factionParam = url.searchParams.get('faction') || 'all';
 
-    // Fetch all endpoints in parallel, all sharing the same global filters
-    const [infoRes, pilotsRes, listsRes, squadronsRes] = await Promise.allSettled([
-        fetch(`${API_BASE}/ship/${shipXws}?${qs}`),
-        fetch(`${API_BASE}/ship/${shipXws}/pilots?${qs}`),
-        fetch(`${API_BASE}/ship/${shipXws}/lists?${qs}&limit=10`),
-        fetch(`${API_BASE}/ship/${shipXws}/squadrons?${qs}&limit=10`),
-    ]);
-
-    const shipData = infoRes.status === 'fulfilled' && infoRes.value.ok
-        ? await infoRes.value.json() : { info: { name: shipXws, xws: shipXws, factions: [] }, stats: {} };
-
-    const pilotsData = pilotsRes.status === 'fulfilled' && pilotsRes.value.ok
-        ? await pilotsRes.value.json() : { pilots: [] };
-
-    const listsData = listsRes.status === 'fulfilled' && listsRes.value.ok
-        ? await listsRes.value.json() : { lists: [] };
-
-    const squadronsData = squadronsRes.status === 'fulfilled' && squadronsRes.value.ok
-        ? await squadronsRes.value.json() : { squadrons: [] };
+    // Streaming load: header + pilots are cache-warm (0.002s) and render first paint.
+    // Below-fold lists/squadrons stream in after, with a small Updating… indicator.
+    const infoData: Promise<any> = fetch(`${API_BASE}/ship/${shipXws}?${qs}`)
+        .then(r => r.ok ? r.json() : { info: { name: shipXws, xws: shipXws, factions: [] }, stats: {} })
+        .catch(() => ({ info: { name: shipXws, xws: shipXws, factions: [] }, stats: {} }));
+    const pilotsDataP: Promise<any> = fetch(`${API_BASE}/ship/${shipXws}/pilots?${qs}`)
+        .then(r => r.ok ? r.json() : { pilots: [] })
+        .catch(() => ({ pilots: [] }));
+    const listsDataP: Promise<any> = fetch(`${API_BASE}/ship/${shipXws}/lists?${qs}&limit=10`)
+        .then(r => r.ok ? r.json() : { lists: [] })
+        .catch(() => ({ lists: [] }));
+    const squadronsDataP: Promise<any> = fetch(`${API_BASE}/ship/${shipXws}/squadrons?${qs}`)
+        .then(r => r.ok ? r.json() : { squadrons: [] })
+        .catch(() => ({ squadrons: [] }));
 
     return {
         shipXws,
-        info: shipData.info,
-        stats: shipData.stats,
-        pilots: pilotsData.pilots || [],
-        lists: listsData.lists || [],
-        squadrons: squadronsData.squadrons || [],
         faction: factionParam,
+        infoData,
+        pilotsData: pilotsDataP,
+        listsData: listsDataP,
+        squadronsData: squadronsDataP,
+        // sync fallbacks for back-compat while the .svelte awaits
+        info: { name: shipXws, xws: shipXws, factions: [] }, stats: {},
+        pilots: [], lists: [], squadrons: [],
     };
 };
