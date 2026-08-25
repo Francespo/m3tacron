@@ -3,11 +3,15 @@
     import { goto } from "$app/navigation";
     import BackLink from "$lib/components/BackLink.svelte";
     import { filters } from "$lib/stores/filters.svelte";
-import { getFactionColor } from "$lib/data/factions";
+    import { getFactionColor } from "$lib/data/factions";
 import SortBy from "$lib/components/SortBy.svelte";
 import FactionIcon from "$lib/components/FactionIcon.svelte";
 import { xwingData } from "$lib/stores/xwingData.svelte";
 import ListRowCard from "$lib/components/ListRowCard.svelte";
+import LocalFilterBar from "$lib/components/LocalFilterBar.svelte";
+import DebouncedTextInput from "$lib/components/DebouncedTextInput.svelte";
+import { page as pageState } from "$app/state";
+import { untrack } from "svelte";
 
     let { data }: { data: any } = $props();
     import StatIcon from "$lib/components/StatIcon.svelte";
@@ -49,6 +53,47 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
     let configSortKey = $state<ConfigSortKey>("lists");
     let configSortDir = $state<"asc" | "desc">("desc");
 
+    // --- Local section filters: per-section, URL-prefix ready (upg_*, cfg_*, plist_*) ---
+    // variant is driven by ?style=a|b|c so the three copies are real URLs (official page is a)
+    let variant: "a" | "b" | "c" = $state(
+        (pageState.url.searchParams.get("style") as "a" | "b" | "c") ?? "a"
+    );
+    $effect(() => {
+        const v = pageState.url.searchParams.get("style") as "a" | "b" | "c" | null;
+        if (v === "a" || v === "b" || v === "c") variant = v;
+    });
+    function setVariant(v: "a" | "b" | "c") {
+        variant = v;
+        if (!browser) return;
+        const u = new URL(window.location.href);
+        u.searchParams.set("style", v);
+        history.replaceState({}, "", u.toString());
+    }
+
+    let upgSearch = $state(pageState.url.searchParams.get("upg_search") ?? "");
+    let upgSlot: string = $state(pageState.url.searchParams.get("upg_slot") ?? "all");
+    let cfgSearch = $state(pageState.url.searchParams.get("cfg_search") ?? "");
+    let pilotListsSearch = $state(pageState.url.searchParams.get("plist_search") ?? "");
+    let showUpgC = $state(false);
+    let showCfgC = $state(false);
+    let showPlistC = $state(false);
+
+    // keep URL prefix in sync (debounced writes via goto replaceState would refetch; use history)
+    $effect(() => {
+        if (!browser || !initialized) return;
+        const u = new URL(window.location.href);
+        const setOrDelete = (k: string, v: string, def = "") => {
+            if (!v || v === def) u.searchParams.delete(k);
+            else u.searchParams.set(k, v);
+        };
+        setOrDelete("upg_search", upgSearch);
+        setOrDelete("upg_slot", upgSlot, "all");
+        setOrDelete("cfg_search", cfgSearch);
+        setOrDelete("plist_search", pilotListsSearch);
+        u.searchParams.set("style", variant);
+        history.replaceState({}, "", u.toString());
+    });
+
     function configSortValue(c: any): number {
         switch (configSortKey) {
             case "winrate":
@@ -60,9 +105,40 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
         }
     }
 
+    // local slot options derived from upgrades payload
+    let upgSlotOptions = $derived.by(() => {
+        const set = new Set<string>();
+        for (const u of upgrades as any[]) {
+            const raw = (u.type || u.type_xws || u.slot_xws || xwingData.getUpgrade(u.xws)?.sides?.[0]?.slots?.[0] || "").toLowerCase();
+            if (raw) set.add(raw);
+        }
+        return ["all", ...[...set].sort()];
+    });
+    let upgActiveCount = $derived((upgSearch.trim() ? 1 : 0) + (upgSlot !== "all" ? 1 : 0));
+    let cfgActiveCount = $derived(cfgSearch.trim() ? 1 : 0);
+    let plistActiveCount = $derived(pilotListsSearch.trim() ? 1 : 0);
+
+    let filteredListsSource = $derived.by(() => {
+        const q = pilotListsSearch.trim().toLowerCase();
+        if (!q) return pilotListsItems as any[];
+        return (pilotListsItems as any[]).filter((lst: any) =>
+            String(lst.name ?? lst.list_name ?? lst.signature ?? "").toLowerCase().includes(q) ||
+            String(lst.player ?? lst.player_name ?? "").toLowerCase().includes(q)
+        );
+    });
+
+    let filteredConfigurationsSource = $derived.by(() => {
+        const q = cfgSearch.trim().toLowerCase();
+        if (!q) return configurations as any[];
+        return (configurations as any[]).filter((c: any) =>
+            (c.upgrades as any[]).some((u: any) => (u.name || u.xws || "").toLowerCase().includes(q)) ||
+            String(c.count ?? "").includes(q)
+        );
+    });
+
     let sortedConfigurations = $derived.by(() => {
         const dir = configSortDir === "asc" ? 1 : -1;
-        return [...configurations].sort((a, b) => {
+        return [...filteredConfigurationsSource].sort((a, b) => {
             const diff = configSortValue(a) - configSortValue(b);
             if (diff !== 0) return diff * dir;
             // Stable tiebreaker: most-used first, then by name.
@@ -87,9 +163,26 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
         return g > 0 ? (w / g) * 100 : -1;
     }
 
+    function upgSlotOf(u: any): string {
+        const raw = (u.type || u.type_xws || u.slot_xws || xwingData.getUpgrade(u.xws)?.sides?.[0]?.slots?.[0] || "").toLowerCase();
+        return raw.trim();
+    }
+    function upgNameOf(u: any): string {
+        return String(u.name || xwingData.getUpgrade(u.xws)?.name || u.xws_name || u.xws || "").toLowerCase();
+    }
+    let filteredUpgrades = $derived.by(() => {
+        const q = upgSearch.trim().toLowerCase();
+        const slot = upgSlot;
+        return (upgrades as any[]).filter((u) => {
+            if (slot !== "all" && upgSlotOf(u) !== slot) return false;
+            if (q && !upgNameOf(u).includes(q)) return false;
+            return true;
+        });
+    });
+
     let sortedUpgrades = $derived.by(() => {
         const dir = upgSortDir === "asc" ? 1 : -1;
-        return [...upgrades].sort((a, b) => {
+        return [...filteredUpgrades].sort((a, b) => {
             let diff: number;
             if (upgSortKey === "winrate") {
                 diff = upgWinRate(a) - upgWinRate(b);
@@ -131,11 +224,17 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
     $effect(() => {
         if (!initialized) return;
 
+        const keep = browser ? new URLSearchParams(window.location.search) : new URLSearchParams();
         const params = new URLSearchParams();
         params.set("data_source", filters.dataSource);
         if (filters.includeEpic) params.set("epic", "true");
         for (const f of getDefaultFormats(filters.dataSource, filters.includeEpic)) {
             params.append("formats", f);
+        }
+        // preserve style + local prefixes (URL with prefix)
+        for (const k of ["style", "upg_search", "upg_slot", "cfg_search", "plist_search"]) {
+            const v = keep.get(k);
+            if (v !== null && v !== "") params.set(k, v);
         }
 
         goto(`?${params.toString()}`, {
@@ -344,6 +443,17 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
         </div>
     {/if}
 
+    <!-- Style switcher for the three real filter variants (persistent via ?style= ; official page is A) -->
+    <div class="flex flex-wrap items-center gap-2 mb-6">
+        <span class="text-[10px] font-mono text-secondary uppercase tracking-widest">Filter style</span>
+        <div class="flex rounded-md overflow-hidden border border-border-dark">
+            <button type="button" onclick={() => setVariant("a")} class="px-3 py-1 text-xs font-mono {variant === 'a' ? 'bg-white text-black' : 'bg-transparent text-secondary hover:text-primary'}">A · inline bar</button>
+            <button type="button" onclick={() => setVariant("b")} class="px-3 py-1 text-xs font-mono border-l border-border-dark {variant === 'b' ? 'bg-white text-black' : 'bg-transparent text-secondary hover:text-primary'}">B · collapsible</button>
+            <button type="button" onclick={() => setVariant("c")} class="px-3 py-1 text-xs font-mono border-l border-border-dark {variant === 'c' ? 'bg-white text-black' : 'bg-transparent text-secondary hover:text-primary'}">C · compact + chips</button>
+        </div>
+        <span class="text-[10px] font-mono text-secondary">URL: ?style=a|b|c · prefix upg_ / cfg_ / plist_ — filters are live on real data</span>
+    </div>
+
     <!-- Compatible Upgrades — hidden for standard-loadout (horizontal) pilots that have no upgrade slots -->
     {#if !hasNoUpgradesConfig}
     <section class="mb-10">
@@ -362,6 +472,40 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
                 }}
             />
         </div>
+        <!-- A: inline LocalFilterBar always visible -->
+        {#if variant === "a"}
+            <div class="mb-4 flex flex-wrap gap-2 items-center">
+                <div class="flex-1 min-w-[160px]"><DebouncedTextInput value={upgSearch} onDebouncedChange={(v) => { upgSearch = v; upgPage = 0; }} placeholder="Search upgrades…" ariaLabel="Search compatible upgrades" /></div>
+                <select value={upgSlot} onchange={(e) => { upgSlot = (e.target as HTMLSelectElement).value; upgPage = 0; }} class="min-h-11 bg-black border border-border-dark rounded px-2 py-1.5 text-xs font-mono text-primary">
+                    {#each upgSlotOptions as s}<option value={s}>{s === "all" ? "All slots" : s}</option>{/each}
+                </select>
+                {#if upgActiveCount > 0}<button type="button" onclick={() => { upgSearch = ""; upgSlot = "all"; }} class="text-xs font-mono text-secondary hover:text-primary underline">Clear</button>{/if}
+                <span class="text-[11px] font-mono text-secondary">{filteredUpgrades.length} of {upgrades.length}</span>
+            </div>
+        {:else if variant === "b"}
+            <div class="mb-4"><LocalFilterBar id="pilot-upg-b" label="Upgrades filters" activeCount={upgActiveCount}><div class="flex flex-wrap gap-2">
+                <div class="flex-1 min-w-[160px]"><DebouncedTextInput value={upgSearch} onDebouncedChange={(v) => { upgSearch = v; upgPage = 0; }} placeholder="Search upgrades…" ariaLabel="Search compatible upgrades" /></div>
+                <select value={upgSlot} onchange={(e) => { upgSlot = (e.target as HTMLSelectElement).value; upgPage = 0; }} class="min-h-11 bg-black border border-border-dark rounded px-2 py-1.5 text-xs font-mono text-primary">
+                    {#each upgSlotOptions as s}<option value={s}>{s === "all" ? "All slots" : s}</option>{/each}
+                </select>
+                {#if upgActiveCount > 0}<button type="button" onclick={() => { upgSearch = ""; upgSlot = "all"; }} class="text-xs font-mono text-secondary hover:text-primary underline">Clear</button>{/if}
+            </div></LocalFilterBar></div>
+        {:else}
+            <div class="mb-4 flex flex-wrap gap-2 items-center">
+                <button type="button" onclick={() => showUpgC = !showUpgC} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs font-mono {showUpgC || upgActiveCount > 0 ? 'border-primary text-primary' : 'border-border-dark text-secondary'}">
+                    <span class="i">⌖</span> Filters {#if upgActiveCount > 0}<span class="min-w-5 h-5 px-1 rounded-full bg-primary text-black inline-flex items-center justify-center">{upgActiveCount}</span>{/if}
+                </button>
+                {#if upgActiveCount > 0}<span class="text-xs font-mono text-secondary">{filteredUpgrades.length} of {upgrades.length}</span><button type="button" onclick={() => { upgSearch=""; upgSlot="all"; }} class="text-xs font-mono underline text-secondary hover:text-primary">Clear filters</button>{/if}
+            </div>
+            {#if showUpgC}
+                <div class="mb-4 flex flex-wrap gap-2 p-3 rounded-lg border border-border-dark bg-terminal-panel">
+                    <div class="flex-1 min-w-[160px]"><DebouncedTextInput value={upgSearch} onDebouncedChange={(v) => { upgSearch = v; upgPage = 0; }} placeholder="Search upgrades…" ariaLabel="Search compatible upgrades" /></div>
+                    <select value={upgSlot} onchange={(e) => { upgSlot = (e.target as HTMLSelectElement).value; upgPage = 0; }} class="min-h-11 bg-black border border-border-dark rounded px-2 py-1.5 text-xs font-mono text-primary">
+                        {#each upgSlotOptions as s}<option value={s}>{s === "all" ? "All slots" : s}</option>{/each}
+                    </select>
+                </div>
+            {/if}
+        {/if}
 
         {#if upgItems.length > 0}
             <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
@@ -428,6 +572,28 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
                     }}
                 />
             </div>
+            {#if variant === "a"}
+                <div class="mb-4 flex flex-wrap gap-2 items-center">
+                    <div class="flex-1 min-w-[160px]"><DebouncedTextInput value={cfgSearch} onDebouncedChange={(v) => { cfgSearch = v; configPage = 0; }} placeholder="Search configurations…" ariaLabel="Search configurations" /></div>
+                    {#if cfgActiveCount > 0}<button type="button" onclick={() => { cfgSearch=""; }} class="text-xs font-mono text-secondary hover:text-primary underline">Clear</button>{/if}
+                    <span class="text-[11px] font-mono text-secondary">{filteredConfigurationsSource.length} of {configurations.length}</span>
+                </div>
+            {:else if variant === "b"}
+                <div class="mb-4"><LocalFilterBar id="pilot-cfg-b" label="Configurations filters" activeCount={cfgActiveCount}><div class="flex flex-wrap gap-2">
+                    <div class="flex-1 min-w-[160px]"><DebouncedTextInput value={cfgSearch} onDebouncedChange={(v) => { cfgSearch = v; configPage = 0; }} placeholder="Search configurations…" ariaLabel="Search configurations" /></div>
+                    {#if cfgActiveCount > 0}<button type="button" onclick={() => { cfgSearch=""; }} class="text-xs font-mono text-secondary hover:text-primary underline">Clear</button>{/if}
+                </div></LocalFilterBar></div>
+            {:else}
+                <div class="mb-4 flex flex-wrap gap-2 items-center">
+                    <button type="button" onclick={() => showCfgC = !showCfgC} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs font-mono {showCfgC || cfgActiveCount > 0 ? 'border-primary text-primary' : 'border-border-dark text-secondary'}">⌖ Filters {#if cfgActiveCount > 0}<span class="min-w-5 h-5 px-1 rounded-full bg-primary text-black inline-flex items-center justify-center">{cfgActiveCount}</span>{/if}</button>
+                    {#if cfgActiveCount > 0}<span class="text-xs font-mono text-secondary">{filteredConfigurationsSource.length} of {configurations.length}</span><button type="button" onclick={() => { cfgSearch=""; }} class="text-xs font-mono underline text-secondary hover:text-primary">Clear filters</button>{/if}
+                </div>
+                {#if showCfgC}
+                    <div class="mb-4 flex flex-wrap gap-2 p-3 rounded-lg border border-border-dark bg-terminal-panel">
+                        <div class="flex-1 min-w-[160px]"><DebouncedTextInput value={cfgSearch} onDebouncedChange={(v) => { cfgSearch = v; configPage = 0; }} placeholder="Search configurations…" ariaLabel="Search configurations" /></div>
+                    </div>
+                {/if}
+            {/if}
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {#each configPageItems as config, j (config.upgrades.map((u: any) => u.xws).join("|") + ":" + j)}
                     {@const i = configPage * CONFIG_PAGE_SIZE + j}
@@ -481,13 +647,37 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
                 onChange={(v, d) => { pilotListsSort = v as "Games" | "Win Rate"; pilotListsDir = d; fetchPilotListsPage(0, v, d); }}
             />
         </div>
+        {#if variant === "a"}
+            <div class="mb-4 flex flex-wrap gap-2 items-center">
+                <div class="flex-1 min-w-[160px]"><DebouncedTextInput value={pilotListsSearch} onDebouncedChange={(v) => { pilotListsSearch = v; }} placeholder="Filter lists by name…" ariaLabel="Filter pilot lists" /></div>
+                {#if plistActiveCount > 0}<button type="button" onclick={() => pilotListsSearch = ""} class="text-xs font-mono text-secondary hover:text-primary underline">Clear</button>{/if}
+            </div>
+        {:else if variant === "b"}
+            <div class="mb-4"><LocalFilterBar id="pilot-plist-b" label="Lists filters" activeCount={plistActiveCount}><div class="flex flex-wrap gap-2">
+                <div class="flex-1 min-w-[160px]"><DebouncedTextInput value={pilotListsSearch} onDebouncedChange={(v) => { pilotListsSearch = v; }} placeholder="Filter lists by name…" ariaLabel="Filter pilot lists" /></div>
+                {#if plistActiveCount > 0}<button type="button" onclick={() => pilotListsSearch = ""} class="text-xs font-mono text-secondary hover:text-primary underline">Clear</button>{/if}
+            </div></LocalFilterBar></div>
+        {:else}
+            <div class="mb-4 flex flex-wrap gap-2 items-center">
+                <button type="button" onclick={() => showPlistC = !showPlistC} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs font-mono {showPlistC || plistActiveCount > 0 ? 'border-primary text-primary' : 'border-border-dark text-secondary'}">⌖ Filters {#if plistActiveCount > 0}<span class="min-w-5 h-5 px-1 rounded-full bg-primary text-black inline-flex items-center justify-center">{plistActiveCount}</span>{/if}</button>
+                {#if plistActiveCount > 0}<button type="button" onclick={() => pilotListsSearch = ""} class="text-xs font-mono underline text-secondary hover:text-primary">Clear filters</button>{/if}
+            </div>
+            {#if showPlistC}
+                <div class="mb-4 flex p-3 rounded-lg border border-border-dark bg-terminal-panel">
+                    <div class="flex-1 min-w-[160px]"><DebouncedTextInput value={pilotListsSearch} onDebouncedChange={(v) => { pilotListsSearch = v; }} placeholder="Filter lists by name…" ariaLabel="Filter pilot lists" /></div>
+                </div>
+            {/if}
+        {/if}
 
-        {#if pilotListsItems.length > 0}
+        {#if filteredListsSource.length > 0}
             <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                {#each pilotListsItems as lst (lst.signature)}
+                {#each filteredListsSource as lst (lst.signature)}
                     <ListRowCard list={lst} />
                 {/each}
             </div>
+            {#if filteredListsSource.length !== pilotListsItems.length}
+                <p class="text-[11px] font-mono text-secondary mt-3">Filtered: {filteredListsSource.length} of {pilotListsItems.length} on this page · use Clear to reset</p>
+            {/if}
             <div class="flex items-center justify-center gap-2 mt-6">
                 <button type="button" class="px-3 py-1.5 rounded-md border text-xs font-mono transition-colors {pilotListsPage === 0 ? 'border-border-dark text-secondary' : 'border-primary text-primary hover:bg-white/[0.04]'}" disabled={pilotListsPage === 0} onclick={() => fetchPilotListsPage(Math.max(0, pilotListsPage - 1), pilotListsSort, pilotListsDir)}>← Prev</button>
                 <span class="text-xs font-mono text-secondary">Showing {pilotListsPage * PILOT_LISTS_PAGE_SIZE + 1}–{Math.min((pilotListsPage + 1) * PILOT_LISTS_PAGE_SIZE, pilotListsTotal)} of {pilotListsTotal} · Page {pilotListsPage + 1}/{pilotListsTotalPages}</span>
@@ -495,7 +685,7 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
             </div>
         {:else}
             <div class="bg-terminal-panel border border-border-dark rounded-lg p-8 text-center">
-                <p class="text-secondary font-mono text-sm">No lists found featuring this pilot.</p>
+                <p class="text-secondary font-mono text-sm">{pilotListsSearch ? `No lists match "${pilotListsSearch}" on this page.` : "No lists found featuring this pilot."}</p>
             </div>
         {/if}
     </section>

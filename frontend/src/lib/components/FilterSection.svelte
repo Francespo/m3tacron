@@ -82,7 +82,7 @@
                         <line x1="12" y1="8" x2="12.01" y2="8" />
                     </svg>
                     <div
-                        class="absolute left-0 top-full mt-2 w-64 max-w-[calc(100%-1rem)] p-2 bg-terminal-panel border border-border-dark rounded-md text-[10px] font-mono text-secondary opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-opacity z-50 pointer-events-none"
+                        class="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-72 max-w-[min(20rem,calc(100vw-2rem))] p-2.5 bg-terminal-panel border border-border-dark rounded-md text-[11px] font-mono leading-snug text-secondary opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-opacity z-50 pointer-events-none shadow-lg"
                     >
                         {description}
                     </div>

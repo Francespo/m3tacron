@@ -63,51 +63,34 @@
     let selectedCount = $derived(filters.selectedShips.length);
 </script>
 
-<div class="border-b border-border-dark mt-1">
+<div>
     <button
-        class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
+        class="flex items-center justify-between w-full py-1.5 text-secondary hover:text-primary transition-colors"
         onclick={() => (isOpen = !isOpen)}
     >
-        <div class="flex items-center gap-2">
-            <span class="text-xs font-mono font-bold tracking-wider">
-                Ship Chassis
+        <span class="flex items-center gap-1.5">
+            <span class="w-5 h-5 rounded-md bg-white/[0.06] border border-white/10 inline-flex items-center justify-center text-secondary">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h3l2-4 2 4h3l2-4 2 4h3"/><path d="M12 2v4"/><path d="M12 18v4"/></svg>
             </span>
+            <span class="text-[11px] font-mono font-bold tracking-widest uppercase">Ship Chassis</span>
             {#if selectedCount > 0}
-                <span
-                    class="text-[10px] bg-white/10 text-secondary px-1.5 rounded-full font-mono"
-                >
-                    {selectedCount}
-                </span>
+                <span class="min-w-5 h-5 px-1 rounded-full bg-primary text-black text-[10px] font-mono font-bold inline-flex items-center justify-center">{selectedCount}</span>
             {/if}
-        </div>
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="transition-transform {isOpen ? 'rotate-180' : ''}"
-            ><path d="m6 9 6 6 6-6" /></svg
-        >
+        </span>
+        <span class="text-xs font-mono text-secondary flex items-center gap-1"> {isOpen ? "Hide" : "Show"} <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="transition-transform {isOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg></span>
     </button>
 
     {#if isOpen}
-        <div class="pb-3 space-y-2 pl-2">
-            <!-- Quick search within chassis list -->
+        <div class="pt-3 space-y-3">
             <input
                 type="text"
                 placeholder="Search ships..."
-                class="w-full bg-black border border-border-dark rounded px-2 py-1 text-xs font-mono text-primary placeholder-secondary focus:border-primary focus:outline-none"
+                class="w-full bg-black border border-border-dark rounded-md px-2 py-1.5 text-xs font-mono text-primary placeholder-secondary focus:border-primary focus:outline-none"
                 bind:value={search}
             />
 
-            <!-- Scrollable chassis list -->
             <div
-                class="max-h-[180px] overflow-y-auto pr-1 space-y-1 chassis-scrollbar"
+                class="grid gap-1 max-h-[220px] overflow-y-auto custom-scrollbar pr-1"
             >
                 {#if isLoading && ships.length === 0}
                     <div class="space-y-1.5">
@@ -124,38 +107,21 @@
                 {:else}
                     {#each filteredShips as ship}
                         <label
-                            class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary group"
+                            class="grid cursor-pointer text-xs text-secondary hover:text-primary group" style="grid-template-columns: 14px 22px 1fr auto; column-gap: 0.5rem; align-items: center;"
                         >
-                            <!-- Toggle checkbox -->
                             <Toggle
                                 size="xs"
                                 ariaLabel={`Toggle ship ${ship.name}`}
-                                checked={filters.selectedShips.includes(
-                                    ship.xws,
-                                )}
+                                checked={filters.selectedShips.includes(ship.xws)}
                                 onchange={() => toggleShip(ship.xws)}
                             />
-
-                            <!-- Ship icon (X-Wing miniatures ship font) - Uncolored -->
-                            <i
-                                class="xwing-miniatures-ship xwing-miniatures-ship-{ship.xws} text-sm flex-shrink-0"
-                            ></i>
-
-                            <!-- Ship name -->
-                            <span class="font-mono truncate flex-grow text-xs">
-                                {ship.name}
+                            <span class="w-[22px] h-[14px] inline-flex items-center justify-center leading-none">
+                                <i class="xwing-miniatures-ship xwing-miniatures-ship-{ship.xws} text-sm leading-none"></i>
                             </span>
-
-                            <!-- Faction symbols (colored) -->
-                            <span
-                                class="flex items-center gap-0.5 flex-shrink-0"
-                            >
+                            <span class="font-mono truncate text-xs text-left">{ship.name}</span>
+                            <span class="flex items-center gap-0.5 justify-end">
                                 {#each ship.factions as faction}
-                                    <FactionIcon
-                                        {faction}
-                                        size="sm"
-                                        className="drop-shadow-sm opacity-90"
-                                    />
+                                    <FactionIcon faction={faction} size="sm" className="drop-shadow-sm opacity-90" />
                                 {/each}
                             </span>
                         </label>

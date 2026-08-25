@@ -84,7 +84,8 @@ function buildActiveChips(): FilterChip[] {
     for (const s of selectedShips) chips.push({ key: `ship:${s}`, label: `Ship: ${s}` });
     for (const f of selectedFactions) chips.push({ key: `faction:${f}`, label: `Faction: ${f}` });
 
-    for (const f of selectedFormats) {
+    const effectiveFormats = selectedFormats.length > 0 ? selectedFormats : defaultFormatsForSource(dataSource);
+    for (const f of effectiveFormats) {
         chips.push({ key: `format:${f}`, label: getFormatFullLabel(f) });
     }
 

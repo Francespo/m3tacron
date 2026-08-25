@@ -32,9 +32,9 @@
 	let {
 		open,
 		onClose,
-		title = "Filters",
+		title = "Dataset filters",
 		activeCount = 0,
-		dataFilterTitle = "Data filter",
+		dataFilterTitle = "Dataset filter",
 		dataFilterDescription = "Tournament filters are applied to the page's input data. The page-specific filters and the tournament filters are complementary — for example, if you filter for tournaments on a list page, only data from tournaments that match your filter is shown.",
 		pageFilterTitle,
 		children,
@@ -193,6 +193,20 @@
 	<div
 		class="flex-1 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable] px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
 	>
+		{#if filters.activeChips.some((chip) => chip.key.startsWith("format:") || chip.key.startsWith("continent:") || chip.key.startsWith("country:") || chip.key.startsWith("city:") || chip.key.startsWith("source:") || chip.key === "dateStart" || chip.key === "dateEnd")}
+			<div class="mb-3 flex flex-wrap gap-1.5 items-center">
+				<span class="text-[10px] font-mono tracking-widest uppercase text-secondary shrink-0">Active dataset</span>
+				{#each filters.activeChips.filter((chip) => chip.key.startsWith("format:") || chip.key.startsWith("continent:") || chip.key.startsWith("country:") || chip.key.startsWith("city:") || chip.key.startsWith("source:") || chip.key === "dateStart" || chip.key === "dateEnd") as chip}
+					<span class="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-white/10 border border-white/10 text-[11px] font-mono text-primary">
+						<span class="truncate max-w-[12rem]">{chip.label}</span>
+						<button type="button" onclick={() => filters.removeChip(chip.key)} aria-label={`Remove ${chip.label}`} class="ml-0.5 w-4 h-4 rounded-full hover:bg-white/10 inline-flex items-center justify-center shrink-0">
+							<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+						</button>
+					</span>
+				{/each}
+				<button type="button" onclick={() => { for (const chip of filters.activeChips.filter((c) => c.key.startsWith("format:") || c.key.startsWith("continent:") || c.key.startsWith("country:") || c.key.startsWith("city:") || c.key.startsWith("source:") || c.key === "dateStart" || c.key === "dateEnd")) filters.removeChip(chip.key); }} class="text-[11px] font-mono underline text-secondary hover:text-primary">Clear dataset</button>
+			</div>
+		{/if}
 		<div class="min-w-0">
 			<FilterSection
 				id="data"

@@ -9,8 +9,43 @@
     import SortBy from "$lib/components/SortBy.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
     import StatIcon from "$lib/components/StatIcon.svelte";
+    import LocalFilterBar from "$lib/components/LocalFilterBar.svelte";
+    import DebouncedTextInput from "$lib/components/DebouncedTextInput.svelte";
+    import { page as pageState } from "$app/state";
 
     let { data }: { data: any } = $props();
+
+    // Variant + local filters: real per-section, prefixed in URL (?style, upilot_search, uship_search)
+    let variant: "a" | "b" | "c" = $state(
+        (pageState.url.searchParams.get("style") as "a" | "b" | "c") ?? "a"
+    );
+    $effect(() => {
+        const v = pageState.url.searchParams.get("style") as "a" | "b" | "c" | null;
+        if (v === "a" || v === "b" || v === "c") variant = v;
+    });
+    function setVariant(v: "a" | "b" | "c") {
+        variant = v;
+        if (!browser) return;
+        const u = new URL(window.location.href);
+        u.searchParams.set("style", v);
+        history.replaceState({}, "", u.toString());
+    }
+    let pilotSearch = $state(pageState.url.searchParams.get("upilot_search") ?? "");
+    let shipSearch = $state(pageState.url.searchParams.get("uship_search") ?? "");
+    let showPilotC = $state(false);
+    let showShipC = $state(false);
+    $effect(() => {
+        if (!browser || !initialized) return;
+        const u = new URL(window.location.href);
+        const setOrDelete = (k: string, v: string, def = "") => {
+            if (!v || v === def) u.searchParams.delete(k);
+            else u.searchParams.set(k, v);
+        };
+        setOrDelete("upilot_search", pilotSearch);
+        setOrDelete("uship_search", shipSearch);
+        u.searchParams.set("style", variant);
+        history.replaceState({}, "", u.toString());
+    });
 
     function getDefaultFormats(ds: "xwa" | "legacy", includeEpic: boolean): string[] {
         if (ds === "xwa") return includeEpic ? ["xwa", "xwa_epic"] : ["xwa"];
@@ -28,10 +63,15 @@
     });
     $effect(() => {
         if (!initialized) return;
+        const keep = browser ? new URLSearchParams(window.location.search) : new URLSearchParams();
         const params = new URLSearchParams();
         params.set("data_source", filters.dataSource);
         if (filters.includeEpic) params.set("epic", "true");
         for (const f of getDefaultFormats(filters.dataSource, filters.includeEpic)) params.append("formats", f);
+        for (const k of ["style", "upilot_search", "uship_search"]) {
+            const v = keep.get(k);
+            if (v !== null && v !== "") params.set(k, v);
+        }
         goto(`?${params.toString()}`, { keepFocus: true, noScroll: true, replaceState: true });
     });
 
@@ -84,9 +124,27 @@
         return Math.max(0, Number(row.list_count ?? row.lists ?? 0));
     }
 
+    let upPilotActiveCount = $derived(pilotSearch.trim() ? 1 : 0);
+    let upShipActiveCount = $derived(shipSearch.trim() ? 1 : 0);
+
+    let filteredPilotsSource = $derived.by(() => {
+        const q = pilotSearch.trim().toLowerCase();
+        if (!q) return pilots as any[];
+        return (pilots as any[]).filter((p: any) =>
+            String(p.name || p.xws || p.ship || "").toLowerCase().includes(q)
+        );
+    });
+    let filteredShipsSource = $derived.by(() => {
+        const q = shipSearch.trim().toLowerCase();
+        if (!q) return ships as any[];
+        return (ships as any[]).filter((s: any) =>
+            String(s.name || s.xws || "").toLowerCase().includes(q)
+        );
+    });
+
     let sortedPilots = $derived.by(() => {
         const dir = pilotSortDir === "asc" ? 1 : -1;
-        return [...pilots].sort((a: any, b: any) => {
+        return [...filteredPilotsSource].sort((a: any, b: any) => {
             const d = sortValue(a, pilotSortKey) - sortValue(b, pilotSortKey);
             if (d !== 0) return d * dir;
             return (b.list_count ?? 0) - (a.list_count ?? 0);
@@ -95,7 +153,7 @@
 
     let sortedShips = $derived.by(() => {
         const dir = shipSortDir === "asc" ? 1 : -1;
-        return [...ships].sort((a: any, b: any) => {
+        return [...filteredShipsSource].sort((a: any, b: any) => {
             const d = sortValue(a, shipSortKey) - sortValue(b, shipSortKey);
             if (d !== 0) return d * dir;
             return (b.list_count ?? 0) - (a.list_count ?? 0);
@@ -186,6 +244,15 @@
     <div class="mb-6">
         <BackLink href="/cards?tab=upgrades" ariaLabel="Back to Cards" />
     </div>
+    <div class="flex flex-wrap items-center gap-2 mb-6">
+        <span class="text-[10px] font-mono text-secondary uppercase tracking-widest">Filter style</span>
+        <div class="flex rounded-md overflow-hidden border border-border-dark">
+            <button type="button" onclick={() => setVariant("a")} class="px-3 py-1 text-xs font-mono {variant === 'a' ? 'bg-white text-black' : 'bg-transparent text-secondary hover:text-primary'}">A · inline bar</button>
+            <button type="button" onclick={() => setVariant("b")} class="px-3 py-1 text-xs font-mono border-l border-border-dark {variant === 'b' ? 'bg-white text-black' : 'bg-transparent text-secondary hover:text-primary'}">B · collapsible</button>
+            <button type="button" onclick={() => setVariant("c")} class="px-3 py-1 text-xs font-mono border-l border-border-dark {variant === 'c' ? 'bg-white text-black' : 'bg-transparent text-secondary hover:text-primary'}">C · compact + chips</button>
+        </div>
+        <span class="text-[10px] font-mono text-secondary">URL: ?style=a|b|c · prefix upilot_ / uship_</span>
+    </div>
 
     <!-- Header: upgrade image (horizontal) on the left, chart on the right — bare PNG, no outer container (mirrors pilot header) -->
     <div class="flex flex-col lg:flex-row gap-8 mb-10">
@@ -258,6 +325,28 @@
                 onChange={(v, d) => { pilotSortKey = v as SortKey; pilotSortDir = d; }}
             />
         </div>
+        {#if variant === "a"}
+            <div class="mb-4 flex flex-wrap gap-2 items-center">
+                <div class="flex-1 min-w-[160px]"><DebouncedTextInput value={pilotSearch} onDebouncedChange={(v) => { pilotSearch = v; pilotPage = 0; }} placeholder="Search pilots…" ariaLabel="Search pilots using this upgrade" /></div>
+                {#if upPilotActiveCount > 0}<button type="button" onclick={() => { pilotSearch = ""; }} class="text-xs font-mono text-secondary hover:text-primary underline">Clear</button>{/if}
+                <span class="text-[11px] font-mono text-secondary">{filteredPilotsSource.length} of {pilots.length}</span>
+            </div>
+        {:else if variant === "b"}
+            <div class="mb-4"><LocalFilterBar id="up-pilots-b" label="Pilots filters" activeCount={upPilotActiveCount}><div class="flex flex-wrap gap-2">
+                <div class="flex-1 min-w-[160px]"><DebouncedTextInput value={pilotSearch} onDebouncedChange={(v) => { pilotSearch = v; pilotPage = 0; }} placeholder="Search pilots…" ariaLabel="Search pilots using this upgrade" /></div>
+                {#if upPilotActiveCount > 0}<button type="button" onclick={() => { pilotSearch = ""; }} class="text-xs font-mono text-secondary hover:text-primary underline">Clear</button>{/if}
+            </div></LocalFilterBar></div>
+        {:else}
+            <div class="mb-4 flex flex-wrap gap-2 items-center">
+                <button type="button" onclick={() => showPilotC = !showPilotC} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs font-mono {showPilotC || upPilotActiveCount > 0 ? 'border-primary text-primary' : 'border-border-dark text-secondary'}">⌖ Filters {#if upPilotActiveCount > 0}<span class="min-w-5 h-5 px-1 rounded-full bg-primary text-black inline-flex items-center justify-center">{upPilotActiveCount}</span>{/if}</button>
+                {#if upPilotActiveCount > 0}<span class="text-xs font-mono text-secondary">{filteredPilotsSource.length} of {pilots.length}</span><button type="button" onclick={() => { pilotSearch = ""; }} class="text-xs font-mono underline text-secondary hover:text-primary">Clear filters</button>{/if}
+            </div>
+            {#if showPilotC}
+                <div class="mb-4 flex p-3 rounded-lg border border-border-dark bg-terminal-panel">
+                    <div class="flex-1 min-w-[160px]"><DebouncedTextInput value={pilotSearch} onDebouncedChange={(v) => { pilotSearch = v; pilotPage = 0; }} placeholder="Search pilots…" ariaLabel="Search pilots using this upgrade" /></div>
+                </div>
+            {/if}
+        {/if}
                 {#if pilotItems.length > 0}
             <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
                 {#each pilotItems as p (p.xws)}
@@ -319,6 +408,28 @@
                 onChange={(v, d) => { shipSortKey = v as SortKey; shipSortDir = d; }}
             />
         </div>
+        {#if variant === "a"}
+            <div class="mb-4 flex flex-wrap gap-2 items-center">
+                <div class="flex-1 min-w-[160px]"><DebouncedTextInput value={shipSearch} onDebouncedChange={(v) => { shipSearch = v; shipPage = 0; }} placeholder="Search ships…" ariaLabel="Search ships using this upgrade" /></div>
+                {#if upShipActiveCount > 0}<button type="button" onclick={() => { shipSearch = ""; }} class="text-xs font-mono text-secondary hover:text-primary underline">Clear</button>{/if}
+                <span class="text-[11px] font-mono text-secondary">{filteredShipsSource.length} of {ships.length}</span>
+            </div>
+        {:else if variant === "b"}
+            <div class="mb-4"><LocalFilterBar id="up-ships-b" label="Ships filters" activeCount={upShipActiveCount}><div class="flex flex-wrap gap-2">
+                <div class="flex-1 min-w-[160px]"><DebouncedTextInput value={shipSearch} onDebouncedChange={(v) => { shipSearch = v; shipPage = 0; }} placeholder="Search ships…" ariaLabel="Search ships using this upgrade" /></div>
+                {#if upShipActiveCount > 0}<button type="button" onclick={() => { shipSearch = ""; }} class="text-xs font-mono text-secondary hover:text-primary underline">Clear</button>{/if}
+            </div></LocalFilterBar></div>
+        {:else}
+            <div class="mb-4 flex flex-wrap gap-2 items-center">
+                <button type="button" onclick={() => showShipC = !showShipC} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs font-mono {showShipC || upShipActiveCount > 0 ? 'border-primary text-primary' : 'border-border-dark text-secondary'}">⌖ Filters {#if upShipActiveCount > 0}<span class="min-w-5 h-5 px-1 rounded-full bg-primary text-black inline-flex items-center justify-center">{upShipActiveCount}</span>{/if}</button>
+                {#if upShipActiveCount > 0}<span class="text-xs font-mono text-secondary">{filteredShipsSource.length} of {ships.length}</span><button type="button" onclick={() => { shipSearch = ""; }} class="text-xs font-mono underline text-secondary hover:text-primary">Clear filters</button>{/if}
+            </div>
+            {#if showShipC}
+                <div class="mb-4 flex p-3 rounded-lg border border-border-dark bg-terminal-panel">
+                    <div class="flex-1 min-w-[160px]"><DebouncedTextInput value={shipSearch} onDebouncedChange={(v) => { shipSearch = v; shipPage = 0; }} placeholder="Search ships…" ariaLabel="Search ships using this upgrade" /></div>
+                </div>
+            {/if}
+        {/if}
         {#if shipItems.length > 0}
             <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
                 {#each shipItems as s (s.xws)}

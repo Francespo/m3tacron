@@ -30,7 +30,7 @@
 
     let {
         children,
-        dataFilterTitle = "Data filter",
+        dataFilterTitle = "Dataset filters",
         dataFilterDescription = "Tournament filters are applied to the page's input data. The page-specific filters and the tournament filters are complementary — for example, if you filter for tournaments on a list page, only data from tournaments that match your filter is shown.",
         pageFilterTitle,
     }: Props = $props();
