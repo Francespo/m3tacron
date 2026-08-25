@@ -230,7 +230,7 @@
     "continent": "Europe"
   },
   "WA, US": {
-    "city": "Washington",
+    "city": "Pima",
     "country": "United States",
     "continent": "North America"
   },
@@ -5895,7 +5895,7 @@
     "continent": "South America"
   },
   "Ludoteca BGC, Distrito Federal, BR": {
-    "city": "Unknown",
+    "city": "Plano Piloto",
     "country": "Brazil",
     "continent": "South America"
   },
@@ -6465,7 +6465,7 @@
     "continent": "Europe"
   },
   "Faraos Cigarer, DK": {
-    "city": "Unknown",
+    "city": "Kongens Lyngby",
     "country": "Denmark",
     "continent": "Europe"
   },
@@ -6770,7 +6770,7 @@
     "continent": "Europe"
   },
   "Worcester Wargames, Worcestershire, GB": {
-    "city": "Unknown",
+    "city": "England",
     "country": "United Kingdom",
     "continent": "Europe"
   },
@@ -7025,13 +7025,13 @@
     "continent": "Europe"
   },
   "The Chromatic Dragon, NH, US": {
-    "city": "Unknown",
+    "city": "Somersworth",
     "country": "United States",
     "continent": "North America"
   },
   "Gilda Igraca NS, Juzno-Backi, RS": {
-    "city": "Unknown",
-    "country": "RS",
+    "city": "Backi Petrovac Municipality",
+    "country": "Serbia",
     "continent": "Europe"
   },
   "Basingstoke, GB": {
@@ -7265,7 +7265,7 @@
     "continent": "Europe"
   },
   "Table Top Cafe, Alberta, CA": {
-    "city": "Unknown",
+    "city": "Improvement District No. 12",
     "country": "Canada",
     "continent": "North America"
   },
@@ -7305,7 +7305,7 @@
     "continent": "North America"
   },
   "Portland , OR, US": {
-    "city": "Unknown",
+    "city": "Multnomah",
     "country": "United States",
     "continent": "North America"
   },
@@ -7315,7 +7315,7 @@
     "continent": "North America"
   },
   "The Geekery, Arizona, US": {
-    "city": "Unknown",
+    "city": "Flagstaff",
     "country": "United States",
     "continent": "North America"
   },
@@ -7345,7 +7345,7 @@
     "continent": "Europe"
   },
   "Mr Nice Guy Games, PA, US": {
-    "city": "Unknown",
+    "city": "Saint Louis",
     "country": "United States",
     "continent": "North America"
   },
@@ -7365,7 +7365,7 @@
     "continent": "Africa"
   },
   "Atomic Games and Comics, Indiana, US": {
-    "city": "Unknown",
+    "city": "Muncie",
     "country": "United States",
     "continent": "North America"
   },
@@ -7385,8 +7385,8 @@
     "continent": "North America"
   },
   "FanExpo 2019, Ontario, CA": {
-    "city": "Unknown",
-    "country": "Canada",
+    "city": "El Cajon",
+    "country": "United States",
     "continent": "North America"
   },
   "D\u00fcsseldorf, DE": {
@@ -7425,7 +7425,7 @@
     "continent": "North America"
   },
   "Great Escape Games, CA, US": {
-    "city": "Unknown",
+    "city": "Sacramento",
     "country": "United States",
     "continent": "North America"
   },
@@ -7440,7 +7440,7 @@
     "continent": "North America"
   },
   "Next Level Games Ringwood, Victoria , AU": {
-    "city": "Unknown",
+    "city": "Victoria",
     "country": "Australia",
     "continent": "Oceania"
   },
@@ -7485,22 +7485,22 @@
     "continent": "North America"
   },
   "Place Games / S\u00e3o Caetano do Sul, SP, BR": {
-    "city": "Unknown",
+    "city": "S\u00e3o Paulo",
     "country": "Brazil",
     "continent": "South America"
   },
   "Isle Of Games, Arizona, US": {
-    "city": "Unknown",
+    "city": "Tucson",
     "country": "United States",
     "continent": "North America"
   },
   "ZZ Games, DK": {
-    "city": "Unknown",
-    "country": "Denmark",
+    "city": "Eindhoven",
+    "country": "Netherlands",
     "continent": "Europe"
   },
   "Uncle's Games in Spokane, Washington, US": {
-    "city": "Unknown",
+    "city": "Spokane",
     "country": "United States",
     "continent": "North America"
   },
@@ -7510,7 +7510,7 @@
     "continent": "North America"
   },
   "GMI Games, CA, US": {
-    "city": "Unknown",
+    "city": "Cary",
     "country": "United States",
     "continent": "North America"
   },
@@ -7545,7 +7545,7 @@
     "continent": "Europe"
   },
   "Fresno Hobbytown, CA, US": {
-    "city": "Unknown",
+    "city": "San Marcos",
     "country": "United States",
     "continent": "North America"
   },
@@ -7580,12 +7580,12 @@
     "continent": "South America"
   },
   "The Nerd Store, Colorado, US": {
-    "city": "Unknown",
+    "city": "Salt Lake City",
     "country": "United States",
     "continent": "North America"
   },
   "Meeples (Seattle), Washington, US": {
-    "city": "Unknown",
+    "city": "Seattle",
     "country": "United States",
     "continent": "North America"
   },
@@ -7605,7 +7605,7 @@
     "continent": "Europe"
   },
   "Armchair Adventurer, Honolulu, HI, US": {
-    "city": "Unknown",
+    "city": "Honolulu",
     "country": "United States",
     "continent": "North America"
   },
@@ -7615,7 +7615,7 @@
     "continent": "North America"
   },
   "Van's Comics Cards and Games, Mississippi, US": {
-    "city": "Unknown",
+    "city": "Ridgeland",
     "country": "United States",
     "continent": "North America"
   },
@@ -7635,8 +7635,8 @@
     "continent": "Europe"
   },
   "Ihrysko, SK": {
-    "city": "Unknown",
-    "country": "SK",
+    "city": "District of Bratislava II",
+    "country": "Slovakia",
     "continent": "Europe"
   },
   "Goodgames Wollongong, New South Wales, AU": {
@@ -7670,7 +7670,7 @@
     "continent": "North America"
   },
   "Top Deck games, New Jersey , US": {
-    "city": "Unknown",
+    "city": "Cherry Hill",
     "country": "United States",
     "continent": "North America"
   },
@@ -7681,7 +7681,7 @@
   },
   "Hydra , Srbija, RS": {
     "city": "Unknown",
-    "country": "RS",
+    "country": "Serbia",
     "continent": "Europe"
   },
   "La Cage Aux Trolls, Quebec, CA": {
@@ -7700,7 +7700,7 @@
     "continent": "North America"
   },
   "The Game Matrix / Lakewood, WA, US": {
-    "city": "Unknown",
+    "city": "Pima",
     "country": "United States",
     "continent": "North America"
   },
@@ -7715,7 +7715,7 @@
     "continent": "North America"
   },
   "Game Kastle Mountain View, CA, US": {
-    "city": "Unknown",
+    "city": "Mountain View",
     "country": "United States",
     "continent": "North America"
   },
@@ -7750,7 +7750,7 @@
     "continent": "North America"
   },
   "Hubcon, NSW, AU": {
-    "city": "Unknown",
+    "city": "Sydney",
     "country": "Australia",
     "continent": "Oceania"
   },
@@ -7765,7 +7765,7 @@
     "continent": "Europe"
   },
   "Weekend Warlords, GB": {
-    "city": "Unknown",
+    "city": "London",
     "country": "United Kingdom",
     "continent": "Europe"
   },
@@ -7790,12 +7790,12 @@
     "continent": "North America"
   },
   "CHQ Cards - Santo Andr\u00e9, SP, BR": {
-    "city": "Unknown",
+    "city": "Santo Andr\u00e9",
     "country": "Brazil",
     "continent": "South America"
   },
   "The Game Table Cafe, PA, US": {
-    "city": "Unknown",
+    "city": "College Park",
     "country": "United States",
     "continent": "North America"
   },
@@ -7827,10 +7827,10 @@
   "Cochabamba , Cochabamba , BO": {
     "city": "Cochabamba",
     "country": "Bolivia",
-    "continent": "Unknown"
+    "continent": "South America"
   },
   "The Game Matrix, Lakewood, WA, US": {
-    "city": "Unknown",
+    "city": "Lakewood",
     "country": "United States",
     "continent": "North America"
   },
@@ -7850,7 +7850,7 @@
     "continent": "North America"
   },
   "Game Theory, North Carolina, US": {
-    "city": "Unknown",
+    "city": "Raleigh",
     "country": "United States",
     "continent": "North America"
   },
@@ -7860,12 +7860,12 @@
     "continent": "North America"
   },
   "Funbox Curitiba, Curitiba, BR": {
-    "city": "Unknown",
+    "city": "Paran\u00e1",
     "country": "Brazil",
     "continent": "South America"
   },
   "SteelFox Games, Louisiana, US": {
-    "city": "Unknown",
+    "city": "New Orleans",
     "country": "United States",
     "continent": "North America"
   },
@@ -7895,7 +7895,7 @@
     "continent": "North America"
   },
   "Johnny Cee Cards,Schofield, Wisconsin, US": {
-    "city": "Unknown",
+    "city": "Marathon",
     "country": "United States",
     "continent": "North America"
   },
@@ -7945,7 +7945,7 @@
     "continent": "North America"
   },
   "Erina Game Shop, NSW, AU": {
-    "city": "Unknown",
+    "city": "Gosford",
     "country": "Australia",
     "continent": "Oceania"
   },
@@ -10573,5 +10573,25 @@
     "city": "Bas-Rhin",
     "country": "France",
     "continent": "Europe"
+  },
+  "Juzno-Backi, RS": {
+    "city": "Backi Petrovac Municipality",
+    "country": "Serbia",
+    "continent": "Europe"
+  },
+  "Wellington": {
+    "city": "Wellington City",
+    "country": "New Zealand",
+    "continent": "Oceania"
+  },
+  "Lakewood, WA, US": {
+    "city": "Lakewood",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Schofield, Wisconsin, US": {
+    "city": "Marathon",
+    "country": "United States",
+    "continent": "North America"
   }
 }
