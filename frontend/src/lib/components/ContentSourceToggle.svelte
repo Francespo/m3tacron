@@ -1,6 +1,6 @@
 <script lang="ts">
     import { filters } from '$lib/stores/filters.svelte';
-    import { setDataSource, setIncludeEpic } from '$lib/sync/contentSource';
+    import { setDataSource } from '$lib/sync/contentSource';
 </script>
 
 <!--
@@ -77,44 +77,4 @@
         LGCY
     </button>
 
-    <!-- Thin vertical separator (just a divider, no glyph — keeps the panel
-         visually clean while still splitting source from modifier). -->
-    <div
-        class="flex items-center px-1 border-r border-border-dark bg-[#ffffff03]"
-        aria-hidden="true"
-    ></div>
-
-    <!-- Epic modifier toggle — just a checkbox, not colored (as requested). -->
-    <button
-        type="button"
-        onclick={() => setIncludeEpic(!filters.includeEpic)}
-        aria-pressed={filters.includeEpic}
-        class="flex items-center gap-1.5 px-2.5 py-1 text-xs cursor-pointer select-none transition-colors
-            {filters.includeEpic
-                ? 'text-primary hover:bg-[#ffffff08] active:bg-[#ffffff14]'
-                : 'text-secondary hover:text-primary hover:bg-[#ffffff08] active:bg-[#ffffff14]'}"
-    >
-        <span
-            class="inline-flex items-center justify-center rounded-[2px] border bg-black w-3 h-3 transition-[background-color,border-color,transform]
-                {filters.includeEpic ? 'border-primary' : 'border-border-dark hover:border-primary/50'}"
-            aria-hidden="true"
-        >
-            {#if filters.includeEpic}
-                <svg
-                    width="8"
-                    height="8"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="3.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="text-primary"
-                >
-                    <path d="M20 6 9 17l-5-5" />
-                </svg>
-            {/if}
-        </span>
-        Epic
-    </button>
 </div>
