@@ -185,20 +185,23 @@ def _warm_detail_snapshots() -> None:
             _warm_state["detail_snapshots"][ds.value] = {"error": str(e)}
 
 
-def _warm_ship_details(base: str = "http://127.0.0.1:8888") -> None:
-    """Prewarm all ship detail pages (xwa/legacy × epic × 4 endpoints) in parallel.
+def _warm_ship_details() -> None:
+    """Prewarm all ship detail pages (xwa/legacy × epic × 4 endpoints) **in-process**.
 
-    Each ship has 4 endpoints: /ship/{xws}, /{xws}/pilots, /{xws}/lists, /{xws}/squadrons
-    All are cached via get_cached_or_compute with key ship_*|{xws}|ds|...|epic
-    Sequential would be ~320 ships × 0.3s = ~100s; parallel with 4 workers ~20s.
-    This is the most impactful warm for perceived navigability: click on a ship
-    in /ships otherwise pays 1-2.5s cold for 4 parallel GROUP BYs.
-    Controlled by env SHIP_DETAIL_WARM (default true) and SHIP_DETAIL_WARM_WORKERS.
+    Each ship has 4 cached aggregates:
+      ship_info|{xws}|{ds}|..., ship_pilots|{xws}|..., ship_lists|{xws}|..., ship_squadrons|{xws}|...
+    All via backend.cache.get_cached_or_compute. The previous version warmed
+    via HTTP GET to http://127.0.0.1:8888 — with 2 uvicorn workers that put the
+    in-memory cache (per-process dict) out of sync and deadlocked in_flight
+    across processes. This version computes directly in this process's cache,
+    touching no HTTP and no cross-worker coordination. Runs on a background
+    thread so the server accepts traffic immediately.
+
+    Covers 92 ships × 4 combos (xwa/legacy × epic) × 4 endpoints = 1472 keys.
+    Sequential HTTP timeout (30s) is gone; DB work is the only cost, shared via
+    cache dedup if multiple threads compute the same key.
     """
     import time as _t
-    import urllib.request
-    import urllib.error
-    from concurrent.futures import ThreadPoolExecutor, as_completed
     from datetime import datetime, timezone
 
     if os.getenv("SHIP_DETAIL_WARM", "true").lower() != "true":
@@ -209,12 +212,19 @@ def _warm_ship_details(base: str = "http://127.0.0.1:8888") -> None:
     try:
         from .utils.xwing_data.ships import load_all_ships
         from .data_structures.data_source import DataSource
+        from .cache import get_cached_or_compute
+        from .analytics.ships import aggregate_ship_stats
+        from .analytics.core import aggregate_card_stats
+        from .analytics.lists import aggregate_list_stats, fetch_list_pilots
+        from .analytics.squadrons import aggregate_squadron_stats
+        from .data_structures.sorting_order import SortingCriteria, SortDirection
+        from .api.ship_detail import _build_filters, _ship_filter_cache_suffix
+        from .api.formatters import enrich_list_data
     except Exception as e:
-        print(f"[prewarm] ship details: FAILED to load ship list ({e})")
+        print(f"[prewarm] ship details: FAILED to load deps ({e})")
         _warm_state["ship_details"] = {"error": str(e)}
         return
 
-    # Collect unique ship xws across both data sources
     all_xws: set[str] = set()
     for ds in (DataSource.XWA, DataSource.LEGACY):
         try:
@@ -227,48 +237,72 @@ def _warm_ship_details(base: str = "http://127.0.0.1:8888") -> None:
         _warm_state["ship_details"] = {"error": "no ships"}
         return
 
-    workers = int(os.getenv("SHIP_DETAIL_WARM_WORKERS", "4"))
-    endpoints = ["", "/pilots", "/lists?limit=10", "/squadrons?limit=10"]
-    combos = [
-        ("xwa", ""),
-        ("xwa", "&epic=true"),
-        ("legacy", ""),
-        ("legacy", "&epic=true"),
+    # 4 combos: xwa/legacy × epic — must match ship_detail.py cache keys exactly
+    # (which use _ship_filter_cache_suffix). Otherwise warm misses and click stays cold.
+    combos: list[tuple[DataSource, bool]] = [
+        (DataSource.XWA, False),
+        (DataSource.XWA, True),
+        (DataSource.LEGACY, False),
+        (DataSource.LEGACY, True),
     ]
-
-    urls: list[str] = []
-    for xws in sorted(all_xws):
-        for ds, epic_qs in combos:
-            for ep in endpoints:
-                sep = "&" if "?" in ep else "?"
-                urls.append(f"{base}/api/ship/{xws}{ep}{sep}data_source={ds}{epic_qs}")
 
     t0 = _t.time()
     ok = 0
     fail = 0
-
-    def fetch_one(url: str) -> bool:
-        try:
-            req = urllib.request.Request(url)
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                resp.read()
-            return True
-        except Exception:
-            return False
-
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = {pool.submit(fetch_one, u): u for u in urls}
-        for fut in as_completed(futures):
-            if fut.result():
+    for xws in sorted(all_xws):
+        for ds, epic in combos:
+            # Build the canonical suffix exactly as the endpoint does (all None except epic)
+            suffix = _ship_filter_cache_suffix(
+                formats=None, factions=None, ships=None, continent=None, country=None, city=None,
+                platforms=None, sources=None, date_start=None, date_end=None,
+                player_count_min=None, player_count_max=None, search=None, epic=epic, faction=None,
+            )
+            # ship_info — key: ship_info|{xws}|{ds}|suffix ; value: single dict (stats[0])
+            try:
+                cache_key_info = f"ship_info|{xws}|{ds.value}{suffix}"
+                flt = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None, epic=epic)
+                def _compute_info(flt=flt, ds=ds):
+                    stats = aggregate_ship_stats(flt, SortingCriteria.GAMES, SortDirection.DESCENDING, ds)
+                    return stats[0] if stats else {}
+                get_cached_or_compute(cache_key_info, _compute_info)
                 ok += 1
-            else:
+            except Exception as e:
+                print(f"[prewarm] ship details {xws}/{ds.value}/epic={epic}/info: FAILED ({e})")
+                fail += 1
+            # ship_pilots — key: ship_pilots|{xws}|{ds}|Lists|desc|suffix ; default sort Lists desc
+            try:
+                cache_key_pilots = f"ship_pilots|{xws}|{ds.value}|Lists|desc{suffix}"
+                flt = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None, epic=epic)
+                get_cached_or_compute(cache_key_pilots, lambda flt=flt, ds=ds: aggregate_card_stats(flt, SortingCriteria.LISTS, SortDirection.DESCENDING, "pilots", ds))
+                ok += 1
+            except Exception as e:
+                print(f"[prewarm] ship details {xws}/{ds.value}/epic={epic}/pilots: FAILED ({e})")
+                fail += 1
+            # ship_lists — key: ship_lists|{xws}|{ds}|10|suffix ; compute is raw aggregate before enrichment
+            try:
+                cache_key_lists = f"ship_lists|{xws}|{ds.value}|10{suffix}"
+                flt = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None, epic=epic)
+                get_cached_or_compute(cache_key_lists, lambda flt=flt, ds=ds: aggregate_list_stats(flt, data_source=ds))
+                ok += 1
+            except Exception as e:
+                print(f"[prewarm] ship details {xws}/{ds.value}/epic={epic}/lists: FAILED ({e})")
+                fail += 1
+            # ship_squadrons — key: ship_squadrons|{xws}|{ds}|10|suffix
+            try:
+                cache_key_sq = f"ship_squadrons|{xws}|{ds.value}|10{suffix}"
+                flt = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None, epic=epic)
+                get_cached_or_compute(cache_key_sq, lambda flt=flt, ds=ds: aggregate_squadron_stats(flt, SortingCriteria.WINRATE, SortDirection.DESCENDING, ds))
+                ok += 1
+            except Exception as e:
+                print(f"[prewarm] ship details {xws}/{ds.value}/epic={epic}/squadrons: FAILED ({e})")
                 fail += 1
 
     elapsed = _t.time() - t0
-    print(f"[prewarm] ship details: {ok} ok, {fail} fail in {elapsed:.1f}s ({len(all_xws)} ships × 4 combos × 4 endpoints, {workers} workers) ✓")
+    print(f"[prewarm] ship details (in-process): {ok} ok, {fail} fail in {elapsed:.1f}s ({len(all_xws)} ships × 4 combos × 4 kinds) ✓")
     _warm_state["ship_details"] = {
         "ok": ok, "fail": fail, "elapsed_s": round(elapsed, 1),
-        "total_urls": len(urls), "ships": len(all_xws), "workers": workers,
+        "total_urls": len(all_xws) * len(combos) * 4, "ships": len(all_xws), "workers": 1,
+        "mode": "in-process",
         "at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -323,7 +357,7 @@ def _prewarm_cache():
         time.sleep(1.5)  # wait for uvicorn to finish binding
         _warm_detail_snapshots()
         _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
-        _warm_ship_details("http://127.0.0.1:8888")
+        _warm_ship_details()
         elapsed = time.time() - t0
         now = _dt.datetime.now(_dt.timezone.utc).isoformat()
         _warm_state["last_warm_at"] = now
@@ -378,7 +412,7 @@ def _start_cache_auto_rewarm():
                     t0 = time.time()
                     _warm_detail_snapshots()
                     _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
-                    _warm_ship_details("http://127.0.0.1:8888")
+                    _warm_ship_details()
                     elapsed = time.time() - t0
                     now = _dt.datetime.now(_dt.timezone.utc).isoformat()
                     _warm_state["last_warm_at"] = now

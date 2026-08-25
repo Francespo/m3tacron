@@ -20,7 +20,7 @@ T = TypeVar("T")
 
 # Configuration
 CACHE_CHECK_INTERVAL = 5.0  # seconds between version checks
-MAX_CACHE_ENTRIES = 1000
+MAX_CACHE_ENTRIES = 3000  # ships detail needs ~1472 + 86 base entries; keep well above 1558 to avoid eviction
 
 # Internal state
 _lock = threading.Lock()
