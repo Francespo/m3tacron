@@ -30,6 +30,8 @@
 
     function pickWinnerNameExt(m: Match | null, pMap: Map<string, any>): string | null {
         if (!m) return null;
+        if ((m.player2 || "").trim().toLowerCase() === "bye") return m.player1;
+        if ((m.player1 || "").trim().toLowerCase() === "bye") return m.player2;
         if (m.winner_id !== undefined && m.winner_id !== null) {
             const p1 = pMap.get(m.player1.trim().toLowerCase());
             const p2 = pMap.get(m.player2.trim().toLowerCase());
