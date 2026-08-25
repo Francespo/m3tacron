@@ -4,7 +4,7 @@ import httpx
 
 from .base import BaseScraper
 from ..models import Tournament, Match, PlayerStanding
-from ..data_structures.formats import Format
+from ..data_structures.formats import Format, infer_format_from_xws
 from ..data_structures.source import Source
 from ..data_structures.round_types import RoundType
 from ..data_structures.location import Location
@@ -88,10 +88,25 @@ class ListFortressScraper(BaseScraper):
 
             # Format might be overridden by inferred_format if provided
             fmt = inferred_format
-            if not fmt:
-                # User Requirement: Ignore ListFortress definition
-                # fmt = self._map_format(data.get("format_id"))
-                fmt = Format.UNKNOWN
+            if not fmt or fmt == Format.UNKNOWN:
+                # Fallback to ListFortress format_id when XWS inference yields UNKNOWN
+                # (e.g. pre-2019 events like 2797/105 with empty vendor). For the
+                # FFG era (pre-2021 second edition), format_id 1/2/34 were all FFG
+                # — mapping them to AMG would pick the wrong pt_win and keep the
+                # format as "unknown" even though 12808 already heals via raithos.
+                # So era-gate the _map_format fallback.
+                fid = data.get("format_id")
+                try:
+                    event_date = self._parse_date(data.get("date") or "").date()
+                except Exception:
+                    event_date = None
+                if event_date is not None and event_date < __import__("datetime").date(2021, 1, 1):
+                    # Pre-AMG era: everything was FFG 2.0.
+                    fmt = Format.FFG
+                elif fid is not None:
+                    mapped = self._map_format(fid)
+                    if mapped != Format.UNKNOWN:
+                        fmt = mapped
 
             return Tournament(
                 id=str(data["id"]),
