@@ -129,13 +129,7 @@
 
     $effect(() => {
         if (!browser) return;
-        // Track BOTH the data source AND the epic toggle so the dashboard
-        // re-fetches whenever the user changes either one via the
-        // ContentSourceToggle. Reading both inside the effect makes them
-        // reactive dependencies under Svelte 5 runes. `retryToken` is read
-        // so the "Try again" button re-runs this fetch.
         const source = filters.dataSource;
-        const epic = filters.includeEpic;
         const _rt = retryToken;
         // Ensure data is loaded
         xwingData.setSource(source as any);
@@ -151,13 +145,8 @@
         // state updates; the abort actually stops the network request.
         const controller = new AbortController();
 
-        // Pass `epic` to the meta-snapshot even though the backend currently
-        // ignores it; the dashboard will already be wired correctly if the
-        // endpoint starts honoring it. The `data_source` query param is the
-        // one that actually filters the snapshot today.
         const params = new URLSearchParams();
         params.set("data_source", source);
-        if (epic) params.set("epic", "true");
         const targetUrl = `/api/meta-snapshot?${params.toString()}`;
         cachedFetchJson(targetUrl, undefined, controller.signal)
             .then((data) => {

@@ -107,47 +107,36 @@ def _record_warm_history(entry: dict) -> None:
 def _warm_endpoint_list() -> list[str]:
     """Canonical list of API paths to warm. Used by startup and auto-rewarm.
 
-    Covers: dashboard (4 combos xwa/legacy x epic), ships (4 combos, all pages
-    via single aggregation page/size excluded), lists/squadrons page 0 (4 combos
-    each — page 1..N are slices of same cached aggregation), cards (8 combos),
-    tournaments page 0 (2 entries). Total ~22 keys, <20s. Per-ship detail is
-    warmed separately via _warm_ship_details() with parallel workers.
+    Epic is always included site-wide (no epic param). Covers: dashboard
+    (2 combos xwa/legacy), ships (2 combos, all pages via single aggregation
+    page/size excluded), lists/squadrons page 0 (2 combos each), cards
+    (4 combos), tournaments page 0 (1 entry). Total ~11 keys. Per-ship detail
+    is warmed separately via _warm_ship_details() in-process.
     """
     endpoints: list[str] = [
-        # Dashboard meta-snapshot (xwa + legacy, with and without epic)
+        # Dashboard meta-snapshot (xwa + legacy, epic always on)
         "meta-snapshot?data_source=xwa",
-        "meta-snapshot?data_source=xwa&epic=true",
         "meta-snapshot?data_source=legacy",
-        "meta-snapshot?data_source=legacy&epic=true",
     ]
     # Ships — all pages are slices of one cached aggregation (page/size excluded
-    # from key, see backend/api/ships.py). Warm 2 combos: xwa/legacy (ships
-    # endpoint has no epic param — epic filtering is client-side via xwingData).
+    # from key, see backend/api/ships.py). Warm 2 combos: xwa/legacy.
     for ds in ("xwa", "legacy"):
         endpoints.append(f"ships?page=0&size=21&sort_metric=Lists&sort_direction=desc&data_source={ds}")
-    # Lists page 0 — 4 combos. page/size/sort excluded from cache key, so
-    # page 1..9 are already warm if page 0 is.
+    # Lists page 0 — 2 combos (epic always on).
     for ds in ("xwa", "legacy"):
-        for epic in ("", "&epic=true"):
-            endpoints.append(f"lists?page=0&size=20&sort_metric=Games&sort_direction=desc&min_games=3&data_source={ds}{epic}")
-    # Squadrons page 0 — 4 combos (same page-excluded caching)
+        endpoints.append(f"lists?page=0&size=20&sort_metric=Games&sort_direction=desc&min_games=3&data_source={ds}")
+    # Squadrons page 0 — 2 combos (epic always on).
     for ds in ("xwa", "legacy"):
-        for epic in ("", "&epic=true"):
-            endpoints.append(f"squadrons?page=0&size=20&sort_metric=Games&sort_direction=desc&data_source={ds}{epic}")
-    # Tournaments page 0 — 1 entry (tournaments has no data_source param; its
-    # cache key includes page so only page 0 is warmed, page 1..4 on-demand).
+        endpoints.append(f"squadrons?page=0&size=20&sort_metric=Games&sort_direction=desc&data_source={ds}")
+    # Tournaments page 0 — 1 entry.
     endpoints.append("tournaments?page=0&size=20&sort_metric=Date&sort_direction=desc")
     endpoints.extend([
-        # Cards/Pilots - 4 combos
+        # Cards/Pilots - 2 combos (epic always on)
         "cards/pilots?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=xwa",
-        "cards/pilots?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=xwa&epic=true",
         "cards/pilots?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=legacy",
-        "cards/pilots?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=legacy&epic=true",
-        # Cards/Upgrades - 4 combos
+        # Cards/Upgrades - 2 combos (epic always on)
         "cards/upgrades?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=xwa",
-        "cards/upgrades?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=xwa&epic=true",
         "cards/upgrades?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=legacy",
-        "cards/upgrades?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=legacy&epic=true",
     ])
     return endpoints
 
@@ -186,18 +175,14 @@ def _warm_detail_snapshots() -> None:
 
 
 def _warm_ship_details() -> None:
-    """Prewarm all ship detail pages (xwa/legacy × epic × 4 endpoints) **in-process**.
+    """Prewarm all ship detail pages (xwa/legacy × 4 endpoints) **in-process**.
 
     Each ship has 4 cached aggregates:
       ship_info|{xws}|{ds}|..., ship_pilots|{xws}|..., ship_lists|{xws}|..., ship_squadrons|{xws}|...
-    All via backend.cache.get_cached_or_compute. The previous version warmed
-    via HTTP GET to http://127.0.0.1:8888 — with 2 uvicorn workers that put the
-    in-memory cache (per-process dict) out of sync and deadlocked in_flight
-    across processes. This version computes directly in this process's cache,
-    touching no HTTP and no cross-worker coordination. Runs on a background
+    All via backend.cache.get_cached_or_compute. Runs on a background
     thread so the server accepts traffic immediately.
 
-    Covers 92 ships × 4 combos (xwa/legacy × epic) × 4 endpoints = 1472 keys.
+    Epic is always included — no epic variants. Covers ~92 ships × 2 combos × 4 endpoints = ~736 keys.
     Sequential HTTP timeout (30s) is gone; DB work is the only cost, shared via
     cache dedup if multiple threads compute the same key.
     """
@@ -237,68 +222,62 @@ def _warm_ship_details() -> None:
         _warm_state["ship_details"] = {"error": "no ships"}
         return
 
-    # 4 combos: xwa/legacy × epic — must match ship_detail.py cache keys exactly
-    # (which use _ship_filter_cache_suffix). Otherwise warm misses and click stays cold.
-    combos: list[tuple[DataSource, bool]] = [
-        (DataSource.XWA, False),
-        (DataSource.XWA, True),
-        (DataSource.LEGACY, False),
-        (DataSource.LEGACY, True),
-    ]
+    # 2 combos: xwa/legacy (epic always on) — must match ship_detail.py cache keys exactly.
+    combos: list[DataSource] = [DataSource.XWA, DataSource.LEGACY]
 
     t0 = _t.time()
     ok = 0
     fail = 0
     for xws in sorted(all_xws):
-        for ds, epic in combos:
-            # Build the canonical suffix exactly as the endpoint does (all None except epic)
+        for ds in combos:
+            # Build the canonical suffix exactly as the endpoint does (no epic param)
             suffix = _ship_filter_cache_suffix(
                 formats=None, factions=None, ships=None, continent=None, country=None, city=None,
                 platforms=None, sources=None, date_start=None, date_end=None,
-                player_count_min=None, player_count_max=None, search=None, epic=epic, faction=None,
+                player_count_min=None, player_count_max=None, search=None, faction=None,
             )
             # ship_info — key: ship_info|{xws}|{ds}|suffix ; value: single dict (stats[0])
             try:
                 cache_key_info = f"ship_info|{xws}|{ds.value}{suffix}"
-                flt = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None, epic=epic)
+                flt = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None)
                 def _compute_info(flt=flt, ds=ds):
                     stats = aggregate_ship_stats(flt, SortingCriteria.GAMES, SortDirection.DESCENDING, ds)
                     return stats[0] if stats else {}
                 get_cached_or_compute(cache_key_info, _compute_info)
                 ok += 1
             except Exception as e:
-                print(f"[prewarm] ship details {xws}/{ds.value}/epic={epic}/info: FAILED ({e})")
+                print(f"[prewarm] ship details {xws}/{ds.value}/info: FAILED ({e})")
                 fail += 1
             # ship_pilots — key: ship_pilots|{xws}|{ds}|Lists|desc|suffix ; default sort Lists desc
             try:
                 cache_key_pilots = f"ship_pilots|{xws}|{ds.value}|Lists|desc{suffix}"
-                flt = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None, epic=epic)
+                flt = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None)
                 get_cached_or_compute(cache_key_pilots, lambda flt=flt, ds=ds: aggregate_card_stats(flt, SortingCriteria.LISTS, SortDirection.DESCENDING, "pilots", ds))
                 ok += 1
             except Exception as e:
-                print(f"[prewarm] ship details {xws}/{ds.value}/epic={epic}/pilots: FAILED ({e})")
+                print(f"[prewarm] ship details {xws}/{ds.value}/pilots: FAILED ({e})")
                 fail += 1
             # ship_lists — key: ship_lists|{xws}|{ds}|10|suffix ; compute is raw aggregate before enrichment
             try:
                 cache_key_lists = f"ship_lists|{xws}|{ds.value}|10{suffix}"
-                flt = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None, epic=epic)
+                flt = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None)
                 get_cached_or_compute(cache_key_lists, lambda flt=flt, ds=ds: aggregate_list_stats(flt, data_source=ds))
                 ok += 1
             except Exception as e:
-                print(f"[prewarm] ship details {xws}/{ds.value}/epic={epic}/lists: FAILED ({e})")
+                print(f"[prewarm] ship details {xws}/{ds.value}/lists: FAILED ({e})")
                 fail += 1
             # ship_squadrons — key: ship_squadrons|{xws}|{ds}|10|suffix
             try:
                 cache_key_sq = f"ship_squadrons|{xws}|{ds.value}|10{suffix}"
-                flt = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None, epic=epic)
+                flt = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None)
                 get_cached_or_compute(cache_key_sq, lambda flt=flt, ds=ds: aggregate_squadron_stats(flt, SortingCriteria.WINRATE, SortDirection.DESCENDING, ds))
                 ok += 1
             except Exception as e:
-                print(f"[prewarm] ship details {xws}/{ds.value}/epic={epic}/squadrons: FAILED ({e})")
+                print(f"[prewarm] ship details {xws}/{ds.value}/squadrons: FAILED ({e})")
                 fail += 1
 
     elapsed = _t.time() - t0
-    print(f"[prewarm] ship details (in-process): {ok} ok, {fail} fail in {elapsed:.1f}s ({len(all_xws)} ships × 4 combos × 4 kinds) ✓")
+    print(f"[prewarm] ship details (in-process): {ok} ok, {fail} fail in {elapsed:.1f}s ({len(all_xws)} ships × 2 combos × 4 kinds) ✓")
     _warm_state["ship_details"] = {
         "ok": ok, "fail": fail, "elapsed_s": round(elapsed, 1),
         "total_urls": len(all_xws) * len(combos) * 4, "ships": len(all_xws), "workers": 1,
@@ -347,7 +326,7 @@ def _prewarm_cache():
     Runs in a daemon thread so startup returns immediately. Uses internal
     HTTP requests (no external port needed) via the same uvicorn worker.
     Also eagerly builds the card-detail snapshots (xwa + legacy) so detail pages
-    are warm on first visit, and all ship detail pages (xwa/legacy × epic).
+    are warm on first visit, and all ship detail pages (xwa/legacy).
     """
     import threading
 
@@ -451,7 +430,7 @@ def cache_stats_endpoint():
         "warm": dict(_warm_state),
         "config": {
             "warm_endpoints": len(_warm_endpoint_list()),
-            "ship_detail_total_urls": 1472,  # 92 ships × 4 combos × 4 endpoints
+            "ship_detail_total_urls": 736,  # 92 ships × 2 combos × 4 endpoints (epic always on)
             "max_cache_entries": 1000,
         },
     }
@@ -465,22 +444,19 @@ def read_root():
 @app.get("/api/meta-snapshot", response_model=MetaSnapshotResponse)
 def get_snapshot(
     data_source: str = Query("xwa", description="Data source: xwa or legacy"),
-    epic: bool = Query(False, description="Include epic content"),
 ):
     ds_enum = DataSource.XWA if data_source == "xwa" else DataSource.LEGACY
     def compute():
-        # Source -> formats mapping. Must stay in sync with frontend's
-        # filters.svelte / +page.svelte formatsForSource.
+        # Source -> formats mapping. Epic content is always included.
         if ds_enum == DataSource.XWA:
-            allowed_formats = ["xwa", "amg"] if epic else ["xwa"]
+            allowed_formats = ["xwa", "amg"]
         else:
-            allowed_formats = ["legacy_x2po", "legacy_xlc", "legacy_pandorum"] if epic else ["legacy_x2po", "legacy_xlc", "legacy_pandorum"]
+            allowed_formats = ["legacy_x2po", "legacy_xlc", "legacy_pandorum"]
 
-        # Runs the 5 aggregations + 2 count queries. Cached by (data_source, epic),
-        # so the dashboard (which hits this on every load / filter toggle)
-        # only pays the cost once per data_version.
+        # Runs the 5 aggregations + 2 count queries. Cached by data_source
+        # (epic always on) so the dashboard only pays the cost once per data_version.
         from .api.formatters import enrich_list_data
-        snapshot = get_meta_snapshot(ds_enum, allowed_formats=allowed_formats, include_epic=epic)
+        snapshot = get_meta_snapshot(ds_enum, allowed_formats=allowed_formats, include_epic=True)
 
         # Enrich list data with pilot/ship metadata (names, ship icons,
         # pack captions, upgrade names) before serving to the dashboard.
@@ -526,5 +502,5 @@ def get_snapshot(
             "total_players": total_players,
         }
 
-    cached = get_cached_or_compute(f"meta_snapshot|{ds_enum.value}|{epic}", compute)
+    cached = get_cached_or_compute(f"meta_snapshot|{ds_enum.value}|True", compute)
     return MetaSnapshotResponse(**cached)

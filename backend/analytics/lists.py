@@ -56,7 +56,7 @@ from ..database import engine
 from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
 from ..api.formatters import _reformat_pilots
-from .filter_helpers import format_filter_clause, ship_list_filter_clause, huge_ships_exclusion_clause
+from .filter_helpers import format_filter_clause, ship_list_filter_clause
 
 
 def aggregate_list_stats_for_pilot(
@@ -128,10 +128,7 @@ def aggregate_list_stats_for_pilot(
         where_clauses.append(ship_clause)
 
     where_clauses.append("(NOT t.is_team_event OR ps.is_team_member)")
-    if not filters.get("epic", False):
-        huge_clause = huge_ships_exclusion_clause(False, data_source, params)
-        if huge_clause:
-            where_clauses.append(huge_clause)
+    # Epic content is always included — no huge-ship exclusion.
 
     # Minimal post-SQL text filter handled in Python (name/pilots) below
     text_filter = (search_text or "").strip().lower() or None
@@ -272,10 +269,7 @@ def aggregate_list_stats(
         where_clauses.append(ship_clause)
 
     where_clauses.append("(NOT t.is_team_event OR ps.is_team_member)")
-    if not filters.get("epic", False):
-        huge_clause = huge_ships_exclusion_clause(False, data_source, params)
-        if huge_clause:
-            where_clauses.append(huge_clause)
+    # Epic content is always included — no huge-ship exclusion.
 
     where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 

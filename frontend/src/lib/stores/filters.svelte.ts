@@ -22,7 +22,6 @@ import { isPendingSync, resolvePendingSync, markHydrated } from "$lib/sync/urlSy
 // ---------------------------------------------------------------------------
 
 let dataSource = $state<'xwa' | 'legacy'>('xwa');
-let includeEpic = $state(false);
 let dateStart = $state('');
 let dateEnd = $state('');
 let selectedContinents = $state<string[]>([]);
@@ -186,7 +185,6 @@ export type RouteId = 'cards' | 'lists' | 'ships' | 'squadrons' | 'tournaments';
  */
 type FieldKey =
     | 'dataSource'
-    | 'includeEpic'
     | 'selectedFormats'
     | 'selectedFactions'
     | 'selectedShips'
@@ -211,7 +209,6 @@ type FieldKey =
 const ROUTE_FIELDS: Record<RouteId, readonly FieldKey[]> = {
     cards: [
         'dataSource',
-        'includeEpic',
         'selectedFormats',
         'selectedFactions',
         'selectedShips',
@@ -235,7 +232,6 @@ const ROUTE_FIELDS: Record<RouteId, readonly FieldKey[]> = {
     ],
     lists: [
         'dataSource',
-        'includeEpic',
         'selectedFormats',
         'selectedFactions',
         'selectedShips',
@@ -250,7 +246,6 @@ const ROUTE_FIELDS: Record<RouteId, readonly FieldKey[]> = {
     ],
     ships: [
         'dataSource',
-        'includeEpic',
         'selectedFormats',
         'selectedFactions',
         'selectedShips',
@@ -265,7 +260,6 @@ const ROUTE_FIELDS: Record<RouteId, readonly FieldKey[]> = {
     ],
     squadrons: [
         'dataSource',
-        'includeEpic',
         'selectedFormats',
         'selectedFactions',
         'selectedShips',
@@ -280,7 +274,6 @@ const ROUTE_FIELDS: Record<RouteId, readonly FieldKey[]> = {
     ],
     tournaments: [
         'dataSource',
-        'includeEpic',
         'selectedFormats',
         'selectedSources',
         'selectedContinents',
@@ -297,7 +290,6 @@ const ROUTE_FIELDS: Record<RouteId, readonly FieldKey[]> = {
 /** Maps a single-value field to its URL key. */
 const SINGLE_KEY: Record<FieldKey, string> = {
     dataSource: 'data_source',
-    includeEpic: 'epic',
     searchName: 'search',
     dateStart: 'date_start',
     dateEnd: 'date_end',
@@ -350,8 +342,6 @@ function defaultFormatsForSource(source: 'xwa' | 'legacy'): string[] {
  * `selectedFormats` is always written in full (even when it matches the
  * current `dataSource` default) so the URL round-trips cleanly with
  * `applyFromSearchParams` and multi-select stays stable across re-renders.
- * When the "Include Epic" toggle is on, the route's epic format variant(s)
- * are added to the emitted formats (see `resolveFormats`).
  */
 function toSearchParams(routeId: RouteId): URLSearchParams {
     const params = new URLSearchParams();
@@ -362,11 +352,6 @@ function toSearchParams(routeId: RouteId): URLSearchParams {
             case 'dataSource':
                 if (dataSource !== 'xwa') {
                     params.set(SINGLE_KEY.dataSource, dataSource);
-                }
-                break;
-            case 'includeEpic':
-                if (includeEpic) {
-                    params.set(SINGLE_KEY.includeEpic, 'true');
                 }
                 break;
             case 'searchName':
@@ -488,7 +473,6 @@ function applyFromSearchParams(params: URLSearchParams): void {
     const dataSourceVal = params.get('data_source');
     dataSource = dataSourceVal === 'legacy' ? 'legacy' : 'xwa';
 
-    includeEpic = params.get('epic') === 'true';
     if (params.has('search')) {
         const v = params.get('search') ?? '';
         if (v) searchName = v;
@@ -630,10 +614,6 @@ export const filters = {
         } else if (v === 'legacy') {
             selectedFormats = ['legacy_x2po'];
         }
-    },
-    get includeEpic() { return includeEpic; },
-    set includeEpic(v: boolean) {
-        includeEpic = v;
     },
     get dateStart() { return dateStart; },
     set dateStart(v: string) { dateStart = v; },

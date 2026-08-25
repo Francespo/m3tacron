@@ -21,7 +21,7 @@ def _build_cache_key(
     data_source: str,
     formats, factions, ships, platforms, continent, country, city,
     date_start, date_end, player_count_min, player_count_max,
-    min_games, points_min, points_max, epic: bool = False,
+    min_games, points_min, points_max,
 ) -> str:
     return (
         f"lists|{data_source}|"
@@ -35,7 +35,6 @@ def _build_cache_key(
         f"ds={date_start}|de={date_end}|"
         f"pcmin={player_count_min}|pcmax={player_count_max}|"
         f"mg={min_games}|pmin={points_min}|pmax={points_max}|"
-        f"epic={epic}"
     )
 
 
@@ -116,7 +115,6 @@ def get_lists(
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Games"),
     sort_direction: str = Query("desc"),
-    epic: bool = Query(False),
 
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
@@ -144,7 +142,8 @@ def get_lists(
         "player_count_max": player_count_max,
         "ships": ships,
         "factions": factions,
-        "epic": epic,
+        "epic": True,
+        "include_epic": True,
     }
     if formats:
         filters["allowed_formats"] = formats
@@ -152,7 +151,7 @@ def get_lists(
     cache_key = _build_cache_key(
         data_source, formats, factions, ships, platforms, continent, country, city,
         date_start, date_end, player_count_min, player_count_max,
-        min_games, points_min, points_max, epic=epic,
+        min_games, points_min, points_max,
     )
 
     def compute():

@@ -86,7 +86,6 @@ def _build_filters(
     player_count_min: int | None = None,
     player_count_max: int | None = None,
     upgrade_id: str | None = None,
-    epic: bool = False,
 ) -> dict:
     
     # Base sizes mapping
@@ -129,7 +128,7 @@ def _build_filters(
         "player_count_min": player_count_min,
         "player_count_max": player_count_max,
         "upgrade_id": upgrade_id,
-        "include_epic": epic,
+        "include_epic": True,
     }
 
 
@@ -140,7 +139,6 @@ def get_pilots(
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Lists"),
     sort_direction: str = Query("desc"),
-    epic: bool = Query(False),
     
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
@@ -187,7 +185,6 @@ def get_pilots(
         base_sizes=base_sizes, platforms=platforms, continent=continent, country=country, city=city,
         date_start=date_start, date_end=date_end,
         player_count_min=player_count_min, player_count_max=player_count_max,
-        epic=epic,
     )
 
     cache_key = (
@@ -212,7 +209,6 @@ def get_pilots(
         f"|{','.join(sorted(city or []))}"
         f"|{date_start or ''}|{date_end or ''}"
         f"|{player_count_min}|{player_count_max}"
-        f"|{epic}"
     )
 
     def compute():
@@ -235,7 +231,6 @@ def get_upgrades(
     sort_metric: str = Query("Lists"),
     sort_direction: str = Query("desc"),
     upgrade_id: str | None = Query(None, description="Filter to lists containing this upgrade xws"),
-    epic: bool = Query(False),
 
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
@@ -261,7 +256,6 @@ def get_upgrades(
         date_start=date_start, date_end=date_end,
         player_count_min=player_count_min, player_count_max=player_count_max,
         upgrade_id=upgrade_id,
-        epic=epic,
     )
 
     cache_key = (
@@ -278,7 +272,6 @@ def get_upgrades(
         f"|{date_start or ''}|{date_end or ''}"
         f"|{player_count_min}|{player_count_max}"
         f"|{upgrade_id or ''}"
-        f"|{epic}"
     )
 
     def compute():

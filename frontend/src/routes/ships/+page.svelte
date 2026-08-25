@@ -74,7 +74,6 @@
     // Merge API data with xwingData when any dependency changes
     $effect(() => {
         // Read reactive values synchronously so $effect tracks them
-        const epic = filters.includeEpic;
         const currentSortBy = filters.sortBy;
         const currentSortDir = filters.sortDirection;
         // Chassis filter — backend already receives `?ships=...`, but the merge
@@ -110,8 +109,6 @@
             for (const [xws, ship] of Object.entries(xwingShips)) {
                 if (seen.has(xws)) continue;
                 seen.add(xws);
-                // Skip epic-only ships (ships with no standard-legal pilots) unless includeEpic is on
-                if (!epic && (ship as any).epic) continue;
                 // Skip ships not in the chassis filter (when one is active)
                 if (selectedShips.length > 0 && !selectedShips.includes(xws)) continue;
 
