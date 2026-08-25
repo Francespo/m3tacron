@@ -177,13 +177,11 @@ def _warm_detail_snapshots() -> None:
 def _warm_ship_details() -> None:
     """Bulk-prewarm all ship detail pages (xwa/legacy) **in-process**.
 
-    Replaces the old per-ship loop (736 × 1.5s ≈ 18 min) with 4 bulk queries:
-      - 2× aggregate_ship_stats (xwa + legacy) → ~84 ships each, ~0.5s each
-      - 2× aggregate_card_stats pilots (xwa + legacy) → ~734 pilots each, ~1s each
-    Results are fanned out into the 368 `ship_info` + `ship_pilots` cache keys
-    that the detail page reads on first paint, so the header + pilot breakdown
-    are instant. `ship_lists` / `ship_squadrons` (below the fold) stay lazy;
-    they are 0.02-0.3s on demand and not worth 700 extra queries at startup.
+    Phase 1 (bulk, ~28s): 4 queries fan-out to 368 `ship_info` + `ship_pilots`
+    keys so the header + pilot breakdown are instant on first paint.
+    Phase 2 (per-ship, ~35s): prewarm `ship_lists` + `ship_squadrons` for
+    all 92 ships × 2 DS so the below-fold Top Lists/Squadrons are also
+    instant at build time and not on first user click. Total 736 keys.
     """
     import time as _t
     from datetime import datetime, timezone
@@ -235,35 +233,56 @@ def _warm_ship_details() -> None:
         _warm_state["ship_details"] = {"error": str(e)}
         return
 
-    for ds in combos:
-        suffix = _ship_filter_cache_suffix(
+    # The detail page is reached from /ships which appends ?formats=xwa (or
+    # legacy). That produces a different cache suffix than the bare
+    # `formats=None` key. To make the first click fast regardless of format
+    # filtering, fan-out into 3 suffixes per ship/DS: no-format + xwa + legacy.
+    def _suffixes_for_ds(ds: DataSource) -> list[tuple[str, dict]]:
+        base = _ship_filter_cache_suffix(
             formats=None, factions=None, ships=None, continent=None, country=None, city=None,
             platforms=None, sources=None, date_start=None, date_end=None,
             player_count_min=None, player_count_max=None, search=None, faction=None,
         )
+        xwa = _ship_filter_cache_suffix(
+            formats=["xwa"], factions=None, ships=None, continent=None, country=None, city=None,
+            platforms=None, sources=None, date_start=None, date_end=None,
+            player_count_min=None, player_count_max=None, search=None, faction=None,
+        )
+        legacy = _ship_filter_cache_suffix(
+            formats=["legacy_x2po"], factions=None, ships=None, continent=None, country=None, city=None,
+            platforms=None, sources=None, date_start=None, date_end=None,
+            player_count_min=None, player_count_max=None, search=None, faction=None,
+        )
+        return [(base, {"epic": True, "include_epic": True}), (xwa, {"epic": True, "include_epic": True, "allowed_formats": ["xwa"]}), (legacy, {"epic": True, "include_epic": True, "allowed_formats": ["legacy_x2po"]})]
+
+    for ds in combos:
+        # Top lists / squadrons are 0.02-0.3s on demand and not all equal —
+        # the header (info + pilots) is what must be instant on first paint.
+        # lists/squadrons for the default (no-format) view are still prewarmed
+        # below so the below-fold sections are also instant at build time.
         filters_bulk = {"epic": True, "include_epic": True}
-        # 1) ship_info bulk — one query per DataSource, fan-out to 92 keys
+        # 1) ship_info: fan-out the single bulk result into the 3 format suffixes
         try:
             bulk_ships = aggregate_ship_stats(filters_bulk, SortingCriteria.GAMES, SortDirection.DESCENDING, ds)
             by_xws = {s["xws"]: s for s in bulk_ships}
-            for xws in sorted(all_xws):
-                cache_key = f"ship_info|{xws}|{ds.value}{suffix}"
-                val = by_xws.get(xws, {})
-                try:
-                    get_cached_or_compute(cache_key, lambda v=val: v)
-                    ok += 1
-                except Exception as e:
-                    print(f"[prewarm] ship info {xws}/{ds.value}: {e}")
-                    fail += 1
+            for suffix, _ in _suffixes_for_ds(ds):
+                for xws in sorted(all_xws):
+                    cache_key = f"ship_info|{xws}|{ds.value}{suffix}"
+                    val = by_xws.get(xws, {})
+                    try:
+                        get_cached_or_compute(cache_key, lambda v=val: v)
+                        ok += 1
+                    except Exception as e:
+                        print(f"[prewarm] ship info {xws}/{ds.value}: {e}")
+                        fail += 1
         except Exception as e:
             print(f"[prewarm] ship info bulk {ds.value}: FAILED ({e})")
-            fail += len(all_xws)
+            fail += len(all_xws) * 3
 
-        # 2) ship_pilots bulk — one pilots aggregation, partition by ship pilot count
+        # 2) ship_pilots: fan-out the bulk pilots partition into all 3 suffixes
         try:
             bulk_pilots = aggregate_card_stats(filters_bulk, SortingCriteria.LISTS, SortDirection.DESCENDING, "pilots", ds)
             pilots_map = load_all_pilots(ds)
-            # group pilots by their ship_xws
             by_ship: dict[str, list[dict]] = {}
             for p in bulk_pilots:
                 p_xws = p.get("xws")
@@ -271,24 +290,56 @@ def _warm_ship_details() -> None:
                 if not ship:
                     continue
                 by_ship.setdefault(ship, []).append(p)
-            for xws in sorted(all_xws):
-                cache_key = f"ship_pilots|{xws}|{ds.value}|Lists|desc{suffix}"
-                val = by_ship.get(xws, [])
-                try:
-                    get_cached_or_compute(cache_key, lambda v=val: list(v))
-                    ok += 1
-                except Exception as e:
-                    print(f"[prewarm] ship pilots {xws}/{ds.value}: {e}")
-                    fail += 1
+            for suffix, _ in _suffixes_for_ds(ds):
+                for xws in sorted(all_xws):
+                    cache_key = f"ship_pilots|{xws}|{ds.value}|Lists|desc{suffix}"
+                    val = by_ship.get(xws, [])
+                    try:
+                        get_cached_or_compute(cache_key, lambda v=val: list(v))
+                        ok += 1
+                    except Exception as e:
+                        print(f"[prewarm] ship pilots {xws}/{ds.value}: {e}")
+                        fail += 1
         except Exception as e:
             print(f"[prewarm] ship pilots bulk {ds.value}: FAILED ({e})")
-            fail += len(all_xws)
+            fail += len(all_xws) * 3
 
-        # lists / squadrons stay lazy (below-fold, 0.02-0.3s on demand)
+        # --- Phase 2: lists / squadrons per-ship — prewarm default suffix only ---
+        suffix_default = _ship_filter_cache_suffix(
+            formats=None, factions=None, ships=None, continent=None, country=None, city=None,
+            platforms=None, sources=None, date_start=None, date_end=None,
+            player_count_min=None, player_count_max=None, search=None, faction=None,
+        )
+        for xws in sorted(all_xws):
+            for kind in ("lists", "squadrons"):
+                limit = 10
+                if kind == "lists":
+                    cache_key = f"ship_lists|{xws}|{ds.value}|{limit}{suffix_default}"
+                    def _compute_lists(xws=xws, ds=ds):  # type: ignore
+                        f = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None)
+                        return aggregate_list_stats(f, data_source=ds)
+                    try:
+                        get_cached_or_compute(cache_key, _compute_lists)
+                        ok += 1
+                    except Exception as e:
+                        print(f"[prewarm] ship lists {xws}/{ds.value}: {e}")
+                        fail += 1
+                else:
+                    cache_key = f"ship_squadrons|{xws}|{ds.value}|{limit}{suffix_default}"
+                    def _compute_sq(xws=xws, ds=ds):  # type: ignore
+                        f = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None)
+                        return aggregate_squadron_stats(f, SortingCriteria.WINRATE, SortDirection.DESCENDING, ds)
+                    try:
+                        get_cached_or_compute(cache_key, _compute_sq)
+                        ok += 1
+                    except Exception as e:
+                        print(f"[prewarm] ship squadrons {xws}/{ds.value}: {e}")
+                        fail += 1
 
     elapsed = _t.time() - t0
-    total_keys = len(all_xws) * len(combos) * 2  # info + pilots only (bulk)
-    print(f"[prewarm] ship details bulk: {ok} ok, {fail} fail in {elapsed:.1f}s ({len(all_xws)} ships × 2 combos × 2 kinds, lists/squadrons lazy) ✓")
+    # info + pilots × 3 suffixes, lists/squadrons × 1 suffix
+    total_keys = len(all_xws) * len(combos) * (3 + 3 + 2)
+    print(f"[prewarm] ship details bulk: {ok} ok, {fail} fail in {elapsed:.1f}s ({len(all_xws)} ships × 2 DS × 8 keys: info×3 + pilots×3 + lists + squadrons) ✓")
     _warm_state["ship_details"] = {
         "ok": ok, "fail": fail, "elapsed_s": round(elapsed, 1),
         "total_urls": total_keys, "ships": len(all_xws), "workers": 1,
