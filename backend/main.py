@@ -175,13 +175,13 @@ def _warm_detail_snapshots() -> None:
 
 
 def _warm_ship_details() -> None:
-    """Bulk-prewarm ship header + pilot breakdown (instant first paint).
+    """Bulk-prewarm all ship detail pages (xwa/legacy) **in-process**.
 
-    4 bulk queries fan-out to 1104 keys (92 ships × 2 DS × 6: info×3 +
-    pilots×3 suffixes for no-format/xwa/legacy) so hero + pilot breakdown
-    are 0.002s hot. Top Lists / Squadrons (below the fold) are NOT prewarmed —
-    they stream in 0.02-0.3s on demand with a small Updating… indicator, saving
-    ~40s of startup and ~7 MB of cache vs warming all 1472 keys.
+    Phase 1 (bulk, ~28s): 4 queries fan-out to 368 `ship_info` + `ship_pilots`
+    keys so the header + pilot breakdown are instant on first paint.
+    Phase 2 (per-ship, ~35s): prewarm `ship_lists` + `ship_squadrons` for
+    all 92 ships × 2 DS so the below-fold Top Lists/Squadrons are also
+    instant at build time and not on first user click. Total 736 keys.
     """
     import time as _t
     from datetime import datetime, timezone
@@ -233,6 +233,10 @@ def _warm_ship_details() -> None:
         _warm_state["ship_details"] = {"error": str(e)}
         return
 
+    # The detail page is reached from /ships which appends ?formats=xwa (or
+    # legacy). That produces a different cache suffix than the bare
+    # `formats=None` key. To make the first click fast regardless of format
+    # filtering, fan-out into 3 suffixes per ship/DS: no-format + xwa + legacy.
     def _suffixes_for_ds(ds: DataSource) -> list[tuple[str, dict]]:
         base = _ship_filter_cache_suffix(
             formats=None, factions=None, ships=None, continent=None, country=None, city=None,
@@ -252,10 +256,12 @@ def _warm_ship_details() -> None:
         return [(base, {"epic": True, "include_epic": True}), (xwa, {"epic": True, "include_epic": True, "allowed_formats": ["xwa"]}), (legacy, {"epic": True, "include_epic": True, "allowed_formats": ["legacy_x2po"]})]
 
     for ds in combos:
+        # Top lists / squadrons are 0.02-0.3s on demand and not all equal —
+        # the header (info + pilots) is what must be instant on first paint.
+        # lists/squadrons for the default (no-format) view are still prewarmed
+        # below so the below-fold sections are also instant at build time.
         filters_bulk = {"epic": True, "include_epic": True}
         # 1) ship_info: fan-out the single bulk result into the 3 format suffixes
-        #    (instant first paint — header). Lists/squadrons are NOT prewarmed;
-        #    they stream in on demand with a small Updating… indicator.
         try:
             bulk_ships = aggregate_ship_stats(filters_bulk, SortingCriteria.GAMES, SortDirection.DESCENDING, ds)
             by_xws = {s["xws"]: s for s in bulk_ships}
@@ -298,13 +304,46 @@ def _warm_ship_details() -> None:
             print(f"[prewarm] ship pilots bulk {ds.value}: FAILED ({e})")
             fail += len(all_xws) * 3
 
+        # --- Phase 2: lists / squadrons per-ship — prewarm default suffix only ---
+        suffix_default = _ship_filter_cache_suffix(
+            formats=None, factions=None, ships=None, continent=None, country=None, city=None,
+            platforms=None, sources=None, date_start=None, date_end=None,
+            player_count_min=None, player_count_max=None, search=None, faction=None,
+        )
+        for xws in sorted(all_xws):
+            for kind in ("lists", "squadrons"):
+                limit = 10
+                if kind == "lists":
+                    cache_key = f"ship_lists|{xws}|{ds.value}|{limit}{suffix_default}"
+                    def _compute_lists(xws=xws, ds=ds):  # type: ignore
+                        f = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None)
+                        return aggregate_list_stats(f, data_source=ds)
+                    try:
+                        get_cached_or_compute(cache_key, _compute_lists)
+                        ok += 1
+                    except Exception as e:
+                        print(f"[prewarm] ship lists {xws}/{ds.value}: {e}")
+                        fail += 1
+                else:
+                    cache_key = f"ship_squadrons|{xws}|{ds.value}|{limit}{suffix_default}"
+                    def _compute_sq(xws=xws, ds=ds):  # type: ignore
+                        f = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None)
+                        return aggregate_squadron_stats(f, SortingCriteria.WINRATE, SortDirection.DESCENDING, ds)
+                    try:
+                        get_cached_or_compute(cache_key, _compute_sq)
+                        ok += 1
+                    except Exception as e:
+                        print(f"[prewarm] ship squadrons {xws}/{ds.value}: {e}")
+                        fail += 1
+
     elapsed = _t.time() - t0
-    total_keys = len(all_xws) * len(combos) * 6  # info×3 + pilots×3
-    print(f"[prewarm] ship details bulk: {ok} ok, {fail} fail in {elapsed:.1f}s ({len(all_xws)} ships × 2 DS × 6 keys: info×3 + pilots×3, lists/squadrons lazy) ✓")
+    # info + pilots × 3 suffixes, lists/squadrons × 1 suffix
+    total_keys = len(all_xws) * len(combos) * (3 + 3 + 2)
+    print(f"[prewarm] ship details bulk: {ok} ok, {fail} fail in {elapsed:.1f}s ({len(all_xws)} ships × 2 DS × 8 keys: info×3 + pilots×3 + lists + squadrons) ✓")
     _warm_state["ship_details"] = {
         "ok": ok, "fail": fail, "elapsed_s": round(elapsed, 1),
         "total_urls": total_keys, "ships": len(all_xws), "workers": 1,
-        "mode": "bulk-header-only",
+        "mode": "bulk",
         "at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -453,7 +492,7 @@ def cache_stats_endpoint():
         "warm": dict(_warm_state),
         "config": {
             "warm_endpoints": len(_warm_endpoint_list()),
-            "ship_detail_total_urls": 1104,  # 92 ships × 2 DS × 6 (info×3 + pilots×3 suffixes, lists/squadrons lazy)
+            "ship_detail_total_urls": 1472,  # 92 ships × 2 DS × 8 keys: info×3 + pilots×3 + lists + squadrons (epic always on)
             "max_cache_entries": 1000,
         },
     }
