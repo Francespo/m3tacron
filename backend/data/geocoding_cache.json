@@ -590,7 +590,7 @@
     "continent": "Europe"
   },
   "Hemel Hempstead Leisure Centre, GB": {
-    "city": "Unknown",
+    "city": "Dacorum",
     "country": "United Kingdom",
     "continent": "Europe"
   },
@@ -10790,7 +10790,7 @@
     "continent": "Europe"
   },
   "Centre-Val de Loire,\u00a0France": {
-    "city": "Unknown",
+    "city": "Centre-Val de Loire",
     "country": "France",
     "continent": "Europe"
   },
@@ -12528,5 +12528,280 @@
     "city": "Bellevue",
     "country": "United States",
     "continent": "North America"
+  },
+  "St Peters, Missouri, US": {
+    "city": "Saint Charles County",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Campinas, S\u00e3o Paulo, Brazil": {
+    "city": "Campinas",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Muito Colecion\u00e1veis, Campinas, S\u00e3o Paulo,\u00a0Brazil": {
+    "city": "Campinas",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Carver": {
+    "city": "Minnesota",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Boutique FDB, Quebec,\u00a0Canada": {
+    "city": "Gatineau",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Flint's, Ontario,\u00a0Canada": {
+    "city": "North Grenville",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Hungary": {
+    "city": "Unknown",
+    "country": "Hungary",
+    "continent": "Europe"
+  },
+  "SEVILLA, Andalusia,\u00a0Spain": {
+    "city": "Sevilla",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Top Tables K\u00f6ln, North Rhine-Westphalia,\u00a0Germany": {
+    "city": "Cologne",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "TRoA, Noerresundby (Aalborg), North Jutland,\u00a0Denmark": {
+    "city": "North Denmark Region",
+    "country": "Denmark",
+    "continent": "Europe"
+  },
+  "Alphaspel, Stockholm,\u00a0Sweden": {
+    "city": "Stockholm",
+    "country": "Sweden",
+    "continent": "Europe"
+  },
+  "DN-skrapan, Stockholm,\u00a0Sweden": {
+    "city": "Stockholm",
+    "country": "Sweden",
+    "continent": "Europe"
+  },
+  "Critical Hit Gaming Lounge, Ontario,\u00a0Canada": {
+    "city": "Courtice",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Salle Ren\u00e9 Cassin, Centre-Val de Loire,\u00a0France": {
+    "city": "Sully-sur-Loire",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "Warszawa, Poland": {
+    "city": "Warsaw",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Houston, Texas, US": {
+    "city": "Houston",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Novosibirsk, Russia": {
+    "city": "Novosibirsk",
+    "country": "Russia",
+    "continent": "Asia"
+  },
+  "Sin city Newport Spytty Park, Wales,\u00a0United Kingdom": {
+    "city": "Newport",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Cornwall,\u00a0United Kingdom": {
+    "city": "England",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Szombathely, Hungary": {
+    "city": "Vas",
+    "country": "Hungary",
+    "continent": "Europe"
+  },
+  "Hotel villa de Nava, Nava, Asturias,\u00a0Spain": {
+    "city": "Nava",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Pavilh\u00e3o Multiusos da Ajuda - Lisboa, Portugal": {
+    "city": "Malveira",
+    "country": "Portugal",
+    "continent": "Europe"
+  },
+  "Ireland": {
+    "city": "Unknown",
+    "country": "Ireland",
+    "continent": "Europe"
+  },
+  "https://boardandbrewed.ie/, Ireland": {
+    "city": "Unknown",
+    "country": "Ireland",
+    "continent": "Europe"
+  },
+  "Lomza, Hala Kultury, Poland": {
+    "city": "\u0141om\u017ca",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "CCSP, S\u00e3o Paulo, Brazil": {
+    "city": "Unknown",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Nortic Foods, CCSP, S\u00e3o Paulo,\u00a0Brazil": {
+    "city": "Unknown",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "La Vie, Muenster, North Rhine-Westphalia,\u00a0Germany": {
+    "city": "M\u00fcnster",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "Common Ground Games, Texas,\u00a0United States": {
+    "city": "Dallas",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Torun, Zlotoria, Poland": {
+    "city": "Toru\u0144 County",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Deception Bay PCYC, Queensland,\u00a0Australia": {
+    "city": "Unknown",
+    "country": "Unknown",
+    "continent": "Oceania"
+  },
+  "ZZ games, Hovedstaden,\u00a0Denmark": {
+    "city": "Copenhagen",
+    "country": "Denmark",
+    "continent": "Europe"
+  },
+  "Happy Piranha, Cornwall,\u00a0United Kingdom": {
+    "city": "Truro",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "WEllplayed D\u00fcbendorf, Switzerland": {
+    "city": "Bezirk Uster",
+    "country": "Switzerland",
+    "continent": "Europe"
+  },
+  "Dark Side Comics & Games. Sarasota, Fla, Florida,\u00a0United States": {
+    "city": "Sarasota",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Happy Piranha, England,\u00a0United Kingdom": {
+    "city": "Truro",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "TRoA, North Jutland,\u00a0Denmark": {
+    "city": "Unknown",
+    "country": "Denmark",
+    "continent": "Europe"
+  },
+  "Let's Play, Mexico": {
+    "city": "Espoo",
+    "country": "Finland",
+    "continent": "Europe"
+  },
+  "L'Abyss, Montreal, Quebec,\u00a0Canada": {
+    "city": "Montreal",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Calico Keep, Paraparaumu, New Zealand": {
+    "city": "Paraparaumu",
+    "country": "New Zealand",
+    "continent": "Oceania"
+  },
+  "Nortic Foods, S\u00e3o Paulo,\u00a0Brazil": {
+    "city": "S\u00e3o Paulo",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Prestige Wargaming Barnsley, Yorkshire,\u00a0United Kingdom": {
+    "city": "Barnsley",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "The Games Bunker, Somerset,\u00a0United Kingdom": {
+    "city": "Staffordshire Moorlands",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Bydgoszcz, Bydgoskie Centrum Targowo-Wystawiennicze, Poland": {
+    "city": "Bydgoszcz",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Cherbourg-en-Cotentin, Normandy,\u00a0France": {
+    "city": "Cherbourg-en-Cotentin",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "Igranie w Lochu, Gdynia, Poland": {
+    "city": "Gdynia",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Alicante, Valencia,\u00a0Spain": {
+    "city": "l'Alacant\u00ed",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "2-6 Hopetoun Street, Bathgate EH48 4EU, Scotland, United Kingdom": {
+    "city": "Bathgate",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Knightly Gaming, 2-6 Hopetoun Street, Bathgate EH48 4EU, Scotland,\u00a0United Kingdom": {
+    "city": "Bathgate",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "C/Conde de Altea, 4. 46005. Valencia, Valencia,\u00a0Spain": {
+    "city": "Valencia",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Hamilton, Mohawk College, Ontario,\u00a0Canada": {
+    "city": "Hamilton",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Pavillon d'Auron - Hall C, Centre-Val de Loire,\u00a0France": {
+    "city": "Bourges",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "The Grand Strategium, Pudsey, Leeds, Yorkshire,\u00a0United Kingdom": {
+    "city": "Leeds",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Wakefield, Yorkshire,\u00a0United Kingdom": {
+    "city": "Wakefield",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "On line, S\u00e3o Paulo,\u00a0Brazil": {
+    "city": "S\u00e3o Paulo",
+    "country": "Brazil",
+    "continent": "South America"
   }
 }
