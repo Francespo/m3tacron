@@ -505,7 +505,7 @@
     "continent": "Europe"
   },
   "Red Seal Gaming, NJ, US": {
-    "city": "Unknown",
+    "city": "Little Ferry",
     "country": "United States",
     "continent": "North America"
   },
@@ -2260,7 +2260,7 @@
     "continent": "Europe"
   },
   "Brooklyn Strategist, New York, US": {
-    "city": "Unknown",
+    "city": "New York",
     "country": "United States",
     "continent": "North America"
   },
@@ -2345,7 +2345,7 @@
     "continent": "Oceania"
   },
   "Flint's CCG, Ontario, CA": {
-    "city": "Unknown",
+    "city": "Kitchener",
     "country": "Canada",
     "continent": "North America"
   },
@@ -2750,7 +2750,7 @@
     "continent": "Europe"
   },
   "Shop Gracz, Malopolskie, PL": {
-    "city": "Unknown",
+    "city": "Krakow",
     "country": "Poland",
     "continent": "Europe"
   },
@@ -2830,7 +2830,7 @@
     "continent": "North America"
   },
   "Indianapolis, Indiana, US": {
-    "city": "Unknown",
+    "city": "Marion County",
     "country": "United States",
     "continent": "North America"
   },
@@ -2875,7 +2875,7 @@
     "continent": "South America"
   },
   "Wayland Games Centre, Essex, GB": {
-    "city": "Unknown",
+    "city": "Grays",
     "country": "United Kingdom",
     "continent": "Europe"
   },
@@ -2895,7 +2895,7 @@
     "continent": "North America"
   },
   "Marriott Dallas Allen Hotel & Watters Creek Convention Center, Texas, US": {
-    "city": "Unknown",
+    "city": "Allen",
     "country": "United States",
     "continent": "North America"
   },
@@ -2915,7 +2915,7 @@
     "continent": "South America"
   },
   "BEC, Pais Vasco (Basque Country), ES": {
-    "city": "Unknown",
+    "city": "Bilbao",
     "country": "Spain",
     "continent": "Europe"
   },
@@ -2990,7 +2990,7 @@
     "continent": "North America"
   },
   "Centre Ludique Boulogne Billancourt, Ile-de-France, FR": {
-    "city": "Unknown",
+    "city": "Hauts-de-Seine",
     "country": "France",
     "continent": "Europe"
   },
@@ -3020,7 +3020,7 @@
     "continent": "North America"
   },
   "Element Games, Cheshire, GB": {
-    "city": "Unknown",
+    "city": "Nottingham",
     "country": "United Kingdom",
     "continent": "Europe"
   },
@@ -3030,7 +3030,7 @@
     "continent": "North America"
   },
   "Singapore, Singapore, SG": {
-    "city": "Unknown",
+    "city": "Singapore",
     "country": "Singapore",
     "continent": "Asia"
   },
@@ -3040,7 +3040,7 @@
     "continent": "South America"
   },
   "Garagem do Nerd - Belo Horizonte , Minas Gerais, BR": {
-    "city": "Unknown",
+    "city": "Belo Horizonte",
     "country": "Brazil",
     "continent": "South America"
   },
@@ -5205,7 +5205,7 @@
     "continent": "Asia"
   },
   "Texas, US": {
-    "city": "Texas",
+    "city": "Unknown",
     "country": "United States",
     "continent": "North America"
   },
@@ -9750,7 +9750,7 @@
     "continent": "North America"
   },
   "NJ, US": {
-    "city": "New Jersey",
+    "city": "Little Ferry",
     "country": "United States",
     "continent": "North America"
   },
@@ -10648,5 +10648,10 @@
     "city": "Sein\u00e4joki",
     "country": "Finland",
     "continent": "Europe"
+  },
+  "Pernambuco, BR": {
+    "city": "Unknown",
+    "country": "Brazil",
+    "continent": "South America"
   }
 }
