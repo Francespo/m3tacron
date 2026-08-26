@@ -3560,7 +3560,7 @@
     "continent": "North America"
   },
   "Ender's Games, California, US": {
-    "city": "Unknown",
+    "city": "Clovis",
     "country": "United States",
     "continent": "North America"
   },
@@ -3780,7 +3780,7 @@
     "continent": "North America"
   },
   "Kinguin E-sports Lounge, Pomorskie, PL": {
-    "city": "Unknown",
+    "city": "Pomeranian Voivodeship",
     "country": "Poland",
     "continent": "Europe"
   },
@@ -3805,7 +3805,7 @@
     "continent": "North America"
   },
   "Mister Nice Guy Games, Pennsylvania, US": {
-    "city": "Unknown",
+    "city": "Pennsylvania",
     "country": "United States",
     "continent": "North America"
   },
@@ -3825,7 +3825,7 @@
     "continent": "Europe"
   },
   "Krolm, Pomorskie, PL": {
-    "city": "Unknown",
+    "city": "Gdansk",
     "country": "Poland",
     "continent": "Europe"
   },
@@ -3935,7 +3935,7 @@
     "continent": "South America"
   },
   "Orlando, Florida, US": {
-    "city": "Unknown",
+    "city": "Orange County",
     "country": "United States",
     "continent": "North America"
   },
@@ -4006,7 +4006,7 @@
   },
   "Phoenix Gaming Club, Serbia, RS": {
     "city": "Unknown",
-    "country": "RS",
+    "country": "Serbia",
     "continent": "Europe"
   },
   "Belgrade, RS": {
@@ -4035,7 +4035,7 @@
     "continent": "North America"
   },
   "Pontypridd, GB": {
-    "city": "Unknown",
+    "city": "Pontypridd",
     "country": "United Kingdom",
     "continent": "Europe"
   },
@@ -4060,7 +4060,7 @@
     "continent": "South America"
   },
   "Novi ligure, Alessandria, IT": {
-    "city": "Unknown",
+    "city": "Novi Ligure",
     "country": "Italy",
     "continent": "Europe"
   },
@@ -4100,7 +4100,7 @@
     "continent": "Europe"
   },
   "Squiggz / Memmingen, DE": {
-    "city": "Unknown",
+    "city": "Bavaria",
     "country": "Germany",
     "continent": "Europe"
   },
@@ -4110,8 +4110,8 @@
     "continent": "Oceania"
   },
   "Jr, Andreas Vesalio 298, Lima, PE": {
-    "city": "Unknown",
-    "country": "PE",
+    "city": "Lima",
+    "country": "Peru",
     "continent": "South America"
   },
   "R. Manuel Suarez, Salvador, BR": {
@@ -4125,7 +4125,7 @@
     "continent": "Europe"
   },
   "Board in Brum, Birmingham, GB": {
-    "city": "Unknown",
+    "city": "Birmingham",
     "country": "United Kingdom",
     "continent": "Europe"
   },
@@ -4145,17 +4145,17 @@
     "continent": "North America"
   },
   "Garagem do Nerd, Belo Horizonte, BR": {
-    "city": "Unknown",
-    "country": "Brazil",
-    "continent": "South America"
+    "city": "Porto",
+    "country": "Portugal",
+    "continent": "Europe"
   },
   "Cape Town, Western Cape, ZA": {
-    "city": "Unknown",
-    "country": "ZA",
+    "city": "City of Cape Town",
+    "country": "South Africa",
     "continent": "Africa"
   },
   "Kent, US": {
-    "city": "Unknown",
+    "city": "Texas",
     "country": "United States",
     "continent": "North America"
   },
@@ -4165,7 +4165,7 @@
     "continent": "Europe"
   },
   "Forjamundos -Campinas, Sao Paulo, BR": {
-    "city": "Unknown",
+    "city": "S\u00e3o Paulo",
     "country": "Brazil",
     "continent": "South America"
   },
@@ -4200,12 +4200,12 @@
     "continent": "North America"
   },
   "Redcaps, Philadelphia, US": {
-    "city": "Unknown",
+    "city": "Philadelphia",
     "country": "United States",
     "continent": "North America"
   },
   "Coventry, GB": {
-    "city": "Unknown",
+    "city": "Coventry",
     "country": "United Kingdom",
     "continent": "Europe"
   },
@@ -4215,7 +4215,7 @@
     "continent": "North America"
   },
   "Portland, OR, US": {
-    "city": "Unknown",
+    "city": "Portland",
     "country": "United States",
     "continent": "North America"
   },
@@ -4240,7 +4240,7 @@
     "continent": "Europe"
   },
   "Moskva, RU": {
-    "city": "Unknown",
+    "city": "Moscow",
     "country": "Russia",
     "continent": "Asia"
   },
@@ -4265,7 +4265,7 @@
     "continent": "Europe"
   },
   "Pensylvania, US": {
-    "city": "Unknown",
+    "city": "Beachwood",
     "country": "United States",
     "continent": "North America"
   },
@@ -4305,7 +4305,7 @@
     "continent": "South America"
   },
   "Rumilly, Rhones-Alpes, FR": {
-    "city": "Unknown",
+    "city": "Upper Savoy",
     "country": "France",
     "continent": "Europe"
   },
@@ -4315,7 +4315,7 @@
     "continent": "South America"
   },
   "Hex & Co, New York, US": {
-    "city": "Unknown",
+    "city": "New York",
     "country": "United States",
     "continent": "North America"
   },
@@ -4375,7 +4375,7 @@
     "continent": "Europe"
   },
   "Worcester wargames, Worcestershire, GB": {
-    "city": "Unknown",
+    "city": "England",
     "country": "United Kingdom",
     "continent": "Europe"
   },
@@ -4385,7 +4385,7 @@
     "continent": "Europe"
   },
   "Sanctuary Gaming Centre, Nottinghamshire, GB": {
-    "city": "Unknown",
+    "city": "Newark and Sherwood",
     "country": "United Kingdom",
     "continent": "Europe"
   },
@@ -4395,13 +4395,13 @@
     "continent": "North America"
   },
   "Bearded Collectibles, Florida, US": {
-    "city": "Unknown",
+    "city": "Sky Lake",
     "country": "United States",
     "continent": "North America"
   },
   "Phoenix Gaming Club/Belgrade, Serbia, RS": {
     "city": "Unknown",
-    "country": "RS",
+    "country": "Serbia",
     "continent": "Europe"
   },
   "Game Grid, Utah, US": {
@@ -4470,7 +4470,7 @@
     "continent": "Europe"
   },
   "TLTV / Gothenburg , SE": {
-    "city": "Unknown",
+    "city": "V\u00e4stra G\u00f6taland County",
     "country": "Sweden",
     "continent": "Europe"
   },
@@ -4480,9 +4480,9 @@
     "continent": "Europe"
   },
   "Saga Games, AU": {
-    "city": "Unknown",
-    "country": "Australia",
-    "continent": "Oceania"
+    "city": "Kyoto",
+    "country": "Japan",
+    "continent": "Asia"
   },
   "NICE86, Jiangsu, CN": {
     "city": "Jiangsu",
@@ -4540,7 +4540,7 @@
     "continent": "North America"
   },
   "Kinguin Gda\u0144sk, Pomorskie, PL": {
-    "city": "Unknown",
+    "city": "Pomeranian Voivodeship",
     "country": "Poland",
     "continent": "Europe"
   },
@@ -4555,7 +4555,7 @@
     "continent": "Europe"
   },
   "M\u00f8nstedhallen, Middle Jutland, DK": {
-    "city": "Unknown",
+    "city": "S\u00f8nder Rind",
     "country": "Denmark",
     "continent": "Europe"
   },
@@ -10633,5 +10633,10 @@
     "city": "Municipal Unit of Rio",
     "country": "Greece",
     "continent": "Europe"
+  },
+  "Curio Cavern": {
+    "city": "Centreville",
+    "country": "United States",
+    "continent": "North America"
   }
 }
