@@ -12803,5 +12803,10 @@
     "city": "S\u00e3o Paulo",
     "country": "Brazil",
     "continent": "South America"
+  },
+  "Regi\u00f3n Metropolitana de Santiago, CL": {
+    "city": "Provincia de Santiago",
+    "country": "Chile",
+    "continent": "South America"
   }
 }
