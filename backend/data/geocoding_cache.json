@@ -3200,7 +3200,7 @@
     "continent": "North America"
   },
   "Scattered Deck Games / Stanwood, Washington, US": {
-    "city": "Unknown",
+    "city": "Stanwood",
     "country": "United States",
     "continent": "North America"
   },
@@ -3255,7 +3255,7 @@
     "continent": "Europe"
   },
   "Livraria Jaqueira (Centro), Pernambuco, BR": {
-    "city": "Unknown",
+    "city": "Recife",
     "country": "Brazil",
     "continent": "South America"
   },
@@ -3270,22 +3270,22 @@
     "continent": "Asia"
   },
   "Tomball, Texas, US": {
-    "city": "Unknown",
+    "city": "Harris",
     "country": "United States",
     "continent": "North America"
   },
   "Comic Plus, Queensland, AU": {
-    "city": "Unknown",
+    "city": "Brisbane",
     "country": "Australia",
     "continent": "Oceania"
   },
   "Harlequins, Lancashire, GB": {
-    "city": "Unknown",
+    "city": "England",
     "country": "United Kingdom",
     "continent": "Europe"
   },
   "NORTHAMPTON , Northamptonshire, GB": {
-    "city": "Unknown",
+    "city": "West Northamptonshire",
     "country": "United Kingdom",
     "continent": "Europe"
   },
@@ -3305,7 +3305,7 @@
     "continent": "North America"
   },
   "Livraria Leitura Shopping Tacaruna / Recife, Pernambuco, BR": {
-    "city": "Unknown",
+    "city": "Recife",
     "country": "Brazil",
     "continent": "South America"
   },
@@ -3325,7 +3325,7 @@
     "continent": "North America"
   },
   "Forjamundos, Campinas / SP, BR": {
-    "city": "Unknown",
+    "city": "S\u00e3o Paulo",
     "country": "Brazil",
     "continent": "South America"
   },
@@ -3360,12 +3360,12 @@
     "continent": "Europe"
   },
   "GameZilla Saint John, New Brunswick, CA": {
-    "city": "Unknown",
+    "city": "Bathurst",
     "country": "Canada",
     "continent": "North America"
   },
   "FLGS Orlando, Florida, US": {
-    "city": "Unknown",
+    "city": "Orange County",
     "country": "United States",
     "continent": "North America"
   },
@@ -3400,7 +3400,7 @@
     "continent": "North America"
   },
   "Antonio Ribas, Baleares , ES": {
-    "city": "Unknown",
+    "city": "Palma de Mallorca",
     "country": "Spain",
     "continent": "Europe"
   },
@@ -3440,7 +3440,7 @@
     "continent": "North America"
   },
   "SSWG, Essex, GB": {
-    "city": "Unknown",
+    "city": "England",
     "country": "United Kingdom",
     "continent": "Europe"
   },
@@ -3510,7 +3510,7 @@
     "continent": "North America"
   },
   "Double Jeu, Haute-Garonne, FR": {
-    "city": "Unknown",
+    "city": "Portet-sur-Garonne",
     "country": "France",
     "continent": "Europe"
   },
@@ -3545,12 +3545,12 @@
     "continent": "Europe"
   },
   "Adventurers Guildhouse, California, US": {
-    "city": "Unknown",
+    "city": "San Jose",
     "country": "United States",
     "continent": "North America"
   },
   "Family Time Games , Indiana, US": {
-    "city": "Unknown",
+    "city": "Spencer",
     "country": "United States",
     "continent": "North America"
   },
@@ -3585,7 +3585,7 @@
     "continent": "North America"
   },
   "Gamer's Castle, Athens, GR": {
-    "city": "Unknown",
+    "city": "Athens",
     "country": "Greece",
     "continent": "Europe"
   },
@@ -3596,8 +3596,8 @@
   },
   "-, DE": {
     "city": "Unknown",
-    "country": "Germany",
-    "continent": "Europe"
+    "country": "Argentina",
+    "continent": "South America"
   },
   "Labyrinth Games and Puzzles, DC, US": {
     "city": "District of Columbia",
@@ -10643,5 +10643,10 @@
     "city": "Cochabamba",
     "country": "Bolivia",
     "continent": "South America"
+  },
+  "Alpha Games / UK": {
+    "city": "Sein\u00e4joki",
+    "country": "Finland",
+    "continent": "Europe"
   }
 }
