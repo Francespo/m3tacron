@@ -1635,12 +1635,12 @@
     "continent": "North America"
   },
   "Birmingham, GB": {
-    "city": "Unknown",
+    "city": "Birmingham",
     "country": "United Kingdom",
     "continent": "Europe"
   },
   "Miso\u2019s Game Room and Collectables, KY, US": {
-    "city": "Unknown",
+    "city": "Coconino",
     "country": "United States",
     "continent": "North America"
   },
@@ -9775,7 +9775,7 @@
     "continent": "North America"
   },
   "KY, US": {
-    "city": "Kentucky",
+    "city": "Coconino",
     "country": "United States",
     "continent": "North America"
   },
