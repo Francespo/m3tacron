@@ -840,7 +840,7 @@
     "continent": "Europe"
   },
   "Element Gaming Centre, Stockport, GB": {
-    "city": "Unknown",
+    "city": "Stockport",
     "country": "United Kingdom",
     "continent": "Europe"
   },
@@ -920,7 +920,7 @@
     "continent": "Europe"
   },
   "Uppsala, SE": {
-    "city": "Unknown",
+    "city": "Uppsala County",
     "country": "Sweden",
     "continent": "Europe"
   },
@@ -930,7 +930,7 @@
     "continent": "Europe"
   },
   "CANCON 2024 Australia, AU": {
-    "city": "Unknown",
+    "city": "Canberra",
     "country": "Australia",
     "continent": "Oceania"
   },
@@ -990,7 +990,7 @@
     "continent": "North America"
   },
   "Silver King Games & Hobby, WA, US": {
-    "city": "Unknown",
+    "city": "Pima",
     "country": "United States",
     "continent": "North America"
   },
@@ -12458,5 +12458,50 @@
     "city": "Unknown",
     "country": "France",
     "continent": "Europe"
+  },
+  "Cape Town, ZA": {
+    "city": "City of Cape Town",
+    "country": "South Africa",
+    "continent": "Africa"
+  },
+  "Todos estados, S\u00e3o Paulo,\u00a0Brazil": {
+    "city": "S\u00e3o Paulo",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Sury pr\u00e9 L\u00e9r\u00e9, Centre-Val de Loire,\u00a0France": {
+    "city": "Cher",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "La Guarida, Basque Country,\u00a0Spain": {
+    "city": "Galdames",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "TUAN, Budapest, Andr\u00e1ssy \u00fat 86, 1062, Hungary": {
+    "city": "Budapest",
+    "country": "Hungary",
+    "continent": "Europe"
+  },
+  "9594 I Ave suite F, Hesperia, CA 92345, California,\u00a0United States": {
+    "city": "Hesperia",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Wargen Wargames, Madrid,\u00a0Spain": {
+    "city": "Madrid",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Element Games, Greater Manchester,\u00a0United Kingdom": {
+    "city": "Stockport",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Ohio, US": {
+    "city": "Unknown",
+    "country": "United States",
+    "continent": "North America"
   }
 }
