@@ -4510,7 +4510,7 @@
     "continent": "Europe"
   },
   "Uncles, Washington, US": {
-    "city": "Unknown",
+    "city": "Marshfield",
     "country": "United States",
     "continent": "North America"
   },
@@ -4600,7 +4600,7 @@
     "continent": "North America"
   },
   "Brew Wizards Board Game Cafe, ON, CA": {
-    "city": "Unknown",
+    "city": "Oshawa",
     "country": "Canada",
     "continent": "North America"
   },
@@ -4745,7 +4745,7 @@
     "continent": "Europe"
   },
   "DoctorOcio, Zaragoza, ES": {
-    "city": "Unknown",
+    "city": "Zaragoza",
     "country": "Spain",
     "continent": "Europe"
   },
@@ -4760,12 +4760,12 @@
     "continent": "North America"
   },
   "Hobby Master, Auckland , NZ": {
-    "city": "Unknown",
+    "city": "Upper Harbour",
     "country": "New Zealand",
     "continent": "Oceania"
   },
   "Hard Knox Games/Elizabethtown, KY, US": {
-    "city": "Unknown",
+    "city": "Elizabethtown",
     "country": "United States",
     "continent": "North America"
   },
@@ -4785,8 +4785,8 @@
     "continent": "North America"
   },
   "Hydra, Serbia, RS": {
-    "city": "Unknown",
-    "country": "RS",
+    "city": "Zemun Urban Municipality",
+    "country": "Serbia",
     "continent": "Europe"
   },
   "Firestorm games , GB": {
@@ -4850,9 +4850,9 @@
     "continent": "Europe"
   },
   "Table Top Simulator, AR": {
-    "city": "Unknown",
-    "country": "Argentina",
-    "continent": "South America"
+    "city": "Gila County",
+    "country": "United States",
+    "continent": "North America"
   },
   "Rzesz\u00f3w, PL": {
     "city": "Subcarpathian Voivodeship",
@@ -4870,8 +4870,8 @@
     "continent": "Asia"
   },
   "Hydra, RS": {
-    "city": "Unknown",
-    "country": "RS",
+    "city": "Zemun Urban Municipality",
+    "country": "Serbia",
     "continent": "Europe"
   },
   "ORDER 66 TOYS EVENT CENTER - FAIRVIEW, TEXAS, US": {
@@ -10628,5 +10628,10 @@
     "city": "Gold Coast",
     "country": "Australia",
     "continent": "Oceania"
+  },
+  "Table Top Simulator": {
+    "city": "Municipal Unit of Rio",
+    "country": "Greece",
+    "continent": "Europe"
   }
 }
