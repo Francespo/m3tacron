@@ -1025,9 +1025,9 @@
     "continent": "Europe"
   },
   "Out of the box comics and cards, ON, CA": {
-    "city": "Unknown",
-    "country": "Canada",
-    "continent": "North America"
+    "city": "London",
+    "country": "United Kingdom",
+    "continent": "Europe"
   },
   "Out of the box comics and cards, Ontario , CA": {
     "city": "Unknown",
@@ -1050,7 +1050,7 @@
     "continent": "North America"
   },
   "Games Empire, New South Wales, AU": {
-    "city": "Unknown",
+    "city": "New South Wales",
     "country": "Australia",
     "continent": "Oceania"
   },
@@ -1065,7 +1065,7 @@
     "continent": "North America"
   },
   "ArosCon, Middle Jutland, DK": {
-    "city": "Unknown",
+    "city": "S\u00f8nder Rind",
     "country": "Denmark",
     "continent": "Europe"
   },
@@ -1080,7 +1080,7 @@
     "continent": "Europe"
   },
   "Comics, Games and Coffee Worthing, GB": {
-    "city": "Unknown",
+    "city": "Chichester",
     "country": "United Kingdom",
     "continent": "Europe"
   },
@@ -1090,12 +1090,12 @@
     "continent": "North America"
   },
   "Sanctuary Gaming Centre, GB": {
-    "city": "Unknown",
+    "city": "Ulgham",
     "country": "United Kingdom",
     "continent": "Europe"
   },
   "Tucson Games and Gadgets , Az, US": {
-    "city": "Unknown",
+    "city": "Phoenix",
     "country": "United States",
     "continent": "North America"
   },
@@ -1155,7 +1155,7 @@
     "continent": "Europe"
   },
   "Waldkirch, DE": {
-    "city": "Unknown",
+    "city": "Landkreis Emmendingen",
     "country": "Germany",
     "continent": "Europe"
   },
@@ -1170,7 +1170,7 @@
     "continent": "North America"
   },
   "Stockholm , SE": {
-    "city": "Unknown",
+    "city": "Stockholm",
     "country": "Sweden",
     "continent": "Europe"
   },
@@ -1235,12 +1235,12 @@
     "continent": "Europe"
   },
   "Dragon's Den Games, SaskatchewN, CA": {
-    "city": "Unknown",
+    "city": "Saskatoon",
     "country": "Canada",
     "continent": "North America"
   },
   "Critical Hit Games, MD, US": {
-    "city": "Unknown",
+    "city": "Abingdon",
     "country": "United States",
     "continent": "North America"
   },
@@ -1280,7 +1280,7 @@
     "continent": "North America"
   },
   "Gamerg Guild, AZ, US": {
-    "city": "Unknown",
+    "city": "Tempe",
     "country": "United States",
     "continent": "North America"
   },
@@ -1310,12 +1310,12 @@
     "continent": "North America"
   },
   "Madrid, IT": {
-    "city": "Unknown",
+    "city": "Cuart\u00f9ciu/Quartucciu",
     "country": "Italy",
     "continent": "Europe"
   },
   "Oh My Game, FI": {
-    "city": "Unknown",
+    "city": "Vantaa",
     "country": "Finland",
     "continent": "Europe"
   },
@@ -1340,7 +1340,7 @@
     "continent": "North America"
   },
   "Black Knight Games, CA": {
-    "city": "Unknown",
+    "city": "Winnipeg",
     "country": "Canada",
     "continent": "North America"
   },
@@ -4895,7 +4895,7 @@
     "continent": "Europe"
   },
   "Az, US": {
-    "city": "Arizona",
+    "city": "Phoenix",
     "country": "United States",
     "continent": "North America"
   },
@@ -11455,7 +11455,7 @@
     "continent": "Europe"
   },
   "Ontario,\u00a0Canada": {
-    "city": "Unknown",
+    "city": "Ontario",
     "country": "Canada",
     "continent": "North America"
   },
@@ -12038,5 +12038,425 @@
     "city": "Fresno",
     "country": "United States",
     "continent": "North America"
+  },
+  "La casa dei Giochi, Via Sant'Uguzzone, 8, 20126 Milano MI, Italy": {
+    "city": "Milan",
+    "country": "Italy",
+    "continent": "Europe"
+  },
+  "Wellplayed, Switzerland": {
+    "city": "Zurich",
+    "country": "Switzerland",
+    "continent": "Europe"
+  },
+  "Flint's CCG, Kitchener, Ontario,\u00a0Canada": {
+    "city": "Kitchener",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "GameTronics, Nova Scotia,\u00a0Canada": {
+    "city": "Unknown",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Ayr, Scotland,\u00a0United Kingdom": {
+    "city": "South Ayrshire",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Gij\u00f3n, Asturias,\u00a0Spain": {
+    "city": "Asturias",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Gdansk Wrzeszcz, Kinguin Esports Lounge, Poland": {
+    "city": "Unknown",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "ZZ Games, Hovedstaden,\u00a0Denmark": {
+    "city": "Copenhagen",
+    "country": "Denmark",
+    "continent": "Europe"
+  },
+  "WoW Keepers, Vienna,\u00a0Austria": {
+    "city": "Vienna",
+    "country": "Austria",
+    "continent": "Europe"
+  },
+  "Thirsty Meeples Caf\u00e9, Oxford, England,\u00a0United Kingdom": {
+    "city": "Oxford",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "GMI Games, Jurupa Valley (Riverside), CA, California,\u00a0United States": {
+    "city": "Riverside",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "EH Games York, Yorkshire,\u00a0United Kingdom": {
+    "city": "Elvington",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Northampton, England,\u00a0United Kingdom": {
+    "city": "West Northamptonshire",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "GTS Valencia, C/ Conde de Altea, 4. 46005 Valencia, Valencia,\u00a0Spain": {
+    "city": "Valencia",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "French Wargame Caf\u00e9, \u00cele-de-France,\u00a0France": {
+    "city": "Paris",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "Dragonphoenix Inn, Greece": {
+    "city": "Athens",
+    "country": "Greece",
+    "continent": "Europe"
+  },
+  "Ottawa, Ontario,\u00a0Canada": {
+    "city": "Eastern Ontario",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Forbes Hobbies, Ontario,\u00a0Canada": {
+    "city": "Sudbury",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Highlander Games, Dundee, Scotland,\u00a0United Kingdom": {
+    "city": "Dundee",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "French Wargame Caf\u00e9 : 29 Rue Louis Blanc, 75010 Paris, \u00cele-de-France,\u00a0France": {
+    "city": "Paris",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "Gamer's Haven @ Colton, California,\u00a0United States": {
+    "city": "Colorado Springs",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Amber Expo, Gda?sk, Poland": {
+    "city": "Gdansk",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Brea, CA, California,\u00a0United States": {
+    "city": "Orange",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Demolition Games, Salt Lake City, Utah,\u00a0United States": {
+    "city": "South Salt Lake",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "The Tabletop Forge, Ontario,\u00a0Canada": {
+    "city": "Toronto",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Saint-Nazaire, Pays de la Loire,\u00a0France": {
+    "city": "Loire-Atlantique",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "Amber Expo, Gdansk, Poland": {
+    "city": "Gdansk",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Lantzalot Game Store, Nova Scotia,\u00a0Canada": {
+    "city": "Blockhouse",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Wargames Workshop mk, England,\u00a0United Kingdom": {
+    "city": "Milton Keynes",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "OC De Lange Munte, Beeklaan 81, 8500 Kortrijk, Flanders,\u00a0Belgium": {
+    "city": "Kortrijk",
+    "country": "Belgium",
+    "continent": "Europe"
+  },
+  "Jurupa Valley (Riverside), CA, California,\u00a0United States": {
+    "city": "Riverside",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Madrid, Madrid,\u00a0Spain": {
+    "city": "Community of Madrid",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "La Violeta, Sant Joaquim 12, Catalonia,\u00a0Spain": {
+    "city": "Vilanova i la Geltr\u00fa",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Firmasport, Mid Jutland,\u00a0Denmark": {
+    "city": "Unknown",
+    "country": "Denmark",
+    "continent": "Europe"
+  },
+  "Omniverse, S\u00e3o Paulo,\u00a0Brazil": {
+    "city": "Unknown",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "69231 Rauenberg, Hauptstra\u00dfe 10, Baden-W\u00fcrttemberg,\u00a0Germany": {
+    "city": "Rauenberg",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "Spratton, England,\u00a0United Kingdom": {
+    "city": "West Northamptonshire",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Sanctuary Gaming Centre, England,\u00a0United Kingdom": {
+    "city": "Ulgham",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Gamersaurus Rex 259A Upp Thomson Rd (574386), Singapore": {
+    "city": "Unknown",
+    "country": "Singapore",
+    "continent": "Asia"
+  },
+  "Saint Denis en Val, Centre-Val de Loire,\u00a0France": {
+    "city": "Loiret",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "TBD, Poland": {
+    "city": "G\u0142og\u00f3w",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Erfurt, Thuringia,\u00a0Germany": {
+    "city": "Thuringia",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "294 E Montauk Hwy, Lindenhurst, NY 11757, New York, United States": {
+    "city": "Babylon",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Legendary Realms, 294 E Montauk Hwy, Lindenhurst, NY 11757, New York,\u00a0United States": {
+    "city": "Babylon",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Neverwintwer, Balearic Islands,\u00a0Spain": {
+    "city": "Unknown",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Wolffaertshof, Flanders,\u00a0Belgium": {
+    "city": "Aartselaar",
+    "country": "Belgium",
+    "continent": "Europe"
+  },
+  "Grand Haven, Michigan,\u00a0United States": {
+    "city": "Grand Haven",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Firestorm Games Newport, Wales,\u00a0United Kingdom": {
+    "city": "Cardiff",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Board in Brum, Walsall, England,\u00a0United Kingdom": {
+    "city": "Walsall",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Sevilla, Andalusia,\u00a0Spain": {
+    "city": "Sevilla",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Versus Alg\u00e9s, Portugal": {
+    "city": "Oeiras",
+    "country": "Portugal",
+    "continent": "Europe"
+  },
+  "MaxiReve, Hauts-de-France,\u00a0France": {
+    "city": "Unknown",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "Vorsfelde, 38448 Wolfsburg, Lower Saxony,\u00a0Germany": {
+    "city": "Wolfsburg",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "EH Gaming, York, Yorkshire,\u00a0United Kingdom": {
+    "city": "Stockton on the Forest",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "?\u00f3d?, Poland": {
+    "city": "\u0141\u00f3d\u017a",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "High Ground Hobbies, Madison, AL, USA, Alabama,\u00a0United States": {
+    "city": "Enterprise",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Gniezno, Poland": {
+    "city": "Gniezno",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "79183 Waldkirch, Baden-W\u00fcrttemberg,\u00a0Germany": {
+    "city": "Landkreis Emmendingen",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "EPITA 5, rue Gustave Adolphe Hirn 67000 Strasbourg, Grand Est,\u00a0France": {
+    "city": "Strasbourg",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "Lansing,Michigan, Michigan,\u00a0United States": {
+    "city": "Ingham",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Games Bunker, England,\u00a0United Kingdom": {
+    "city": "Staffordshire Moorlands",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Evry-Courcouronnes, \u00cele-de-France,\u00a0France": {
+    "city": "Essonne",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "Milano, Casa dei Giochi, Italy": {
+    "city": "Milan",
+    "country": "Italy",
+    "continent": "Europe"
+  },
+  "Sadov\u00e1, Czech Republic": {
+    "city": "Prague",
+    "country": "Czechia",
+    "continent": "Europe"
+  },
+  "Double mixte, 19 Av. Gaston Berger, 69100 Villeurbanne, Auvergne-Rh\u00f4ne-Alpes,\u00a0France": {
+    "city": "Villeurbanne",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "El Duende, Mexico": {
+    "city": "Rio Arriba",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Shop Gracz, Poland": {
+    "city": "Krakow",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "801 University City Blvd, ?Ste 1 Blacksburg, Virginia, 24060, Virginia,\u00a0United States": {
+    "city": "Blacksburg",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Wolverhampton, England,\u00a0United Kingdom": {
+    "city": "West Midlands",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Berlin, RuDi Kultur- und Nachbarschaftszentrum, Berlin,\u00a0Germany": {
+    "city": "Berlin",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "BB-Spiele Rosenheim, Bavaria,\u00a0Germany": {
+    "city": "Rosenheim",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "North Jutland,\u00a0Denmark": {
+    "city": "Unknown",
+    "country": "Denmark",
+    "continent": "Europe"
+  },
+  "Colton, California,\u00a0United States": {
+    "city": "Colton",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Centre Ludique Boulogne Billancourt, \u00cele-de-France,\u00a0France": {
+    "city": "Hauts-de-Seine",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "S\u00e3o Paulo, Brazil": {
+    "city": "Unknown",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Hobbylandia / Nortic Foods, S\u00e3o Paulo,\u00a0Brazil": {
+    "city": "Unknown",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Viby Bibliotek, Mid Jutland,\u00a0Denmark": {
+    "city": "Aarhus",
+    "country": "Denmark",
+    "continent": "Europe"
+  },
+  "Ali Mall Cubao, Philippines": {
+    "city": "Quezon City",
+    "country": "Philippines",
+    "continent": "Asia"
+  },
+  "The Monster Comic Lounge, Nova Scotia,\u00a0Canada": {
+    "city": "Halifax",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "GMI Games - Jurupa Valley (Riverside), CA, California,\u00a0United States": {
+    "city": "Riverside",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "The Wizard's Chest, Colorado,\u00a0United States": {
+    "city": "Denver",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Tower of games Virginia Beach, Virginia,\u00a0United States": {
+    "city": "Chesapeake",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "The Nerd Store, Greeley, Colorado,\u00a0United States": {
+    "city": "Greeley",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Occitanie,\u00a0France": {
+    "city": "Unknown",
+    "country": "France",
+    "continent": "Europe"
   }
 }
