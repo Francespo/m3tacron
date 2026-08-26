@@ -5345,7 +5345,7 @@
     "continent": "South America"
   },
   "Freo, WA, AU": {
-    "city": "Unknown",
+    "city": "Fremantle",
     "country": "Australia",
     "continent": "Oceania"
   },
@@ -5515,7 +5515,7 @@
     "continent": "North America"
   },
   "Kryptonite Collectibles , Wi, US": {
-    "city": "Unknown",
+    "city": "Janesville",
     "country": "United States",
     "continent": "North America"
   },
@@ -5525,7 +5525,7 @@
     "continent": "North America"
   },
   "The Game Shoppe Omaha, NE, US": {
-    "city": "Unknown",
+    "city": "Omaha",
     "country": "United States",
     "continent": "North America"
   },
@@ -10616,6 +10616,11 @@
   },
   "Indiana, US": {
     "city": "Unknown",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Broadside Gaming Katy, Texas": {
+    "city": "Brookside Village",
     "country": "United States",
     "continent": "North America"
   }
