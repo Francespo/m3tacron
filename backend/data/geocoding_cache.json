@@ -710,7 +710,7 @@
     "continent": "South America"
   },
   "UK Games Expo, GB": {
-    "city": "Unknown",
+    "city": "London",
     "country": "United Kingdom",
     "continent": "Europe"
   },
@@ -810,7 +810,7 @@
     "continent": "South America"
   },
   "TOCO BURGUER, ALUMINIO, BR": {
-    "city": "Unknown",
+    "city": "Palmas",
     "country": "Brazil",
     "continent": "South America"
   },
@@ -820,7 +820,7 @@
     "continent": "North America"
   },
   "Vila Celta / Curitiba, Paran\u00e1, BR": {
-    "city": "Unknown",
+    "city": "Curitiba",
     "country": "Brazil",
     "continent": "South America"
   },
@@ -835,7 +835,7 @@
     "continent": "South America"
   },
   "Battle over Hamburg, Hamburg, DE": {
-    "city": "Unknown",
+    "city": "Hamburg",
     "country": "Germany",
     "continent": "Europe"
   },
@@ -12503,5 +12503,20 @@
     "city": "Unknown",
     "country": "United States",
     "continent": "North America"
+  },
+  "Chesterfield , Missouri, US": {
+    "city": "Saint Louis County",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Virginia Beach, Virginia, US": {
+    "city": "Virginia",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Santiago, Regi\u00f3n Metropolitana de Santiago, CL": {
+    "city": "Santiago",
+    "country": "Chile",
+    "continent": "South America"
   }
 }
