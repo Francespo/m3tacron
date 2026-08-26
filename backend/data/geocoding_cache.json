@@ -3665,7 +3665,7 @@
     "continent": "North America"
   },
   "Leitura Tacaruna, Pernambuco, BR": {
-    "city": "Unknown",
+    "city": "Recife",
     "country": "Brazil",
     "continent": "South America"
   },
@@ -3675,7 +3675,7 @@
     "continent": "Oceania"
   },
   "Bournemouth International Centre, Dorset, GB": {
-    "city": "Unknown",
+    "city": "Bournemouth",
     "country": "United Kingdom",
     "continent": "Europe"
   },
@@ -3710,7 +3710,7 @@
     "continent": "South America"
   },
   "Anglican Churches Springwood, New South Wales, AU": {
-    "city": "Unknown",
+    "city": "Springwood",
     "country": "Australia",
     "continent": "Oceania"
   },
@@ -3750,9 +3750,9 @@
     "continent": "Europe"
   },
   "Petrie's Family Games/ Colorado Springs , CO": {
-    "city": "Unknown",
-    "country": "CO",
-    "continent": "South America"
+    "city": "Colorado Springs",
+    "country": "United States",
+    "continent": "North America"
   },
   "Igranie w Lochu, Pomorskie, PL": {
     "city": "Gdynia",
@@ -3765,7 +3765,7 @@
     "continent": "Europe"
   },
   "Centre Ludique Boulogne Billancourt, FR": {
-    "city": "Unknown",
+    "city": "Boulogne-Billancourt",
     "country": "France",
     "continent": "Europe"
   },
@@ -3885,7 +3885,7 @@
     "continent": "North America"
   },
   "Boardgame in Box / Londrina, Paran\u00e1, BR": {
-    "city": "Unknown",
+    "city": "Londrina",
     "country": "Brazil",
     "continent": "South America"
   },
@@ -10638,5 +10638,10 @@
     "city": "Centreville",
     "country": "United States",
     "continent": "North America"
+  },
+  "Cochabamba, Cochabamba, BO": {
+    "city": "Cochabamba",
+    "country": "Bolivia",
+    "continent": "South America"
   }
 }
