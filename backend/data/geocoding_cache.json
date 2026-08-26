@@ -5035,7 +5035,7 @@
     "continent": "Europe"
   },
   "Family Time Games / Indianapolis , Indiana, US": {
-    "city": "Unknown",
+    "city": "Indiana",
     "country": "United States",
     "continent": "North America"
   },
@@ -5115,9 +5115,9 @@
     "continent": "North America"
   },
   "DACH": {
-    "city": "Dach",
-    "country": "Pakistan",
-    "continent": "Unknown"
+    "city": "Svitlodarsk urban hromada",
+    "country": "Ukraine",
+    "continent": "Europe"
   },
   "Rio Grande do Sul, BR": {
     "city": "Rio Grande do Sul",
@@ -10615,7 +10615,7 @@
     "continent": "Europe"
   },
   "Indiana, US": {
-    "city": "Unknown",
+    "city": "Indiana",
     "country": "United States",
     "continent": "North America"
   },
@@ -10623,5 +10623,10 @@
     "city": "Brookside Village",
     "country": "United States",
     "continent": "North America"
+  },
+  "Gold Squadron Events": {
+    "city": "Gold Coast",
+    "country": "Australia",
+    "continent": "Oceania"
   }
 }
