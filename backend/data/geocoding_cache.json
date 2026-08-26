@@ -171,7 +171,7 @@
   },
   "CL": {
     "city": "Unknown",
-    "country": "CL",
+    "country": "Chile",
     "continent": "South America"
   },
   "MA, US": {
@@ -1446,7 +1446,7 @@
   },
   "ZA": {
     "city": "Unknown",
-    "country": "ZA",
+    "country": "South Africa",
     "continent": "Africa"
   },
   "Randburg, Gauteng, ZA": {
@@ -1465,7 +1465,7 @@
     "continent": "North America"
   },
   "Highlander Games Store, US": {
-    "city": "Unknown",
+    "city": "Boonton",
     "country": "United States",
     "continent": "North America"
   },
@@ -1536,7 +1536,7 @@
   },
   "CO": {
     "city": "Unknown",
-    "country": "CO",
+    "country": "Colombia",
     "continent": "South America"
   },
   "The Gamer\u2019s Armory, NC, US": {
@@ -1570,7 +1570,7 @@
     "continent": "North America"
   },
   "Roselle , IL, US": {
-    "city": "Unknown",
+    "city": "DuPage County",
     "country": "United States",
     "continent": "North America"
   },
@@ -11438,5 +11438,605 @@
     "city": "Greater London",
     "country": "United Kingdom",
     "continent": "Europe"
+  },
+  "Citt\u00e0 di Castello, Italy": {
+    "city": "Perugia",
+    "country": "Italy",
+    "continent": "Europe"
+  },
+  "Gdansk, Poland": {
+    "city": "Gda\u0144sk",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Kinguin Esports Lounge, Gdansk, Poland": {
+    "city": "Gda\u0144sk",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Ontario,\u00a0Canada": {
+    "city": "Unknown",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Andr\u00e1ssy \u00fat 8, Hungary": {
+    "city": "Budapest",
+    "country": "Hungary",
+    "continent": "Europe"
+  },
+  "Budapest, Tuan Publishing bookstore, Andr\u00e1ssy \u00fat 8, Hungary": {
+    "city": "Budapest",
+    "country": "Hungary",
+    "continent": "Europe"
+  },
+  "Wargamer Poznan, Poland": {
+    "city": "Pozna\u0144 County",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Bockenem, Lower Saxony,\u00a0Germany": {
+    "city": "Bockenem",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "Jurupa Valley - GMI Games, California,\u00a0United States": {
+    "city": "Riverside",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Fabricator's Forge 1012 5th Ave, Coraopolis, PA 15108, Pennsylvania,\u00a0United States": {
+    "city": "Coraopolis",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Critical hit gaming lounge, Ontario,\u00a0Canada": {
+    "city": "Courtice",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Alba, Italy": {
+    "city": "Cuneo",
+    "country": "Italy",
+    "continent": "Europe"
+  },
+  "Singapore": {
+    "city": "Unknown",
+    "country": "Singapore",
+    "continent": "Asia"
+  },
+  "California,\u00a0United States": {
+    "city": "Unknown",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Blackfyre Games, Utah,\u00a0United States": {
+    "city": "Pleasant Grove",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Epic Loot, Ohio,\u00a0United States": {
+    "city": "Centerville",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Maryland,\u00a0United States": {
+    "city": "Unknown",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Face to Face Games, Ontario,\u00a0Canada": {
+    "city": "Toronto",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Jo\u00e3o Pessoa, Para\u00edba,\u00a0Brazil": {
+    "city": "Jo\u00e3o Pessoa",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Salvador, Bahia,\u00a0Brazil": {
+    "city": "Bahia",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Element Games, England,\u00a0United Kingdom": {
+    "city": "Birmingham",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Herefordshire Wargaming, England,\u00a0United Kingdom": {
+    "city": "England",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Stockholm,\u00a0Sweden": {
+    "city": "Stockholm County",
+    "country": "Sweden",
+    "continent": "Europe"
+  },
+  "Bydgoszcz, Poland": {
+    "city": "Kuyavian-Pomeranian Voivodeship",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Squiggz , Memmingen, Bavaria,\u00a0Germany": {
+    "city": "Bavaria",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "TRoA, Godth\u00e5bsgade 8a, 9400 N\u00f8rresundby, North Jutland,\u00a0Denmark": {
+    "city": "N\u00f8rresundby",
+    "country": "Denmark",
+    "continent": "Europe"
+  },
+  "Leopoldsdorf, Lower Austria,\u00a0Austria": {
+    "city": "Bezirk Bruck an der Leitha",
+    "country": "Austria",
+    "continent": "Europe"
+  },
+  "Hex & Co - West side, New York,\u00a0United States": {
+    "city": "New York",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Hamilton, Ontario,\u00a0Canada": {
+    "city": "Hamilton",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Forjamundos, Campinas, S\u00e3o Paulo,\u00a0Brazil": {
+    "city": "S\u00e3o Paulo",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Michigan, United States": {
+    "city": "Unknown",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "The Arena 1949 Lansing Ave Jackson MI 49202, Michigan,\u00a0United States": {
+    "city": "Unknown",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Power Nine Games, Indiana,\u00a0United States": {
+    "city": "Unknown",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Dark Side Comics & Games. Sarasota, Fla., Florida,\u00a0United States": {
+    "city": "Sarasota",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Brew Wizards, Ontario,\u00a0Canada": {
+    "city": "Oshawa",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Fortaleza, Cear\u00e1,\u00a0Brazil": {
+    "city": "Fortaleza",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "WTC2023, Flanders,\u00a0Belgium": {
+    "city": "Unknown",
+    "country": "Belgium",
+    "continent": "Europe"
+  },
+  "WTC 2023, Flanders,\u00a0Belgium": {
+    "city": "Genk",
+    "country": "Belgium",
+    "continent": "Europe"
+  },
+  "Wargamer, Poznan, Poland": {
+    "city": "Pozna\u0144 County",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Red Seal Gaming, Matawan NJ, New Jersey,\u00a0United States": {
+    "city": "Aberdeen Township",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Muskegon, Michigan,\u00a0United States": {
+    "city": "Michigan",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Ludoteca BGC, Distrito Federal,\u00a0Brazil": {
+    "city": "Plano Piloto",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "MANHATTAN, Kansas,\u00a0United States": {
+    "city": "Riley",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Palladium Games, Pennsylvania,\u00a0United States": {
+    "city": "Pittsburgh",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Joinville, Santa Catarina,\u00a0Brazil": {
+    "city": "Santa Catarina",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Dark Sphere Shepherd's Bush, Greater London,\u00a0United Kingdom": {
+    "city": "Greater London",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Tuan - 1062 Budapest, Andr\u00e1ssy \u00fat 86., Hungary": {
+    "city": "Budapest",
+    "country": "Hungary",
+    "continent": "Europe"
+  },
+  "Element games stockport, England,\u00a0United Kingdom": {
+    "city": "Stockport",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "GMI Games - Jurupa Valley, California,\u00a0United States": {
+    "city": "Riverside",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Highlander Games, New Jersey,\u00a0United States": {
+    "city": "Boonton",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Alum\u00ednio, S\u00e3o Paulo, Brazil": {
+    "city": "Alum\u00ednio",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Toco Game Burger Place, Alum\u00ednio, S\u00e3o Paulo,\u00a0Brazil": {
+    "city": "Alum\u00ednio",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "A Muse N Games 576 Wall Street, Winnipeg MB R3G 2T3, Manitoba,\u00a0Canada": {
+    "city": "Winnipeg",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "4th Planet Games, 11 Bank Street, Wrexham. LL11 1AH, Wales,\u00a0United Kingdom": {
+    "city": "Wrexham",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Dominion, Ayr, Scotland,\u00a0United Kingdom": {
+    "city": "Ayr",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Pro Tech Games, England,\u00a0United Kingdom": {
+    "city": "London",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Bourgoin-Jallieu, Auvergne-Rh\u00f4ne-Alpes,\u00a0France": {
+    "city": "Is\u00e8re",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "BB-Spiele, Kolbermoorer Str. 20, 83026 Rosenheim, Bavaria,\u00a0Germany": {
+    "city": "Rosenheim",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "The Gamers' Emporium - Swansea, Wales,\u00a0United Kingdom": {
+    "city": "Swansea",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Red Seal Gaming, New Jersey,\u00a0United States": {
+    "city": "Monmouth",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "King's College, London, Ontario,\u00a0Canada": {
+    "city": "London",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Excelsior, Bristol, England,\u00a0United Kingdom": {
+    "city": "Bristol",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Athena Game, England,\u00a0United Kingdom": {
+    "city": "Norwich",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Entoyment, England,\u00a0United Kingdom": {
+    "city": "Unknown",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Hex, Poland": {
+    "city": "Krakow",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "\u00dcbermorgenwelt, Fort Albeck 14, 89075 Ulm, Baden-W\u00fcrttemberg,\u00a0Germany": {
+    "city": "Ulm",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "iGranie w Lochy, Gdynia, Poland": {
+    "city": "Gdynia",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "California, United States": {
+    "city": "California",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Gamer's Haven 850 Via Lata #117 Colton CA, California,\u00a0United States": {
+    "city": "California",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "cdmx, Mexico": {
+    "city": "Ciudad de M\u00e9xico",
+    "country": "Mexico",
+    "continent": "North America"
+  },
+  "The Brooklyn Strategist, New York,\u00a0United States": {
+    "city": "New York",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "wargames workshop, Milton Keynes, England,\u00a0United Kingdom": {
+    "city": "Milton Keynes",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Linebreakers, California,\u00a0United States": {
+    "city": "Victorville",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Houston, TX @ George R. Brown Convention Center, Texas,\u00a0United States": {
+    "city": "Houston",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Go4 Games, Louisiana,\u00a0United States": {
+    "city": "Metairie",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Vit\u00f3ria - Unique Mall, Esp\u00edrito Santo,\u00a0Brazil": {
+    "city": "Vit\u00f3ria",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Tabletop Workshop, Truro, England,\u00a0United Kingdom": {
+    "city": "Truro",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "ARCHIVO ARCANO, Catalonia,\u00a0Spain": {
+    "city": "Barcelona",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Basque Country,\u00a0Spain": {
+    "city": "Unknown",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Rhineland-Palatinate,\u00a0Germany": {
+    "city": "Unknown",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "Chile": {
+    "city": "Unknown",
+    "country": "Chile",
+    "continent": "South America"
+  },
+  "Smetch Rat Games, Longmont, Colorado,\u00a0United States": {
+    "city": "Longmont",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Toujours Jeux, Quebec,\u00a0Canada": {
+    "city": "Laval",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Tistaminis, Ontario,\u00a0Canada": {
+    "city": "Unknown",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Patriot Games Sheffield, Yorkshire,\u00a0United Kingdom": {
+    "city": "Sheffield",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Incom Gaming, England,\u00a0United Kingdom": {
+    "city": "Cheltenham",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Salamanca, Castile and Le\u00f3n,\u00a0Spain": {
+    "city": "Salamanca",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Krak\u00f3w, Shop Gracz, Poland": {
+    "city": "Krakow",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Sportgastst\u00e4tte SG Walhalla Regensburg, Bavaria,\u00a0Germany": {
+    "city": "Regensburg",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "JAWATHON, Western Australia,\u00a0Australia": {
+    "city": "Unknown",
+    "country": "Unknown",
+    "continent": "Oceania"
+  },
+  "Pozna?, Poland": {
+    "city": "Krosno Odrza\u0144skie County",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "The Realm, Brea, CA, California,\u00a0United States": {
+    "city": "Orange",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Greeley, Colorado,\u00a0United States": {
+    "city": "Weld",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Lafayette Brewing, Buffalo NY, New York,\u00a0United States": {
+    "city": "Buffalo",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Top Deck Games, New Jersey,\u00a0United States": {
+    "city": "Cherry Hill",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "TBA, Poland": {
+    "city": "Tbilisi",
+    "country": "Georgia",
+    "continent": "Asia"
+  },
+  "Portugal": {
+    "city": "Unknown",
+    "country": "Portugal",
+    "continent": "Europe"
+  },
+  "Poznan, Poland": {
+    "city": "Greater Poland Voivodeship",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Legendary Realms, New York,\u00a0United States": {
+    "city": "New York",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Firestorm Games Cardiff, Wales,\u00a0United Kingdom": {
+    "city": "Cardiff",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Avenida Portugal 21, Asturias,\u00a0Spain": {
+    "city": "Gij\u00f3n",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Boulogne-Billancourt, \u00cele-de-France,\u00a0France": {
+    "city": "Hauts-de-Seine",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "Garagem do Nerd, Minas Gerais,\u00a0Brazil": {
+    "city": "Contagem",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Oshawa, Ontario,\u00a0Canada": {
+    "city": "Durham",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "The Rift, Peterborough, England,\u00a0United Kingdom": {
+    "city": "Peterborough",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Valencia,\u00a0Spain": {
+    "city": "Valencia",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Avil\u00e9s, Asturias,\u00a0Spain": {
+    "city": "Avil\u00e9s",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Orl\u00e9ans, Centre-Val de Loire,\u00a0France": {
+    "city": "Loiret",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "Awaria Pr?du, Poland": {
+    "city": "Wroc\u0142aw",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Stirling, Scotland,\u00a0United Kingdom": {
+    "city": "Stirling",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Taastrup, Hovedstaden, Denmark": {
+    "city": "Taastrup",
+    "country": "Denmark",
+    "continent": "Europe"
+  },
+  "ZZ Games, Taastrup, Hovedstaden,\u00a0Denmark": {
+    "city": "Taastrup",
+    "country": "Denmark",
+    "continent": "Europe"
+  },
+  "Spilforsyningen, North Jutland,\u00a0Denmark": {
+    "city": "Aalborg",
+    "country": "Denmark",
+    "continent": "Europe"
+  },
+  "Carcosa Club, New York,\u00a0United States": {
+    "city": "New York",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Neutral Grounds - Centris, Philippines": {
+    "city": "Unknown",
+    "country": "Philippines",
+    "continent": "Asia"
+  },
+  "Fabricator's Forge, Pennsylvania,\u00a0United States": {
+    "city": "Coraopolis",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Atlas Gaming Glos, England,\u00a0United Kingdom": {
+    "city": "Gloucester",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Andr\u00e1ssy \u00fat 86, 1062 \u2022Hungary, Hungary": {
+    "city": "Budapest",
+    "country": "Hungary",
+    "continent": "Europe"
+  },
+  "Budapest, Tuan Publishing bookstore, Andr\u00e1ssy \u00fat 86, 1062 \u2022Hungary, Hungary": {
+    "city": "Budapest",
+    "country": "Hungary",
+    "continent": "Europe"
+  },
+  "Fresno, California,\u00a0United States": {
+    "city": "Fresno",
+    "country": "United States",
+    "continent": "North America"
   }
 }
