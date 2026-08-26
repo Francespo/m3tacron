@@ -690,7 +690,7 @@
     "continent": "Oceania"
   },
   "LEITURA, Paraiba, BR": {
-    "city": "Unknown",
+    "city": "Jo\u00e3o Pessoa",
     "country": "Brazil",
     "continent": "South America"
   },
@@ -8705,7 +8705,7 @@
     "continent": "North America"
   },
   "Paran\u00e1, BR": {
-    "city": "Paran\u00e1",
+    "city": "Unknown",
     "country": "Brazil",
     "continent": "South America"
   },
@@ -12518,5 +12518,15 @@
     "city": "Santiago",
     "country": "Chile",
     "continent": "South America"
+  },
+  "Miniaturemarket.com, St Charles , Missouri, US": {
+    "city": "Missouri",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Bellevue": {
+    "city": "Bellevue",
+    "country": "United States",
+    "continent": "North America"
   }
 }
