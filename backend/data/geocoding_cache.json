@@ -210,7 +210,7 @@
     "continent": "Oceania"
   },
   "Slice and Dice, Indiana, US": {
-    "city": "Unknown",
+    "city": "Indianapolis",
     "country": "United States",
     "continent": "North America"
   },
@@ -320,7 +320,7 @@
     "continent": "Europe"
   },
   "Zaad de Loods, BE": {
-    "city": "Unknown",
+    "city": "Beerse",
     "country": "Belgium",
     "continent": "Europe"
   },
@@ -355,7 +355,7 @@
     "continent": "North America"
   },
   "Turbulent Games, US": {
-    "city": "Unknown",
+    "city": "Park",
     "country": "United States",
     "continent": "North America"
   },
@@ -10472,7 +10472,7 @@
   "BO": {
     "city": "Unknown",
     "country": "Bolivia",
-    "continent": "Unknown"
+    "continent": "South America"
   },
   "Oshawa, ON, CA": {
     "city": "Oshawa",
@@ -13028,5 +13028,10 @@
     "city": "Unknown",
     "country": "Hungary",
     "continent": "Europe"
+  },
+  "Waco, Texas, US": {
+    "city": "McLennan",
+    "country": "United States",
+    "continent": "North America"
   }
 }
