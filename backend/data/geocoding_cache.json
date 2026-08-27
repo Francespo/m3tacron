@@ -10535,7 +10535,7 @@
     "continent": "Europe"
   },
   "Mechelen, Brussels,\u00a0Belgium": {
-    "city": "Unknown",
+    "city": "Mechelen",
     "country": "Belgium",
     "continent": "Europe"
   },
@@ -13382,6 +13382,166 @@
   "The Wizard's Chest, Denver, US": {
     "city": "Denver",
     "country": "United States",
+    "continent": "North America"
+  },
+  "Serbia": {
+    "city": "Unknown",
+    "country": "Serbia",
+    "continent": "Europe"
+  },
+  "Klub Zmaj by ComputerLand, Serbia": {
+    "city": "Unknown",
+    "country": "Serbia",
+    "continent": "Europe"
+  },
+  "Hammer of War, Italy": {
+    "city": "Affi",
+    "country": "Italy",
+    "continent": "Europe"
+  },
+  "Grosseto, Hammer of War, Italy": {
+    "city": "Affi",
+    "country": "Italy",
+    "continent": "Europe"
+  },
+  "Bolton, Greater Manchester,\u00a0United Kingdom": {
+    "city": "Bolton",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Brussels,\u00a0Belgium": {
+    "city": "Brussels",
+    "country": "Belgium",
+    "continent": "Europe"
+  },
+  "Shuffle and Cut Games, Brea, California,\u00a0United States": {
+    "city": "Brea",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Marriott Dallas Allen Hotel & Convention Center, Texas,\u00a0United States": {
+    "city": "Allen",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Wemple Hall 266 Epworth Ave, London, ON N6A 2M3, Ontario, Canada": {
+    "city": "London",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "King's College, Wemple Hall 266 Epworth Ave, London, ON N6A 2M3, Ontario,\u00a0Canada": {
+    "city": "London",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "LEITURA MANA\u00cdRA, Para\u00edba,\u00a0Brazil": {
+    "city": "Para\u00edba",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Games Bunker, Somerset,\u00a0United Kingdom": {
+    "city": "Staffordshire Moorlands",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Common Ground Games, Stirling, Scotland,\u00a0United Kingdom": {
+    "city": "Stirling",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Scotland,\u00a0United Kingdom": {
+    "city": "Unknown",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Wargames workshop Milton keynes, England,\u00a0United Kingdom": {
+    "city": "Milton Keynes",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "santiago, Chile": {
+    "city": "Provincia de Santiago",
+    "country": "Chile",
+    "continent": "South America"
+  },
+  "Wesley College, Angelo Street, Perth, Western Australia,\u00a0Australia": {
+    "city": "Unknown",
+    "country": "Unknown",
+    "continent": "Oceania"
+  },
+  "Da'rn t'pit, Yorkshire,\u00a0United Kingdom": {
+    "city": "Doncaster",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "The Arena, Newport, NP19 4ED, Wales,\u00a0United Kingdom": {
+    "city": "Newport",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "The Arena, Wales,\u00a0United Kingdom": {
+    "city": "Newport",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Friendly Fire, Manitoba,\u00a0Canada": {
+    "city": "Rural Municipality of Reynolds",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Piranha Cafe, Truro, Cornwall,\u00a0United Kingdom": {
+    "city": "Truro",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Madrid, Spain": {
+    "city": "Community of Madrid",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Kingdom Wargames Alcorcon, Madrid,\u00a0Spain": {
+    "city": "Community of Madrid",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Tr\u00f3jmiasto, Poland": {
+    "city": "Pomeranian Voivodeship",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Kingdom Wargames Alcorcon; c/bailen 6, Madrid,\u00a0Spain": {
+    "city": "Community of Madrid",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "La tienda Scum, Catalonia,\u00a0Spain": {
+    "city": "Barcelona",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Leitura, Para\u00edba, BR": {
+    "city": "Jo\u00e3o Pessoa",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "The Forge Hobbies & Games, Houston, TX, US": {
+    "city": "Houston",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Fantasy Books & Games, Fairview Heights, Illinois, US": {
+    "city": "Fairview Heights",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "SZ-Wing, lower saxony, DE": {
+    "city": "Salzgitter",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "Galt Curling Club, Ontario, CA": {
+    "city": "Cambridge",
+    "country": "Canada",
     "continent": "North America"
   }
 }
