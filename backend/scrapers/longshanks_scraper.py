@@ -1257,11 +1257,41 @@ class LongshanksScraper(BaseScraper):
 
                 for is_team_pass in passes:
                     if self.is_team_event:
-                        if is_team_pass:
-                            page.locator("a#tab_team").click()
-                        else:
-                            page.locator("a#tab_player").click()
+                        # Use evaluate("tab(...)") — the cookie-consent overlay
+                        # (#cookie_permission) intercepts pointer events and makes
+                        # .click() on a#tab_* hang with a 30 s timeout (see 33905
+                        # diagnostics). Hiding it alone is not enough for games.
+                        try:
+                            page.evaluate("(t) => tab(t)", "team" if is_team_pass else "player")
+                        except Exception:
+                            try:
+                                if is_team_pass:
+                                    page.locator("a#tab_team").click()
+                                else:
+                                    page.locator("a#tab_player").click()
+                            except Exception:
+                                pass
                         page.wait_for_timeout(1500)
+                        # If we are on the player pass but the tab did not
+                        # switch (e.g. 36216 where player ranking still shows
+                        # team rows), skip it — there are no real per-player
+                        # standings or boards for that view; scraping it would
+                        # duplicate team rows as players.
+                        if not is_team_pass:
+                            try:
+                                is_player_tab = page.evaluate(
+                                    """() => {
+                                    const t = document.querySelector('a#tab_player');
+                                    const m = document.querySelector('a#tab_team');
+                                    return !!(t && t.classList.contains('selected'))
+                                      || !!(m && !m.classList.contains('selected'));
+                                }"""
+                                )
+                            except Exception:
+                                is_player_tab = True  # assume success if check fails
+                            if not is_player_tab:
+                                logger.info("Team event player tab did not activate — skipping player board pass")
+                                continue
 
                     for opt in round_options:
                         round_text = opt["text"]
@@ -1363,18 +1393,24 @@ class LongshanksScraper(BaseScraper):
                                     if len(player_divs) < 2:
                                         continue
 
-                                    # Extract player names from .player_link
-                                    p1_link = player_divs[0].locator(".player_link")
-                                    p2_link = player_divs[1].locator(".player_link")
-                                    if p1_link.count() == 0 or p2_link.count() == 0:
+                                    # Extract player names.  BYE rows have no
+                                    # .player_link — just <span class="player_disp">BYE</span> —
+                                    # so fall back to .player_disp / .name.
+                                    def _name_from_player_div(div):
+                                        link = div.locator(".player_link")
+                                        if link.count() > 0:
+                                            return " ".join(link.inner_text().split())
+                                        disp = div.locator(".player_disp")
+                                        if disp.count() > 0:
+                                            return " ".join(disp.inner_text().split())
+                                        name_el = div.locator(".name")
+                                        if name_el.count() > 0:
+                                            return " ".join(name_el.inner_text().split())
+                                        return ""
+                                    p1_name = _name_from_player_div(player_divs[0])
+                                    p2_name = _name_from_player_div(player_divs[1])
+                                    if not p1_name or not p2_name:
                                         continue
-
-                                    # Nested nickname spans and HTML whitespace
-                                    # can produce repeated spaces. Normalize names
-                                    # exactly as standings parsing does so match
-                                    # foreign keys resolve during persistence.
-                                    p1_name = " ".join(p1_link.inner_text().split())
-                                    p2_name = " ".join(p2_link.inner_text().split())
 
                                     # The game's .details block is the authoritative
                                     # source for the round AND the scenario: it
