@@ -470,7 +470,7 @@
     "continent": "North America"
   },
   "Atlantis , Hamburg, DE": {
-    "city": "Unknown",
+    "city": "Hamburg",
     "country": "Germany",
     "continent": "Europe"
   },
@@ -495,7 +495,7 @@
     "continent": "Europe"
   },
   "Six Feet Under Games, Pennsylvania, US": {
-    "city": "Unknown",
+    "city": "Pennsylvania",
     "country": "United States",
     "continent": "North America"
   },
@@ -11270,7 +11270,7 @@
     "continent": "South America"
   },
   "Distrito Federal,\u00a0Brazil": {
-    "city": "Unknown",
+    "city": "Federal District",
     "country": "Brazil",
     "continent": "South America"
   },
@@ -12808,5 +12808,225 @@
     "city": "Provincia de Santiago",
     "country": "Chile",
     "continent": "South America"
+  },
+  "Kecskem\u00e9t, Hungary": {
+    "city": "Kecskem\u00e9t",
+    "country": "Hungary",
+    "continent": "Europe"
+  },
+  "Aalborg, North Jutland,\u00a0Denmark": {
+    "city": "Aalborg",
+    "country": "Denmark",
+    "continent": "Europe"
+  },
+  "Spratton Hall School, England,\u00a0United Kingdom": {
+    "city": "Northampton",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "CTC, Ontario,\u00a0Canada": {
+    "city": "Ottawa",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Canis Lupus, Poland": {
+    "city": "Poznan",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Oslo, Norway": {
+    "city": "Oslo",
+    "country": "Norway",
+    "continent": "Europe"
+  },
+  "CTC - Rideau Curling Club, Ontario,\u00a0Canada": {
+    "city": "Ottawa",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "The Arena Newport, Wales,\u00a0United Kingdom": {
+    "city": "Newport",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Genova, Italy": {
+    "city": "Genoa",
+    "country": "Italy",
+    "continent": "Europe"
+  },
+  "Element Games, Stockport, Greater Manchester,\u00a0United Kingdom": {
+    "city": "Stockport",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Poznan, Canis Lupus, ul. Boleslawa Krzywoustego 72, Poland": {
+    "city": "Poznan",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Element games, Greater Manchester,\u00a0United Kingdom": {
+    "city": "Stockport",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Dominaria - Liberdade, S\u00e3o Paulo, S\u00e3o Paulo,\u00a0Brazil": {
+    "city": "S\u00e3o Paulo",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Princess Alexander Pub Northampton, England,\u00a0United Kingdom": {
+    "city": "Northampton",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Wargen Madrid, Madrid,\u00a0Spain": {
+    "city": "Madrid",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Brest, Brittany,\u00a0France": {
+    "city": "Finist\u00e8re",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "TUAN, Budapest, Andr\u00e1ssy \u00fat 86, 1062 \u2022Hungary, Hungary": {
+    "city": "Budapest",
+    "country": "Hungary",
+    "continent": "Europe"
+  },
+  "C/ San Guillermo 5, bajo, Gij\u00f3n, Asturias,\u00a0Spain": {
+    "city": "Gij\u00f3n",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Games & More, Texas, United States": {
+    "city": "Denton",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "The Adventure Begins Comics, Games & More, Texas,\u00a0United States": {
+    "city": "Denton",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "75 York Rd, D\u00fan Laoghaire, Dublin, A96 FR99, Ireland": {
+    "city": "D\u00fan Laoghaire",
+    "country": "Ireland",
+    "continent": "Europe"
+  },
+  "Kirotn Games, 86 High Street, Crediton, EX17 3LB, England,\u00a0United Kingdom": {
+    "city": "Mid Devon",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Toco Game Burger Place - Alum\u00ednio, S\u00e3o Paulo,\u00a0Brazil": {
+    "city": "Unknown",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Toru?, Poland": {
+    "city": "Bychowo",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Avenida Mart\u00ednez de Velasco, 69, Huesca, Aragon,\u00a0Spain": {
+    "city": "Huesca",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Torun, Poland": {
+    "city": "Kuyavian-Pomeranian Voivodeship",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Balearic Islands,\u00a0Spain": {
+    "city": "Balearic Islands",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Cherbourg, Normandy,\u00a0France": {
+    "city": "Manche",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "Heroes Inn, M\u00f6nchengladbach, North Rhine-Westphalia,\u00a0Germany": {
+    "city": "North Rhine-Westphalia",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "Wargames Workshop Milton keynes, England,\u00a0United Kingdom": {
+    "city": "Milton Keynes",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Arena Randers, Mid Jutland,\u00a0Denmark": {
+    "city": "Randers",
+    "country": "Denmark",
+    "continent": "Europe"
+  },
+  "Red Dragon, Ontario,\u00a0Canada": {
+    "city": "Toronto",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Guelph, Ontario,\u00a0Canada": {
+    "city": "Southwestern Ontario",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Bedford Lodge - 10 Dartmouth Road Bedford, NS, Nova Scotia,\u00a0Canada": {
+    "city": "Bedford",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Up A Level, York, Yorkshire,\u00a0United Kingdom": {
+    "city": "York",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Contrarian's Game Store, Washington,\u00a0United States": {
+    "city": "American Fork",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Hoplite Games, Lansing, MI, Michigan,\u00a0United States": {
+    "city": "Ingham",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Wargen, Madrid,\u00a0Spain": {
+    "city": "Madrid",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Board in Brum, Black Country,\u00a0United Kingdom": {
+    "city": "Sandwell",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Nortic Foods (CCSP), S\u00e3o Paulo, S\u00e3o Paulo,\u00a0Brazil": {
+    "city": "S\u00e3o Paulo",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Leon, Castile and Le\u00f3n,\u00a0Spain": {
+    "city": "Castile and Le\u00f3n",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Virandeville, Normandy,\u00a0France": {
+    "city": "Virandeville",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "VLCS, California,\u00a0United States": {
+    "city": "Unknown",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "1062 Budapest, Andr\u00e1ssy \u00fat 86.; Tuan Kiad\u00f3 K\u00f6nyvesboltja, Hungary": {
+    "city": "Unknown",
+    "country": "Hungary",
+    "continent": "Europe"
   }
 }
