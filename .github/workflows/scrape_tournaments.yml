@@ -50,6 +50,11 @@ on:
         required: false
         type: boolean
         default: false
+      tournament_urls:
+        description: "Optional: newline or comma-separated list of specific tournament URLs to re-scrape on staging/prod (team backfill). When set, ignores platform/time_range."
+        required: false
+        type: string
+        default: ""
 
 jobs:
   scrape:
@@ -153,7 +158,34 @@ jobs:
             OVERWRITE_FLAG="--overwrite"
           fi
 
-          if [ "$DB_ENV" = "none" ]; then
+          # Optional team-backfill mode: --tournament-url per explicit URL.
+          # tournament_urls input is newline or comma separated; each URL becomes
+          # one --tournament-url arg. Uses a temp file to avoid GH expression
+          # escaping issues inside the YAML run block.
+          URL_FLAGS=""
+          if [ -n "${{ inputs.tournament_urls }}" ]; then
+            printf '%s' "${{ inputs.tournament_urls }}" | tr ',' '\n' > /tmp/tournament_urls.txt
+            while IFS= read -r U; do
+              U=$(echo "$U" | xargs)
+              [ -z "$U" ] && continue
+              # Append to a file because the while runs in a subshell, so
+              # variable assignment alone would be lost.
+              echo -n "--tournament-url '$U' " >> /tmp/url_flags.txt
+            done < /tmp/tournament_urls.txt
+            if [ -f /tmp/url_flags.txt ]; then
+              URL_FLAGS=$(cat /tmp/url_flags.txt)
+            fi
+          fi
+
+          if [ -n "$URL_FLAGS" ]; then
+            echo "Running in tournament_urls mode ($URL_FLAGS)"
+            # shellcheck disable=SC2086
+            if [ "$DB_ENV" = "none" ]; then
+              eval python -m backend.scripts.scrape_tournaments_sqlite --sqlite-path scraped_tournaments.db $URL_FLAGS $OVERWRITE_FLAG
+            else
+              eval python -m backend.scripts.scrape_tournaments --sqlite-output scraped_tournaments.db $URL_FLAGS $OVERWRITE_FLAG
+            fi
+          elif [ "$DB_ENV" = "none" ]; then
             python -m backend.scripts.scrape_tournaments_sqlite \
               --sqlite-path scraped_tournaments.db \
               --platform "$PLATFORM" \
