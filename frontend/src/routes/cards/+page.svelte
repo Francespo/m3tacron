@@ -22,6 +22,9 @@
     import { xwingData } from "$lib/stores/xwingData.svelte";
     import { goto } from "$app/navigation";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
+    import Pagination from "$lib/components/Pagination.svelte";
+    import { page as currentPage } from "$app/state";
+    import { untrack } from "svelte";
 
     let { data } = $props();
 
@@ -86,15 +89,22 @@
     // Ensure data is loaded for the current data source, then push the
     // store + route-local overlay (page, size, tab) to the URL.
     $effect(() => {
-        xwingData.setSource(filters.dataSource as any);
-
+        const curPage = page;
         const params = filters.toSearchParams('cards');
         // Overlay route-local URL state (page is 0-indexed in the URL,
         // 1-indexed in the UI; tab/size are route-local concerns).
-        params.set('page', String(page - 1));
+        params.set('page', String(curPage - 1));
         params.set('size', String(size));
         if (data.tab) params.set('tab', data.tab);
+        untrack(() => xwingData.setSource(filters.dataSource as any));
         scheduleSync(0, params);
+    });
+
+    // Keep page in sync with URL (direct navigation ?page=2)
+    $effect(() => {
+        const urlPage = Number(currentPage.url.searchParams.get('page') ?? '0');
+        const desiredPage = urlPage + 1;
+        if (untrack(() => page) !== desiredPage) page = desiredPage;
     });
 
     function prevPage() {
@@ -405,22 +415,7 @@
                             </a>
                         {/each}
                     </div>
-                    {@const _totalPages = Math.max(1, Math.ceil(resolvedTotal / size))}
-                    {@const _from = resolvedTotal === 0 ? 0 : (page - 1) * size + 1}
-                    {@const _to = Math.min(page * size, resolvedTotal)}
-                    <div class="flex items-center justify-center gap-2 mt-6">
-                        <button
-                            class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                            onclick={prevPage}
-                            disabled={page <= 1}>← Prev</button
-                        >
-                        <span class="text-xs font-mono text-secondary">Showing {_from}–{_to} of {resolvedTotal} · Page {page}/{_totalPages}</span>
-                        <button
-                            class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                            onclick={nextPage}
-                            disabled={page * size >= resolvedTotal}>Next →</button
-                        >
-                    </div>
+
                 {:else}
                     <!-- Empty state: no cards matched the current filters -->
                     <div
@@ -444,6 +439,9 @@
                             </button>
                         </div>
                     </div>
+                {/if}
+                {#if resolvedTotal > 0}
+                    <Pagination total={resolvedTotal} {page} {size} onPrev={prevPage} onNext={nextPage} />
                 {/if}
             </div>
         {/if}

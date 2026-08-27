@@ -80,3 +80,4 @@ commit_message.json
 .vite/
 # Font-centering verification screenshots (local review evidence, not for GitHub)
 .verify-font-centering/
+frontend/test-results

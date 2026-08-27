@@ -18,6 +18,8 @@
     import Toggle from "$lib/components/Toggle.svelte";
     import { xwingData } from "$lib/stores/xwingData.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
+    import Pagination from "$lib/components/Pagination.svelte";
+    import { untrack } from "svelte";
 
     let { data } = $props();
 
@@ -67,20 +69,22 @@
     // are hydrated by the layout via filters.applyFromSearchParams.
     $effect(() => {
         const urlPage = Number(currentPage.url.searchParams.get('page') ?? '0');
-        page = urlPage + 1; // URL is 0-indexed, state is 1-indexed
+        const desiredPage = urlPage + 1;
+        if (untrack(() => page) !== desiredPage) page = desiredPage;
         const urlMinGames = currentPage.url.searchParams.get('min_games');
         if (urlMinGames) minGames = Number(urlMinGames);
     });
 
-    // Re-fetch when local filters change
+    // Re-fetch when local filters change. Read page/minGames inside so the
+    // effect re-runs on pagination; untrack xwingData side-effect.
     $effect(() => {
-        // Ensure data is active
-        xwingData.setSource(filters.dataSource as any);
-
+        const curPage = page;
+        const curMinGames = minGames;
         const params = filters.toSearchParams('lists');
-        params.set('page', String(page - 1));
+        params.set('page', String(curPage - 1));
         params.set('size', String(size));
-        params.set('min_games', String(minGames));
+        params.set('min_games', String(curMinGames));
+        untrack(() => xwingData.setSource(filters.dataSource as any));
         scheduleSync(0, params);
     });
 
@@ -340,29 +344,7 @@
                     </div>
                 {/if}
 
-                <!-- Pagination -->
-                {#if resolvedTotal > size}
-                    <div
-                        class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
-                    >
-                    <button
-                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                        onclick={prevPage}
-                        disabled={page <= 1}
-                    >
-                        ← Prev
-                    </button>
-                    <span class="text-xs font-mono text-secondary">Page {page}</span
-                    >
-                    <button
-                        class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                        onclick={nextPage}
-                        disabled={page * size >= resolvedTotal}
-                    >
-                        Next →
-                    </button>
-                    </div>
-                {/if}
+                <Pagination total={resolvedTotal} {page} {size} onPrev={prevPage} onNext={nextPage} />
             </div>
         {/if}
     </main>

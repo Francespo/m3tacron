@@ -104,8 +104,9 @@
 
     // Fetch pilots whenever the selected faction changes. The server-scoped
     // data from +page.ts is already correct for the initial faction, so skip
-    // the first run (that's what `data.faction` matched).
-    let fetchedFaction = $state<string | null>(null);
+    // the first run. Initialize to the current faction to avoid a duplicate
+    // 4x fetch on mount (load already fetched this faction).
+    let fetchedFaction = $state<string | null>(selectedFaction);
     $effect(() => {
         // This effect drives client-side refetches (window) — never run it
         // during SSR. In the browser, `window` exists and the fetch fires.
@@ -119,17 +120,16 @@
             const u = new URL(`${API_BASE}${path}`, window.location.origin);
             // Carry forward every global filter currently in the page URL
             // (formats, date range, location, platforms, player counts,
-            // data_source, epic, search, etc.) so the refetch stays
+            // data_source, search, etc.) so the refetch stays
             // consistent with the ships overview the user came from. Skip
             // page/size/sort which are ships-list-specific.
             for (const [k, v] of new URLSearchParams(window.location.search).entries()) {
                 if (k === 'page' || k === 'size' || k === 'sort_metric' || k === 'sort_direction') continue;
-                if (k === 'faction') continue; // detail toggle handled below
+                if (k === 'faction' || k === 'epic') continue; // detail toggle handled below; epic always on
                 u.searchParams.append(k, v);
             }
             // data_source: keep server-provided default in sync with client store
             if (!u.searchParams.has('data_source')) u.searchParams.set('data_source', ds);
-            if (!u.searchParams.has('epic')) u.searchParams.set('epic', String(filters.includeEpic || false));
             // detail faction toggle (overrides global factions)
             if (faction && faction !== 'all') u.searchParams.set('faction', faction);
             if (extra) for (const [k, v] of Object.entries(extra)) u.searchParams.set(k, v);

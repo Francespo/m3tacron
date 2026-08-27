@@ -18,18 +18,16 @@
     import { xwingData } from "$lib/stores/xwingData.svelte";
     import Toggle from "$lib/components/Toggle.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
+    import Pagination from "$lib/components/Pagination.svelte";
     import { page as appPage } from "$app/state";
+    import { untrack } from "svelte";
 
     let { data } = $props();
 
     let filterOpen = $state(false);
-    // Page is now driven solely by client-side pagination over mergedShips.
-    // URL's ?page param is only used to seed initial page after navigation.
-    let page = $state(typeof window !== 'undefined'
-        ? Math.max(1, Number(new URLSearchParams(window.location.search).get('page') || 0) + 1)
-        : 1);
+    let page = $state(1);
     let factionOpen = $state(false);
-    const size = 50;
+    const size = 21;
 
     // Default sort for the ships page when the URL didn't specify one.
     // "Lists" = list_count, the most useful default for browsing ships.
@@ -61,10 +59,21 @@
     // `filters.applyFromSearchParams` + `clearPendingSync`; routes only need
     // the round-trip write effect below.
 
+    // Keep page in sync with URL (page is 1-indexed in UI, 0-indexed in URL).
+    // `appPage` is the SvelteKit page state imported at the top.
+    // Use `untrack` so writing `page` here doesn't make this effect re-run
+    // when `page` itself changes (that would create a feedback loop:
+    // click Next -> page++ -> scheduleSync -> URL update -> this effect
+    // -> page reset -> scheduleSync -> ...).
+    $effect(() => {
+        const urlPage = Number(appPage.url.searchParams.get('page') ?? '0');
+        const desiredPage = urlPage + 1;
+        if (untrack(() => page) !== desiredPage) page = desiredPage;
+    });
+
     // Merge API data with xwingData when any dependency changes
     $effect(() => {
         // Read reactive values synchronously so $effect tracks them
-        const epic = filters.includeEpic;
         const currentSortBy = filters.sortBy;
         const currentSortDir = filters.sortDirection;
         // Chassis filter — backend already receives `?ships=...`, but the merge
@@ -100,8 +109,6 @@
             for (const [xws, ship] of Object.entries(xwingShips)) {
                 if (seen.has(xws)) continue;
                 seen.add(xws);
-                // Skip epic-only ships (ships with no standard-legal pilots) unless includeEpic is on
-                if (!epic && ship.epic) continue;
                 // Skip ships not in the chassis filter (when one is active)
                 if (selectedShips.length > 0 && !selectedShips.includes(xws)) continue;
 
@@ -145,20 +152,25 @@
             mergedShips = merged;
             hasLoaded = true;
             pending = false;
+
+            // Clamp page if filters reduced total pages
+            const maxPage = Math.max(1, Math.ceil(merged.length / size));
+            if (page > maxPage) page = maxPage;
         }).catch(() => {
             failed = true;
             pending = false;
         });
     });
 
-    // Trigger URL updates on filter changes
+    // Trigger URL updates on filter/page changes.
+    // Reading `page`/`filters` inside the effect makes it re-run when they
+    // change; `xwingData.setSource` is side-effect only and untracked.
     $effect(() => {
-        // Ensure data is active
-        xwingData.setSource(filters.dataSource as any);
-
+        const curPage = page;
         const params = filters.toSearchParams('ships');
-        params.set('page', String(page - 1));
+        params.set('page', String(curPage - 1));
         params.set('size', String(size));
+        untrack(() => xwingData.setSource(filters.dataSource as any));
         scheduleSync(0, params);
     });
 
@@ -570,29 +582,7 @@
                     </div>
                 {/if}
 
-                <!-- Pagination -->
-                {#if resolvedTotal > size}
-                    <div
-                        class="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-border-dark"
-                    >
-                        <button
-                            class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                            onclick={prevPage}
-                            disabled={page <= 1}
-                        >
-                            ← Prev
-                        </button>
-                        <span class="text-xs font-mono text-secondary">Page {page}</span
-                        >
-                        <button
-                            class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                            onclick={nextPage}
-                            disabled={page * size >= resolvedTotal}
-                        >
-                            Next →
-                        </button>
-                    </div>
-                {/if}
+                <Pagination total={resolvedTotal} {page} {size} onPrev={prevPage} onNext={nextPage} />
             </div>
         {/if}
     </main>

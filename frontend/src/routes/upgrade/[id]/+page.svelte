@@ -12,26 +12,22 @@
 
     let { data }: { data: any } = $props();
 
-    function getDefaultFormats(ds: "xwa" | "legacy", includeEpic: boolean): string[] {
-        if (ds === "xwa") return includeEpic ? ["xwa", "xwa_epic"] : ["xwa"];
-        return includeEpic
-            ? ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum", "legacy_epic"]
-            : ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum"];
+    function getDefaultFormats(ds: "xwa" | "legacy"): string[] {
+        if (ds === "xwa") return ["xwa"];
+        return ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum"];
     }
 
     let initialized = $state(false);
     $effect(() => {
         if (initialized) return;
         if (data.ds === "legacy" || data.ds === "xwa") filters.dataSource = data.ds;
-        if (data.hasEpicParam) filters.includeEpic = !!data.includeEpic;
         initialized = true;
     });
     $effect(() => {
         if (!initialized) return;
         const params = new URLSearchParams();
         params.set("data_source", filters.dataSource);
-        if (filters.includeEpic) params.set("epic", "true");
-        for (const f of getDefaultFormats(filters.dataSource, filters.includeEpic)) params.append("formats", f);
+        for (const f of getDefaultFormats(filters.dataSource)) params.append("formats", f);
         goto(`?${params.toString()}`, { keepFocus: true, noScroll: true, replaceState: true });
     });
 

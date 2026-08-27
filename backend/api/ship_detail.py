@@ -33,7 +33,6 @@ def _ship_filter_cache_suffix(
     player_count_min: int | None,
     player_count_max: int | None,
     search: str | None,
-    epic: bool | None,
     faction: str | None,
 ) -> str:
     """Stable suffix for ship-detail cache keys covering all filter inputs."""
@@ -48,7 +47,7 @@ def _ship_filter_cache_suffix(
         f"|so={','.join(sorted(sources or []))}"
         f"|ds={date_start or ''}|de={date_end or ''}"
         f"|pcmin={player_count_min}|pcmax={player_count_max}"
-        f"|q={search or ''}|epic={epic}|faction={faction or 'all'}"
+        f"|q={search or ''}|faction={faction or 'all'}"
     )
 
 
@@ -68,7 +67,6 @@ def _build_filters(
     player_count_min: int | None,
     player_count_max: int | None,
     search: str | None,
-    epic: bool | None,
 ) -> dict:
     """Build a filters dict compatible with all analytics helpers.
 
@@ -77,8 +75,7 @@ def _build_filters(
       global `factions` list when present.
     - `formats` maps to `allowed_formats`.
     - `platforms`/`sources` are merged to both keys for compatibility.
-    - `epic` maps to both `epic` and `include_epic` so lists/squadrons and
-      pilots (core) both observe it.
+    - Epic content is always included (no epic param).
     """
     # Resolve faction: detail toggle wins over global.
     if faction:
@@ -143,9 +140,8 @@ def _build_filters(
         filters["search_name"] = search
         filters["search_text"] = search
         filters["search"] = search
-    if epic is not None:
-        filters["epic"] = bool(epic)
-        filters["include_epic"] = bool(epic)
+    filters["epic"] = True
+    filters["include_epic"] = True
 
     return filters
 
@@ -168,7 +164,6 @@ def get_ship_info(
     player_count_min: int | None = Query(None),
     player_count_max: int | None = Query(None),
     search: str | None = Query(None),
-    epic: bool = Query(False),
     # per-ship faction breakdown toggle (overrides global factions)
     faction: str | None = Query(None),
 ):
@@ -179,7 +174,7 @@ def get_ship_info(
 
     cache_key = (
         f"ship_info|{ship_xws}|{ds.value}"
-        + _ship_filter_cache_suffix(formats, factions, ships, continent, country, city, platforms, sources, date_start, date_end, player_count_min, player_count_max, search, epic, faction)
+        + _ship_filter_cache_suffix(formats, factions, ships, continent, country, city, platforms, sources, date_start, date_end, player_count_min, player_count_max, search, faction)
     )
 
     def compute():
@@ -199,7 +194,6 @@ def get_ship_info(
             player_count_min=player_count_min,
             player_count_max=player_count_max,
             search=search,
-            epic=epic,
         )
         stats = aggregate_ship_stats(filters, SortingCriteria.GAMES, SortDirection.DESCENDING, ds)
         return stats[0] if stats and len(stats) > 0 else {}
@@ -218,7 +212,6 @@ def get_ship_pilots(
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Lists"),
     sort_direction: str = Query("desc"),
-    epic: bool = Query(False),
     # global filters
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
@@ -248,7 +241,7 @@ def get_ship_pilots(
 
     cache_key = (
         f"ship_pilots|{ship_xws}|{ds.value}|{sort_metric}|{sort_direction}"
-        + _ship_filter_cache_suffix(formats, factions, ships, continent, country, city, platforms, sources, date_start, date_end, player_count_min, player_count_max, search, epic, faction)
+        + _ship_filter_cache_suffix(formats, factions, ships, continent, country, city, platforms, sources, date_start, date_end, player_count_min, player_count_max, search, faction)
     )
 
     def compute():
@@ -268,7 +261,6 @@ def get_ship_pilots(
             player_count_min=player_count_min,
             player_count_max=player_count_max,
             search=search,
-            epic=epic,
         )
         return aggregate_card_stats(filters, criteria, direction, "pilots", ds)
 
@@ -294,14 +286,13 @@ def get_ship_lists(
     player_count_min: int | None = Query(None),
     player_count_max: int | None = Query(None),
     search: str | None = Query(None),
-    epic: bool = Query(False),
     faction: str | None = Query(None),
 ):
     """Return top performing lists containing this ship."""
     ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
     cache_key = (
         f"ship_lists|{ship_xws}|{ds.value}|{limit}"
-        + _ship_filter_cache_suffix(formats, factions, ships, continent, country, city, platforms, sources, date_start, date_end, player_count_min, player_count_max, search, epic, faction)
+        + _ship_filter_cache_suffix(formats, factions, ships, continent, country, city, platforms, sources, date_start, date_end, player_count_min, player_count_max, search, faction)
     )
 
     def compute_lists():
@@ -321,7 +312,6 @@ def get_ship_lists(
             player_count_min=player_count_min,
             player_count_max=player_count_max,
             search=search,
-            epic=epic,
         )
         return aggregate_list_stats(filters, data_source=ds)
 
@@ -364,14 +354,13 @@ def get_ship_squadrons(
     player_count_min: int | None = Query(None),
     player_count_max: int | None = Query(None),
     search: str | None = Query(None),
-    epic: bool = Query(False),
     faction: str | None = Query(None),
 ):
     """Return top performing squadrons containing this ship."""
     ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
     cache_key = (
         f"ship_squadrons|{ship_xws}|{ds.value}|{limit}"
-        + _ship_filter_cache_suffix(formats, factions, ships, continent, country, city, platforms, sources, date_start, date_end, player_count_min, player_count_max, search, epic, faction)
+        + _ship_filter_cache_suffix(formats, factions, ships, continent, country, city, platforms, sources, date_start, date_end, player_count_min, player_count_max, search, faction)
     )
 
     def compute_squadrons():
@@ -391,7 +380,6 @@ def get_ship_squadrons(
             player_count_min=player_count_min,
             player_count_max=player_count_max,
             search=search,
-            epic=epic,
         )
         return aggregate_squadron_stats(filters, SortingCriteria.WINRATE, SortDirection.DESCENDING, ds)
 

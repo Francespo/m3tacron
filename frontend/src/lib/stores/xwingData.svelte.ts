@@ -57,8 +57,7 @@ export interface XWingShip {
     pilots?: any[]; 
     icon?: string;
     factions: string[];
-    /** Epic-only ships (no standard-legal pilots). Used by the ships page
-     *  epic toggle: only shown when "Include Epic" is on. */
+    /** Epic-only ships (no standard-legal pilots). Shown by default (epic always on). */
     epic?: boolean;
 }
 

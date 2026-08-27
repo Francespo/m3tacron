@@ -104,26 +104,17 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
         });
     });
 
-    function getDefaultFormats(ds: "xwa" | "legacy", includeEpic: boolean): string[] {
+    function getDefaultFormats(ds: "xwa" | "legacy"): string[] {
         if (ds === "xwa") {
-            return includeEpic ? ["xwa", "xwa_epic"] : ["xwa"];
+            return ["xwa"];
         }
-        return includeEpic
-            ? ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum", "legacy_epic"]
-            : ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum"];
+        return ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum"];
     }
 
     $effect(() => {
         if (initialized) return;
         if (data.ds === "legacy" || data.ds === "xwa") {
             filters.dataSource = data.ds;
-        }
-        // Only sync the epic flag from the URL when the URL explicitly
-        // carries it. A plain navigation from another page (e.g. a card
-        // link) drops the query string, and the store must keep its value
-        // so the toggle stays consistent across routes.
-        if (data.hasEpicParam) {
-            filters.includeEpic = !!data.includeEpic;
         }
         initialized = true;
     });
@@ -133,8 +124,7 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
 
         const params = new URLSearchParams();
         params.set("data_source", filters.dataSource);
-        if (filters.includeEpic) params.set("epic", "true");
-        for (const f of getDefaultFormats(filters.dataSource, filters.includeEpic)) {
+        for (const f of getDefaultFormats(filters.dataSource)) {
             params.append("formats", f);
         }
 

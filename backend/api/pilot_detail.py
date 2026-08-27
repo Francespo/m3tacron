@@ -161,7 +161,7 @@ def get_pilot_chart(
     def _compute():
         filters = {
             "allowed_formats": formats,
-            "include_epic": False,
+            "include_epic": True,
         }
         chart_data = get_card_usage_history(
             filters,
@@ -245,7 +245,6 @@ def get_pilot_lists(
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Games"),
     sort_direction: str = Query("desc"),
-    epic: bool = Query(False),
     min_games: int = Query(0, ge=0),
     points_min: int = Query(0, ge=0),
     points_max: int = Query(200, ge=0),
@@ -285,7 +284,8 @@ def get_pilot_lists(
         "player_count_max": player_count_max,
         "ships": ships,
         "factions": factions,
-        "epic": epic,
+        "epic": True,
+        "include_epic": True,
     }
     if formats:
         filters["allowed_formats"] = formats
@@ -310,7 +310,7 @@ def get_pilot_lists(
         f"|p={','.join(sorted(platforms or []))}"
         f"|co={','.join(sorted(continent or []))}|cn={','.join(sorted(country or []))}|ci={','.join(sorted(city or []))}"
         f"|ds={date_start}|de={date_end}|pcmin={player_count_min}|pcmax={player_count_max}"
-        f"|mg={min_games}|pmin={points_min}|pmax={points_max}|epic={epic}"
+        f"|mg={min_games}|pmin={points_min}|pmax={points_max}|"
         f"|q={sanitized_search}|sm={sort_metric}|sd={sort_direction}"
     )
 
