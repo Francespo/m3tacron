@@ -13223,5 +13223,165 @@
     "city": "Essen",
     "country": "Germany",
     "continent": "Europe"
+  },
+  "IKEA Dartmouth Community Room, Nova Scotia,\u00a0Canada": {
+    "city": "Dartmouth",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "NEC, Birmingham,\u00a0United Kingdom": {
+    "city": "Metropolitan Borough of Solihull",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Kecskem\u00e9t - tcg klub, Hungary": {
+    "city": "Kecskem\u00e9t",
+    "country": "Hungary",
+    "continent": "Europe"
+  },
+  "Citt\u00e0 di Castello, Viale Moncenisio 26, Italy": {
+    "city": "Citt\u00e0 di Castello",
+    "country": "Italy",
+    "continent": "Europe"
+  },
+  "PNW, Washington, US": {
+    "city": "Skagit",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Herne, North Rhine-Westphalia,\u00a0Germany": {
+    "city": "Herne",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "Eurexpo, Boulevard de l'Europe - 69680 Chassieu, Auvergne-Rh\u00f4ne-Alpes,\u00a0France": {
+    "city": "Chassieu",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "Helsinki, Finland": {
+    "city": "Uusimaa",
+    "country": "Finland",
+    "continent": "Europe"
+  },
+  "Kingdom Wargames Madrid, Madrid,\u00a0Spain": {
+    "city": "Madrid",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Torun, Muzeum Etnograficzne, Poland": {
+    "city": "Toru\u0144",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "The Outpost, Sheffield, Yorkshire,\u00a0United Kingdom": {
+    "city": "Sheffield",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "House, Michigan,\u00a0United States": {
+    "city": "Macon Township",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Exploding Dice, Bangor, Northern Ireland,\u00a0United Kingdom": {
+    "city": "Down",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "ALMADA, Portugal": {
+    "city": "Almada",
+    "country": "Portugal",
+    "continent": "Europe"
+  },
+  "BattlePub Games, Texas,\u00a0United States": {
+    "city": "Lubbock",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Bryan's House, Nova Scotia,\u00a0Canada": {
+    "city": "Halifax",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Players Paradice Newport Pagnell, England,\u00a0United Kingdom": {
+    "city": "City of Milton Keynes",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Warszawa, Battle Hub, Poland": {
+    "city": "Warsaw",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Winnipeg, Manitoba,\u00a0Canada": {
+    "city": "Manitoba",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Hovedstaden,\u00a0Denmark": {
+    "city": "Capital Region of Denmark",
+    "country": "Denmark",
+    "continent": "Europe"
+  },
+  "Gradd, S\u00e3o Jos\u00e9 dos Campos, S\u00e3o Paulo,\u00a0Brazil": {
+    "city": "Eug\u00eanio de Melo",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Adepticon, Wisconsin,\u00a0United States": {
+    "city": "Unknown",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Chorz\u00f3w, Poland": {
+    "city": "Chorz\u00f3w",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Dominaria, S\u00e3o Paulo, S\u00e3o Paulo,\u00a0Brazil": {
+    "city": "S\u00e3o Paulo",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Secreto, Balearic Islands,\u00a0Spain": {
+    "city": "Santany\u00ed, Mallorca",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Warszawa / Warsaw, Poland": {
+    "city": "Warsaw",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Tabletop Sachsen e.V., Lutherstra\u00dfe 13, 04315 Leipzig, Saxony,\u00a0Germany": {
+    "city": "Leipzig",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "TopTables, North Rhine-Westphalia,\u00a0Germany": {
+    "city": "Unknown",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "tcg klub - Kecskem\u00e9t, B\u00e1cs-Kiskun , HU": {
+    "city": "Kecskem\u00e9t",
+    "country": "Hungary",
+    "continent": "Europe"
+  },
+  "Capes & Crepes, OR, US": {
+    "city": "Portland",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Scattered Deck Games, WA, US": {
+    "city": "Stanwood",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "The Wizard's Chest, Denver, US": {
+    "city": "Denver",
+    "country": "United States",
+    "continent": "North America"
   }
 }
