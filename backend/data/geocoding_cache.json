@@ -10558,5 +10558,75 @@
     "city": "Courtice",
     "country": "Canada",
     "continent": "North America"
+  },
+  "Zaal de Loods, Brussels,\u00a0Belgium": {
+    "city": "Brussels",
+    "country": "Belgium",
+    "continent": "Europe"
+  },
+  "Italy": {
+    "city": "Unknown",
+    "country": "Italy",
+    "continent": "Europe"
+  },
+  "Barcelona, La Tienda Scum, Catalonia,\u00a0Spain": {
+    "city": "Barcelona",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Centre-Val de Loire,\u00a0France": {
+    "city": "Centre-Val de Loire",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "Contrarian's Game Cafe, Washington,\u00a0United States": {
+    "city": "Bothell",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Grand Est,\u00a0France": {
+    "city": "Unknown",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "The Game Chamber, London, Ontario,\u00a0Canada": {
+    "city": "London",
+    "country": "Canada",
+    "continent": "North America"
+  },
+  "Element Games - Stockport, Greater Manchester,\u00a0United Kingdom": {
+    "city": "Stockport",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Warszawa, Poland": {
+    "city": "Masovian Voivodeship",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Adepticon, Wisconsin,\u00a0United States": {
+    "city": "Unknown",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "Torun, Muzeum Etnograficzne, Poland": {
+    "city": "Toru\u0144",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "The Outpost, Sheffield, Yorkshire,\u00a0United Kingdom": {
+    "city": "Sheffield",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Da'rn t'pit, Yorkshire,\u00a0United Kingdom": {
+    "city": "Doncaster",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Marriott Dallas Allen Hotel & Convention Center, Texas,\u00a0United States": {
+    "city": "Allen",
+    "country": "United States",
+    "continent": "North America"
   }
 }
