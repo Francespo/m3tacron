@@ -7,6 +7,7 @@
     import PilotCard from "$lib/components/PilotCard.svelte";
     import UpgradeCard from "$lib/components/UpgradeCard.svelte";
     import PendingIndicator from "$lib/components/PendingIndicator.svelte";
+    import ContentLoader from "$lib/components/ContentLoader.svelte";
     import ErrorPanel from "$lib/components/ErrorPanel.svelte";
     import LocalFilterBar from "$lib/components/LocalFilterBar.svelte";
     import { page as pageState } from "$app/state";
@@ -25,9 +26,7 @@
 
     let { data } = $props();
 
-    let filterOpen = $state(false);
     let page = $state(1);
-    let factionOpen = $state(true);
     const size = 21;
     let isAdvanced = $state(false);
     const cardSortOpts = [{ value: "Name", label: "Name" },{ value: "Cost", label: "Points Cost" },{ value: "Games", label: "Games" },{ value: "Lists", label: "Lists" },{ value: "Entries", label: "Entries" },{ value: "Squadrons", label: "Squadrons" },{ value: "Win Rate", label: "Win Rate" }] as const;
@@ -65,7 +64,6 @@
         // remove only card-local chips (keep dataset global intact)
         for (const chip of [...cardLocalChips]) filters.removeChip(chip.key);
         isAdvanced = false;
-        factionOpen = false;
     }
 
     // The loader streams card rows in via `itemsPromise` (non-blocking
@@ -115,7 +113,7 @@
     // Pilots and Upgrades.
     $effect(() => {
         if (!filters.sortBy) {
-            filters.sortBy = "Lists";
+            filters.sortBy = "Games";
         }
     });
 
@@ -154,60 +152,35 @@
 </script>
 
 {#snippet basicFiltersContent()}
-    <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
-        <!-- Col 1: Find — Text Search -->
-        <div class="rounded-xl border border-white/5 bg-black/20 p-3.5 space-y-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            <div class="flex items-center gap-1.5">
-                <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Text Search</span>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="flex flex-col gap-3 self-start">
+            <div class="rounded-xl border border-white/5 bg-black/20 p-3 space-y-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] self-start h-fit">
+                <div class="flex items-center gap-1.5"><span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Text Search</span></div>
+                <DebouncedTextInput value={filters.searchName} onDebouncedChange={(v) => { filters.searchName = v; scheduleSync(250); }} placeholder="Search card text" ariaLabel="Search card text" />
             </div>
-            <DebouncedTextInput value={filters.searchName} onDebouncedChange={(v) => { filters.searchName = v; scheduleSync(250); }} placeholder="Search card text" ariaLabel="Search card text" />
-        </div>
-        <!-- Col 2: Faction — icon-only, uniform grid -->
-        <div class="rounded-xl border border-white/5 bg-black/20 p-3.5 space-y-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            <div class="flex items-center justify-between gap-2">
-                <span class="flex items-center gap-1.5 text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">
-                    Faction
+            <div class="rounded-xl border border-white/5 bg-black/20 p-3 space-y-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] self-start h-fit">
+                <div class="flex items-center gap-1.5 text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Faction
                     {#if filters.selectedFactions.length > 0}<span class="min-w-5 h-5 px-1 rounded-full bg-primary text-black text-[10px] font-mono font-bold inline-flex items-center justify-center">{filters.selectedFactions.length}</span>{/if}
-                </span>
-                <button type="button" onclick={() => (factionOpen = !factionOpen)} class="text-xs font-mono text-secondary hover:text-primary flex items-center gap-1 shrink-0">
-                    {factionOpen ? "Hide" : "Show"} <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="transition-transform {factionOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
-                </button>
-            </div>
-            {#if factionOpen}
-                <div class="grid grid-cols-4 sm:grid-cols-7 gap-1.5 pt-1">
+                </div>
+                <div class="grid grid-cols-4 gap-1 pt-1">
                     {#each ALL_FACTIONS as f}
                         {@const _sel = filters.selectedFactions.includes(f)}
-                        <button type="button" title={getFactionLabel(f)} aria-label={getFactionLabel(f)} aria-pressed={_sel} onclick={() => toggleFaction(f)} class="flex flex-col items-center justify-center gap-1 rounded-lg border px-1 py-2 transition-colors {_sel ? 'bg-white border-white shadow-sm' : 'bg-black/30 border-white/10 hover:border-white/20 hover:bg-white/[0.04]'}">
-                            <span class="w-7 h-7 inline-flex items-center justify-center leading-none text-lg"><span class="font-xwing leading-none text-lg" style="color: {getFactionColor(f)};">{f === 'rebelalliance' ? '!' : f === 'galacticempire' ? '@' : f === 'scumandvillainy' ? '#' : f === 'resistance' ? '!' : f === 'firstorder' ? '+' : f === 'galacticrepublic' ? '/' : f === 'separatistalliance' ? '.' : '?'}</span></span>
-                            <span class="w-3 h-3 rounded-[3px] border flex items-center justify-center shrink-0 {_sel ? 'bg-black/10 border-black/10' : 'bg-black/40 border-white/10'}">
-                                {#if _sel}<svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12 10 17 19 7"/></svg>{/if}
+                        <button type="button" title={getFactionLabel(f)} aria-label={getFactionLabel(f)} aria-pressed={_sel} onclick={() => toggleFaction(f)} class="flex flex-col items-center justify-center gap-0.5 rounded-md border px-0.5 py-1.5 transition-colors {_sel ? 'bg-white border-white shadow-sm' : 'bg-black/30 border-white/10 hover:border-white/20 hover:bg-white/[0.04]'}">
+                            <span class="w-6 h-6 inline-flex items-center justify-center leading-none text-base"><span class="font-xwing leading-none text-base" style="color: {getFactionColor(f)};">{f === 'rebelalliance' ? '!' : f === 'galacticempire' ? '@' : f === 'scumandvillainy' ? '#' : f === 'resistance' ? '!' : f === 'firstorder' ? '+' : f === 'galacticrepublic' ? '/' : f === 'separatistalliance' ? '.' : '?'}</span></span>
+                            <span class="w-2.5 h-2.5 rounded-[2px] border flex items-center justify-center shrink-0 {_sel ? 'bg-black/10 border-black/10' : 'bg-black/40 border-white/10'}">
+                                {#if _sel}<svg width="6" height="6" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12 10 17 19 7"/></svg>{/if}
                             </span>
                         </button>
                     {/each}
                 </div>
-            {:else}
-                <div class="flex flex-wrap gap-1.5">
-                    {#if filters.selectedFactions.length === 0}
-                        <span class="text-[11px] font-mono text-secondary/60">All factions</span>
-                    {:else}
-                        {#each filters.selectedFactions as f}
-                            <span class="inline-flex items-center justify-center w-7 h-7 rounded-md bg-white border border-white/10" title={getFactionLabel(f)}><span class="font-xwing leading-none text-sm" style="color: {getFactionColor(f)};">{f === 'rebelalliance' ? '!' : f === 'galacticempire' ? '@' : f === 'scumandvillainy' ? '#' : f === 'resistance' ? '!' : f === 'firstorder' ? '+' : f === 'galacticrepublic' ? '/' : f === 'separatistalliance' ? '.' : '?'}</span></span>
-                        {/each}
-                    {/if}
-                </div>
-            {/if}
+            </div>
+            <StatRangeFilter label="Stat ranges (cards)" />
         </div>
-        <!-- Col 3: Ship chassis (pilots only) — fills the 3rd column on 2xl, wraps to full width otherwise -->
-        <div class="lg:col-span-2 2xl:col-span-1">
+        <div class="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] self-start h-fit">
             {#if data.tab === "pilots"}
-                <div class="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                    <ShipChassisFilter selectedFactions={filters.selectedFactions} />
-                </div>
+                <ShipChassisFilter selectedFactions={filters.selectedFactions} />
             {:else}
-                <div class="rounded-xl border border-dashed border-white/10 bg-black/10 p-4 flex flex-col items-center justify-center gap-1 min-h-[88px]">
-                    <span class="text-[11px] font-mono text-secondary/70">No chassis filter for upgrades</span>
-                    <span class="text-[11px] font-mono text-secondary/50">Switch to Pilots to filter by ship</span>
-                </div>
+                <div class="flex flex-col items-center justify-center gap-1 min-h-[88px]"><span class="text-[11px] font-mono text-secondary/70">No chassis filter for upgrades</span><span class="text-[11px] font-mono text-secondary/50">Switch to Pilots to filter by ship</span></div>
             {/if}
         </div>
     </div>
@@ -231,7 +204,7 @@
         open={globalInputOpen}
         onClose={() => (globalInputOpen = false)}
         title="Dataset filters"
-        activeCount={filters.activeChips.length}
+        activeCount={globalActive}
         dataFilterTitle="Dataset filters"
         dataFilterDescription="These define the tournament dataset that feeds the card browser. They are separate from the card-specific filters below."
     >
@@ -254,7 +227,7 @@
                 {#if pending}<span class="hidden lg:inline"><PendingIndicator active mode="tag" label="Updating…" /></span>{/if}
                 {/if}
                 <span class="hidden sm:inline text-xs font-mono text-secondary uppercase tracking-wider">Sort by</span>
-                <select class="bg-terminal-panel border border-border-dark rounded-md text-xs font-mono text-primary px-2 py-1.5 focus:outline-none" value={filters.sortBy || "Lists"} onchange={(e) => { filters.sortBy = (e.target as HTMLSelectElement).value; }} aria-label="Sort by">
+                <select class="bg-terminal-panel border border-border-dark rounded-md text-xs font-mono text-primary px-2 py-1.5 focus:outline-none" value={filters.sortBy || "Games"} onchange={(e) => { filters.sortBy = (e.target as HTMLSelectElement).value; }} aria-label="Sort by">
                     {#each cardSortOpts as opt}<option value={opt.value}>{opt.label}</option>{/each}
                 </select>
                 <button type="button" onclick={() => { filters.sortDirection = filters.sortDirection === "asc" ? "desc" : "asc"; }} class="inline-flex items-center justify-center w-7 h-7 bg-terminal-panel border border-border-dark rounded-md text-secondary hover:text-primary hover:bg-[#ffffff05] active:bg-[#ffffff14] transition-colors shrink-0" aria-label={filters.sortDirection === "asc" ? "Sort ascending" : "Sort descending"}>
@@ -283,8 +256,6 @@
                     {:else}
                         {@render advancedFiltersContent()}
                     {/if}
-                    <!-- Stat ranges apply to the aggregated card rows (games/lists/etc.) — same component as squadrons/lists/ships -->
-                    <StatRangeFilter label="Stat ranges (cards)" />
                 </div>
             </LocalFilterBar>
         </div>
@@ -299,7 +270,7 @@
                     />
                 </div>
             {:else}
-                <p class="text-secondary font-mono text-sm mb-6">Loading…</p>
+                <ContentLoader label="Loading Cards" />
 
                 <!-- Loading Skeleton (matches PilotCard / UpgradeCard shape) -->
                 <div

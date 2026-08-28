@@ -7,6 +7,7 @@
     import StatRangeFilter from "$lib/components/StatRangeFilter.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
     import PendingIndicator from "$lib/components/PendingIndicator.svelte";
+    import ContentLoader from "$lib/components/ContentLoader.svelte";
     import ErrorPanel from "$lib/components/ErrorPanel.svelte";
     import {
         getFactionColor,
@@ -38,7 +39,7 @@
         _localRestored = true;
     });
 
-    if (!filters.sortBy) { filters.sortBy = "Lists"; }
+    if (!filters.sortBy) { filters.sortBy = "Games"; }
     function isGlobalChip(k:string){ return k.startsWith("format:")||k.startsWith("continent:")||k.startsWith("country:")||k.startsWith("city:")||k.startsWith("source:")||k==="dateStart"||k==="dateEnd"; }
     let shipsLocalChips = $derived(filters.activeChips.filter(c=>!isGlobalChip(c.key)));
     let datasetActive = $derived(filters.activeChips.filter(c=>isGlobalChip(c.key)).length);
@@ -203,7 +204,7 @@
 
 <div class="flex min-h-screen">
     <MobileFilterTrigger activeCount={datasetActive} label="Dataset filters" onClick={() => (filterOpen = true)} />
-    <MobileFilterDrawer open={filterOpen} onClose={() => (filterOpen = false)} title="Dataset filters" activeCount={filters.activeChips.length} dataFilterTitle="Dataset filters" />
+    <MobileFilterDrawer open={filterOpen} onClose={() => (filterOpen = false)} title="Dataset filters" activeCount={datasetActive} dataFilterTitle="Dataset filters" />
 
     <main class="flex-1 p-6 md:p-8 pb-20 lg:pb-8">
         <div class="flex flex-wrap items-baseline justify-between gap-3 mb-4">
@@ -212,11 +213,11 @@
                 {#if hasLoaded}<span class="hidden lg:inline text-xs font-mono text-secondary">{mergedShips.length} Ships Found</span><span class="hidden lg:inline w-px h-4 bg-white/10 shrink-0" aria-hidden="true"></span>
                 {#if pending}<span class="hidden lg:inline"><PendingIndicator active mode="tag" label="Updating…" /></span>{/if}{/if}
                 <span class="hidden sm:inline text-xs font-mono text-secondary uppercase tracking-wider">Sort by</span>
-                <select class="bg-terminal-panel border border-border-dark rounded-md text-xs font-mono text-primary px-2 py-1.5 focus:outline-none" value={filters.sortBy || "Lists"} onchange={(e)=>{filters.sortBy=(e.target as HTMLSelectElement).value;}} aria-label="Sort by"><option value="Lists">Lists</option><option value="Squadrons">Squadrons</option><option value="Entries">Entries</option><option value="Win Rate">Win Rate</option><option value="Games">Games</option></select>
+                <select class="bg-terminal-panel border border-border-dark rounded-md text-xs font-mono text-primary px-2 py-1.5 focus:outline-none" value={filters.sortBy || "Games"} onchange={(e)=>{filters.sortBy=(e.target as HTMLSelectElement).value;}} aria-label="Sort by"><option value="Lists">Lists</option><option value="Squadrons">Squadrons</option><option value="Entries">Entries</option><option value="Win Rate">Win Rate</option><option value="Games">Games</option></select>
                 <button type="button" onclick={()=>{filters.sortDirection=filters.sortDirection==="asc"?"desc":"asc";}} class="inline-flex items-center justify-center w-7 h-7 bg-terminal-panel border border-border-dark rounded-md text-secondary hover:text-primary hover:bg-[#ffffff05] active:bg-[#ffffff14] transition-colors shrink-0" aria-label={filters.sortDirection==="asc"?"Sort ascending":"Sort descending"}>{#if filters.sortDirection==="asc"}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>{:else}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>{/if}</button>
             </div>
         </div>
-        <div class="mb-3"><LocalFilterBar id="ships-local" label="Ship filters" activeCount={shipsLocalCount} chips={shipsLocalChips} onRemoveChip={(k)=>filters.removeChip(k)} onClear={clearShipsFilters}><div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4"><FactionFilter /><div class="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"><ShipChassisFilter selectedFactions={filters.selectedFactions} /></div><StatRangeFilter label="Stat ranges" /></div></LocalFilterBar></div>
+        <div class="mb-6"><LocalFilterBar id="ships-local" label="Ship filters" activeCount={shipsLocalCount} chips={shipsLocalChips} onRemoveChip={(k)=>filters.removeChip(k)} onClear={clearShipsFilters}><div class="grid grid-cols-1 lg:grid-cols-2 gap-4"><div class="flex flex-col gap-4 self-start"><FactionFilter /><StatRangeFilter label="Stat ranges" /></div><div class="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] self-start h-fit"><ShipChassisFilter selectedFactions={filters.selectedFactions} /></div></div></LocalFilterBar></div>
 
         {#if !hasLoaded}
             {#if failed}
@@ -227,7 +228,7 @@
                     />
                 </div>
             {:else}
-                <p class="text-secondary font-mono text-sm mb-6">Loading…</p>
+                <ContentLoader label="Loading Ships" />
 
                 <!-- Loading Skeleton (matches ship card shape: centered icon
                      area + stats grid) -->

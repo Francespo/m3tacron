@@ -6,6 +6,7 @@
     import { cachedFetchJson } from "$lib/api/cache";
     import { getFormatFullLabel } from "$lib/data/formats";
     import DebouncedTextInput from "./DebouncedTextInput.svelte";
+    import DateRangeField from "./DateRangeField.svelte";
     import Toggle from "./Toggle.svelte";
 
     let dateOpen = $state(false);
@@ -194,18 +195,8 @@
             >
         </button>
         {#if dateOpen}
-            <div class="pb-3 space-y-1.5 pl-2">
-                <input
-                    type="date"
-                    class="w-full bg-black border border-border-dark rounded px-2 py-1.5 text-xs font-mono text-primary focus:border-primary focus:outline-none"
-                    bind:value={filters.dateStart}
-                />
-                <span class="text-xs text-secondary block text-center">to</span>
-                <input
-                    type="date"
-                    class="w-full bg-black border border-border-dark rounded px-2 py-1.5 text-xs font-mono text-primary focus:border-primary focus:outline-none"
-                    bind:value={filters.dateEnd}
-                />
+            <div class="pb-3 pl-2">
+                <DateRangeField />
             </div>
         {/if}
     </div>

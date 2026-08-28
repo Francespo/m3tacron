@@ -1,10 +1,8 @@
 <script lang="ts">
-    import MobileFilterDrawer from "$lib/components/MobileFilterDrawer.svelte";
-    import MobileFilterTrigger from "$lib/components/MobileFilterTrigger.svelte";
     import PendingIndicator from "$lib/components/PendingIndicator.svelte";
+    import ContentLoader from "$lib/components/ContentLoader.svelte";
     import ErrorPanel from "$lib/components/ErrorPanel.svelte";
     import LocalFilterBar from "$lib/components/LocalFilterBar.svelte";
-    import DebouncedTextInput from "$lib/components/DebouncedTextInput.svelte";
     import TournamentFilters from "$lib/components/TournamentFilters.svelte";
     import { invalidateAll } from "$app/navigation";
     import { filters } from "$lib/stores/filters.svelte";
@@ -13,7 +11,6 @@
 
     let { data } = $props();
 
-    let filterOpen = $state(false);
     let page = $state(1);
     const size = 20;
     let _localRestored = false;
@@ -115,19 +112,7 @@
     <!-- Filters now live in the right-side drawer (FAB) on all breakpoints.
          No fixed left filter panel — the FAB + drawer replace it on desktop
          too, matching the mobile pattern. -->
-    <MobileFilterTrigger
-        activeCount={datasetActive}
-        label="Dataset filters"
-        onClick={() => (filterOpen = true)}
-    />
-    <MobileFilterDrawer
-        open={filterOpen}
-        onClose={() => (filterOpen = false)}
-        title="Dataset filters"
-        activeCount={datasetActive}
-        dataFilterTitle="Dataset filters"
-        dataFilterDescription="Dataset filters define the tournament set that feeds every page. The inline Tournament filters below are the same controls, shown as a collapsible bar for quick access."
-    />
+    <!-- Tournaments: no FAB — filters are inline in the collapsible bar below (standalone from dataset) -->
 
     <!-- Main Content (3rd column) -->
     <main class="flex-1 min-w-0 p-6 md:p-8 pb-20 lg:pb-8">
@@ -152,14 +137,7 @@
         <!-- Tournaments have no per-section game filters: the only page filters ARE the dataset filters (dates, locations, formats, sources, search). Expose them as an inline collapsible LocalFilterBar like Card filters, not just a FAB. Dataset is still the global concept; this bar just makes tournament dataset filters discoverable inline. -->
         <div class="mb-6">
             <LocalFilterBar id="tournaments-local" label="Tournament filters" activeCount={tournamentLocalCount} chips={tournamentLocalChips} onRemoveChip={(k) => filters.removeChip(k)} onClear={clearTournamentFilters}>
-                <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
-                    <div class="rounded-xl border border-white/5 bg-black/20 p-3.5 space-y-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                        <div class="flex items-center gap-1.5"><span class="w-5 h-5 rounded-md bg-white/[0.06] border border-white/10 inline-flex items-center justify-center text-secondary"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21 16 16"/></svg></span><span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Search</span></div>
-                        <DebouncedTextInput value={filters.searchName} onDebouncedChange={(v) => { filters.searchName = v; scheduleSync(250); }} placeholder="Search tournament name" ariaLabel="Search tournament name" />
-                    </div>
-                    <div class="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"><TournamentFilters /></div>
-                    <div class="hidden 2xl:flex rounded-xl border border-dashed border-white/10 bg-black/10 p-4 min-h-[88px] flex-col gap-1 justify-center"><span class="text-[11px] font-mono text-secondary/70">Tournament filters are dataset filters</span><span class="text-[11px] font-mono text-secondary/50">Same dates, locations, formats and sources you use on other pages.</span></div>
-                </div>
+                <div class="tournament-3col"><TournamentFilters /></div>
             </LocalFilterBar>
         </div>
         {#if !resolved}
@@ -171,7 +149,7 @@
                     />
                 </div>
             {:else}
-                <p class="text-secondary font-mono text-sm mb-6">Loading…</p>
+                <ContentLoader label="Loading Tournaments" />
 
                 <!-- Loading Skeleton (matches tournament row shape:
                      format badge / title+meta / player count) -->
@@ -338,3 +316,17 @@
         {/if}
     </main>
 </div>
+
+<style>
+    :global(.tournament-3col > div) {
+        display: grid;
+        grid-template-columns: repeat(1, minmax(0, 1fr));
+        gap: 1rem;
+    }
+    @media (min-width: 1024px) {
+        :global(.tournament-3col > div) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    :global(.tournament-3col > div > div) { min-width: 0; }
+    :global(.tournament-3col > div > div:nth-child(2)) { order: 3; } /* Location alone */
+    :global(.tournament-3col > div > div:nth-child(3)) { order: 2; } /* Format swaps with Location */
+</style>

@@ -7,7 +7,7 @@
     let { label = "Stat ranges" }: Props = $props();
 </script>
 
-<div class="rounded-xl border border-white/5 bg-black/20 p-3.5 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+<div class="rounded-xl border border-white/5 bg-black/20 p-3.5 space-y-3 shadow- self-start h-fit[inset_0_1px_0_rgba(255,255,255,0.04)]">
     <div class="flex items-center gap-1.5">
         <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">{label}</span>
         <span class="flex-1 h-px bg-white/5 ml-2"></span>
@@ -42,5 +42,5 @@
             </label>
         {/each}
     </div>
-    <p class="text-[11px] font-mono leading-relaxed text-secondary/60">Ranges filter the aggregated rows shown below (AND between different stats). Within each multi-value filter (faction / chassis / pilot) the rule is Any = O, All = E.</p>
+
 </div>

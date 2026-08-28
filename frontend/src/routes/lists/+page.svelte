@@ -8,6 +8,7 @@
     import PilotFilter from "$lib/components/PilotFilter.svelte";
     import StatRangeFilter from "$lib/components/StatRangeFilter.svelte";
     import PendingIndicator from "$lib/components/PendingIndicator.svelte";
+    import ContentLoader from "$lib/components/ContentLoader.svelte";
     import ErrorPanel from "$lib/components/ErrorPanel.svelte";
     import { invalidateAll } from "$app/navigation";
     import { page as currentPage } from "$app/state";
@@ -125,7 +126,7 @@
                 <button type="button" onclick={()=>{filters.sortDirection=filters.sortDirection==="asc"?"desc":"asc";}} class="inline-flex items-center justify-center w-7 h-7 bg-terminal-panel border border-border-dark rounded-md text-secondary hover:text-primary hover:bg-[#ffffff05] active:bg-[#ffffff14] transition-colors shrink-0" aria-label={filters.sortDirection==="asc"?"Sort ascending":"Sort descending"}>{#if filters.sortDirection==="asc"}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>{:else}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>{/if}</button>
             </div>
         </div>
-        <div class="mb-3"><LocalFilterBar id="lists-local" label="List filters" activeCount={listLocalCount} chips={listLocalChips} onRemoveChip={(k)=>filters.removeChip(k)} onClear={clearListFilters}><div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4"><FactionFilter /><div class="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"><ShipChassisFilter selectedFactions={filters.selectedFactions} /></div><div class="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"><PilotFilter selectedFactions={filters.selectedFactions} /></div><StatRangeFilter label="Stat ranges" /></div></LocalFilterBar></div>
+        <div class="mb-6"><LocalFilterBar id="lists-local" label="List filters" activeCount={listLocalCount} chips={listLocalChips} onRemoveChip={(k)=>filters.removeChip(k)} onClear={clearListFilters}><div class="grid grid-cols-1 lg:grid-cols-2 gap-4"><div class="flex flex-col gap-4 self-start"><FactionFilter /><div class="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"><PilotFilter selectedFactions={filters.selectedFactions} /></div></div><div class="flex flex-col gap-4 self-start"><div class="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"><ShipChassisFilter selectedFactions={filters.selectedFactions} /></div><StatRangeFilter label="Stat ranges" /></div></div></LocalFilterBar></div>
 
         {#if !resolved}
             {#if failed}
@@ -136,7 +137,7 @@
                     />
                 </div>
             {:else}
-                <p class="text-secondary font-mono text-sm mb-6">Loading…</p>
+                <ContentLoader label="Loading Lists" />
 
                 <!-- Loading Skeleton (matches ListRowCard shape) -->
                 <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
