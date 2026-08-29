@@ -187,16 +187,6 @@
                         </button>
                     {/each}
                 </div>
-            {:else}
-                <div class="flex flex-wrap gap-1.5">
-                    {#if filters.selectedFactions.length === 0}
-                        <span class="text-[11px] font-mono text-secondary/60">All factions</span>
-                    {:else}
-                        {#each filters.selectedFactions as f}
-                            <span class="inline-flex items-center justify-center w-7 h-7 rounded-md bg-white border border-white/10" title={getFactionLabel(f)}><span class="font-xwing leading-none text-sm" style="color: {getFactionColor(f)};">{f === 'rebelalliance' ? '!' : f === 'galacticempire' ? '@' : f === 'scumandvillainy' ? '#' : f === 'resistance' ? '!' : f === 'firstorder' ? '+' : f === 'galacticrepublic' ? '/' : f === 'separatistalliance' ? '.' : '?'}</span></span>
-                        {/each}
-                    {/if}
-                </div>
             {/if}
         </div>
         <!-- Col 3: Ship chassis — only on Pilots (no filler on Upgrades, no wasted space) -->

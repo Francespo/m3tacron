@@ -9,7 +9,7 @@
     }
 </script>
 
-<div class="rounded-xl border border-white/5 bg-black/20 p-3.5 space-y-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] self-start h-fit">
+<div class="rounded-xl border border-white/5 bg-black/20 p-3.5 space-y-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] w-full">
     <button type="button" onclick={() => (factionOpen = !factionOpen)} class="flex items-center justify-between w-full text-secondary hover:text-primary transition-colors">
         <span class="flex items-center gap-1.5 text-[11px] font-mono font-bold tracking-widest uppercase">
             Faction

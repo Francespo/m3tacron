@@ -7,6 +7,12 @@
 
     let { isPilotsTab = true }: { isPilotsTab?: boolean } = $props();
 
+    let costOpen = $state(true);
+    let traitsOpen = $state(true);
+    let statRangesOpen = $state(true);
+    let statsOpen = $state(true);
+    let upgradeSlotsOpen = $state(true);
+
     function toggleBaseSize(size: string) {
         if (filters.selectedBaseSizes.includes(size)) {
             filters.selectedBaseSizes = filters.selectedBaseSizes.filter((s) => s !== size);
@@ -61,9 +67,13 @@
 
     <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
 
-        <!-- Card 1: Cost & Legality -->
-        <div class="space-y-3 rounded-xl border border-white/5 bg-black/15 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-            <span class="text-[10px] font-bold tracking-widest uppercase font-mono text-secondary/80">Cost &amp; Legality</span>
+        <!-- Card 1: Cost & Legality — collapsible -->
+        <div class="rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+            <button type="button" onclick={() => (costOpen = !costOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
+                <span class="text-[10px] font-bold tracking-widest uppercase font-mono text-secondary/80">Cost &amp; Legality</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {costOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            {#if costOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-3">
 
             <div class="space-y-1">
                 <span class="text-[10px] font-bold font-mono tracking-wider uppercase flex items-center gap-1.5" style="color: {POINTS_COLOR};">Points Cost</span>
@@ -111,7 +121,7 @@
             </label>
 
             {#if isPilotsTab}
-                <div class="space-y-1">
+                <div class="space-y-1 pt-1">
                     <span class="text-[10px] font-bold text-primary font-mono tracking-wider opacity-70 uppercase">Base Size</span>
                     <div class="flex items-center gap-4">
                         {#each ["S", "M", "L", "H"] as size}
@@ -123,21 +133,31 @@
                     </div>
                 </div>
             {/if}
+            </div>{/if}
         </div>
 
-        <!-- Card 2: Traits & Loadout — only on Pilots tab (no empty filler on Upgrades) -->
+        <!-- Card 2: Traits & Loadout — only on Pilots tab — collapsible -->
         {#if isPilotsTab}
-            <div class="space-y-3 rounded-xl border border-white/5 bg-black/15 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                <span class="text-[10px] font-bold tracking-widest uppercase font-mono text-secondary/80">Traits &amp; Loadout</span>
+            <div class="rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+                <button type="button" onclick={() => (traitsOpen = !traitsOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
+                    <span class="text-[10px] font-bold tracking-widest uppercase font-mono text-secondary/80">Traits &amp; Loadout</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {traitsOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                {#if traitsOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-3">
                 <SlotCountFilter />
                 <MultiSelectPills label="Keywords" options={KEYWORD_OPTIONS} bind:selected={filters.selectedKeywords} bind:mode={filters.keywordFilterMode} placeholder="Search keywords…" />
                 <ActionPairFilter />
+                </div>{/if}
             </div>
         {/if}
 
-        <!-- Stat ranges — in the hole (top-right col 3) — stacked with no Resources duplicate -->
-        <div class="rounded-xl border border-white/5 bg-black/15 p-3.5 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] lg:col-span-2 2xl:col-span-1 2xl:col-start-3 2xl:row-start-1 self-start min-w-0">
-            <span class="text-[10px] font-bold tracking-widest uppercase font-mono text-secondary/80">Stat ranges</span>
+        <!-- Stat ranges — collapsible -->
+        <div class="rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden lg:col-span-2 2xl:col-span-1 2xl:col-start-3 2xl:row-start-1 self-start min-w-0">
+            <button type="button" onclick={() => (statRangesOpen = !statRangesOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
+                <span class="text-[10px] font-bold tracking-widest uppercase font-mono text-secondary/80">Stat ranges</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {statRangesOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            {#if statRangesOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-3">
             <div class="flex flex-col gap-2.5">
                 {#each [
                     { key: 'Lists', min: 'listsMin', max: 'listsMax' },
@@ -153,13 +173,18 @@
                         <input type="number" inputmode="numeric" placeholder="—" class="flex-1 min-w-0 bg-black border border-border-dark rounded px-2 py-1 text-xs font-mono text-primary placeholder:text-secondary/40 focus:border-primary focus:outline-none" value={(filters as any)[row.max]} oninput={(e) => ((filters as any)[row.max] = (e.currentTarget as HTMLInputElement).value)} />
                     </label>
                 {/each}
-            </div>
+                </div>
+            </div>{/if}
         </div>
 
-        <!-- Card 4: Stats — compact: two columns on xl — left: hull/agility+initiative/shields, right: Arcs -->
+        <!-- Card 4: Stats — collapsible, two columns on xl -->
         {#if isPilotsTab}
-            <div class="lg:col-span-2 2xl:col-span-3 rounded-xl border border-white/5 bg-black/15 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] space-y-3">
-                <span class="text-[10px] font-bold tracking-widest uppercase font-mono text-secondary/80">Stats</span>
+            <div class="lg:col-span-2 2xl:col-span-3 rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+                <button type="button" onclick={() => (statsOpen = !statsOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
+                    <span class="text-[10px] font-bold tracking-widest uppercase font-mono text-secondary/80">Stats</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {statsOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                {#if statsOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-3">
                 <div class="grid grid-cols-1 xl:grid-cols-2 gap-2">
                     <!-- Left: 6 capsules — Initiative/Hull/Shields/Agility/Charges/Force (equal height, equal gap) -->
                     <div class="grid grid-cols-1 gap-2 content-start auto-rows-fr">
@@ -214,19 +239,25 @@
                         {/each}
                     </div>
                 </div>
+                </div>{/if}
             </div>
         {/if}
 
-        <!-- Card 5: Upgrade Slots — only on Upgrades tab (no filler on Pilots) -->
+        <!-- Card 5: Upgrade Slots — only on Upgrades tab — collapsible -->
         {#if !isPilotsTab}
-            <div class="space-y-3 rounded-xl border border-white/5 bg-black/15 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                <span class="text-[10px] font-bold tracking-widest uppercase font-mono text-secondary/80">Upgrade Slots</span>
+            <div class="rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+                <button type="button" onclick={() => (upgradeSlotsOpen = !upgradeSlotsOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
+                    <span class="text-[10px] font-bold tracking-widest uppercase font-mono text-secondary/80">Upgrade Slots</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {upgradeSlotsOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                {#if upgradeSlotsOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-3">
                 <MultiSelectPills label="Used Slot" options={SLOT_OPTIONS} bind:selected={filters.selectedUsedSlots} bind:mode={filters.usedSlotFilterMode} placeholder="No slots selected" iconTypeFor={slotToIconType} />
                 <MultiSelectPills label="Used Double-Slot" options={SLOT_OPTIONS} bind:selected={filters.selectedUsedDoubleSlots} bind:mode={filters.usedDoubleSlotFilterMode} placeholder="No slots selected" iconTypeFor={slotToIconType} />
                 <label class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary pt-1">
                     <Toggle size="xs" ariaLabel="Toggle Only multi-slot" checked={filters.onlyMultiSlot} onchange={(e) => (filters.onlyMultiSlot = (e.currentTarget as HTMLInputElement).checked)} />
                     <span class="font-mono">Only upgrades requiring multiple slots</span>
                 </label>
+                </div>{/if}
             </div>
         {/if}
     </div>

@@ -1181,12 +1181,18 @@ function applyFromSearchParams(params: URLSearchParams): void {
 // Per-route local filter persistence (dataset stays global, local is per page)
 // ---------------------------------------------------------------------------
 
+// Dataset keys: global across routes, never per-route. Local = everything else.
+const DATASET_KEYS: Record<string, boolean> = {
+    dataSource: true, includeEpic: true, selectedFormats: true,
+    selectedSources: true, selectedContinents: true, selectedCountries: true,
+    selectedCities: true, dateStart: true, dateEnd: true,
+};
 const LOCAL_KEYS_BY_ROUTE: Record<RouteId, string[]> = {
-    cards: ['selectedFactions','selectedShips','searchName','pointsMin','pointsMax','loadoutMin','loadoutMax','isUnique','isLimited','isGeneric','selectedBaseSizes','initMin','initMax','hullMin','hullMax','shieldsMin','shieldsMax','agilityMin','agilityMax','attackMin','attackMax','slotCounts','slotCountMode','selectedSlots','slotFilterMode','hasMultipleSlots','selectedKeywords','keywordFilterMode','actionPairs','actionPairMode','selectedActions','actionFilterMode','selectedLinkedActions','linkedActionFilterMode','frontArcMin','frontArcMax','singleTurretMin','singleTurretMax','doubleTurretMin','doubleTurretMax','fullFrontMin','fullFrontMax','rearArcMin','rearArcMax','bullseyeMin','bullseyeMax','chargesMin','chargesMax','isRecurring','isNotRecurring','forceMin','forceMax','selectedUsedSlots','usedSlotFilterMode','selectedUsedDoubleSlots','usedDoubleSlotFilterMode','onlyMultiSlot','listsMin','listsMax','entriesMin','entriesMax','gamesMin','gamesMax','winRateMin','winRateMax'],
-    lists: ['selectedFactions','selectedShips','selectedPilots','pilotFilterMode','shipFilterMode','listsMin','listsMax','entriesMin','entriesMax','gamesMin','gamesMax','winRateMin','winRateMax'],
-    ships: ['selectedFactions','selectedShips','shipFilterMode','listsMin','listsMax','entriesMin','entriesMax','gamesMin','gamesMax','winRateMin','winRateMax'],
-    squadrons: ['selectedFactions','selectedShips','shipFilterMode','listsMin','listsMax','entriesMin','entriesMax','gamesMin','gamesMax','winRateMin','winRateMax'],
-    tournaments: ['searchName'],
+    cards: ['selectedFactions','selectedShips','searchName','pointsMin','pointsMax','loadoutMin','loadoutMax','isUnique','isLimited','isGeneric','selectedBaseSizes','initMin','initMax','hullMin','hullMax','shieldsMin','shieldsMax','agilityMin','agilityMax','attackMin','attackMax','slotCounts','slotCountMode','selectedSlots','slotFilterMode','hasMultipleSlots','selectedKeywords','keywordFilterMode','actionPairs','actionPairMode','selectedActions','actionFilterMode','selectedLinkedActions','linkedActionFilterMode','frontArcMin','frontArcMax','singleTurretMin','singleTurretMax','doubleTurretMin','doubleTurretMax','fullFrontMin','fullFrontMax','rearArcMin','rearArcMax','bullseyeMin','bullseyeMax','chargesMin','chargesMax','isRecurring','isNotRecurring','forceMin','forceMax','selectedUsedSlots','usedSlotFilterMode','selectedUsedDoubleSlots','usedDoubleSlotFilterMode','onlyMultiSlot','listsMin','listsMax','entriesMin','entriesMax','gamesMin','gamesMax','winRateMin','winRateMax','sortBy','sortDirection'],
+    lists: ['selectedFactions','selectedShips','selectedPilots','pilotFilterMode','shipFilterMode','listsMin','listsMax','entriesMin','entriesMax','gamesMin','gamesMax','winRateMin','winRateMax','sortBy','sortDirection'],
+    ships: ['selectedFactions','selectedShips','shipFilterMode','listsMin','listsMax','entriesMin','entriesMax','gamesMin','gamesMax','winRateMin','winRateMax','sortBy','sortDirection'],
+    squadrons: ['selectedFactions','selectedShips','shipFilterMode','listsMin','listsMax','entriesMin','entriesMax','gamesMin','gamesMax','winRateMin','winRateMax','sortBy','sortDirection'],
+    tournaments: ['searchName','sortBy','sortDirection'],
 };
 
 function localStorageKey(route: RouteId): string { return `m3tacron:localFilters:${route}`; }
@@ -1270,6 +1276,87 @@ function snapshotLocal(route: RouteId): Record<string, unknown> {
     return out;
 }
 
+function clearLocalKeysForRoutesExcept(activeRoute: RouteId): void {
+    const keep = new Set(LOCAL_KEYS_BY_ROUTE[activeRoute] ?? []);
+    const allLocal = new Set<string>();
+    for (const ks of Object.values(LOCAL_KEYS_BY_ROUTE)) for (const k of ks as string[]) if (!DATASET_KEYS[k]) allLocal.add(k);
+    for (const k of allLocal) {
+        if (keep.has(k)) continue;
+        switch (k) {
+            case 'selectedFactions': selectedFactions = []; break;
+            case 'selectedShips': selectedShips = []; break;
+            case 'selectedPilots': selectedPilots = []; break;
+            case 'pilotFilterMode': pilotFilterMode = 'any'; break;
+            case 'shipFilterMode': shipFilterMode = 'any'; break;
+            case 'searchName': searchName = ''; break;
+            case 'pointsMin': pointsMin = ''; break;
+            case 'pointsMax': pointsMax = ''; break;
+            case 'loadoutMin': loadoutMin = ''; break;
+            case 'loadoutMax': loadoutMax = ''; break;
+            case 'isUnique': isUnique = false; break;
+            case 'isLimited': isLimited = false; break;
+            case 'isGeneric': isGeneric = false; break;
+            case 'selectedBaseSizes': selectedBaseSizes = []; break;
+            case 'initMin': initMin = ''; break;
+            case 'initMax': initMax = ''; break;
+            case 'hullMin': hullMin = ''; break;
+            case 'hullMax': hullMax = ''; break;
+            case 'shieldsMin': shieldsMin = ''; break;
+            case 'shieldsMax': shieldsMax = ''; break;
+            case 'agilityMin': agilityMin = ''; break;
+            case 'agilityMax': agilityMax = ''; break;
+            case 'attackMin': attackMin = ''; break;
+            case 'attackMax': attackMax = ''; break;
+            case 'slotCounts': slotCounts = ''; break;
+            case 'slotCountMode': slotCountMode = 'any'; break;
+            case 'selectedSlots': selectedSlots = []; break;
+            case 'slotFilterMode': slotFilterMode = 'any'; break;
+            case 'hasMultipleSlots': hasMultipleSlots = false; break;
+            case 'selectedKeywords': selectedKeywords = []; break;
+            case 'keywordFilterMode': keywordFilterMode = 'any'; break;
+            case 'actionPairs': actionPairs = ''; break;
+            case 'actionPairMode': actionPairMode = 'any'; break;
+            case 'selectedActions': selectedActions = []; break;
+            case 'actionFilterMode': actionFilterMode = 'any'; break;
+            case 'selectedLinkedActions': selectedLinkedActions = []; break;
+            case 'linkedActionFilterMode': linkedActionFilterMode = 'any'; break;
+            case 'frontArcMin': frontArcMin = ''; break;
+            case 'frontArcMax': frontArcMax = ''; break;
+            case 'singleTurretMin': singleTurretMin = ''; break;
+            case 'singleTurretMax': singleTurretMax = ''; break;
+            case 'doubleTurretMin': doubleTurretMin = ''; break;
+            case 'doubleTurretMax': doubleTurretMax = ''; break;
+            case 'fullFrontMin': fullFrontMin = ''; break;
+            case 'fullFrontMax': fullFrontMax = ''; break;
+            case 'rearArcMin': rearArcMin = ''; break;
+            case 'rearArcMax': rearArcMax = ''; break;
+            case 'bullseyeMin': bullseyeMin = ''; break;
+            case 'bullseyeMax': bullseyeMax = ''; break;
+            case 'chargesMin': chargesMin = ''; break;
+            case 'chargesMax': chargesMax = ''; break;
+            case 'isRecurring': isRecurring = false; break;
+            case 'isNotRecurring': isNotRecurring = false; break;
+            case 'forceMin': forceMin = ''; break;
+            case 'forceMax': forceMax = ''; break;
+            case 'selectedUsedSlots': selectedUsedSlots = []; break;
+            case 'usedSlotFilterMode': usedSlotFilterMode = 'any'; break;
+            case 'selectedUsedDoubleSlots': selectedUsedDoubleSlots = []; break;
+            case 'usedDoubleSlotFilterMode': usedDoubleSlotFilterMode = 'any'; break;
+            case 'onlyMultiSlot': onlyMultiSlot = false; break;
+            case 'listsMin': listsMin = ''; break;
+            case 'listsMax': listsMax = ''; break;
+            case 'entriesMin': entriesMin = ''; break;
+            case 'entriesMax': entriesMax = ''; break;
+            case 'gamesMin': gamesMin = ''; break;
+            case 'gamesMax': gamesMax = ''; break;
+            case 'winRateMin': winRateMin = ''; break;
+            case 'winRateMax': winRateMax = ''; break;
+            case 'sortBy': sortBy = ''; break;
+            case 'sortDirection': sortDirection = 'desc'; break;
+        }
+    }
+}
+
 function applyLocalSnapshot(route: RouteId, snap: Record<string, unknown>): void {
     const has = (k: string) => snap[k] !== undefined;
     if (has('selectedFactions') && Array.isArray(snap['selectedFactions'])) selectedFactions = snap['selectedFactions'] as string[];
@@ -1349,26 +1436,22 @@ function saveLocalFilters(route: RouteId): void {
 
 function restoreLocalFilters(route: RouteId, urlParams: URLSearchParams): void {
     if (typeof localStorage === 'undefined') return;
+    // If URL already carries any local key for this route, it is the source of truth (shareable URL).
     const hasLocalInUrl = LOCAL_KEYS_BY_ROUTE[route]?.some(k => {
         const urlKey = (SINGLE_KEY as unknown as Record<string,string>)[k];
         if (!urlKey) return urlParams.has(k) || urlParams.has('pilots') || urlParams.has('factions') || urlParams.has('ships');
         return urlParams.has(urlKey) || (k==='selectedFactions' && urlParams.has('factions')) || (k==='selectedShips' && urlParams.has('ships')) || (k==='selectedPilots' && urlParams.has('pilots'));
     });
-    if (hasLocalInUrl) return;
+    if (hasLocalInUrl) { clearLocalKeysForRoutesExcept(route); return; }
     try {
         const raw = localStorage.getItem(localStorageKey(route));
         if (!raw) {
-            // No saved state for this route and no URL params -> clear this route's local keys so previous page's values don't bleed
-            const empty: Record<string, unknown> = {};
-            for (const k of (LOCAL_KEYS_BY_ROUTE[route] ?? [])) {
-                if (k==='selectedFactions' || k==='selectedShips' || k==='selectedPilots' || k==='selectedBaseSizes') empty[k] = [];
-                else if (k==='pilotFilterMode' || k==='shipFilterMode') empty[k] = 'any';
-                else if (k==='isUnique' || k==='isLimited' || k==='isGeneric') empty[k] = false;
-                else empty[k] = '';
-            }
-            applyLocalSnapshot(route, empty);
+            // First visit to this route and no URL locals -> ensure other routes' locals don't bleed into this page.
+            clearLocalKeysForRoutesExcept(route);
             return;
         }
+        // Isolate: clear other routes' locals, then hydrate this route's saved snapshot.
+        clearLocalKeysForRoutesExcept(route);
         const snap = JSON.parse(raw) as Record<string, unknown>;
         applyLocalSnapshot(route, snap);
     } catch(e){ console.warn('restoreLocalFilters failed', e); }

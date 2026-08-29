@@ -66,17 +66,17 @@
     let effectiveShow = $derived(showModeToggle && autoShow);
 </script>
 
-<div>
+<div class="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] w-full">
     <button type="button" onclick={() => (isOpen = !isOpen)} class="flex items-center justify-between w-full py-1 text-secondary hover:text-primary transition-colors">
         <span class="flex items-center gap-1.5">
-            <span class="text-[11px] font-mono font-bold tracking-widest uppercase">Ship Chassis</span>
+            <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Ship Chassis</span>
             {#if selectedCount > 0}
                 <span class="min-w-5 h-5 px-1 rounded-full bg-primary text-black text-[10px] font-mono font-bold inline-flex items-center justify-center">{selectedCount}</span>
             {/if}
         </span>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 transition-transform {isOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
     </button>
-        {#if isOpen}<div class="pt-2.5 space-y-3">
+        {#if isOpen}<div class="pt-3 space-y-3">
             {#if effectiveShow}<div class="flex items-center justify-between gap-2 flex-wrap">
                 <FilterAnyAllToggle bind:value={filters.shipFilterMode} label="Match" />
             </div>{/if}

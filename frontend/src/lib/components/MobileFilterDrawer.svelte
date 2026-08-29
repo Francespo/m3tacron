@@ -156,6 +156,12 @@
 					{activeCount}
 				</span>
 			{/if}
+			{#if dataFilterDescription}
+				<button type="button" class="group relative inline-flex items-center justify-center w-5 h-5 rounded-full text-secondary hover:text-primary focus:outline-none focus:ring-1 focus:ring-primary shrink-0" aria-label="About dataset filters">
+					<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+					<div class="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-72 max-w-[min(20rem,calc(100vw-2rem))] p-2.5 bg-terminal-panel border border-border-dark rounded-md text-[11px] font-mono leading-snug text-secondary opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-opacity z-50 pointer-events-none shadow-lg">{dataFilterDescription}</div>
+				</button>
+			{/if}
 		</div>
 		<button
 			bind:this={closeBtnEl}
@@ -207,14 +213,9 @@
 				<button type="button" onclick={() => { for (const chip of filters.activeChips.filter((c) => c.key.startsWith("format:") || c.key.startsWith("continent:") || c.key.startsWith("country:") || c.key.startsWith("city:") || c.key.startsWith("source:") || c.key === "dateStart" || c.key === "dateEnd")) filters.removeChip(chip.key); }} class="text-[11px] font-mono underline text-secondary hover:text-primary">Clear dataset</button>
 			</div>
 		{/if}
-		<div class="min-w-0">
-			<FilterSection
-				id="data"
-				label={dataFilterTitle}
-				description={dataFilterDescription}
-			>
-				<TournamentFilters />
-			</FilterSection>
+		<!-- Dataset filters — flat, not collapsible, no extra section header (title already in drawer header). -->
+		<div class="min-w-0 space-y-4">
+			<TournamentFilters />
 		</div>
 		{#if pageFilterTitle && children}
 		<div class="h-0.5 bg-border-dark mt-3 mb-4 shrink-0"></div>

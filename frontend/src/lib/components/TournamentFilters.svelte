@@ -166,66 +166,22 @@
     }
 </script>
 
-<div class="w-full space-y-3">
-    <!-- The section header ("DATA FILTER" / "TOURNAMENT FILTERS") and the
-         info tooltip now come from the wrapping FilterSection (label +
-         description props), not from this component. -->
-
-    <!-- Date Range Accordion -->
-    <div class="border-b border-border-dark">
-        <button
-            class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
-            onclick={() => (dateOpen = !dateOpen)}
-        >
-            <span class="text-xs font-mono font-bold tracking-wider"
-                >Date Range</span
-            >
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="transition-transform {dateOpen ? 'rotate-180' : ''}"
-                ><path d="m6 9 6 6 6-6" /></svg
-            >
+<div class="w-full">
+    <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
+    <div class="rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+        <button type="button" onclick={() => (dateOpen = !dateOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
+            <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Date Range</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {dateOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
         </button>
-        {#if dateOpen}
-            <div class="pb-3 pl-2">
-                <DateRangeField />
-            </div>
-        {/if}
+        {#if dateOpen}<div class="px-3.5 pb-3.5 pt-1"><DateRangeField hideLabel={true} /></div>{/if}
     </div>
 
-    <!-- Location Accordion -->
-    <div class="border-b border-border-dark">
-        <button
-            class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
-            onclick={() => (locationOpen = !locationOpen)}
-        >
-            <span class="text-xs font-mono font-bold tracking-wider"
-                >Location</span
-            >
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="transition-transform {locationOpen ? 'rotate-180' : ''}"
-                ><path d="m6 9 6 6 6-6" /></svg
-            >
+    <div class="rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+        <button type="button" onclick={() => (locationOpen = !locationOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
+            <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Location</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {locationOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
         </button>
-        {#if locationOpen}
-            <div class="pb-3 space-y-3 pl-2 pr-1 text-xs">
+        {#if locationOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-3 text-xs">
                 <!-- Mini Search Bar -->
                 <input
                     type="text"
@@ -320,44 +276,16 @@
                         </div>
                     </div>
                 {/if}
-            </div>
-        {/if}
+            </div>{/if}
     </div>
 
-    <!-- Format Accordion -->
-    <div class="border-b border-border-dark">
-        <button
-            class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
-            onclick={() => (formatOpen = !formatOpen)}
-        >
-            <div class="flex items-center gap-2">
-                <span class="text-xs font-mono font-bold tracking-wider"
-                    >Format</span
-                >
-                {#if filters.selectedFormats.length > 0}
-                    <span
-                        class="text-[10px] bg-white/10 text-secondary px-1.5 rounded-full font-mono"
-                    >
-                        {filters.selectedFormats.length}
-                    </span>
-                {/if}
-            </div>
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="transition-transform {formatOpen ? 'rotate-180' : ''}"
-                ><path d="m6 9 6 6 6-6" /></svg
-            >
+    <!-- Format — card style -->
+    <div class="rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+        <button type="button" onclick={() => (formatOpen = !formatOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
+            <span class="flex items-center gap-2 text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Format {#if filters.selectedFormats.length > 0}<span class="min-w-5 h-5 px-1 rounded-full bg-primary text-black text-[10px] font-mono font-bold inline-flex items-center justify-center">{filters.selectedFormats.length}</span>{/if}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {formatOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
         </button>
-        {#if formatOpen}
-            <div class="pb-3 space-y-3 pl-2 max-h-[300px] overflow-y-auto pr-1">
+        {#if formatOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
                 {#each formatGroups as group}
                     <div class="space-y-1">
                         <span
@@ -381,35 +309,15 @@
                         {/each}
                     </div>
                 {/each}
-            </div>
-        {/if}
+            </div>{/if}
     </div>
 
-    <!-- Source Filter Section -->
-    <div class="border-b border-border-dark">
-        <button
-            class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
-            onclick={() => (sourceOpen = !sourceOpen)}
-        >
-            <span class="text-xs font-mono font-bold tracking-wider"
-                >Source</span
-            >
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="transition-transform {sourceOpen ? 'rotate-180' : ''}"
-                ><path d="m6 9 6 6 6-6" /></svg
-            >
+    <div class="rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+        <button type="button" onclick={() => (sourceOpen = !sourceOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
+            <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Source</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {sourceOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
         </button>
-        {#if sourceOpen}
-            <div class="pb-3 space-y-1 pl-2">
+        {#if sourceOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-1">
                 {#each sources as source}
                     <label
                         class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
@@ -425,14 +333,13 @@
                         <span class="font-mono">{source.label}</span>
                     </label>
                 {/each}
-            </div>
-        {/if}
+            </div>{/if}
     </div>
 
-    <!-- Search Name -->
-    <div class="space-y-1">
-        <span class="text-xs font-mono font-bold tracking-wider text-secondary"
-            >Search Name</span
+    </div>
+
+    <div class="rounded-xl border border-white/5 bg-black/15 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] space-y-1">
+        <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Search Name</span
         >
         <DebouncedTextInput
             value={filters.searchName}

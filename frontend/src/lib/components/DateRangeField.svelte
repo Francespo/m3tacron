@@ -1,6 +1,6 @@
 <script lang="ts">
     import { filters } from "$lib/stores/filters.svelte";
-    let { label = "Date Range" }: { label?: string } = $props();
+    let { label = "Date Range", hideLabel = false }: { label?: string; hideLabel?: boolean } = $props();
     let startRef: HTMLInputElement | undefined = $state();
     let endRef: HTMLInputElement | undefined = $state();
 
@@ -10,7 +10,7 @@
 </script>
 
 <div class="space-y-2">
-    <div class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">{label}</div>
+    {#if !hideLabel}<div class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">{label}</div>{/if}
     <div class="grid grid-cols-1 gap-2">
         <div class="flex items-center gap-1.5">
             <span class="text-[11px] font-mono text-secondary w-8 shrink-0">From</span>
