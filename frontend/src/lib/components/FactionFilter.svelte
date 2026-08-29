@@ -16,7 +16,7 @@
             {#if filters.selectedFactions.length > 0}<span class="min-w-5 h-5 px-1 rounded-full bg-primary text-black text-[10px] font-mono font-bold inline-flex items-center justify-center">{filters.selectedFactions.length}</span>{/if}
         </span>
     </div>
-        <div class="grid grid-cols-4 gap-1.5 pt-1">
+        <div class="grid grid-cols-4 sm:grid-cols-7 gap-1.5 pt-1">
             {#each ALL_FACTIONS as f}
                 {@const _sel = filters.selectedFactions.includes(f)}
                 <button type="button" title={getFactionLabel(f)} aria-label={getFactionLabel(f)} aria-pressed={_sel} onclick={() => toggleFaction(f)} class="flex flex-col items-center justify-center gap-0.5 rounded-lg border px-1 py-2 transition-colors {_sel ? 'bg-white border-white shadow-sm' : 'bg-black/30 border-white/10 hover:border-white/20 hover:bg-white/[0.04]'}">
