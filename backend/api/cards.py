@@ -87,6 +87,43 @@ def _build_filters(
     player_count_max: int | None = None,
     upgrade_id: str | None = None,
     epic: bool = False,
+    # YASB-inspired
+    slots: list[str] | None = None,
+    slot_mode: str | None = None,
+    has_multiple_slots: bool = False,
+    slot_counts: str | None = None,
+    slot_count_mode: str | None = None,
+    keywords: list[str] | None = None,
+    keyword_mode: str | None = None,
+    actions: list[str] | None = None,
+    action_mode: str | None = None,
+    linked_actions: list[str] | None = None,
+    linked_action_mode: str | None = None,
+    action_pairs: str | None = None,
+    action_pair_mode: str | None = None,
+    front_arc_min: int | None = None,
+    front_arc_max: int | None = None,
+    single_turret_min: int | None = None,
+    single_turret_max: int | None = None,
+    double_turret_min: int | None = None,
+    double_turret_max: int | None = None,
+    full_front_min: int | None = None,
+    full_front_max: int | None = None,
+    rear_arc_min: int | None = None,
+    rear_arc_max: int | None = None,
+    bullseye_min: int | None = None,
+    bullseye_max: int | None = None,
+    charges_min: int | None = None,
+    charges_max: int | None = None,
+    is_recurring: bool = False,
+    is_not_recurring: bool = False,
+    force_min: int | None = None,
+    force_max: int | None = None,
+    used_slots: list[str] | None = None,
+    used_slot_mode: str | None = None,
+    used_double_slots: list[str] | None = None,
+    used_double_slot_mode: str | None = None,
+    only_multi_slot: bool = False,
 ) -> dict:
     
     # Base sizes mapping
@@ -130,6 +167,43 @@ def _build_filters(
         "player_count_max": player_count_max,
         "upgrade_id": upgrade_id,
         "include_epic": epic,
+        # YASB-inspired pilot/upgrade filters
+        "selected_slots": slots,
+        "slot_filter_mode": slot_mode,
+        "has_multiple_slots": has_multiple_slots,
+        "slot_counts": slot_counts,
+        "slot_count_mode": slot_count_mode,
+        "selected_keywords": keywords,
+        "keyword_filter_mode": keyword_mode,
+        "selected_actions": actions,
+        "action_filter_mode": action_mode,
+        "selected_linked_actions": linked_actions,
+        "linked_action_filter_mode": linked_action_mode,
+        "action_pairs": action_pairs,
+        "action_pair_mode": action_pair_mode,
+        "front_arc_min": front_arc_min,
+        "front_arc_max": front_arc_max,
+        "single_turret_min": single_turret_min,
+        "single_turret_max": single_turret_max,
+        "double_turret_min": double_turret_min,
+        "double_turret_max": double_turret_max,
+        "full_front_min": full_front_min,
+        "full_front_max": full_front_max,
+        "rear_arc_min": rear_arc_min,
+        "rear_arc_max": rear_arc_max,
+        "bullseye_min": bullseye_min,
+        "bullseye_max": bullseye_max,
+        "charges_min": charges_min,
+        "charges_max": charges_max,
+        "is_recurring": is_recurring,
+        "is_not_recurring": is_not_recurring,
+        "force_min": force_min,
+        "force_max": force_max,
+        "selected_used_slots": used_slots,
+        "used_slot_filter_mode": used_slot_mode,
+        "selected_used_double_slots": used_double_slots,
+        "used_double_slot_filter_mode": used_double_slot_mode,
+        "only_multi_slot": only_multi_slot,
     }
 
 
@@ -141,6 +215,38 @@ def get_pilots(
     sort_metric: str = Query("Lists"),
     sort_direction: str = Query("desc"),
     epic: bool = Query(False),
+    # YASB-inspired pilot filters
+    slots: list[str] | None = Query(None),
+    slot_mode: str | None = Query(None),
+    has_multiple_slots: bool = Query(False),
+    slot_counts: str | None = Query(None),
+    slot_count_mode: str | None = Query(None),
+    keywords: list[str] | None = Query(None),
+    keyword_mode: str | None = Query(None),
+    actions: list[str] | None = Query(None),
+    action_mode: str | None = Query(None),
+    linked_actions: list[str] | None = Query(None),
+    linked_action_mode: str | None = Query(None),
+    action_pairs: str | None = Query(None),
+    action_pair_mode: str | None = Query(None),
+    front_arc_min: int | None = Query(None),
+    front_arc_max: int | None = Query(None),
+    single_turret_min: int | None = Query(None),
+    single_turret_max: int | None = Query(None),
+    double_turret_min: int | None = Query(None),
+    double_turret_max: int | None = Query(None),
+    full_front_min: int | None = Query(None),
+    full_front_max: int | None = Query(None),
+    rear_arc_min: int | None = Query(None),
+    rear_arc_max: int | None = Query(None),
+    bullseye_min: int | None = Query(None),
+    bullseye_max: int | None = Query(None),
+    charges_min: int | None = Query(None),
+    charges_max: int | None = Query(None),
+    is_recurring: bool = Query(False),
+    is_not_recurring: bool = Query(False),
+    force_min: int | None = Query(None),
+    force_max: int | None = Query(None),
     
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
@@ -188,6 +294,21 @@ def get_pilots(
         date_start=date_start, date_end=date_end,
         player_count_min=player_count_min, player_count_max=player_count_max,
         epic=epic,
+        slots=slots, slot_mode=slot_mode, has_multiple_slots=has_multiple_slots,
+        slot_counts=slot_counts, slot_count_mode=slot_count_mode,
+        keywords=keywords, keyword_mode=keyword_mode,
+        actions=actions, action_mode=action_mode,
+        linked_actions=linked_actions, linked_action_mode=linked_action_mode,
+        action_pairs=action_pairs, action_pair_mode=action_pair_mode,
+        front_arc_min=front_arc_min, front_arc_max=front_arc_max,
+        single_turret_min=single_turret_min, single_turret_max=single_turret_max,
+        double_turret_min=double_turret_min, double_turret_max=double_turret_max,
+        full_front_min=full_front_min, full_front_max=full_front_max,
+        rear_arc_min=rear_arc_min, rear_arc_max=rear_arc_max,
+        bullseye_min=bullseye_min, bullseye_max=bullseye_max,
+        charges_min=charges_min, charges_max=charges_max,
+        is_recurring=is_recurring, is_not_recurring=is_not_recurring,
+        force_min=force_min, force_max=force_max,
     )
 
     cache_key = (
@@ -206,6 +327,14 @@ def get_pilots(
         f"|{init_min}|{init_max}"
         f"|{is_unique}|{is_limited}|{is_not_limited}"
         f"|{','.join(sorted(base_sizes or []))}"
+        f"|{slot_counts or ''}|{slot_count_mode or ''}"
+        f"|{','.join(sorted(slots or []))}|{slot_mode or ''}|{has_multiple_slots}"
+        f"|{','.join(sorted(keywords or []))}|{keyword_mode or ''}"
+        f"|{action_pairs or ''}|{action_pair_mode or ''}"
+        f"|{','.join(sorted(actions or []))}|{action_mode or ''}"
+        f"|{','.join(sorted(linked_actions or []))}|{linked_action_mode or ''}"
+        f"|{front_arc_min}|{front_arc_max}|{single_turret_min}|{single_turret_max}|{double_turret_min}|{double_turret_max}|{full_front_min}|{full_front_max}|{rear_arc_min}|{rear_arc_max}|{bullseye_min}|{bullseye_max}"
+        f"|{charges_min}|{charges_max}|{is_recurring}|{is_not_recurring}|{force_min}|{force_max}"
         f"|{','.join(sorted(platforms or []))}"
         f"|{','.join(sorted(continent or []))}"
         f"|{','.join(sorted(country or []))}"
@@ -236,6 +365,18 @@ def get_upgrades(
     sort_direction: str = Query("desc"),
     upgrade_id: str | None = Query(None, description="Filter to lists containing this upgrade xws"),
     epic: bool = Query(False),
+    # YASB-inspired upgrade filters
+    charges_min: int | None = Query(None),
+    charges_max: int | None = Query(None),
+    is_recurring: bool = Query(False),
+    is_not_recurring: bool = Query(False),
+    force_min: int | None = Query(None),
+    force_max: int | None = Query(None),
+    used_slots: list[str] | None = Query(None),
+    used_slot_mode: str | None = Query(None),
+    used_double_slots: list[str] | None = Query(None),
+    used_double_slot_mode: str | None = Query(None),
+    only_multi_slot: bool = Query(False),
 
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
@@ -262,6 +403,12 @@ def get_upgrades(
         player_count_min=player_count_min, player_count_max=player_count_max,
         upgrade_id=upgrade_id,
         epic=epic,
+        charges_min=charges_min, charges_max=charges_max,
+        is_recurring=is_recurring, is_not_recurring=is_not_recurring,
+        force_min=force_min, force_max=force_max,
+        used_slots=used_slots, used_slot_mode=used_slot_mode,
+        used_double_slots=used_double_slots, used_double_slot_mode=used_double_slot_mode,
+        only_multi_slot=only_multi_slot,
     )
 
     cache_key = (
@@ -279,6 +426,9 @@ def get_upgrades(
         f"|{player_count_min}|{player_count_max}"
         f"|{upgrade_id or ''}"
         f"|{epic}"
+        f"|{charges_min}|{charges_max}|{is_recurring}|{is_not_recurring}|{force_min}|{force_max}"
+        f"|{','.join(sorted(used_slots or []))}|{used_slot_mode or ''}"
+        f"|{','.join(sorted(used_double_slots or []))}|{used_double_slot_mode or ''}|{only_multi_slot}"
     )
 
     def compute():

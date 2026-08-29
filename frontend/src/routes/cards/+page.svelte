@@ -1,7 +1,7 @@
 <script lang="ts">
     import MobileFilterDrawer from "$lib/components/MobileFilterDrawer.svelte";
     import MobileFilterTrigger from "$lib/components/MobileFilterTrigger.svelte";
-    import AdvancedFilters from "$lib/components/AdvancedFilters.svelte";
+    import CardFiltersPanels from "$lib/components/CardFiltersPanels.svelte";
     import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
     import StatRangeFilter from "$lib/components/StatRangeFilter.svelte";
     import PilotCard from "$lib/components/PilotCard.svelte";
@@ -197,24 +197,19 @@
                 </div>
             {/if}
         </div>
-        <!-- Col 3: Ship chassis (pilots only) — fills the 3rd column on 2xl, wraps to full width otherwise -->
-        <div class="lg:col-span-2 2xl:col-span-1">
-            {#if data.tab === "pilots"}
+        <!-- Col 3: Ship chassis — only on Pilots (no filler on Upgrades, no wasted space) -->
+        {#if data.tab === "pilots"}
+            <div class="lg:col-span-1">
                 <div class="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                     <ShipChassisFilter selectedFactions={filters.selectedFactions} />
                 </div>
-            {:else}
-                <div class="rounded-xl border border-dashed border-white/10 bg-black/10 p-4 flex flex-col items-center justify-center gap-1 min-h-[88px]">
-                    <span class="text-[11px] font-mono text-secondary/70">No chassis filter for upgrades</span>
-                    <span class="text-[11px] font-mono text-secondary/50">Switch to Pilots to filter by ship</span>
-                </div>
-            {/if}
-        </div>
+            </div>
+        {/if}
     </div>
 {/snippet}
 
 {#snippet advancedFiltersContent()}
-    <AdvancedFilters isPilotsTab={data.tab === "pilots"} />
+    <CardFiltersPanels isPilotsTab={data.tab === "pilots"} />
 {/snippet}
 
 <svelte:head>
@@ -283,8 +278,7 @@
                     {:else}
                         {@render advancedFiltersContent()}
                     {/if}
-                    <!-- Stat ranges apply to the aggregated card rows (games/lists/etc.) — same component as squadrons/lists/ships -->
-                    <StatRangeFilter label="Stat ranges (cards)" />
+                    <!-- Stat ranges now embedded inside Advanced (Resources row) — no duplicate card here -->
                 </div>
             </LocalFilterBar>
         </div>

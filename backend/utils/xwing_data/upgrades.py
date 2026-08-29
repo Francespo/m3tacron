@@ -29,18 +29,39 @@ def load_all_upgrades(source: DataSource = DataSource.XWA) -> dict:
                     # Filename stem is a good proxy for slot category.
                     slot_category = upgrade_file.stem
                     
+                    # Aggregate slots / charges / force across sides for filtering
+                    _sides = upgrade.get("sides", [])
+                    _all_slots: list[str] = []
+                    _charges_val: int | None = None
+                    _charges_recovers: int = 0
+                    _force_val: int | None = None
+                    for _side in _sides:
+                        for _slot in (_side.get("slots") or []):
+                            if _slot and _slot not in _all_slots:
+                                _all_slots.append(str(_slot))
+                        if _charges_val is None and "charges" in _side:
+                            ch = _side["charges"] or {}
+                            _charges_val = int(ch.get("value", 0) or 0)
+                            _charges_recovers = int(ch.get("recovers", 0) or 0)
+                        if _force_val is None and "force" in _side:
+                            fc = _side["force"] or {}
+                            _force_val = int(fc.get("value", 0) or 0)
                     all_upgrades[xws_id] = {
                         "name": upgrade.get("name", xws_id),
                         "xws": xws_id,
-                        "sides": upgrade.get("sides", []),
+                        "sides": _sides,
                         "cost": upgrade.get("cost", {}),
                         "limited": upgrade.get("limited", 0),
                         "slot_category": slot_category, # Normalized slot name
+                        "slots": _all_slots,
+                        "charges": {"value": _charges_val if _charges_val is not None else 0, "recovers": _charges_recovers} if _charges_val is not None else None,
+                        "force": {"value": _force_val} if _force_val is not None else None,
+                        "keywords": [],  # Upgrades have no keywords in xwing-data2
                         "valid_in_standard": upgrade.get("standard", False) or upgrade.get("extended", False),
                         "wildspace": upgrade.get("wildspace", False),
                         "epic": upgrade.get("epic", False),
-                        "image": upgrade.get("image") or (upgrade.get("sides", [{}])[0].get("image") if upgrade.get("sides") else ""),
-                        "artwork": upgrade.get("artwork") or (upgrade.get("sides", [{}])[0].get("artwork") if upgrade.get("sides") else ""),
+                        "image": upgrade.get("image") or (_sides[0].get("image") if _sides else ""),
+                        "artwork": upgrade.get("artwork") or (_sides[0].get("artwork") if _sides else ""),
                     }
         except Exception:
             continue
