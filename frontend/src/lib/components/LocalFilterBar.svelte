@@ -11,6 +11,34 @@
         galacticrepublic: "/",
         separatistalliance: ".",
     };
+    function slotToFont(s: string): string {
+        const m: Record<string, string> = {
+            "astromech": "astromech", "cannon": "cannon", "cargo": "cargo", "command": "command", "configuration": "config", "crew": "crew", "device": "device", "force power": "forcepower", "gunner": "gunner", "hardpoint": "hardpoint", "hyperdrive": "hardpoint", "illicit": "illicit", "missile": "missile", "modification": "modification", "payload": "device", "sensor": "sensor", "tactical relay": "tacticalrelay", "talent": "talent", "team": "team", "tech": "tech", "title": "title", "torpedo": "torpedo", "turret": "turret",
+        };
+        return m[s.toLowerCase().trim()] ?? "modification";
+    }
+    function actionToFont(a: string): string {
+        const m: Record<string, string> = {
+            "barrel roll": "barrelroll", "boost": "boost", "calculate": "calculate", "cloak": "cloak", "coordinate": "coordinate", "evade": "evade", "focus": "focus", "jam": "jam", "lock": "lock", "reinforce": "reinforce", "reload": "reload", "rotate arc": "rotatearc", "slam": "slam",
+        };
+        return m[a.toLowerCase().trim()] ?? "focus";
+    }
+    function parseSlotCountKey(key: string): { slot: string; count: number } | null {
+        // key is "slotCount:SlotName:Count" — split by last colon
+        const rest = key.slice(10);
+        const lastColon = rest.lastIndexOf(":");
+        if (lastColon === -1) return null;
+        const slot = rest.slice(0, lastColon);
+        const count = parseInt(rest.slice(lastColon + 1), 10);
+        if (!slot || isNaN(count)) return null;
+        return { slot, count };
+    }
+    function parseActionPairLabel(label: string): { action: string | null; linked: string | null } {
+        const parts = label.split(" → ");
+        if (parts.length === 2) return { action: parts[0] === "Any" ? null : parts[0], linked: parts[1] };
+        const a = label.trim();
+        return { action: a === "Any" ? null : a, linked: null };
+    }
     type Props = {
         id: string;
         label?: string;
@@ -52,7 +80,43 @@
             {#if chips.length > 0}
                 <span class="hidden sm:flex flex-wrap gap-1.5 items-center min-w-0" onclick={(e) => e.stopPropagation()} role="presentation">
                     {#each chips.slice(0, 6) as chip}
-                        {#if chip.key.startsWith("faction:")}
+                        {#if chip.key.startsWith("slotCount:")}
+                            {@const parsed = parseSlotCountKey(chip.key)}
+                            <button type="button" onclick={(e) => { e.stopPropagation(); if(onRemoveChip) onRemoveChip(chip.key); }} aria-label={`Remove ${chip.label}`} title={chip.label} class="inline-flex items-center justify-center w-7 h-7 rounded-md bg-white border border-white/10 shrink-0 hover:bg-white/90 transition-colors relative">
+                                <i class="xwing-miniatures-font xwing-miniatures-font-{parsed ? slotToFont(parsed.slot) : 'modification'} text-[13px] leading-none text-black" style="text-transform:none" aria-hidden="true"></i>
+                                {#if parsed && parsed.count > 1}
+                                    <span class="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 rounded-full bg-black text-white text-[8px] font-mono font-bold flex items-center justify-center border border-white">{parsed.count}</span>
+                                {/if}
+                            </button>
+                        {:else if chip.key.startsWith("slot:")}
+                            {@const s = chip.key.slice(5)}
+                            <button type="button" onclick={(e) => { e.stopPropagation(); if(onRemoveChip) onRemoveChip(chip.key); }} aria-label={`Remove ${chip.label}`} title={chip.label} class="inline-flex items-center justify-center w-7 h-7 rounded-md bg-white border border-white/10 shrink-0 hover:bg-white/90 transition-colors">
+                                <i class="xwing-miniatures-font xwing-miniatures-font-{slotToFont(s)} text-[13px] leading-none text-black" style="text-transform:none" aria-hidden="true"></i>
+                            </button>
+                        {:else if chip.key.startsWith("actionPair:")}
+                            {@const pair = parseActionPairLabel(chip.label)}
+                            <button type="button" onclick={(e) => { e.stopPropagation(); if(onRemoveChip) onRemoveChip(chip.key); }} aria-label={`Remove ${chip.label}`} title={chip.label} class="inline-flex items-center justify-center gap-0.5 px-1.5 h-7 rounded-md bg-white border border-white/10 shrink-0 hover:bg-white/90 transition-colors">
+                                {#if pair.action}
+                                    <i class="xwing-miniatures-font xwing-miniatures-font-{actionToFont(pair.action)} text-[11px] leading-none text-black" style="text-transform:none" aria-hidden="true"></i>
+                                {:else}
+                                    <span class="text-[8px] font-mono font-bold text-black/60">ANY</span>
+                                {/if}
+                                {#if pair.linked}
+                                    <span class="text-[8px] text-black/40">→</span>
+                                    <i class="xwing-miniatures-font xwing-miniatures-font-{actionToFont(pair.linked)} text-[11px] leading-none text-black" style="text-transform:none" aria-hidden="true"></i>
+                                {/if}
+                            </button>
+                        {:else if chip.key.startsWith("action:")}
+                            {@const a = chip.key.slice(7)}
+                            <button type="button" onclick={(e) => { e.stopPropagation(); if(onRemoveChip) onRemoveChip(chip.key); }} aria-label={`Remove ${chip.label}`} title={chip.label} class="inline-flex items-center justify-center w-7 h-7 rounded-md bg-white border border-white/10 shrink-0 hover:bg-white/90 transition-colors">
+                                <i class="xwing-miniatures-font xwing-miniatures-font-{actionToFont(a)} text-[13px] leading-none text-black" style="text-transform:none" aria-hidden="true"></i>
+                            </button>
+                        {:else if chip.key.startsWith("linkedAction:")}
+                            {@const a = chip.key.slice(13)}
+                            <button type="button" onclick={(e) => { e.stopPropagation(); if(onRemoveChip) onRemoveChip(chip.key); }} aria-label={`Remove ${chip.label}`} title={chip.label} class="inline-flex items-center justify-center w-7 h-7 rounded-md bg-white border border-white/10 shrink-0 hover:bg-white/90 transition-colors">
+                                <i class="xwing-miniatures-font xwing-miniatures-font-{actionToFont(a)} text-[13px] leading-none text-black" style="text-transform:none" aria-hidden="true"></i>
+                            </button>
+                        {:else if chip.key.startsWith("faction:")}
                             {@const f = chip.key.slice(8)}
                             <button type="button" onclick={(e) => { e.stopPropagation(); if(onRemoveChip) onRemoveChip(chip.key); }} aria-label={`Remove ${chip.label}`} title={chip.label} class="inline-flex items-center justify-center w-7 h-7 rounded-md bg-white border border-white/10 shrink-0 hover:bg-white/90 transition-colors">
                                 <span class="font-xwing leading-none text-sm" style="color: {getFactionColor(f)};">{FACTION_GLYPHS[f] ?? "?"}</span>
