@@ -29,6 +29,7 @@
     let filterOpen = $state(false);
     let page = $state(1);
     let factionOpen = $state(true);
+    let textSearchOpen = $state(true);
     const size = 21;
     let isAdvanced = $state(false);
     const cardSortOpts = [{ value: "Name", label: "Name" },{ value: "Cost", label: "Points Cost" },{ value: "Games", label: "Games" },{ value: "Lists", label: "Lists" },{ value: "Entries", label: "Entries" },{ value: "Squadrons", label: "Squadrons" },{ value: "Win Rate", label: "Win Rate" }] as const;
@@ -156,12 +157,12 @@
 
 {#snippet basicFiltersContent()}
     <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
-        <!-- Col 1: Find — Text Search -->
         <div class="rounded-xl border border-white/5 bg-black/20 p-3.5 space-y-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            <div class="flex items-center gap-1.5">
-                <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Text Search</span>
-            </div>
-            <DebouncedTextInput value={filters.searchName} onDebouncedChange={(v) => { filters.searchName = v; scheduleSync(250); }} placeholder="Search card text" ariaLabel="Search card text" />
+            <button type="button" onclick={() => (textSearchOpen = !textSearchOpen)} class="flex items-center justify-between w-full text-secondary hover:text-primary transition-colors">
+                <span class="text-[11px] font-mono font-bold tracking-widest uppercase">Text Search</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="transition-transform {textSearchOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            {#if textSearchOpen}<DebouncedTextInput value={filters.searchName} onDebouncedChange={(v) => { filters.searchName = v; scheduleSync(250); }} placeholder="Search card text" ariaLabel="Search card text" />{/if}
         </div>
         <!-- Col 2: Faction — icon-only, uniform grid -->
         <div class="rounded-xl border border-white/5 bg-black/20 p-3.5 space-y-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
@@ -202,7 +203,7 @@
         {#if data.tab === "pilots"}
             <div class="lg:col-span-1">
                 <div class="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                    <ShipChassisFilter selectedFactions={filters.selectedFactions} />
+                    <ShipChassisFilter selectedFactions={filters.selectedFactions} showModeToggle={false} />
                 </div>
             </div>
         {/if}

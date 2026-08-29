@@ -7,7 +7,7 @@
     import FilterAnyAllToggle from "./FilterAnyAllToggle.svelte";
 
     /** Page-local selected factions — hides ships not playable in these factions. */
-    let { selectedFactions = [] }: { selectedFactions?: string[] } = $props();
+    let { selectedFactions = [], showModeToggle = true }: { selectedFactions?: string[]; showModeToggle?: boolean } = $props();
 
     let isOpen = $state(true);
     let search = $state("");
@@ -62,23 +62,24 @@
 
     /** How many are currently selected? */
     let selectedCount = $derived(filters.selectedShips.length);
-    let showModeToggle = $derived(selectedCount > 1);
+    let autoShow = $derived(selectedCount > 1);
+    let effectiveShow = $derived(showModeToggle && autoShow);
 </script>
 
 <div>
-    <div class="flex items-center justify-between w-full py-1 text-secondary">
+    <button type="button" onclick={() => (isOpen = !isOpen)} class="flex items-center justify-between w-full py-1 text-secondary hover:text-primary transition-colors">
         <span class="flex items-center gap-1.5">
             <span class="text-[11px] font-mono font-bold tracking-widest uppercase">Ship Chassis</span>
             {#if selectedCount > 0}
                 <span class="min-w-5 h-5 px-1 rounded-full bg-primary text-black text-[10px] font-mono font-bold inline-flex items-center justify-center">{selectedCount}</span>
             {/if}
         </span>
-    </div>
-        <div class="pt-2.5 space-y-3">
-            <div class="flex items-center justify-between gap-2 flex-wrap">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 transition-transform {isOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+        {#if isOpen}<div class="pt-2.5 space-y-3">
+            {#if effectiveShow}<div class="flex items-center justify-between gap-2 flex-wrap">
                 <FilterAnyAllToggle bind:value={filters.shipFilterMode} label="Match" />
-                <span class="text-[11px] font-mono text-secondary/60">Any = O · All = E</span>
-            </div>
+            </div>{/if}
             <input
                 type="text"
                 placeholder="Search ships..."
@@ -126,7 +127,7 @@
                     {/each}
                 {/if}
             </div>
-        </div>
+        </div>{/if}
 </div>
 
 <style>

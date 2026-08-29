@@ -1,4 +1,5 @@
 <script lang="ts">
+    let open = $state(true);
     import { filters } from "$lib/stores/filters.svelte";
 
     type Props = {
@@ -8,11 +9,12 @@
 </script>
 
 <div class="rounded-xl border border-white/5 bg-black/20 p-3.5 space-y-3 shadow- self-start h-fit[inset_0_1px_0_rgba(255,255,255,0.04)]">
-    <div class="flex items-center gap-1.5">
+    <button type="button" onclick={() => (open = !open)} class="flex items-center gap-1.5 w-full text-left hover:text-primary transition-colors">
         <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">{label}</span>
         <span class="flex-1 h-px bg-white/5 ml-2"></span>
-    </div>
-    <div class="grid grid-cols-1 gap-2.5">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="ml-2 shrink-0 transition-transform {open ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    {#if open}<div class="grid grid-cols-1 gap-2.5">
         {#each [
             { key: 'Lists', min: 'listsMin', max: 'listsMax' },
             { key: 'Entries', min: 'entriesMin', max: 'entriesMax' },
@@ -41,6 +43,6 @@
                 />
             </label>
         {/each}
-    </div>
+    </div>{/if}
 
 </div>
