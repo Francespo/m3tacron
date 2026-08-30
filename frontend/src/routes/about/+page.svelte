@@ -12,7 +12,7 @@
 	<section class="space-y-3">
 		<h2 class="text-3xl font-mono font-bold uppercase tracking-tighter text-primary md:text-4xl">Data and sources</h2>
 		<p class="font-sans text-sm leading-relaxed text-secondary">Data comes from <span class="text-primary">ListFortress</span>, <span class="text-primary">Longshanks</span> and <span class="text-primary">Rollbetter</span>. Recent tournaments are added automatically every day.</p>
-		<p class="font-sans text-sm leading-relaxed text-secondary">You can use this selector at the top left to switch modes.</p>
+		<p class="font-sans text-sm leading-relaxed text-secondary">You can use the selector at the top left to switch modes.</p>
 		<div class="space-y-3 border-l-2 border-white/10 pl-4">
 			<div class="space-y-1">
 				<span class="rounded-md border border-amber-500/30 bg-amber-500/20 px-2 py-1 font-mono text-xs font-bold text-amber-400">XWA</span>
