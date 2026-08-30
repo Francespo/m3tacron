@@ -29,14 +29,14 @@
 	<section class="space-y-3">
 		<h2 class="text-3xl font-mono font-bold uppercase tracking-tighter text-primary md:text-4xl">How to use</h2>
 
-		<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-			<div class="space-y-1">
+		<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+			<div class="rounded-lg bg-white/[0.02] p-5">
 				<a href="/" class="font-mono text-sm font-bold uppercase tracking-wider text-primary underline decoration-white/20 underline-offset-2 hover:decoration-white/40">Dashboard</a>
-				<p class="font-sans text-xs leading-relaxed text-secondary">The landing page and a quick overview of the meta. It gives you an immediate read on what is popular and what is performing well.</p>
+				<p class="mt-2 font-sans text-xs leading-relaxed text-secondary">The landing page and a quick overview of the meta. It gives you an immediate read on what is popular and what is performing well.</p>
 			</div>
-			<div class="space-y-1">
+			<div class="rounded-lg bg-white/[0.02] p-5">
 				<a href="/tournaments" class="font-mono text-sm font-bold uppercase tracking-wider text-primary underline decoration-white/20 underline-offset-2 hover:decoration-white/40">Tournaments</a>
-				<p class="font-sans text-xs leading-relaxed text-secondary">A browser for every tournament recorded online. Find events by date, location or format and open any of them for its results.</p>
+				<p class="mt-2 font-sans text-xs leading-relaxed text-secondary">A browser for every tournament recorded online. Find events by date, location or format and open any of them for its results.</p>
 			</div>
 		</div>
 
