@@ -30,17 +30,17 @@
 		<h2 class="text-3xl font-mono font-bold uppercase tracking-tighter text-primary md:text-4xl">How to use</h2>
 
 		<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-			<div class="rounded-lg bg-white/[0.02] p-5">
+			<div class="rounded-lg border border-border-dark p-5">
 				<a href="/" class="font-mono text-sm font-bold uppercase tracking-wider text-primary underline decoration-white/20 underline-offset-2 hover:decoration-white/40">Dashboard</a>
 				<p class="mt-2 font-sans text-xs leading-relaxed text-secondary">The landing page and a quick overview of the meta. It gives you an immediate read on what is popular and what is performing well.</p>
 			</div>
-			<div class="rounded-lg bg-white/[0.02] p-5">
+			<div class="rounded-lg border border-border-dark p-5">
 				<a href="/tournaments" class="font-mono text-sm font-bold uppercase tracking-wider text-primary underline decoration-white/20 underline-offset-2 hover:decoration-white/40">Tournaments</a>
 				<p class="mt-2 font-sans text-xs leading-relaxed text-secondary">A browser for every tournament recorded online. Find events by date, location or format and open any of them for its results.</p>
 			</div>
 		</div>
 
-		<div class="rounded-lg bg-white/[0.02] p-5">
+		<div class="rounded-lg border border-border-dark p-5">
 				<h3 class="mb-2 font-mono text-sm font-bold uppercase tracking-wider text-primary">
 				<a href="/squadrons" class="underline decoration-white/20 underline-offset-2 hover:decoration-white/40">Squadrons</a>, <a href="/lists" class="underline decoration-white/20 underline-offset-2 hover:decoration-white/40">Lists</a>, <a href="/ships" class="underline decoration-white/20 underline-offset-2 hover:decoration-white/40">Ships</a> and <a href="/cards" class="underline decoration-white/20 underline-offset-2 hover:decoration-white/40">Cards</a>
 			</h3>
