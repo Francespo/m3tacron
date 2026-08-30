@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-VITE_PID_FILE="/tmp/m3tacron-vite.pid"
+VITE_PID_FILE="/tmp/m3tacron-alert-baboon.pid"
 
 if [[ -f "$VITE_PID_FILE" ]]; then
   pid=$(cat "$VITE_PID_FILE" 2>/dev/null || true)
