@@ -1,3 +1,7 @@
+<svelte:head>
+    <title>M3tacron — X-Wing Tournament Analytics &amp; Meta Engine</title>
+</svelte:head>
+
 <script lang="ts">
     import { browser } from "$app/environment";
     import { filters } from "$lib/stores/filters.svelte";
