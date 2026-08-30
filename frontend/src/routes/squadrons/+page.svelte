@@ -92,7 +92,7 @@
 </svelte:head>
 
 <div class="flex min-h-screen">
-    <MobileFilterTrigger activeCount={datasetActive} label="Dataset filters" onClick={() => (filterOpen = true)} />
+    <MobileFilterTrigger activeCount={datasetActive} label="Dataset" onClick={() => (filterOpen = true)} />
     <MobileFilterDrawer open={filterOpen} onClose={() => (filterOpen = false)} title="Dataset filters" activeCount={datasetActive} dataFilterTitle="Dataset filters" />
 
     <main class="flex-1 p-6 md:p-8 pb-20 lg:pb-8">

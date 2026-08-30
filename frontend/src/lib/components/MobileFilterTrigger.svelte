@@ -18,7 +18,7 @@ type Props = {
 	label?: string;
 };
 
-let { activeCount, onClick, label = "Filters" }: Props = $props();
+let { activeCount, onClick, label = "Dataset" }: Props = $props();
 </script>
 
  <button
