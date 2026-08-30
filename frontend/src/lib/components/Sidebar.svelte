@@ -56,11 +56,6 @@
 			href: "/support",
 			icon: "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z",
 		},
-		{
-			label: "ABOUT",
-			href: "/about",
-			icon: "M12 16v-4M12 8h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z",
-		},
 	];
 </script>
 
@@ -68,19 +63,45 @@
 	import { page } from "$app/stores";
 	import { filters } from "$lib/stores/filters.svelte";
 	import { setDataSource } from "$lib/sync/contentSource";
+	import { sidebarStore } from "$lib/stores/sidebar.svelte";
 
 	// Sidebar Links — derived from the module-level NAV_LINKS so the desktop
 	// sidebar and the mobile nav drawer render the same set of routes.
 	const links = NAV_LINKS;
 
-	let collapsed = false; // Hardcode for now, can be toggled later
+	$effect(() => {
+		sidebarStore.ensureLoaded();
+	});
+	let collapsed = $derived(sidebarStore.isCollapsed());
+
+	function toggleCollapsed() {
+		sidebarStore.toggle();
+	}
 </script>
 
 <div
 	class="fixed left-0 top-0 h-screen bg-terminal-panel border-r border-[#ffffff14] flex flex-col z-[100] transition-all duration-200 {collapsed
-		? 'w-[60px]'
+		? 'w-[72px]'
 		: 'w-[260px]'} hidden md:flex"
 >
+	<!-- Collapse toggle (top-right of sidebar header) -->
+	<button
+		type="button"
+		onclick={toggleCollapsed}
+		aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+		aria-pressed={collapsed}
+		class="absolute top-2 right-2 z-10 inline-flex items-center justify-center w-7 h-7 rounded-md border border-transparent text-secondary hover:text-primary hover:bg-[#ffffff08] active:bg-[#ffffff14] transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+		title={collapsed ? "Expand" : "Collapse"}
+	>
+		<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+			{#if collapsed}
+				<path d="M9 18l6-6-6-6" />
+			{:else}
+				<path d="M15 18l-6-6 6-6" />
+			{/if}
+		</svg>
+	</button>
+
 	<!-- Header / Brand -->
 	<div class="border-b border-border-dark w-full px-4 py-6">
 		<div class="flex flex-col {collapsed ? 'items-center' : 'items-start'}">
@@ -91,7 +112,10 @@
 			>
 				{collapsed ? "M3" : "M3TACRON"}
 			</span>
-				{#if !collapsed}
+			{#if collapsed}
+				<span class="mt-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[9px] font-mono font-bold leading-none tracking-widest uppercase border {filters.dataSource === 'xwa' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-violet-500/20 text-violet-400 border-violet-500/30'}" title={filters.dataSource === 'xwa' ? 'XWA' : 'Legacy'} aria-label={filters.dataSource === 'xwa' ? 'Source: XWA' : 'Source: Legacy'}>{filters.dataSource === 'xwa' ? 'XWA' : 'LGCY'}</span>
+			{/if}
+			{#if !collapsed}
 				<!-- XWA / LEGACY content source controls -->
 				<div class="flex items-center gap-1 mt-2">
 					<button

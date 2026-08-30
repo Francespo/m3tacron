@@ -6,7 +6,7 @@ import os
 import time
 
 from .database import engine, create_db_and_tables
-from .models import Tournament, PlayerStanding
+from .models import List, Match, Tournament, PlayerStanding
 from .analytics.factions import get_meta_snapshot
 from .data_structures.data_source import DataSource
 from .cache import get_cached_or_compute
@@ -82,63 +82,35 @@ def on_startup():
 
 
 # ---------------------------------------------------------------------------
-# Warm state — exposed via GET /api/cache/stats for live verification
-# ---------------------------------------------------------------------------
-
-_warm_state: dict = {
-    "last_warm_at": None,          # ISO timestamp of last warm completion
-    "last_warm_duration_s": None,  # seconds of last full warm (snapshots + endpoints + ship details)
-    "detail_snapshots": {},        # {ds: {elapsed_s, pilots, upgrades}}
-    "endpoints": {"ok": 0, "fail": 0, "elapsed_s": None, "items": []},  # last _probe_warm_endpoints
-    "ship_details": {"ok": 0, "fail": 0, "elapsed_s": None, "total_urls": 0, "workers": None},
-    "history": [],                 # last 5 warm runs (for debugging)
-}
-
-def _record_warm_history(entry: dict) -> None:
-    _warm_state["history"].append(entry)
-    if len(_warm_state["history"]) > 5:
-        _warm_state["history"].pop(0)
-
-
-# ---------------------------------------------------------------------------
 # Cache warm helpers: shared endpoint list + HTTP probing
 # ---------------------------------------------------------------------------
 
 def _warm_endpoint_list() -> list[str]:
-    """Canonical list of API paths to warm. Used by startup and auto-rewarm.
-
-    Epic is always included site-wide (no epic param). Covers: dashboard
-    (2 combos xwa/legacy), ships (2 combos, all pages via single aggregation
-    page/size excluded), lists/squadrons page 0 (2 combos each), cards
-    (4 combos), tournaments page 0 (1 entry). Total ~11 keys. Per-ship detail
-    is warmed separately via _warm_ship_details() in-process.
-    """
-    endpoints: list[str] = [
-        # Dashboard meta-snapshot (xwa + legacy, epic always on)
+    """Canonical list of API paths to warm. Used by startup and auto-rewarm."""
+    return [
+        # Dashboard meta-snapshot (xwa + legacy, with and without epic)
+        # These are the heaviest but most impactful: dashboard is the landing page.
         "meta-snapshot?data_source=xwa",
+        "meta-snapshot?data_source=xwa&epic=true",
         "meta-snapshot?data_source=legacy",
-    ]
-    # Ships — all pages are slices of one cached aggregation (page/size excluded
-    # from key, see backend/api/ships.py). Warm 2 combos: xwa/legacy.
-    for ds in ("xwa", "legacy"):
-        endpoints.append(f"ships?page=0&size=21&sort_metric=Lists&sort_direction=desc&data_source={ds}")
-    # Lists page 0 — 2 combos (epic always on).
-    for ds in ("xwa", "legacy"):
-        endpoints.append(f"lists?page=0&size=20&sort_metric=Games&sort_direction=desc&min_games=3&data_source={ds}")
-    # Squadrons page 0 — 2 combos (epic always on).
-    for ds in ("xwa", "legacy"):
-        endpoints.append(f"squadrons?page=0&size=20&sort_metric=Games&sort_direction=desc&data_source={ds}")
-    # Tournaments page 0 — 1 entry.
-    endpoints.append("tournaments?page=0&size=20&sort_metric=Date&sort_direction=desc")
-    endpoints.extend([
-        # Cards/Pilots - 2 combos (epic always on)
+        "meta-snapshot?data_source=legacy&epic=true",
+        # Lists - default landing, with and without min_games/factions
+        "lists?page=0&size=20&sort_metric=Games&sort_direction=desc&min_games=3&data_source=xwa",
+        "lists?page=0&size=20&sort_metric=Games&sort_direction=desc&data_source=xwa",
+        "lists?page=0&size=20&sort_metric=Win%20Rate&sort_direction=desc&min_games=3&data_source=xwa",
+        # Squadrons - default + Win Rate
+        "squadrons?page=0&size=20&sort_metric=Games&sort_direction=desc&data_source=xwa",
+        "squadrons?page=0&size=20&sort_metric=Win%20Rate&sort_direction=desc&data_source=xwa",
+        # Ships - Popularity + Games
+        "ships?page=0&size=50&sort_metric=Lists&sort_direction=desc&data_source=xwa",
+        "ships?page=0&size=50&sort_metric=Games&sort_direction=desc&data_source=xwa",
+        # Cards/Pilots - default
         "cards/pilots?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=xwa",
-        "cards/pilots?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=legacy",
-        # Cards/Upgrades - 2 combos (epic always on)
+        "cards/pilots?page=0&size=20&sort_metric=Win%20Rate&sort_direction=desc&data_source=xwa",
+        # Cards/Upgrades - default
         "cards/upgrades?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=xwa",
-        "cards/upgrades?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=legacy",
-    ])
-    return endpoints
+        "cards/upgrades?page=0&size=20&sort_metric=Win%20Rate&sort_direction=desc&data_source=xwa",
+    ]
 
 
 def _warm_detail_snapshots() -> None:
@@ -151,7 +123,6 @@ def _warm_detail_snapshots() -> None:
     data_version change.
     """
     import time as _t
-    from datetime import datetime, timezone
     from .analytics.precompute import get_snapshot
     from .data_structures.data_source import DataSource
 
@@ -160,204 +131,17 @@ def _warm_detail_snapshots() -> None:
         try:
             snap = get_snapshot(ds)
             n_upg = sum(len(v) for f, v in snap["pilot_upgrades"].items() if f == ds.value)
-            elapsed = _t.time() - t0
-            print(f"[prewarm] detail snapshot {ds.value}: {elapsed:.1f}s ✓ "
+            print(f"[prewarm] detail snapshot {ds.value}: {_t.time() - t0:.1f}s ✓ "
                   f"(header {len(snap['header'])} pilots, upg keys {n_upg})")
-            _warm_state["detail_snapshots"][ds.value] = {
-                "elapsed_s": round(elapsed, 2),
-                "pilots": len(snap["header"]),
-                "upg_keys": n_upg,
-                "at": datetime.now(timezone.utc).isoformat(),
-            }
         except Exception as e:
             print(f"[prewarm] detail snapshot {ds.value}: FAILED ({e})")
-            _warm_state["detail_snapshots"][ds.value] = {"error": str(e)}
-
-
-def _warm_ship_details() -> None:
-    """Bulk-prewarm all ship detail pages (xwa/legacy) **in-process**.
-
-    Phase 1 (bulk, ~28s): 4 queries fan-out to 368 `ship_info` + `ship_pilots`
-    keys so the header + pilot breakdown are instant on first paint.
-    Phase 2 (per-ship, ~35s): prewarm `ship_lists` + `ship_squadrons` for
-    all 92 ships × 2 DS so the below-fold Top Lists/Squadrons are also
-    instant at build time and not on first user click. Total 736 keys.
-    """
-    import time as _t
-    from datetime import datetime, timezone
-
-    if os.getenv("SHIP_DETAIL_WARM", "true").lower() != "true":
-        print("[prewarm] ship details: skipped (SHIP_DETAIL_WARM=false)")
-        _warm_state["ship_details"] = {"skipped": True}
-        return
-
-    try:
-        from .utils.xwing_data.ships import load_all_ships
-        from .data_structures.data_source import DataSource
-        from .cache import get_cached_or_compute
-        from .analytics.ships import aggregate_ship_stats
-        from .analytics.core import aggregate_card_stats
-        from .analytics.lists import aggregate_list_stats, fetch_list_pilots
-        from .analytics.squadrons import aggregate_squadron_stats
-        from .data_structures.sorting_order import SortingCriteria, SortDirection
-        from .api.ship_detail import _build_filters, _ship_filter_cache_suffix
-        from .api.formatters import enrich_list_data
-    except Exception as e:
-        print(f"[prewarm] ship details: FAILED to load deps ({e})")
-        _warm_state["ship_details"] = {"error": str(e)}
-        return
-
-    all_xws: set[str] = set()
-    for ds in (DataSource.XWA, DataSource.LEGACY):
-        try:
-            all_xws.update(load_all_ships(ds).keys())
-        except Exception:
-            pass
-
-    if not all_xws:
-        print("[prewarm] ship details: no ships found")
-        _warm_state["ship_details"] = {"error": "no ships"}
-        return
-
-    combos: list[DataSource] = [DataSource.XWA, DataSource.LEGACY]
-
-    t0 = _t.time()
-    ok = 0
-    fail = 0
-
-    # --- Bulk path: 4 queries total, then fan-out into 368 cache keys ---
-    try:
-        from backend.utils.xwing_data.pilots import load_all_pilots
-    except Exception as e:
-        print(f"[prewarm] ship details bulk: FAILED to load pilots ({e})")
-        _warm_state["ship_details"] = {"error": str(e)}
-        return
-
-    # The detail page is reached from /ships which appends ?formats=xwa (or
-    # legacy). That produces a different cache suffix than the bare
-    # `formats=None` key. To make the first click fast regardless of format
-    # filtering, fan-out into 3 suffixes per ship/DS: no-format + xwa + legacy.
-    def _suffixes_for_ds(ds: DataSource) -> list[tuple[str, dict]]:
-        base = _ship_filter_cache_suffix(
-            formats=None, factions=None, ships=None, continent=None, country=None, city=None,
-            platforms=None, sources=None, date_start=None, date_end=None,
-            player_count_min=None, player_count_max=None, search=None, faction=None,
-        )
-        xwa = _ship_filter_cache_suffix(
-            formats=["xwa"], factions=None, ships=None, continent=None, country=None, city=None,
-            platforms=None, sources=None, date_start=None, date_end=None,
-            player_count_min=None, player_count_max=None, search=None, faction=None,
-        )
-        legacy = _ship_filter_cache_suffix(
-            formats=["legacy_x2po"], factions=None, ships=None, continent=None, country=None, city=None,
-            platforms=None, sources=None, date_start=None, date_end=None,
-            player_count_min=None, player_count_max=None, search=None, faction=None,
-        )
-        return [(base, {"epic": True, "include_epic": True}), (xwa, {"epic": True, "include_epic": True, "allowed_formats": ["xwa"]}), (legacy, {"epic": True, "include_epic": True, "allowed_formats": ["legacy_x2po"]})]
-
-    for ds in combos:
-        # Top lists / squadrons are 0.02-0.3s on demand and not all equal —
-        # the header (info + pilots) is what must be instant on first paint.
-        # lists/squadrons for the default (no-format) view are still prewarmed
-        # below so the below-fold sections are also instant at build time.
-        filters_bulk = {"epic": True, "include_epic": True}
-        # 1) ship_info: fan-out the single bulk result into the 3 format suffixes
-        try:
-            bulk_ships = aggregate_ship_stats(filters_bulk, SortingCriteria.GAMES, SortDirection.DESCENDING, ds)
-            by_xws = {s["xws"]: s for s in bulk_ships}
-            for suffix, _ in _suffixes_for_ds(ds):
-                for xws in sorted(all_xws):
-                    cache_key = f"ship_info|{xws}|{ds.value}{suffix}"
-                    val = by_xws.get(xws, {})
-                    try:
-                        get_cached_or_compute(cache_key, lambda v=val: v)
-                        ok += 1
-                    except Exception as e:
-                        print(f"[prewarm] ship info {xws}/{ds.value}: {e}")
-                        fail += 1
-        except Exception as e:
-            print(f"[prewarm] ship info bulk {ds.value}: FAILED ({e})")
-            fail += len(all_xws) * 3
-
-        # 2) ship_pilots: fan-out the bulk pilots partition into all 3 suffixes
-        try:
-            bulk_pilots = aggregate_card_stats(filters_bulk, SortingCriteria.LISTS, SortDirection.DESCENDING, "pilots", ds)
-            pilots_map = load_all_pilots(ds)
-            by_ship: dict[str, list[dict]] = {}
-            for p in bulk_pilots:
-                p_xws = p.get("xws")
-                ship = pilots_map.get(p_xws, {}).get("ship_xws", "") if p_xws else ""
-                if not ship:
-                    continue
-                by_ship.setdefault(ship, []).append(p)
-            for suffix, _ in _suffixes_for_ds(ds):
-                for xws in sorted(all_xws):
-                    cache_key = f"ship_pilots|{xws}|{ds.value}|Lists|desc{suffix}"
-                    val = by_ship.get(xws, [])
-                    try:
-                        get_cached_or_compute(cache_key, lambda v=val: list(v))
-                        ok += 1
-                    except Exception as e:
-                        print(f"[prewarm] ship pilots {xws}/{ds.value}: {e}")
-                        fail += 1
-        except Exception as e:
-            print(f"[prewarm] ship pilots bulk {ds.value}: FAILED ({e})")
-            fail += len(all_xws) * 3
-
-        # --- Phase 2: lists / squadrons per-ship — prewarm default suffix only ---
-        suffix_default = _ship_filter_cache_suffix(
-            formats=None, factions=None, ships=None, continent=None, country=None, city=None,
-            platforms=None, sources=None, date_start=None, date_end=None,
-            player_count_min=None, player_count_max=None, search=None, faction=None,
-        )
-        for xws in sorted(all_xws):
-            for kind in ("lists", "squadrons"):
-                limit = 10
-                if kind == "lists":
-                    cache_key = f"ship_lists|{xws}|{ds.value}|{limit}{suffix_default}"
-                    def _compute_lists(xws=xws, ds=ds):  # type: ignore
-                        f = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None)
-                        return aggregate_list_stats(f, data_source=ds)
-                    try:
-                        get_cached_or_compute(cache_key, _compute_lists)
-                        ok += 1
-                    except Exception as e:
-                        print(f"[prewarm] ship lists {xws}/{ds.value}: {e}")
-                        fail += 1
-                else:
-                    cache_key = f"ship_squadrons|{xws}|{ds.value}|{limit}{suffix_default}"
-                    def _compute_sq(xws=xws, ds=ds):  # type: ignore
-                        f = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None)
-                        return aggregate_squadron_stats(f, SortingCriteria.WINRATE, SortDirection.DESCENDING, ds)
-                    try:
-                        get_cached_or_compute(cache_key, _compute_sq)
-                        ok += 1
-                    except Exception as e:
-                        print(f"[prewarm] ship squadrons {xws}/{ds.value}: {e}")
-                        fail += 1
-
-    elapsed = _t.time() - t0
-    # info + pilots × 3 suffixes, lists/squadrons × 1 suffix
-    total_keys = len(all_xws) * len(combos) * (3 + 3 + 2)
-    print(f"[prewarm] ship details bulk: {ok} ok, {fail} fail in {elapsed:.1f}s ({len(all_xws)} ships × 2 DS × 8 keys: info×3 + pilots×3 + lists + squadrons) ✓")
-    _warm_state["ship_details"] = {
-        "ok": ok, "fail": fail, "elapsed_s": round(elapsed, 1),
-        "total_urls": total_keys, "ships": len(all_xws), "workers": 1,
-        "mode": "bulk",
-        "at": datetime.now(timezone.utc).isoformat(),
-    }
 
 
 def _probe_warm_endpoints(base: str, endpoints: list[str]) -> None:
-    """Sequentially GET each endpoint; logs timing or failure and records warm state."""
+    """Sequentially GET each endpoint; logs timing or failure."""
     import urllib.request
     import json
-    from datetime import datetime, timezone
 
-    t0_all = time.time()
-    ok = 0
-    fail = 0
-    items: list[dict] = []
     for path in endpoints:
         name = path.split("?")[0].split("/")[-1] or "root"
         try:
@@ -368,18 +152,8 @@ def _probe_warm_endpoints(base: str, endpoints: list[str]) -> None:
             count = data.get("total", len(data.get("items", [])))
             elapsed = time.time() - t0
             print(f"[prewarm] {name}: {count} items in {elapsed:.1f}s ✓")
-            ok += 1
-            items.append({"path": path, "count": count, "elapsed_s": round(elapsed, 2)})
         except Exception as e:
             print(f"[prewarm] {name}: FAILED ({e})")
-            fail += 1
-            items.append({"path": path, "error": str(e)})
-    elapsed_all = time.time() - t0_all
-    _warm_state["endpoints"] = {
-        "ok": ok, "fail": fail, "elapsed_s": round(elapsed_all, 1),
-        "total": len(endpoints), "items": items,
-        "at": datetime.now(timezone.utc).isoformat(),
-    }
 
 
 def _prewarm_cache():
@@ -388,29 +162,15 @@ def _prewarm_cache():
     Runs in a daemon thread so startup returns immediately. Uses internal
     HTTP requests (no external port needed) via the same uvicorn worker.
     Also eagerly builds the card-detail snapshots (xwa + legacy) so detail pages
-    are warm on first visit, and all ship detail pages (xwa/legacy).
+    are warm on first visit.
     """
     import threading
 
     def _run():
-        import datetime as _dt
-        t0 = time.time()
         time.sleep(1.5)  # wait for uvicorn to finish binding
         _warm_detail_snapshots()
         _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
-        _warm_ship_details()
-        elapsed = time.time() - t0
-        now = _dt.datetime.now(_dt.timezone.utc).isoformat()
-        _warm_state["last_warm_at"] = now
-        _warm_state["last_warm_duration_s"] = round(elapsed, 1)
-        _record_warm_history({
-            "at": now, "elapsed_s": round(elapsed, 1),
-            "endpoints": dict(_warm_state["endpoints"]),
-            "ship_details": dict(_warm_state["ship_details"]),
-            "detail_snapshots": dict(_warm_state["detail_snapshots"]),
-            "trigger": "startup",
-        })
-        print(f"[prewarm] done in {elapsed:.1f}s")
+        print("[prewarm] done")
 
     thread = threading.Thread(target=_run, daemon=True, name="cache-prewarm")
     thread.start()
@@ -436,7 +196,6 @@ def _start_cache_auto_rewarm():
 
     def _loop():
         from backend.cache import get_db_version  # local import avoids cycle; available after engine init
-        import datetime as _dt
 
         # Seed last_seen so we don't rewarm immediately on startup (startup
         # already did _prewarm_cache). Wait one poll so data_version is readable.
@@ -450,22 +209,9 @@ def _start_cache_auto_rewarm():
                     print(f"[auto-rewarm] data_version {last_seen} -> {cur}, rewarming cache…")
                     if debounce_s > 0:
                         time.sleep(debounce_s)
-                    t0 = time.time()
                     _warm_detail_snapshots()
                     _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
-                    _warm_ship_details()
-                    elapsed = time.time() - t0
-                    now = _dt.datetime.now(_dt.timezone.utc).isoformat()
-                    _warm_state["last_warm_at"] = now
-                    _warm_state["last_warm_duration_s"] = round(elapsed, 1)
-                    _record_warm_history({
-                        "at": now, "elapsed_s": round(elapsed, 1),
-                        "endpoints": dict(_warm_state["endpoints"]),
-                        "ship_details": dict(_warm_state["ship_details"]),
-                        "detail_snapshots": dict(_warm_state["detail_snapshots"]),
-                        "trigger": f"auto-rewarm {last_seen}->{cur}",
-                    })
-                    print(f"[auto-rewarm] done in {elapsed:.1f}s")
+                    print("[auto-rewarm] done")
                     last_seen = cur
                 elif cur is not None:
                     last_seen = cur
@@ -477,27 +223,6 @@ def _start_cache_auto_rewarm():
     thread.start()
 
 
-@app.get("/api/cache/stats")
-def cache_stats_endpoint():
-    """Live cache inspection: entries, warm history, timings, memory estimate.
-
-    No auth — read-only. Use to verify that all caches are loaded in prod/preview:
-      curl https://162.dev.m3tacron.com/api/cache/stats | jq
-    """
-    from .cache import cache_stats as _cache_stats
-    cs = _cache_stats()
-    # _warm_state is populated by _prewarm_cache / _start_cache_auto_rewarm
-    return {
-        "cache": cs,
-        "warm": dict(_warm_state),
-        "config": {
-            "warm_endpoints": len(_warm_endpoint_list()),
-            "ship_detail_total_urls": 1472,  # 92 ships × 2 DS × 8 keys: info×3 + pilots×3 + lists + squadrons (epic always on)
-            "max_cache_entries": 1000,
-        },
-    }
-
-
 @app.get("/")
 def read_root():
     return {"status": "Backend is running"}
@@ -506,19 +231,22 @@ def read_root():
 @app.get("/api/meta-snapshot", response_model=MetaSnapshotResponse)
 def get_snapshot(
     data_source: str = Query("xwa", description="Data source: xwa or legacy"),
+    epic: bool = Query(False, description="Include epic content"),
 ):
     ds_enum = DataSource.XWA if data_source == "xwa" else DataSource.LEGACY
     def compute():
-        # Source -> formats mapping. Epic content is always included.
+        # Source -> formats mapping. Must stay in sync with frontend's
+        # filters.svelte / +page.svelte formatsForSource.
         if ds_enum == DataSource.XWA:
-            allowed_formats = ["xwa", "amg"]
+            allowed_formats = ["xwa", "amg"] if epic else ["xwa"]
         else:
-            allowed_formats = ["legacy_x2po", "legacy_xlc", "legacy_pandorum"]
+            allowed_formats = ["legacy_x2po", "legacy_xlc", "legacy_pandorum"] if epic else ["legacy_x2po", "legacy_xlc", "legacy_pandorum"]
 
-        # Runs the 5 aggregations + 2 count queries. Cached by data_source
-        # (epic always on) so the dashboard only pays the cost once per data_version.
+        # Runs the 5 aggregations + 2 count queries. Cached by (data_source, epic),
+        # so the dashboard (which hits this on every load / filter toggle)
+        # only pays the cost once per data_version.
         from .api.formatters import enrich_list_data
-        snapshot = get_meta_snapshot(ds_enum, allowed_formats=allowed_formats, include_epic=True)
+        snapshot = get_meta_snapshot(ds_enum, allowed_formats=allowed_formats, include_epic=epic)
 
         # Enrich list data with pilot/ship metadata (names, ship icons,
         # pack captions, upgrade names) before serving to the dashboard.
@@ -527,6 +255,8 @@ def get_snapshot(
 
         total_tournaments = 0
         total_players = 0
+        total_lists = 0
+        total_games = 0
 
         try:
             with Session(engine) as session:
@@ -548,6 +278,25 @@ def get_snapshot(
                 )
                 res_players = session.exec(total_players_query).one_or_none()
                 total_players = res_players if res_players else 0
+
+                total_lists_query = (
+                    select(func.count(List.id))
+                    .join(PlayerStanding, PlayerStanding.list_id == List.id)
+                    .join(Tournament, PlayerStanding.tournament_id == Tournament.id)
+                    .where(Tournament.date >= start_date)
+                    .where(Tournament.format.in_(allowed_formats))
+                )
+                res_lists = session.exec(total_lists_query).one_or_none()
+                total_lists = res_lists if res_lists else 0
+
+                total_games_query = (
+                    select(func.count(Match.id))
+                    .join(Tournament, Match.tournament_id == Tournament.id)
+                    .where(Tournament.date >= start_date)
+                    .where(Tournament.format.in_(allowed_formats))
+                )
+                res_games = session.exec(total_games_query).one_or_none()
+                total_games = res_games if res_games else 0
         except Exception as e:
             # Fallback to 0 if database fails or is empty initially
             print(f"Error reading DB: {e}")
@@ -562,7 +311,9 @@ def get_snapshot(
             "date_range": snapshot.get("date_range", "Unknown"),
             "total_tournaments": total_tournaments,
             "total_players": total_players,
+            "total_lists": total_lists,
+            "total_games": total_games,
         }
 
-    cached = get_cached_or_compute(f"meta_snapshot|{ds_enum.value}|True", compute)
+    cached = get_cached_or_compute(f"meta_snapshot|{ds_enum.value}|{epic}", compute)
     return MetaSnapshotResponse(**cached)

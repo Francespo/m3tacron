@@ -245,7 +245,7 @@ def get_upgrade_chart(
     def _compute():
         filters = {
             "allowed_formats": formats,
-            "include_epic": True,
+            "include_epic": False,
         }
         chart_data = get_card_usage_history(
             filters,

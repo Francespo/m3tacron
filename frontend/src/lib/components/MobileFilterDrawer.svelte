@@ -12,20 +12,31 @@
 	import { page } from "$app/state";
 	import { filters } from "$lib/stores/filters.svelte";
 	import TournamentFilters from "./TournamentFilters.svelte";
+	import FilterSection from "./FilterSection.svelte";
+	import { slugify } from "$lib/stores/filterSections.svelte";
 
 	type Props = {
 		open: boolean;
 		onClose: () => void;
 		title?: string;
 		activeCount?: number;
-		children: Snippet;
+		// Two-section structure: the data filter section on top (same
+		// defaults + ids as the desktop FilterPanel so the persisted
+		// collapse preference is shared), then the page-specific section.
+		dataFilterTitle?: string;
+		dataFilterDescription?: string;
+		pageFilterTitle?: string;
+		children?: Snippet;
 		footer?: Snippet;
 	};
 	let {
 		open,
 		onClose,
-		title = "Filters",
+		title = "Dataset filters",
 		activeCount = 0,
+		dataFilterTitle = "Dataset filter",
+		dataFilterDescription = "Tournament filters are applied to the page's input data. The page-specific filters and the tournament filters are complementary — for example, if you filter for tournaments on a list page, only data from tournaments that match your filter is shown.",
+		pageFilterTitle,
 		children,
 		footer,
 	}: Props = $props();
@@ -139,11 +150,17 @@
 			</h2>
 			{#if activeCount > 0}
 				<span
-					class="shrink-0 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-[10px] font-mono font-bold bg-primary text-terminal-bg"
+					class="shrink-0 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-[10px] font-mono font-bold bg-white text-black"
 					aria-label="{activeCount} active filters"
 				>
 					{activeCount}
 				</span>
+			{/if}
+			{#if dataFilterDescription}
+				<button type="button" class="group relative inline-flex items-center justify-center w-5 h-5 rounded-full text-secondary hover:text-primary focus:outline-none focus:ring-1 focus:ring-primary shrink-0" aria-label="About dataset filters">
+					<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+					<div class="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-72 max-w-[min(20rem,calc(100vw-2rem))] p-2.5 bg-terminal-panel border border-border-dark rounded-md text-[11px] font-mono leading-snug text-secondary opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-opacity z-50 pointer-events-none shadow-lg">{dataFilterDescription}</div>
+				</button>
 			{/if}
 		</div>
 		<button
@@ -171,23 +188,47 @@
 		</button>
 	</header>
 
-	<!-- Body: TournamentFilters is rendered in a non-scrolling wrapper so
-	     its info tooltip (absolutely positioned, extends below the icon)
-	     is never clipped by overflow. The page-specific children snippet
-	     sits in its own scrollable area below. Bottom safe-area padding
-	     on the scroll area keeps the iOS home indicator from covering
-	     the last control. -->
-	<div class="relative z-50 p-4 pb-0 min-w-0">
-		<TournamentFilters />
-	</div>
-	{#if children}
-		<div
-			class="flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
-		>
-			<div class="h-px bg-border-dark my-4"></div>
-			{@render children()}
+	<!-- Body: single scroll region for the whole sheet. Previously
+	     the Data filter lived outside scroll (non-scrolling wrapper) and
+	     only the page section scrolled — two scrollbars, jumpy gutter,
+	     and the data section resized when the scrollbar appeared. Now
+	     the entire body is one scroll with [scrollbar-gutter:stable] so
+	     the gutter is reserved even when there is no overflow (no
+	     resize), matching CardFilters. Section ids still match
+	     FilterPanel so collapsed preference stays shared. -->
+	<div
+		class="flex-1 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable] px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+	>
+		{#if filters.activeChips.some((chip) => chip.key.startsWith("format:") || chip.key.startsWith("continent:") || chip.key.startsWith("country:") || chip.key.startsWith("city:") || chip.key.startsWith("source:") || chip.key === "dateStart" || chip.key === "dateEnd")}
+			<div class="mb-3 flex flex-wrap gap-1.5 items-center">
+				<span class="text-[10px] font-mono tracking-widest uppercase text-secondary shrink-0">Active dataset</span>
+				{#each filters.activeChips.filter((chip) => chip.key.startsWith("format:") || chip.key.startsWith("continent:") || chip.key.startsWith("country:") || chip.key.startsWith("city:") || chip.key.startsWith("source:") || chip.key === "dateStart" || chip.key === "dateEnd") as chip}
+					<span class="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-white/10 border border-white/10 text-[11px] font-mono text-primary">
+						<span class="truncate max-w-[12rem]">{chip.label}</span>
+						<button type="button" onclick={() => filters.removeChip(chip.key)} aria-label={`Remove ${chip.label}`} class="ml-0.5 w-4 h-4 rounded-full hover:bg-white/10 inline-flex items-center justify-center shrink-0">
+							<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+						</button>
+					</span>
+				{/each}
+				<button type="button" onclick={() => { for (const chip of filters.activeChips.filter((c) => c.key.startsWith("format:") || c.key.startsWith("continent:") || c.key.startsWith("country:") || c.key.startsWith("city:") || c.key.startsWith("source:") || c.key === "dateStart" || c.key === "dateEnd")) filters.removeChip(chip.key); }} class="text-[11px] font-mono underline text-secondary hover:text-primary">Clear dataset</button>
+			</div>
+		{/if}
+		<!-- Dataset filters — flat, not collapsible, single column in the drawer.
+		     Force TournamentFilters' inner grid to a single column so it
+		     doesn't stay cramped at lg/2xl breakpoints inside the 380px drawer. -->
+		<div class="min-w-0 space-y-4 dataset-drawer-singlecol">
+			<TournamentFilters />
 		</div>
-	{/if}
+		{#if pageFilterTitle && children}
+		<div class="h-0.5 bg-border-dark mt-3 mb-4 shrink-0"></div>
+			<FilterSection
+				id={'page:' + slugify(pageFilterTitle)}
+				label={pageFilterTitle}
+			>
+				{@render children()}
+			</FilterSection>
+		{/if}
+	</div>
 
 	<!-- Footer: custom snippet wins; otherwise render default Reset + Apply. -->
 	{#if footer}
@@ -213,3 +254,15 @@
 		</footer>
 	{/if}
 </div>
+
+<style>
+    /* Inside the drawer, force TournamentFilters' inner grid to a single
+       column — the drawer is only 380px, so lg/2xl 2-3 cols would cramp
+       every filter. Search Name (outside the grid) stays full-width. */
+    :global(.dataset-drawer-singlecol .tournament-main-grid) {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+    :global(.dataset-drawer-singlecol .tournament-main-grid > *) {
+        grid-column: auto !important;
+    }
+</style>

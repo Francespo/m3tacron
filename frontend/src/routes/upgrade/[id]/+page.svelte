@@ -9,25 +9,37 @@
     import SortBy from "$lib/components/SortBy.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
     import StatIcon from "$lib/components/StatIcon.svelte";
+    import LocalFilterBar from "$lib/components/LocalFilterBar.svelte";
+    import DebouncedTextInput from "$lib/components/DebouncedTextInput.svelte";
+    import { page as pageState } from "$app/state";
 
     let { data }: { data: any } = $props();
 
-    function getDefaultFormats(ds: "xwa" | "legacy"): string[] {
-        if (ds === "xwa") return ["xwa"];
-        return ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum"];
+    function getDefaultFormats(ds: "xwa" | "legacy", includeEpic: boolean): string[] {
+        if (ds === "xwa") return includeEpic ? ["xwa", "xwa_epic"] : ["xwa"];
+        return includeEpic
+            ? ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum", "legacy_epic"]
+            : ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum"];
     }
 
     let initialized = $state(false);
     $effect(() => {
         if (initialized) return;
         if (data.ds === "legacy" || data.ds === "xwa") filters.dataSource = data.ds;
+        if (data.hasEpicParam) filters.includeEpic = !!data.includeEpic;
         initialized = true;
     });
     $effect(() => {
         if (!initialized) return;
+        const keep = browser ? new URLSearchParams(window.location.search) : new URLSearchParams();
         const params = new URLSearchParams();
         params.set("data_source", filters.dataSource);
-        for (const f of getDefaultFormats(filters.dataSource)) params.append("formats", f);
+        if (filters.includeEpic) params.set("epic", "true");
+        for (const f of getDefaultFormats(filters.dataSource, filters.includeEpic)) params.append("formats", f);
+        for (const k of ["style", "upilot_search", "uship_search"]) {
+            const v = keep.get(k);
+            if (v !== null && v !== "") params.set(k, v);
+        }
         goto(`?${params.toString()}`, { keepFocus: true, noScroll: true, replaceState: true });
     });
 
@@ -79,10 +91,12 @@
         if (key === "games") return Math.max(0, Number(row.games ?? row.games_count ?? 0));
         return Math.max(0, Number(row.list_count ?? row.lists ?? 0));
     }
+    let filteredPilotsSource = $derived(pilots as any[]);
+    let filteredShipsSource = $derived(ships as any[]);
 
     let sortedPilots = $derived.by(() => {
         const dir = pilotSortDir === "asc" ? 1 : -1;
-        return [...pilots].sort((a: any, b: any) => {
+        return [...filteredPilotsSource].sort((a: any, b: any) => {
             const d = sortValue(a, pilotSortKey) - sortValue(b, pilotSortKey);
             if (d !== 0) return d * dir;
             return (b.list_count ?? 0) - (a.list_count ?? 0);
@@ -91,7 +105,7 @@
 
     let sortedShips = $derived.by(() => {
         const dir = shipSortDir === "asc" ? 1 : -1;
-        return [...ships].sort((a: any, b: any) => {
+        return [...filteredShipsSource].sort((a: any, b: any) => {
             const d = sortValue(a, shipSortKey) - sortValue(b, shipSortKey);
             if (d !== 0) return d * dir;
             return (b.list_count ?? 0) - (a.list_count ?? 0);

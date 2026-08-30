@@ -21,13 +21,18 @@ def _build_cache_key(
     data_source: str,
     formats, factions, ships, platforms, continent, country, city,
     date_start, date_end, player_count_min, player_count_max,
-    min_games, points_min, points_max,
+    min_games, points_min, points_max, epic: bool = False,
+    pilots=None, pilot_mode: str = "any", ship_mode: str = "all",
+    lists_min=None, lists_max=None, entries_min=None, entries_max=None,
+    games_min=None, games_max=None, win_rate_min=None, win_rate_max=None,
 ) -> str:
     return (
         f"lists|{data_source}|"
         f"f={','.join(sorted(formats or []))}|"
         f"fa={','.join(sorted(factions or []))}|"
         f"s={','.join(sorted(ships or []))}|"
+        f"sm={ship_mode}|"
+        f"pil={','.join(sorted(pilots or []))}|pm={pilot_mode}|"
         f"p={','.join(sorted(platforms or []))}|"
         f"co={','.join(sorted(continent or []))}|"
         f"cn={','.join(sorted(country or []))}|"
@@ -35,7 +40,53 @@ def _build_cache_key(
         f"ds={date_start}|de={date_end}|"
         f"pcmin={player_count_min}|pcmax={player_count_max}|"
         f"mg={min_games}|pmin={points_min}|pmax={points_max}|"
+        f"lmin={lists_min}|lmax={lists_max}|emin={entries_min}|emax={entries_max}|"
+        f"gmin={games_min}|gmax={games_max}|wrmin={win_rate_min}|wrmax={win_rate_max}|"
+        f"epic={epic}"
     )
+
+
+def _apply_stat_ranges(rows: list[dict], filters: dict) -> list[dict]:
+    """Post-aggregation filter on stat ranges (AND between different stats)."""
+    def _num(v):
+        try:
+            return float(v)
+        except Exception:
+            return None
+    lists_min = _num(filters.get("lists_min"))
+    lists_max = _num(filters.get("lists_max"))
+    entries_min = _num(filters.get("entries_min"))
+    entries_max = _num(filters.get("entries_max"))
+    games_min = _num(filters.get("games_min"))
+    games_max = _num(filters.get("games_max"))
+    wr_min = _num(filters.get("win_rate_min"))
+    wr_max = _num(filters.get("win_rate_max"))
+    if all(x is None for x in [lists_min, lists_max, entries_min, entries_max, games_min, games_max, wr_min, wr_max]):
+        return rows
+    out = []
+    for r in rows:
+        lists_v = float(r.get("count", r.get("different_lists_count", 0)) or 0)
+        entries_v = float(r.get("entries", r.get("count", 0)) or 0)
+        games_v = float(r.get("games", 0) or 0)
+        wr_v = float(r.get("win_rate", 0) or 0)
+        if lists_min is not None and lists_v < lists_min:
+            continue
+        if lists_max is not None and lists_v > lists_max:
+            continue
+        if entries_min is not None and entries_v < entries_min:
+            continue
+        if entries_max is not None and entries_v > entries_max:
+            continue
+        if games_min is not None and games_v < games_min:
+            continue
+        if games_max is not None and games_v > games_max:
+            continue
+        if wr_min is not None and wr_v < wr_min:
+            continue
+        if wr_max is not None and wr_v > wr_max:
+            continue
+        out.append(r)
+    return out
 
 
 def _compute_lists(
@@ -115,10 +166,14 @@ def get_lists(
     data_source: str = Query("xwa"),
     sort_metric: str = Query("Games"),
     sort_direction: str = Query("desc"),
+    epic: bool = Query(False),
 
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
     ships: list[str] | None = Query(None),
+    ship_mode: str = Query("all"),
+    pilots: list[str] | None = Query(None),
+    pilot_mode: str = Query("any"),
     min_games: int = Query(0, ge=0),
     points_min: int = Query(0, ge=0),
     points_max: int = Query(200, ge=0),
@@ -130,7 +185,21 @@ def get_lists(
     date_end: str | None = Query(None),
     player_count_min: int | None = Query(None),
     player_count_max: int | None = Query(None),
+    lists_min: str | None = Query(None),
+    lists_max: str | None = Query(None),
+    entries_min: str | None = Query(None),
+    entries_max: str | None = Query(None),
+    games_min: str | None = Query(None),
+    games_max: str | None = Query(None),
+    win_rate_min: str | None = Query(None),
+    win_rate_max: str | None = Query(None),
 ):
+    # pilots + mode + stat ranges are post-aggregation but part of cache key
+    # ship_mode controls whether the SQL ships filter is ANY vs ALL
+    if ship_mode not in ("any", "all"):
+        ship_mode = "all"
+    if pilot_mode not in ("any", "all"):
+        pilot_mode = "any"
     filters = {
         "platforms": platforms,
         "continent": continent,
@@ -141,9 +210,19 @@ def get_lists(
         "player_count_min": player_count_min,
         "player_count_max": player_count_max,
         "ships": ships,
+        "ship_mode": ship_mode,
         "factions": factions,
-        "epic": True,
-        "include_epic": True,
+        "pilots": pilots,
+        "pilot_mode": pilot_mode,
+        "epic": epic,
+        "lists_min": lists_min,
+        "lists_max": lists_max,
+        "entries_min": entries_min,
+        "entries_max": entries_max,
+        "games_min": games_min,
+        "games_max": games_max,
+        "win_rate_min": win_rate_min,
+        "win_rate_max": win_rate_max,
     }
     if formats:
         filters["allowed_formats"] = formats
@@ -151,7 +230,10 @@ def get_lists(
     cache_key = _build_cache_key(
         data_source, formats, factions, ships, platforms, continent, country, city,
         date_start, date_end, player_count_min, player_count_max,
-        min_games, points_min, points_max,
+        min_games, points_min, points_max, epic=epic,
+        pilots=pilots, pilot_mode=pilot_mode, ship_mode=ship_mode,
+        lists_min=lists_min, lists_max=lists_max, entries_min=entries_min, entries_max=entries_max,
+        games_min=games_min, games_max=games_max, win_rate_min=win_rate_min, win_rate_max=win_rate_max,
     )
 
     def compute():
@@ -161,6 +243,29 @@ def get_lists(
         )
 
     filtered_data = get_cached_or_compute(cache_key, compute)
+    # Apply pilot + stat-range post-filters (AND between types, Any/All within pilots)
+    # Pilots need list_json; filter after cache but before sort/paginate.
+    if pilots:
+        # Lazy pilot check: need to load pilots for all rows to decide, but cached rows lack pilots.
+        # Fetch signatures map and filter.
+        sigs = [r.get("signature") for r in filtered_data if r.get("signature")]
+        pilots_map_all = fetch_list_pilots(sigs) if sigs else {}
+        want = set(pilots)
+        mode_all = pilot_mode == "all"
+        kept = []
+        for r in filtered_data:
+            sig = r.get("signature")
+            plist = pilots_map_all.get(sig, [])
+            ids = {str(p.get("id", p.get("xws", ""))) for p in plist}
+            # also consider raw pilot ids stored as xws strings; pilots param is xws
+            if mode_all:
+                if want.issubset(ids):
+                    kept.append(r)
+            else:
+                if want & ids:
+                    kept.append(r)
+        filtered_data = kept
+    filtered_data = _apply_stat_ranges(filtered_data, filters)
     # Sort AFTER the cache lookup — the heavy aggregation is sort-independent.
     filtered_data = _sort_list_stats(filtered_data, sort_metric, sort_direction)
     total = len(filtered_data)

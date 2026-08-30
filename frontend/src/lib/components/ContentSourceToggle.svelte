@@ -1,6 +1,7 @@
 <script lang="ts">
     import { filters } from '$lib/stores/filters.svelte';
     import { setDataSource } from '$lib/sync/contentSource';
+    let { compact = false }: { compact?: boolean } = $props();
 </script>
 
 <!--
@@ -25,56 +26,21 @@
         native input.
 -->
 <div
-    class="inline-flex items-stretch bg-terminal-panel border border-border-dark rounded-md overflow-hidden font-mono select-none"
+    class="inline-flex items-stretch bg-terminal-panel border border-border-dark rounded-md overflow-hidden font-mono select-none {compact ? 'text-[11px]' : ''}"
     role="group"
     aria-label="Content source"
 >
-    <!-- Section label: terminal-style bracketed header, sits in its own column
-         with a subtle bg to visually separate it from the toggleable items. -->
-    <div
-        class="flex items-center px-2 py-1 text-[10px] uppercase tracking-wider text-secondary border-r border-border-dark bg-[#ffffff03]"
-    >
-        [Source]
-    </div>
+    {#if !compact}
+    <div class="hidden sm:flex items-center px-2 py-1 text-[10px] uppercase tracking-wider text-secondary border-r border-border-dark bg-[#ffffff03]">[Source]</div>
+    {/if}
 
-    <!-- XWA -->
-    <button
-        type="button"
-        onclick={() => setDataSource('xwa')}
-        aria-pressed={filters.dataSource === 'xwa'}
-        class="flex items-center gap-1.5 px-2.5 py-1 text-xs transition-colors border-r border-border-dark cursor-pointer select-none
-            {filters.dataSource === 'xwa'
-                ? 'bg-amber-500/15 text-amber-400 active:bg-amber-500/25'
-                : 'text-secondary hover:text-primary hover:bg-[#ffffff08] active:bg-[#ffffff14]'}"
-    >
-        <span
-            class="inline-block w-1.5 h-1.5 rounded-full transition-all
-                {filters.dataSource === 'xwa'
-                    ? 'bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.7)]'
-                    : 'bg-transparent border border-border-dark'}"
-            aria-hidden="true"
-        ></span>
+    <button type="button" onclick={() => setDataSource('xwa')} aria-pressed={filters.dataSource === 'xwa'} class="flex items-center gap-1.5 {compact ? 'px-2 py-1 text-[11px]' : 'px-2.5 py-1 text-xs'} transition-colors border-r border-border-dark cursor-pointer select-none {filters.dataSource === 'xwa' ? 'bg-amber-500/15 text-amber-400 active:bg-amber-500/25' : 'text-secondary hover:text-primary hover:bg-[#ffffff08] active:bg-[#ffffff14]'}">
+        <span class="inline-block w-1.5 h-1.5 rounded-full transition-all {filters.dataSource === 'xwa' ? 'bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.7)]' : 'bg-transparent border border-border-dark'}" aria-hidden="true"></span>
         XWA
     </button>
-
-    <!-- Legacy -->
-    <button
-        type="button"
-        onclick={() => setDataSource('legacy')}
-        aria-pressed={filters.dataSource === 'legacy'}
-        class="flex items-center gap-1.5 px-2.5 py-1 text-xs transition-colors border-r border-border-dark cursor-pointer select-none
-            {filters.dataSource === 'legacy'
-                ? 'bg-violet-500/15 text-violet-400 active:bg-violet-500/25'
-                : 'text-secondary hover:text-primary hover:bg-[#ffffff08] active:bg-[#ffffff14]'}"
-    >
-        <span
-            class="inline-block w-1.5 h-1.5 rounded-full transition-all
-                {filters.dataSource === 'legacy'
-                    ? 'bg-violet-400 shadow-[0_0_6px_rgba(139,92,246,0.7)]'
-                    : 'bg-transparent border border-border-dark'}"
-            aria-hidden="true"
-        ></span>
-        LGCY
+    <button type="button" onclick={() => setDataSource('legacy')} aria-pressed={filters.dataSource === 'legacy'} class="flex items-center gap-1.5 {compact ? 'px-2 py-1 text-[11px]' : 'px-2.5 py-1 text-xs'} transition-colors cursor-pointer select-none {filters.dataSource === 'legacy' ? 'bg-violet-500/15 text-violet-400 active:bg-violet-500/25' : 'text-secondary hover:text-primary hover:bg-[#ffffff08] active:bg-[#ffffff14]'}">
+        <span class="inline-block w-1.5 h-1.5 rounded-full transition-all {filters.dataSource === 'legacy' ? 'bg-violet-400 shadow-[0_0_6px_rgba(139,92,246,0.7)]' : 'bg-transparent border border-border-dark'}" aria-hidden="true"></span>
+        {compact ? 'LGCY' : 'LGCY'}
     </button>
 
 </div>

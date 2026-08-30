@@ -10,6 +10,8 @@
     import CardHoverLink from "$lib/components/CardHoverLink.svelte";
     import SortBy from "$lib/components/SortBy.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
+    import StatIcon from "$lib/components/StatIcon.svelte";
+    import ListRowCard from "$lib/components/ListRowCard.svelte";
     import type { PageData } from "./$types";
 
     let { data }: { data: PageData } = $props();
@@ -17,6 +19,8 @@
     let stats = $derived(data.stats);
     let pilots = $derived(data.pilots);
     let lists = $derived(data.lists);
+
+    let isXwa = $derived(filters.dataSource === "xwa");
 
     // ------------------------------------------------------------------------
     // Top Performing Lists — client-side sort
@@ -66,9 +70,9 @@
     // five visible columns: pilot name, cost, initiative, games, and
     // computed win rate. The percent-of-squadron column is derived
     // from games and would be redundant as its own sort key.
-    type PilotSortKey = "name" | "cost" | "initiative" | "games" | "winrate";
+    type PilotSortKey = "name" | "cost" | "games" | "winrate" | "percent";
 
-    let pilotSortKey = $state<PilotSortKey>("games");
+    let pilotSortKey = $state<PilotSortKey>("percent");
     let pilotSortDir = $state<"asc" | "desc">("desc");
 
     function pilotSortValue(p: any): number | string {
@@ -79,12 +83,15 @@
                     pData?.name || p.name || p.pilot_xws || ""
                 ).toLowerCase();
             }
-            case "cost":
-                return typeof p.cost === "number" ? p.cost : 0;
-            case "initiative":
-                return typeof p.initiative === "number" ? p.initiative : -1;
+            case "cost": {
+                const md = xwingData.getPilot(p.pilot_xws) as any;
+                const c = md?.cost ?? p.cost;
+                return typeof c === "number" ? c : 0;
+            }
             case "games":
                 return Math.max(0, p.games ?? 0);
+            case "percent":
+                return Math.max(0, Number(p.percent_of_squadron ?? 0));
             case "winrate": {
                 if (typeof p.win_rate === "number") return p.win_rate;
                 const games = Math.max(0, p.games ?? 0);
@@ -292,8 +299,8 @@
             </div>
         </div>
 
-        <!-- Pilot Breakdown -->
-        <div class="flex items-center justify-between gap-3 mt-12 mb-4">
+        <!-- Pilot Composition — B2 final (2 col, large PNG). % is default sort, инициатива removed -->
+        <div class="flex flex-wrap items-center gap-2 md:gap-3 mt-12 mb-4">
             <h2
                 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2 flex items-baseline gap-2"
             >
@@ -301,118 +308,78 @@
                 <span class="text-secondary text-base font-normal">({pilots.length})</span>
             </h2>
             {#if pilots.length > 0}
-                <SortBy
-                    value={pilotSortKey}
-                    direction={pilotSortDir}
-                    options={[
-                        { value: "name", label: "Name" },
-                        { value: "cost", label: "Cost" },
-                        { value: "initiative", label: "Initiative" },
-                        { value: "games", label: "Games" },
-                        { value: "winrate", label: "Win Rate" }
-                    ]}
-                    onChange={(v, d) => {
-                        pilotSortKey = v as PilotSortKey;
-                        pilotSortDir = d;
-                    }}
-                />
+                <div class="ml-auto">
+                    <SortBy
+                        value={pilotSortKey}
+                        direction={pilotSortDir}
+                        options={[
+                            { value: "percent", label: "% of games" },
+                            { value: "games", label: "Games" },
+                            { value: "winrate", label: "Win Rate" },
+                            { value: "name", label: "Name" },
+                            { value: "cost", label: "Points" }
+                        ]}
+                        onChange={(v, d) => {
+                            pilotSortKey = v as PilotSortKey;
+                            pilotSortDir = d;
+                        }}
+                    />
+                </div>
             {/if}
         </div>
 
         {#if pilots.length > 0}
-            <div
-                class="bg-terminal-panel border border-border-dark rounded-lg overflow-hidden"
-            >
-                <div
-                    class="grid grid-cols-1 sm:grid-cols-[3fr_1fr_1fr_1fr_1.5fr_1fr] md:grid-cols-[4fr_1fr_1fr_1fr_2fr_1fr] gap-4 p-4 border-b border-border-dark bg-terminal-panel text-xs font-mono text-secondary uppercase tracking-wider"
-                >
-                    <div>Pilot</div>
-                    <div class="text-center hidden sm:block">Ship</div>
-                    <div class="text-right hidden sm:block">Cost</div>
-                    <div class="text-right hidden sm:block">Games</div>
-                    <div class="text-center hidden sm:block">% of Squadron</div>
-                    <div class="text-right">Win Rate</div>
-                </div>
-
-                <div class="divide-y divide-border-dark/50">
-                    {#each sortedPilots as p (p.pilot_xws)}
-                        {@const pilotData = xwingData.getPilot(p.pilot_xws)}
-                        <div
-                            class="relative grid grid-cols-1 sm:grid-cols-[3fr_1fr_1fr_1fr_1.5fr_1fr] md:grid-cols-[4fr_1fr_1fr_1fr_2fr_1fr] gap-4 p-4 border-b border-border-dark pb-2 sm:border-none sm:pb-0 hover:bg-terminal-panel transition-colors items-center group"
-                        >
-                            <!-- Stretched link covers the whole row so clicking
-                                 anywhere navigates to the pilot page. -->
-                            <a
-                                href="/pilot/{p.pilot_xws}"
-                                class="absolute inset-0 z-0"
-                                aria-label="View pilot details"
-                            ></a>
-                            <!-- Name + Image -->
-                            <div class="flex items-center gap-3 min-w-0 relative z-10 pointer-events-auto">
-                                {#if pilotData?.image}
-                                    <img
-                                        src={pilotData.image}
-                                        alt={pilotData.name ?? p.pilot_xws}
-                                        class="w-14 h-14 object-contain rounded-md flex-shrink-0 bg-terminal-panel"
-                                        loading="lazy"
-                                    />
-                                {/if}
-                                <CardHoverLink
-                                    xws={p.pilot_xws}
-                                    type="pilot"
-                                    name={pilotDisplayName({ xws: p.pilot_xws, name: p.name })}
-                                    className="font-sans font-bold truncate"
-                                />
+            <!-- B2 final — 2 col, immagini grandi a tutta altezza, % a destra della barra, GAMES/WR in capsula top-right -->
+            <div class="grid gap-4 grid-cols-1 md:grid-cols-2">
+                {#each sortedPilots as p (p.pilot_xws)}
+                    {@const pilotData = xwingData.getPilot(p.pilot_xws) as any}
+                    {@const pts = pilotData?.cost ?? p.cost ?? 0}
+                    {@const loadout = pilotData?.loadout}
+                    {@const hasLoadout = isXwa && loadout !== undefined && loadout !== null}
+                    {@const pct = Math.max(0, Math.min(100, Number(p.percent_of_squadron ?? 0)))}
+                    {@const wr = Math.min(100, Math.max(0, Number(p.win_rate ?? 0)))}
+                    {@const wrC = getWinRateColor(wr)}
+                    {@const isLandscape = !!(pilotData?.image && String(pilotData.image).includes('/quickbuilds/'))}
+                    {@const _isGeneric = (pilotData?.limited ?? 1) === 0}
+                    {@const _gbc = (p as any).games_by_copies as Record<string, number> | undefined}
+                    {@const _tg = Math.max(1, Number(stats?.games ?? 0) || 1)}
+                    <a href="/pilot/{p.pilot_xws}" class="relative bg-terminal-panel border border-border-dark rounded-lg flex items-stretch overflow-hidden hover:border-primary/30 transition-colors group min-h-[144px] p-2 gap-2">
+                        {#if pilotData?.image}
+                            <img src={pilotData.image} alt={pilotData.name ?? p.pilot_xws} class="{isLandscape ? 'w-44 sm:w-52 object-contain object-left' : 'w-24 sm:w-28 object-contain object-center'} self-stretch flex-shrink-0 rounded-md drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]" style="min-height: 100%; background: transparent;" loading="lazy" />
+                        {:else}
+                            <div class="w-24 sm:w-28 self-stretch flex-shrink-0 flex items-center justify-center rounded-md bg-black/20 border border-white/5"><StatIcon type={p.ship_xws} size="2.4rem" color="rgba(255,255,255,0.15)" isShip={true} /></div>
+                        {/if}
+                        <div class="min-w-0 flex-1 flex flex-col py-1 gap-2">
+                            <!-- Capsule top-right come Cards: spostate più a destra per lasciare spazio alle landscape integrali -->
+                            <div class="flex justify-end">
+                                <span class="flex items-center gap-1.5">
+                                    <span class="px-1.5 py-0.5 bg-[#ffffff08] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">GAMES {Math.max(0, p.games ?? 0)}</span>
+                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border" style="background: {wrC}18; color: {wrC}; border-color: {wrC}35;">WR {wr.toFixed(1)}%</span>
+                                </span>
                             </div>
-                            <!-- Ship Icon + Human Name -->
-                            <div
-                                class="text-center opacity-60 hidden sm:flex items-center justify-center gap-2 truncate"
-                            >
-                                <i
-                                    class="xwing-miniatures-ship xwing-miniatures-ship-{p.ship_xws} text-base opacity-70 flex-shrink-0"
-                                ></i>
-                                <span
-                                    class="text-xs font-mono text-primary truncate"
-                                    title={xwingData.getShip(p.ship_xws)?.name || p.name || p.ship_xws}
-                                    >{xwingData.getShip(p.ship_xws)?.name || p.name || p.ship_xws}</span
-                                >
-                            </div>
-                            <!-- Cost -->
-                            <div
-                                class="text-right font-mono text-xs text-green-400 hidden sm:block"
-                            >
-                                {p.cost} PT
-                            </div>
-                            <!-- Games -->
-                            <div
-                                class="text-right font-mono text-xs text-secondary hidden sm:block"
-                            >
-                                {Math.max(0, p.games ?? 0)}
-                            </div>
-                            <!-- Percent Bar -->
-                            <div class="flex items-center gap-2 justify-end hidden sm:flex">
-                                <span class="font-mono text-xs text-secondary"
-                                    >{p.percent_of_squadron.toFixed(1)}%</span
-                                >
-                                <div
-                                    class="w-16 h-1 bg-terminal-panel rounded-full overflow-hidden hidden md:block"
-                                >
-                                    <div
-                                        class="h-full bg-blue-500/50"
-                                        style="width: {p.percent_of_squadron}%"
-                                    ></div>
+                            <div class="min-w-0">
+                                <p class="font-sans font-bold text-primary truncate group-hover:text-accent transition-colors text-[15px] leading-tight" title={pilotDisplayName({ xws: p.pilot_xws, name: p.name })}>{pilotDisplayName({ xws: p.pilot_xws, name: p.name })}</p>
+                                <p class="font-mono text-secondary truncate flex items-center gap-1 text-xs mt-0.5">{#if p.ship_xws}<i class="xwing-miniatures-ship xwing-miniatures-ship-{p.ship_xws}" style="font-size: 1.05rem; opacity: 0.85;"></i>{/if} {xwingData.getShip(p.ship_xws)?.name ?? p.ship_xws}</p>
+                                <div class="flex flex-wrap gap-1.5 mt-2">
+                                    <span class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded text-[11px] font-mono font-bold">PTS {pts}</span>
+                                    {#if hasLoadout}<span class="px-1.5 py-0.5 bg-violet-500/20 text-violet-400 border border-violet-500/30 rounded text-[11px] font-mono font-bold">LV {loadout}</span>{/if}
                                 </div>
                             </div>
-                            <!-- Win Rate -->
-                            <div
-                                class="text-right font-mono text-xs font-bold"
-                                style="color: {getWinRateColor(Math.min(100, Math.max(0, p.win_rate ?? 0)))}"
-                            >
-                                {Math.min(100, Math.max(0, Number(p.win_rate ?? 0))).toFixed(1)}%
+                            <div class="mt-auto flex items-center gap-2 pt-2">
+                                <div class="flex-1 h-2 bg-black/40 rounded-full overflow-hidden border border-white/5 flex" title={_isGeneric && _gbc ? `present in ${Math.max(0, p.games ?? 0)} games of this squadron — single: ${((_gbc["1"]??0)/_tg*100).toFixed(1)}% · double: ${((_gbc["2"]??0)/_tg*100).toFixed(1)}%` : `present in ${Math.max(0, p.games ?? 0)} games of this squadron`}>
+                                    {#if _isGeneric && _gbc && ((_gbc["2"] ?? 0) > 0 || (_gbc["3+"] ?? 0) > 0)}
+                                        <span class="h-full bg-sky-400" style="width: {Math.max(0, Math.min(100, (_gbc["1"] ?? 0)/_tg*100))}%"></span>
+                                        <span class="h-full bg-amber-400" style="width: {Math.max(0, Math.min(100, (_gbc["2"] ?? 0)/_tg*100))}%"></span>
+                                        {#if (_gbc["3+"] ?? 0) > 0}<span class="h-full bg-violet-400" style="width: {Math.max(0, Math.min(100, (_gbc["3+"] ?? 0)/_tg*100))}%"></span>{/if}
+                                    {:else}
+                                        <span class="h-full bg-sky-400 rounded-full" style="width: {pct >= 0.1 ? Math.max(2, Math.min(100, pct)) : 0}%"></span>
+                                    {/if}
+                                </div>
+                                <span class="font-mono text-sm font-bold text-primary tabular-nums shrink-0" title={`present in ${Math.max(0, p.games ?? 0)} games of this squadron`}>{pct.toFixed(1)}% <span class="font-normal text-secondary/80 text-xs">of games</span>{#if _isGeneric && _gbc && ((_gbc["2"] ?? 0) > 0 || (_gbc["3+"] ?? 0) > 0)}<span class="ml-1 inline-flex items-center gap-1 text-[10px] font-normal"><span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-sm bg-sky-400 inline-block"></span>1× {((_gbc["1"]??0)/_tg*100).toFixed(1)}%</span><span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-sm bg-amber-400 inline-block ml-1"></span>2× {((_gbc["2"]??0)/_tg*100).toFixed(1)}%</span>{#if (_gbc["3+"] ?? 0) > 0}<span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-sm bg-violet-400 inline-block ml-1"></span>3+ {((_gbc["3+"]??0)/_tg*100).toFixed(1)}%</span>{/if}</span>{/if}</span>
                             </div>
                         </div>
-                    {/each}
-                </div>
+                    </a>
+                {/each}
             </div>
         {:else}
             <div
@@ -446,150 +413,19 @@
             />
         </div>
 
-        <div
-            class="bg-terminal-panel border border-border-dark rounded-lg p-6"
-        >
-            {#if lists.length > 0}
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {#each sortedLists.slice(0, 12) as list}
-                        {@const factionXws = list.faction_xws || list.faction_key || ""}
-                        {@const safeGames = Math.max(0, list.games ?? 0)}
-                        {@const safeWins = Math.max(0, list.wins ?? 0)}
-                        {@const wr = safeGames > 0
-                            ? (safeWins / safeGames) * 100
-                            : 0}
-                        <div
-                            class="relative bg-terminal-panel border border-border-dark rounded-lg p-4 hover:border-secondary/40 transition-colors flex flex-col gap-3"
-                            style="border-left: 3px solid {getFactionColor(factionXws)};"
-                        >
-                            <!-- Stretched link: clicking anywhere on the card
-                                 (outside a pilot-name link) goes to the list page. -->
-                            <a
-                                href="/list/{encodeURIComponent(list.signature || list.name || '')}"
-                                class="absolute inset-0 z-0"
-                                aria-label="View list details"
-                            ></a>
-                            <!-- Header: name + faction label (left), win rate +
-                                 games · lists (right) — compact dashboard style. -->
-                            <div
-                                class="flex items-start justify-between gap-4 border-b border-border-dark/50 pb-3"
-                            >
-                                <div class="flex items-center gap-2 overflow-hidden min-w-0">
-                                    <FactionIcon
-                                        faction={factionXws}
-                                        size="sm"
-                                        className="flex-shrink-0"
-                                    />
-                                    <div class="flex flex-col min-w-0">
-                                        <h3
-                                            class="font-sans font-bold text-primary text-sm line-clamp-2 leading-tight"
-                                            title={listDisplayName(list)}
-                                        >
-                                            {listDisplayName(list)}
-                                        </h3>
-                                        <span
-                                            class="text-[10px] text-secondary uppercase tracking-tighter opacity-70"
-                                            >{getFactionLabel(factionXws)}</span
-                                        >
-                                    </div>
-                                </div>
-                                <div class="flex flex-col items-end flex-shrink-0">
-                                    <span
-                                        class="text-sm font-mono font-bold"
-                                        style="color: {getWinRateColor(wr)};"
-                                    >
-                                        {wr.toFixed(1)}% WR
-                                    </span>
-                                    <span class="text-[11px] text-secondary"
-                                        >{safeGames} games</span
-                                    >
-                                </div>
-                            </div>
-
-                            <!-- Quick Stats: entries→games→winrate→points -->
-                            <div
-                                class="flex flex-wrap gap-2 border-b border-border-dark/50 pb-3"
-                            >
-                                <span
-                                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
-                                >
-                                    ENTRIES {list.count ?? list.popularity ?? 1}
-                                </span>
-                                <span
-                                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
-                                >
-                                    GAMES {safeGames}
-                                </span>
-                                <span
-                                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold"
-                                    style="color: {getWinRateColor(wr)};"
-                                >
-                                    WR {wr.toFixed(1)}%
-                                </span>
-                                <span
-                                    class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-mono font-bold"
-                                >
-                                    PTS {list.points ?? 0}
-                                </span>
-                            </div>
-
-                            <!-- Pilot summary: one compact row per pilot, with
-                                 upgrades (or the Standard Loadout pack name in
-                                 italics) underneath. -->
-                            <div class="flex flex-col gap-1.5 w-full flex-grow">
-                                {#each list.pilots || [] as pilot}
-                                    {@const pilotData = xwingData.getPilot(
-                                        pilot.xws,
-                                    )}
-                                    {@const pilotShipXws = (pilotData?.ship ||
-                                        pilot.ship_xws ||
-                                        "").replace(/[^a-z0-9]/g, "")}
-                                    <div
-                                        class="flex items-start gap-2 min-w-0 relative z-10 pointer-events-auto"
-                                    >
-                                        <i
-                                            class="xwing-miniatures-ship xwing-miniatures-ship-{pilotShipXws} text-secondary text-sm w-5 text-center flex-shrink-0 mt-0.5"
-                                            aria-hidden="true"
-                                        ></i>
-                                        <div class="min-w-0 flex-1">
-                                            <div class="truncate">
-                                                <CardHoverLink
-                                                    xws={pilot.xws}
-                                                    type="pilot"
-                                                    name={pilotDisplayName(pilot)}
-                                                    className="text-xs font-mono"
-                                                />
-                                            </div>
-                                            {#if (pilot.upgrades || []).length > 0}
-                                                <div
-                                                    class="text-[11px] text-secondary/80 truncate"
-                                                >
-                                                    {(pilot.upgrades || [])
-                                                        .map((u: any) =>
-                                                            upgradeDisplayName(u),
-                                                        )
-                                                        .join(", ")}
-                                                </div>
-                                            {:else if pilotData?.caption}
-                                                <div
-                                                    class="text-[11px] text-secondary/80 italic truncate"
-                                                    >{pilotData.caption}</div
-                                                >
-                                            {/if}
-                                        </div>
-                                    </div>
-                                {/each}
-                            </div>
-                        </div>
-                    {/each}
-                </div>
-            {:else}
-                <div
-                    class="text-center text-sm font-mono text-secondary py-6"
-                >
-                    No list data available for this squadron.
-                </div>
-            {/if}
-        </div>
+        {#if lists.length > 0}
+            <!-- 2 per row on desktop like ship detail on very large monitors — ListRowCard is the shared component -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {#each sortedLists.slice(0, 12) as list (list.signature || list.name)}
+                    <ListRowCard {list} />
+                {/each}
+            </div>
+        {:else}
+            <div
+                class="bg-terminal-panel border border-border-dark rounded-lg py-10 px-6 text-center"
+            >
+                <p class="text-sm font-mono text-secondary">No list data available for this squadron.</p>
+            </div>
+        {/if}
     {/if}
 </div>

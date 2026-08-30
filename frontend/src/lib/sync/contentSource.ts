@@ -25,4 +25,19 @@ export async function setDataSource(value: 'xwa' | 'legacy') {
     });
 }
 
-
+export async function setIncludeEpic(value: boolean) {
+    clearPendingSync();
+    filters.includeEpic = value;
+    const next = new URL(page.url);
+    if (value) {
+        next.searchParams.set('epic', 'true');
+    } else {
+        next.searchParams.delete('epic');
+    }
+    resolvePendingSync();
+    await goto(next.pathname + next.search, {
+        replaceState: true,
+        keepFocus: true,
+        noScroll: true,
+    });
+}

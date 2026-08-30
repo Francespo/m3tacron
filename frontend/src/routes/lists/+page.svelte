@@ -1,34 +1,35 @@
 <script lang="ts">
-    import FilterPanel from "$lib/components/FilterPanel.svelte";
     import MobileFilterDrawer from "$lib/components/MobileFilterDrawer.svelte";
     import MobileFilterTrigger from "$lib/components/MobileFilterTrigger.svelte";
-    import SortBy from "$lib/components/SortBy.svelte";
     import ListRowCard from "$lib/components/ListRowCard.svelte";
+    import LocalFilterBar from "$lib/components/LocalFilterBar.svelte";
+    import FactionFilter from "$lib/components/FactionFilter.svelte";
+    import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
+    import PilotFilter from "$lib/components/PilotFilter.svelte";
+    import StatRangeFilter from "$lib/components/StatRangeFilter.svelte";
     import PendingIndicator from "$lib/components/PendingIndicator.svelte";
+    import ContentLoader from "$lib/components/ContentLoader.svelte";
     import ErrorPanel from "$lib/components/ErrorPanel.svelte";
-    import {
-        ALL_FACTIONS,
-        getFactionLabel,
-    } from "$lib/data/factions";
     import { invalidateAll } from "$app/navigation";
     import { page as currentPage } from "$app/state";
     import { filters } from "$lib/stores/filters.svelte";
     import { scheduleSync } from "$lib/sync/urlSync.svelte";
-    import ShipChassisFilter from "$lib/components/ShipChassisFilter.svelte";
-    import Toggle from "$lib/components/Toggle.svelte";
     import { xwingData } from "$lib/stores/xwingData.svelte";
-    import FactionIcon from "$lib/components/FactionIcon.svelte";
-    import Pagination from "$lib/components/Pagination.svelte";
-    import { untrack } from "svelte";
-
+    
     let { data } = $props();
 
     let filterOpen = $state(false);
     let page = $state(1);
-    let factionOpen = $state(false);
     let minGames = $state(3);
 
     const size = 20;
+    let _localRestored = false;
+    $effect(() => {
+        if (_localRestored) return;
+        const _sp = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+        filters.restoreLocalFilters('lists', _sp);
+        _localRestored = true;
+    });
 
     // The loader streams list rows in via `itemsPromise` (non-blocking
     // navigation). `resolved` keeps the LAST good payload so filter/sort/
@@ -69,23 +70,23 @@
     // are hydrated by the layout via filters.applyFromSearchParams.
     $effect(() => {
         const urlPage = Number(currentPage.url.searchParams.get('page') ?? '0');
-        const desiredPage = urlPage + 1;
-        if (untrack(() => page) !== desiredPage) page = desiredPage;
+        page = urlPage + 1; // URL is 0-indexed, state is 1-indexed
         const urlMinGames = currentPage.url.searchParams.get('min_games');
         if (urlMinGames) minGames = Number(urlMinGames);
     });
 
-    // Re-fetch when local filters change. Read page/minGames inside so the
-    // effect re-runs on pagination; untrack xwingData side-effect.
+    // Re-fetch when local filters change
     $effect(() => {
-        const curPage = page;
-        const curMinGames = minGames;
+        // Ensure data is active
+        xwingData.setSource(filters.dataSource as any);
+
         const params = filters.toSearchParams('lists');
-        params.set('page', String(curPage - 1));
+        params.set('page', String(page - 1));
         params.set('size', String(size));
-        params.set('min_games', String(curMinGames));
-        untrack(() => xwingData.setSource(filters.dataSource as any));
+        params.set('min_games', String(minGames));
         scheduleSync(0, params);
+        // Persist local filters per route (survives navigation, not shared across routes)
+        queueMicrotask(() => filters.saveLocalFilters('lists'));
     });
 
     function prevPage() {
@@ -95,136 +96,37 @@
         if (page * size < total) page++;
     }
 
-    function toggleFaction(f: string) {
-        if (filters.selectedFactions.includes(f)) {
-            filters.selectedFactions = filters.selectedFactions.filter(
-                (x) => x !== f,
-            );
-        } else {
-            filters.selectedFactions = [...filters.selectedFactions, f];
-        }
-    }
-
     // Default sort metric for the lists listing. The layout hydrates
     // `filters.sortBy` from the URL on first client mount, so we only seed a
     // default when the URL didn't supply one.
-    $effect(() => {
-        if (!filters.sortBy) {
-            filters.sortBy = "Games";
-        }
-    });
+    $effect(() => { if (!filters.sortBy) filters.sortBy = "Games"; });
+    function isGlobalChip(k:string){ return k.startsWith("format:")||k.startsWith("continent:")||k.startsWith("country:")||k.startsWith("city:")||k.startsWith("source:")||k==="dateStart"||k==="dateEnd"; }
+    let listLocalChips = $derived(filters.activeChips.filter(c=>!isGlobalChip(c.key)));
+    let datasetActive = $derived(filters.activeChips.filter(c=>isGlobalChip(c.key)).length);
+    let listLocalCount = $derived(listLocalChips.length);
+    function clearListFilters(){ for(const ch of [...listLocalChips]) filters.removeChip(ch.key); }
 </script>
-
-{#snippet filterBody()}
-    <div class="space-y-3">
-        <div class="flex items-center gap-2">
-            <span class="text-xs font-bold tracking-widest text-primary font-mono">
-                LIST FILTERS
-            </span>
-        </div>
-
-        <!-- Sort By was moved to the main content section header
-             (rendered by SortBy) to give the list a single canonical
-             sort control. The old sidebar SortSelector was removed. -->
-
-        <!-- Min Games -->
-        <div class="space-y-1">
-            <span
-                class="text-xs font-mono font-bold tracking-wider text-secondary"
-                >Min Games</span
-            >
-            <input
-                type="number"
-                min="1"
-                class="w-full bg-black border border-border-dark rounded-md px-2 py-1.5 text-xs font-mono text-primary focus:border-primary focus:outline-none"
-                bind:value={minGames}
-            />
-        </div>
-
-        <!-- Faction Checkboxes -->
-        <div class="border-b border-border-dark mt-1">
-            <button
-                class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
-                onclick={() => (factionOpen = !factionOpen)}
-            >
-                <div class="flex items-center gap-2">
-                    <span class="text-xs font-mono font-bold tracking-wider">
-                        Faction
-                    </span>
-                    {#if filters.selectedFactions.length > 0}
-                        <span
-                            class="text-[10px] bg-white/10 text-secondary px-1.5 rounded-full font-mono"
-                        >
-                            {filters.selectedFactions.length}
-                        </span>
-                    {/if}
-                </div>
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="transition-transform {factionOpen
-                        ? 'rotate-180'
-                        : ''}"><path d="m6 9 6 6 6-6" /></svg
-                >
-            </button>
-
-            {#if factionOpen}
-                <div class="pb-3 space-y-1 max-h-[200px] overflow-y-auto pl-2">
-                    {#each ALL_FACTIONS as f}
-                        <label
-                            class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
-                        >
-                            <Toggle
-                                size="xs"
-                                ariaLabel={`Toggle faction ${getFactionLabel(f)}`}
-                                checked={filters.selectedFactions.includes(f)}
-                                onchange={() => toggleFaction(f)}
-                            />
-                            <FactionIcon faction={f} size="sm" />
-                            <span class="font-mono">{getFactionLabel(f)}</span>
-                        </label>
-                    {/each}
-                </div>
-            {/if}
-        </div>
-
-        <ShipChassisFilter selectedFactions={filters.selectedFactions} />
-    </div>
-{/snippet}
 
 <svelte:head>
     <title>Lists | M3taCron</title>
 </svelte:head>
 
 <div class="flex min-h-screen">
-    <FilterPanel>
-        {@render filterBody()}
-    </FilterPanel>
-
-    <MobileFilterTrigger
-        activeCount={filters.activeChips.length}
-        onClick={() => (filterOpen = true)}
-    />
-    <MobileFilterDrawer
-        open={filterOpen}
-        onClose={() => (filterOpen = false)}
-        title="Filters"
-        activeCount={filters.activeChips.length}
-    >
-        {@render filterBody()}
-    </MobileFilterDrawer>
+    <MobileFilterTrigger activeCount={datasetActive} label="Dataset filters" onClick={() => (filterOpen = true)} />
+    <MobileFilterDrawer open={filterOpen} onClose={() => (filterOpen = false)} title="Dataset filters" activeCount={datasetActive} dataFilterTitle="Dataset filters" />
 
     <main class="flex-1 p-6 md:p-8 pb-20 lg:pb-8">
-        <h1 class="text-3xl font-sans font-bold text-primary mb-1">
-            List Browser
-        </h1>
+        <div class="flex flex-wrap items-baseline justify-between gap-3 mb-4">
+            <h1 class="text-3xl font-sans font-bold text-primary leading-none shrink-0">Lists</h1>
+            <div class="flex items-center gap-2 shrink-0 self-center">
+                {#if resolved}<span class="hidden lg:inline text-xs font-mono text-secondary">{(resolved?.total ?? 0)} Lists Found</span><span class="hidden lg:inline w-px h-4 bg-white/10 shrink-0" aria-hidden="true"></span>
+                {#if pending}<span class="hidden lg:inline"><PendingIndicator active mode="tag" label="Updating…" /></span>{/if}{/if}
+                <span class="hidden sm:inline text-xs font-mono text-secondary uppercase tracking-wider">Sort by</span>
+                <select class="bg-terminal-panel border border-border-dark rounded-md text-xs font-mono text-primary px-2 py-1.5 focus:outline-none" value={filters.sortBy || "Games"} onchange={(e)=>{filters.sortBy=(e.target as HTMLSelectElement).value;}} aria-label="Sort by"><option value="Games">Games</option><option value="Win Rate">Win Rate</option><option value="Entries">Entries</option><option value="Points Cost">Points</option></select>
+                <button type="button" onclick={()=>{filters.sortDirection=filters.sortDirection==="asc"?"desc":"asc";}} class="inline-flex items-center justify-center w-7 h-7 bg-terminal-panel border border-border-dark rounded-md text-secondary hover:text-primary hover:bg-[#ffffff05] active:bg-[#ffffff14] transition-colors shrink-0" aria-label={filters.sortDirection==="asc"?"Sort ascending":"Sort descending"}>{#if filters.sortDirection==="asc"}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>{:else}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>{/if}</button>
+            </div>
+        </div>
+        <div class="mb-6"><LocalFilterBar id="lists-local" label="List filters" activeCount={listLocalCount} chips={listLocalChips} onRemoveChip={(k)=>filters.removeChip(k)} onClear={clearListFilters}><div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4 items-start auto-rows-min"><FactionFilter /><StatRangeFilter label="Stat ranges" hideLists /><PilotFilter selectedFactions={filters.selectedFactions} /><ShipChassisFilter selectedFactions={filters.selectedFactions} /></div></LocalFilterBar></div>
 
         {#if !resolved}
             {#if failed}
@@ -235,7 +137,7 @@
                     />
                 </div>
             {:else}
-                <p class="text-secondary font-mono text-sm mb-6">Loading…</p>
+                <ContentLoader label="Loading Lists" />
 
                 <!-- Loading Skeleton (matches ListRowCard shape) -->
                 <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -270,39 +172,7 @@
             {@const resolvedTotal = Number(resolved?.total ?? 0)}
             {@const listItems = resolved?.items ?? []}
 
-            <!-- Stale rows stay visible while a refetch runs: the list
-                 container dims while `pending` and smoothly returns to full
-                 opacity; the neutral inline tag next to the count says the
-                 update is in flight. -->
-            <div
-                class="flex items-center justify-between flex-wrap gap-3 mb-6"
-            >
-                <div class="flex items-center gap-2.5">
-                    <p class="text-secondary font-mono text-sm">
-                        {resolvedTotal} Lists Found
-                    </p>
-                    <PendingIndicator
-                        active={pending}
-                        mode="tag"
-                        label="Updating…"
-                    />
-                </div>
-
-                    <SortBy
-                        value={filters.sortBy || "Games"}
-                        direction={filters.sortDirection}
-                        options={[
-                            { value: "Games", label: "Games" },
-                            { value: "Win Rate", label: "Win Rate" },
-                            { value: "Entries", label: "Entries" },
-                            { value: "Points Cost", label: "Points" },
-                        ]}
-                        onChange={(v, d) => {
-                            filters.sortBy = v;
-                            filters.sortDirection = d;
-                        }}
-                    />
-                </div>
+            <div class="flex items-center gap-2.5 mt-1.5 mb-2 lg:hidden"><p class="text-secondary font-mono text-sm">{(resolved?.total ?? 0)} Lists Found</p><PendingIndicator active={pending} mode="tag" label="Updating…" /></div>
 
                 <!-- Stale rows stay fully visible and clickable, dimmed
                      while the refetch is in flight. -->
@@ -344,7 +214,7 @@
                     </div>
                 {/if}
 
-                <Pagination total={resolvedTotal} {page} {size} onPrev={prevPage} onNext={nextPage} />
+                                <div class="flex items-center justify-center gap-2 mt-6"><button class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed" onclick={prevPage} disabled={page <= 1}>← Prev</button><span class="text-xs font-mono text-secondary">Showing {resolvedTotal===0?0:(page-1)*size+1}–{Math.min(page*size,resolvedTotal)} of {resolvedTotal} · Page {page}/{Math.max(1,Math.ceil(resolvedTotal/size))}</span><button class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed" onclick={nextPage} disabled={page*size>=resolvedTotal}>Next →</button></div>
             </div>
         {/if}
     </main>

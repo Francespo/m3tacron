@@ -56,7 +56,7 @@ from ..database import engine
 from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
 from ..api.formatters import _reformat_pilots
-from .filter_helpers import format_filter_clause, ship_list_filter_clause
+from .filter_helpers import format_filter_clause, ship_list_filter_clause, huge_ships_exclusion_clause, pilot_filter_clause
 
 
 def aggregate_list_stats_for_pilot(
@@ -119,16 +119,20 @@ def aggregate_list_stats_for_pilot(
             where_clauses.append("l.faction_xws_normalized = ANY(:factions)")
             params["factions"] = normalized
 
+    ship_mode = filters.get("ship_mode", "all")
     ship_clause = ship_list_filter_clause(
         filters.get("ship") or filters.get("ships"),
         params,
-        mode="all",
+        mode=ship_mode if ship_mode in ("any","all") else "all",
     )
     if ship_clause:
         where_clauses.append(ship_clause)
 
     where_clauses.append("(NOT t.is_team_event OR ps.is_team_member)")
-    # Epic content is always included — no huge-ship exclusion.
+    if not filters.get("epic", False):
+        huge_clause = huge_ships_exclusion_clause(False, data_source, params)
+        if huge_clause:
+            where_clauses.append(huge_clause)
 
     # Minimal post-SQL text filter handled in Python (name/pilots) below
     text_filter = (search_text or "").strip().lower() or None
@@ -260,16 +264,25 @@ def aggregate_list_stats(
     # selected ship is present in its ship_list. Matches the
     # squadrons page behavior: selecting X-wing + A-wing should
     # return lists that contain BOTH, not the union.
-    ship_clause = ship_list_filter_clause(
+    ship_mode2 = filters.get("ship_mode", "all")
+    ship_clause2 = ship_list_filter_clause(
         filters.get("ship") or filters.get("ships"),
         params,
-        mode="all",
+        mode=ship_mode2 if ship_mode2 in ("any","all") else "all",
     )
-    if ship_clause:
-        where_clauses.append(ship_clause)
+    if ship_clause2:
+        where_clauses.append(ship_clause2)
+    if filters.get("pilots"):
+        pm = filters.get("pilot_mode","any")
+        pc = pilot_filter_clause(filters.get("pilots"), params, mode=pm if pm in ("any","all") else "any")
+        if pc:
+            where_clauses.append(pc)
 
     where_clauses.append("(NOT t.is_team_event OR ps.is_team_member)")
-    # Epic content is always included — no huge-ship exclusion.
+    if not filters.get("epic", False):
+        huge_clause = huge_ships_exclusion_clause(False, data_source, params)
+        if huge_clause:
+            where_clauses.append(huge_clause)
 
     where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 

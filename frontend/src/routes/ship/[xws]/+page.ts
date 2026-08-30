@@ -1,5 +1,7 @@
 import type { PageLoad } from './$types';
 import { API_BASE } from '$lib/api';
+import { browser } from '$app/environment';
+import { filters } from '$lib/stores/filters.svelte';
 
 function buildForwardParams(url: URL): URLSearchParams {
     // Forward every global filter from the URL to the 4 ship detail endpoints.
@@ -10,7 +12,6 @@ function buildForwardParams(url: URL): URLSearchParams {
 
     for (const [k, v] of url.searchParams.entries()) {
         if (SKIP.has(k)) continue;
-        if (k === 'epic') continue;
         out.append(k, v);
     }
 
@@ -19,6 +20,13 @@ function buildForwardParams(url: URL): URLSearchParams {
         const ds = url.searchParams.get('data_source') || 'xwa';
         out.set('data_source', ds);
     }
+
+    // Epic: URL param wins; on client, also honor the shared filter store so
+    // navigating from /ships with the toggle on keeps Huge pilots visible.
+    const includeEpic =
+        url.searchParams.get('epic') === 'true' ||
+        (browser && filters.includeEpic);
+    out.set('epic', String(includeEpic));
 
     return out;
 }

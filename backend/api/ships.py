@@ -72,6 +72,30 @@ def get_all_ships(data_source: str = Query("xwa")):
     return results
 
 
+def _apply_ship_stat_ranges(rows: list[dict], filters: dict) -> list[dict]:
+    def _num(v):
+        try: return float(v)
+        except Exception: return None
+    lmin=_num(filters.get("lists_min")); lmax=_num(filters.get("lists_max"))
+    emin=_num(filters.get("entries_min")); emax=_num(filters.get("entries_max"))
+    gmin=_num(filters.get("games_min")); gmax=_num(filters.get("games_max"))
+    wrmin=_num(filters.get("win_rate_min")); wrmax=_num(filters.get("win_rate_max"))
+    if all(x is None for x in [lmin,lmax,emin,emax,gmin,gmax,wrmin,wrmax]): return rows
+    out=[]
+    for r in rows:
+        lv=float(r.get("list_count",0) or 0); ev=float(r.get("entries_count",0) or 0); gv=float(r.get("games_count",0) or 0); wr=(float(r.get("wins",0))/gv*100) if gv else 0.0
+        if lmin is not None and lv<lmin: continue
+        if lmax is not None and lv>lmax: continue
+        if emin is not None and ev<emin: continue
+        if emax is not None and ev>emax: continue
+        if gmin is not None and gv<gmin: continue
+        if gmax is not None and gv>gmax: continue
+        if wrmin is not None and wr<wrmin: continue
+        if wrmax is not None and wr>wrmax: continue
+        out.append(r)
+    return out
+
+
 @router.get("", response_model=PaginatedShipsResponse)
 def get_ships(
     page: int = Query(0, ge=0),
@@ -80,10 +104,10 @@ def get_ships(
     sort_metric: str = Query("Lists"),
     sort_direction: str = Query("desc"),
     search: str | None = Query(None),
-
     formats: list[str] | None = Query(None),
     factions: list[str] | None = Query(None),
     ships: list[str] | None = Query(None),
+    ship_mode: str = Query("any"),
     continent: list[str] | None = Query(None),
     country: list[str] | None = Query(None),
     city: list[str] | None = Query(None),
@@ -92,11 +116,21 @@ def get_ships(
     date_end: str | None = Query(None),
     player_count_min: int | None = Query(None),
     player_count_max: int | None = Query(None),
+    lists_min: str | None = Query(None),
+    lists_max: str | None = Query(None),
+    entries_min: str | None = Query(None),
+    entries_max: str | None = Query(None),
+    games_min: str | None = Query(None),
+    games_max: str | None = Query(None),
+    win_rate_min: str | None = Query(None),
+    win_rate_max: str | None = Query(None),
 ):
+    if ship_mode not in ("any","all"): ship_mode="any"
     filters = {
         "allowed_formats": formats,
         "faction": factions,
         "ship": ships,
+        "ship_mode": ship_mode,
         "continent": continent,
         "country": country,
         "city": city,
@@ -106,14 +140,17 @@ def get_ships(
         "date_end": date_end,
         "player_count_min": player_count_min,
         "player_count_max": player_count_max,
+        "lists_min": lists_min, "lists_max": lists_max,
+        "entries_min": entries_min, "entries_max": entries_max,
+        "games_min": games_min, "games_max": games_max,
+        "win_rate_min": win_rate_min, "win_rate_max": win_rate_max,
     }
 
-    # page/size excluded — pagination is done AFTER caching.
     cache_key = (
         f"ships|{data_source}"
         f"|{','.join(sorted(formats or []))}"
         f"|{','.join(sorted(factions or []))}"
-        f"|{','.join(sorted(ships or []))}"
+        f"|{','.join(sorted(ships or []))}|sm={ship_mode}"
         f"|{search or ''}"
         f"|{','.join(sorted(platforms or []))}"
         f"|{','.join(sorted(continent or []))}"
@@ -121,6 +158,7 @@ def get_ships(
         f"|{','.join(sorted(city or []))}"
         f"|{date_start or ''}|{date_end or ''}"
         f"|{player_count_min}|{player_count_max}"
+        f"|lmin={lists_min}|lmax={lists_max}|emin={entries_min}|emax={entries_max}|gmin={games_min}|gmax={games_max}|wrmin={win_rate_min}|wrmax={win_rate_max}"
     )
 
     def compute():
@@ -130,6 +168,7 @@ def get_ships(
         )
 
     data = get_cached_or_compute(cache_key, compute)
+    data = _apply_ship_stat_ranges(data, filters)
     # Sort AFTER the cache lookup — the heavy aggregation is sort-independent.
     data = _sort_ship_stats(data, sort_metric, sort_direction)
     total = len(data)

@@ -1,68 +1,12 @@
 import type { Handle } from '@sveltejs/kit';
 
-const WEBHOOK_PREFIX = '/api/support/webhook/';
-
-const FORM_CONTENT_TYPES = new Set([
-	'application/x-www-form-urlencoded',
-	'multipart/form-data',
-	'text/plain'
-]);
-
-function isFormContentType(request: Request): boolean {
-	const ct = request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase() ?? '';
-	if (FORM_CONTENT_TYPES.has(ct)) return true;
-	// SvelteKit's BINARY_FORM_CONTENT_TYPE = application/octet-stream (devalue binary)
-	return ct === 'application/octet-stream';
-}
-
-function isAllowedOrigin(requestOrigin: string, trustedPatterns: string[]): boolean {
-	// Exact match including scheme + host + port
-	if (trustedPatterns.includes(requestOrigin)) return true;
-	// Wildcard patterns like https://*.ko-fi.com or http://localhost:*
-	for (const pattern of trustedPatterns) {
-		if (!pattern.includes('*')) continue;
-		// Escape regex meta chars except *, then replace * with .*
-		const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
-		const regexStr = '^' + escaped.replace(/\*/g, '.*') + '$';
-		try {
-			if (new RegExp(regexStr).test(requestOrigin)) return true;
-		} catch {
-			// ignore bad pattern
-		}
-	}
-	return false;
-}
-
-const TRUSTED_ORIGINS: string[] = [
-	'http://server-francesco:*',
-	'http://100.69.158.7:*',
-	'http://localhost:*',
-	'http://127.0.0.1:*',
-	'https://ko-fi.com',
-	'https://*.ko-fi.com',
-	'https://m3tacron.com',
-	'https://*.m3tacron.com'
-];
-
-function csrfForbidden(request: Request, url: URL): boolean {
-	const method = request.method;
-	if (method !== 'POST' && method !== 'PUT' && method !== 'PATCH' && method !== 'DELETE') return false;
-	if (!isFormContentType(request)) return false;
-	const requestOrigin = request.headers.get('origin');
-	if (requestOrigin === url.origin) return false;
-	if (!requestOrigin) return true;
-	return !isAllowedOrigin(requestOrigin, TRUSTED_ORIGINS);
-}
-
+// Bypass SvelteKit's CSRF origin check for the Ko-fi webhook.
+// Ko-fi sends a server-to-server POST with no Origin/Sec-Fetch-Site,
+// so kit.csrf.checkOrigin would block it even though verification_token
+// already authenticates the request. We proxy it directly to the backend
+// without going through SvelteKit's CSRF-protected resolve().
 export const handle: Handle = async ({ event, resolve }) => {
-	// Ko-fi webhook: bypass CSRF and proxy directly to the backend.
-	// Ko-fi sends a server-to-server POST with no Origin header as
-	// application/x-www-form-urlencoded; verification_token in the JSON
-	// payload authenticates the request, so the browser CSRF check does
-	// not apply. We handle this BEFORE any CSRF logic so the request
-	// does not 403 inside SvelteKit's built-in check (which is disabled
-	// in svelte.config.js and re-implemented below).
-	if (event.url.pathname.startsWith(WEBHOOK_PREFIX)) {
+	if (event.url.pathname.startsWith('/api/support/webhook/')) {
 		const backendBase =
 			process.env.ENV_VAR_SOURCE === 'preview' ||
 			(String(process.env.COOLIFY_BRANCH || '').startsWith('pull/') ||
@@ -100,23 +44,6 @@ export const handle: Handle = async ({ event, resolve }) => {
 		const uct = upstream.headers.get('content-type');
 		if (uct) resHeaders.set('content-type', uct);
 		return new Response(body, { status: upstream.status, headers: resHeaders });
-	}
-
-	// Re-implement SvelteKit's built-in CSRF check (disabled in svelte.config.js)
-	// for every other route. Logic mirrors @sveltejs/kit runtime: form POST
-	// with missing or non-trusted Origin is forbidden.
-	if (csrfForbidden(event.request, event.url)) {
-		const msg = `Cross-site ${event.request.method} form submissions are forbidden`;
-		if (event.request.headers.get('accept') === 'application/json') {
-			return new Response(JSON.stringify({ message: msg }), {
-				status: 403,
-				headers: { 'content-type': 'application/json' }
-			});
-		}
-		return new Response(msg, {
-			status: 403,
-			headers: { 'content-type': 'text/plain' }
-		});
 	}
 
 	return resolve(event);

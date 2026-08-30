@@ -81,11 +81,17 @@ def aggregate_ship_stats(
         if isinstance(facs, str): facs = [facs]
         normalized = [f.lower().replace(" ", "").replace("-", "") for f in facs]
         where_clauses.append("ps.faction_xws_normalized = ANY(:factions)"); params["factions"] = normalized
-    # Push ship filter to SQL
     ship_filter = filters.get("ship") or filters.get("ships")
+    ship_mode = filters.get("ship_mode", "any")
     if ship_filter:
         if isinstance(ship_filter, str): ship_filter = [ship_filter]
-        where_clauses.append("psm.ship_xws = ANY(:ship_filter)"); params["ship_filter"] = ship_filter
+        if ship_mode == "all":
+            for i, s in enumerate(ship_filter):
+                k = f"ship_all_{i}"
+                where_clauses.append(f"EXISTS (SELECT 1 FROM jsonb_array_elements(l.list_json::jsonb->'pilots') sp2 JOIN pilot_ship_mapping psm2 ON psm2.pilot_xws=(sp2->>'id') AND psm2.source=:source WHERE psm2.ship_xws=:{k} AND ps.id=ps.id)")
+                params[k] = s
+        else:
+            where_clauses.append("psm.ship_xws = ANY(:ship_filter)"); params["ship_filter"] = ship_filter
     # Push search filter to SQL (search by ship name via pilot_ship_mapping)
     search = filters.get("search_name")
     if search:

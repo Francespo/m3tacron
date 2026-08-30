@@ -50,11 +50,11 @@ def get_squadron_stats(
             SELECT
                 COUNT(*) as count,
                 SUM(
-                    COALESCE(ps.swiss_wins, 0) + COALESCE(ps.swiss_losses, 0) +
-                    COALESCE(ps.swiss_draws, 0) + COALESCE(ps.cut_wins, 0) +
-                    COALESCE(ps.cut_losses, 0) + COALESCE(ps.cut_draws, 0)
+                    GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.swiss_losses, 0)) +
+                    GREATEST(0, COALESCE(ps.swiss_draws, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0)) +
+                    GREATEST(0, COALESCE(ps.cut_losses, 0)) + GREATEST(0, COALESCE(ps.cut_draws, 0))
                 ) as games,
-                SUM(COALESCE(ps.swiss_wins, 0) + COALESCE(ps.cut_wins, 0)) as wins
+                SUM(GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0))) as wins
             FROM playerstanding ps
             JOIN list l ON l.id = ps.list_id
             JOIN tournament t ON t.id = ps.tournament_id
@@ -106,11 +106,11 @@ def get_squadron_pilots(
                 l.list_json,
                 COUNT(*) as count,
                 SUM(
-                    COALESCE(ps.swiss_wins, 0) + COALESCE(ps.swiss_losses, 0) +
-                    COALESCE(ps.swiss_draws, 0) + COALESCE(ps.cut_wins, 0) +
-                    COALESCE(ps.cut_losses, 0) + COALESCE(ps.cut_draws, 0)
+                    GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.swiss_losses, 0)) +
+                    GREATEST(0, COALESCE(ps.swiss_draws, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0)) +
+                    GREATEST(0, COALESCE(ps.cut_losses, 0)) + GREATEST(0, COALESCE(ps.cut_draws, 0))
                 ) as games,
-                SUM(COALESCE(ps.swiss_wins, 0) + COALESCE(ps.cut_wins, 0)) as wins
+                SUM(GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0))) as wins
             FROM playerstanding ps
             JOIN list l ON l.id = ps.list_id
             JOIN tournament t ON t.id = ps.tournament_id
@@ -135,8 +135,19 @@ def get_squadron_pilots(
         wins = int(row[3] or 0)
         total_games += games
 
+        # Count copies per pilot in this list to support multi-bar for generics.
+        from collections import Counter
+        ids = [p.get("id") or p.get("name") or "unknown" for p in pilots]
+        copies_counter = Counter(ids)
+        # Map id -> one representative pilot entry for metadata
+        id_to_entry: dict[str, dict] = {}
         for p in pilots:
-            p_id = p.get("id") or p.get("name") or "unknown"
+            pid = p.get("id") or p.get("name") or "unknown"
+            if pid not in id_to_entry:
+                id_to_entry[pid] = p
+
+        for p_id, copies in copies_counter.items():
+            p = id_to_entry[p_id]
             if p_id not in pilot_stats:
                 pilot_stats[p_id] = {
                     "pilot_xws": p_id,
@@ -144,16 +155,28 @@ def get_squadron_pilots(
                     "name": p.get("name", p_id),
                     "cost": p.get("points", 0),
                     "games": 0,
-                    "wins": 0
+                    "wins": 0,
+                    "games_by_copies": {"1": 0, "2": 0, "3+": 0},
                 }
+            # Presence: count list once regardless of copies
             pilot_stats[p_id]["games"] += games
             pilot_stats[p_id]["wins"] += wins
+            if copies == 1:
+                pilot_stats[p_id]["games_by_copies"]["1"] += games
+            elif copies == 2:
+                pilot_stats[p_id]["games_by_copies"]["2"] += games
+            else:
+                pilot_stats[p_id]["games_by_copies"]["3+"] += games
 
     results = []
     for p_id, stats in pilot_stats.items():
         w_g = stats["games"]
         win_rate = round(stats["wins"] / w_g * 100, 1) if w_g > 0 else 0.0
         percent_of_squadron = round(w_g / total_games * 100, 1) if total_games > 0 else 0.0
+        # Also provide weighted percent for reference (copies-weighted / total_games)
+        gbc = stats["games_by_copies"]
+        weighted_games = gbc["1"] * 1 + gbc["2"] * 2 + gbc["3+"] * 3
+        percent_weighted = round(weighted_games / total_games * 100, 1) if total_games > 0 else 0.0
 
         results.append({
             "pilot_xws": stats["pilot_xws"],
@@ -162,7 +185,9 @@ def get_squadron_pilots(
             "cost": stats["cost"],
             "games": w_g,
             "win_rate": win_rate,
-            "percent_of_squadron": percent_of_squadron
+            "percent_of_squadron": percent_of_squadron,
+            "percent_weighted": percent_weighted,
+            "games_by_copies": gbc,
         })
 
     results.sort(key=lambda x: x["games"], reverse=True)
@@ -200,11 +225,11 @@ def get_squadron_lists(
                 l.list_json,
                 COUNT(*) as games,
                 SUM(
-                    COALESCE(ps.swiss_wins, 0) + COALESCE(ps.swiss_losses, 0) +
-                    COALESCE(ps.swiss_draws, 0) + COALESCE(ps.cut_wins, 0) +
-                    COALESCE(ps.cut_losses, 0) + COALESCE(ps.cut_draws, 0)
+                    GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.swiss_losses, 0)) +
+                    GREATEST(0, COALESCE(ps.swiss_draws, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0)) +
+                    GREATEST(0, COALESCE(ps.cut_losses, 0)) + GREATEST(0, COALESCE(ps.cut_draws, 0))
                 ) as total_games,
-                SUM(COALESCE(ps.swiss_wins, 0) + COALESCE(ps.cut_wins, 0)) as wins
+                SUM(GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0))) as wins
             FROM playerstanding ps
             JOIN list l ON l.id = ps.list_id
             JOIN tournament t ON t.id = ps.tournament_id

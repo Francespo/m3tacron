@@ -1,7 +1,6 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
-import { execSync } from 'node:child_process';
 
 const shouldLogConfig = process.env.VITE_LOG_CONFIG === 'true';
 
@@ -47,46 +46,30 @@ function resolveSafeApiProxyTarget() {
 	return t;
 }
 
-function getTailscaleHosts() {
-	const hosts = [];
-	try { const ip4 = execSync('tailscale ip -4 2>/dev/null', { encoding: 'utf8' }).trim(); if (ip4) hosts.push(ip4); } catch {}
-	try { const ip6 = execSync('tailscale ip -6 2>/dev/null', { encoding: 'utf8' }).trim(); if (ip6) hosts.push(ip6); } catch {}
-	try {
-		const raw = execSync('tailscale status --json 2>/dev/null', { encoding: 'utf8' });
-		const data = JSON.parse(raw);
-		const self = data.Self || {};
-		const dnsName = (self.DNSName || '').replace(/\.$/, '').trim();
-		if (dnsName) hosts.push(dnsName);
-		if (self.HostName) hosts.push(self.HostName.trim());
-		const suffix = (data.MagicDNSSuffix || data.CurrentTailnet?.MagicDNSSuffix || '').trim();
-		if (suffix && self.HostName) { const fqdn = `${self.HostName.trim()}.${suffix.replace(/^\./, '')}`; if (!hosts.includes(fqdn)) hosts.push(fqdn); }
-	} catch {}
-	return hosts;
-}
-
 function resolveAllowedHosts() {
 	const raw = process.env.VITE_ALLOWED_HOSTS;
-	const tsHosts = getTailscaleHosts();
-	if (tsHosts.length) logConfig('VITE_TAILSCALE_HOSTS', tsHosts);
 	if (!raw) {
-		if (tsHosts.length) {
-			const resolved = [...new Set(['localhost', '127.0.0.1', ...tsHosts])];
-			logConfig('VITE_ALLOWED_HOSTS_RAW', raw);
-			logConfig('VITE_ALLOWED_HOSTS_RESOLVED', resolved);
-			return resolved;
-		}
 		logConfig('VITE_ALLOWED_HOSTS_RAW', raw);
 		logConfig('VITE_ALLOWED_HOSTS_RESOLVED', undefined);
 		return undefined;
 	}
+
 	const normalized = raw.trim().toLowerCase();
-	if (normalized === 'true') { logConfig('VITE_ALLOWED_HOSTS_RAW', raw); logConfig('VITE_ALLOWED_HOSTS_RESOLVED', true); return true; }
-	const fromEnv = raw.split(',').map((h) => h.trim()).filter(Boolean);
-	const merged = [...new Set([...fromEnv, ...tsHosts])];
-	for (const h of ['localhost', '127.0.0.1']) if (!merged.includes(h)) merged.push(h);
+
+	if (normalized === 'true') {
+		logConfig('VITE_ALLOWED_HOSTS_RAW', raw);
+		logConfig('VITE_ALLOWED_HOSTS_RESOLVED', true);
+		return true;
+	}
+
+	const resolved = raw
+		.split(',')
+		.map((/** @type {string} */ host) => host.trim())
+		.filter(Boolean);
+
 	logConfig('VITE_ALLOWED_HOSTS_RAW', raw);
-	logConfig('VITE_ALLOWED_HOSTS_RESOLVED', merged);
-	return merged;
+	logConfig('VITE_ALLOWED_HOSTS_RESOLVED', resolved);
+	return resolved;
 }
 
 logEnvSnapshot();

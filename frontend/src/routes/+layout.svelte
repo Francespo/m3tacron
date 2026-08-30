@@ -12,6 +12,7 @@
 		afterNavigate,
 	} from "$app/navigation";
 	import { filters } from "$lib/stores/filters.svelte";
+	import { sidebarStore } from "$lib/stores/sidebar.svelte";
 	import { clearPendingSync } from "$lib/sync/urlSync.svelte";
 
 	let { children }: { children: Snippet } = $props();
@@ -71,7 +72,7 @@
 		// /list/[id] already 80% down).
 		requestAnimationFrame(() => {
 			const scroller = document.querySelector(
-				".md\\:ml-\\[260px\\].flex-1.overflow-y-auto",
+				".flex-1.overflow-y-auto",
 			) as HTMLElement | null;
 			if (scroller) scroller.scrollTop = 0;
 			window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
@@ -85,6 +86,13 @@
 	// change). The drawer also auto-closes on route change internally, so
 	// this stays consistent with that.
 	let navOpen = $state(false);
+
+	// Sidebar collapse is a persisted UI preference — hydrate from localStorage
+	// once on client mount (SSR-safe: $effect doesn't run on server).
+	$effect(() => {
+		sidebarStore.ensureLoaded();
+	});
+	let sidebarCollapsed = $derived(sidebarStore.isCollapsed());
 
 	// Client-only hydration: read filter state from the URL on first
 	// client mount. $effect does not run during SSR, so the server
@@ -129,10 +137,10 @@
 
 	<!-- Main Content Area. flex-1 + overflow-y-auto gives this column its
 	     own independent scroll, decoupled from the (already fixed) sidebar
-	     and from the outer page. md:ml-[260px] keeps it clear of the
-	     desktop sidebar. -->
+	     and from the outer page. The left margin tracks the sidebar width
+	     (260px expanded, 72px collapsed) so the content reflows. -->
 	<div
-		class="md:ml-[260px] flex-1 overflow-y-auto transition-all duration-200 relative overflow-x-hidden"
+		class="flex-1 overflow-y-auto transition-all duration-200 relative overflow-x-hidden {sidebarCollapsed ? 'md:ml-[72px]' : 'md:ml-[260px]'}"
 	>
 		<!-- Slot renders the specific route +page.svelte -->
 		{@render children()}

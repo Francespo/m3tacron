@@ -12,19 +12,20 @@
 	 * should add `pb-20` (or similar) to its main scroll container,
 	 * otherwise the last list rows will be obscured by the button.
 	 */
-	type Props = {
-		activeCount: number;
-		onClick: () => void;
-	};
+type Props = {
+	activeCount: number;
+	onClick: () => void;
+	label?: string;
+};
 
-	let { activeCount, onClick }: Props = $props();
+let { activeCount, onClick, label = "Filters" }: Props = $props();
 </script>
 
-<button
+ <button
 	type="button"
 	onclick={onClick}
-	aria-label="Open filters{activeCount > 0 ? ` (${activeCount} active)` : ''}"
-	class="fixed bottom-4 right-4 z-[45] flex items-center gap-2 h-12 pl-3 pr-4 rounded-full bg-terminal-panel border border-primary/40 text-primary shadow-lg shadow-black/60 hover:bg-[#ffffff08] hover:border-primary active:bg-[#ffffff14] transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 lg:hidden"
+	aria-label="Open {label.toLowerCase()}{activeCount > 0 ? ` (${activeCount} active)` : ''}"
+	class="fixed bottom-4 right-4 z-[45] flex items-center gap-2 h-12 pl-3 pr-4 rounded-full bg-terminal-panel border border-primary/40 text-primary shadow-lg shadow-black/60 hover:bg-terminal-panel hover:border-primary/60 active:bg-terminal-panel transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
 >
 	<!-- Filter icon (3 lines, tapering — the standard "funnel" mark, drawn
 	     in strokes only so it matches the other UI icons). -->
@@ -43,11 +44,11 @@
 		<polygon points="3 4 21 4 14 12.5 14 19 10 21 10 12.5 3 4"></polygon>
 	</svg>
 
-	<span class="text-sm font-medium font-sans">Filters</span>
+	<span class="text-sm font-medium font-sans">{label}</span>
 
 	{#if activeCount > 0}
 		<span
-			class="shrink-0 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-[10px] font-mono font-bold bg-rebel text-primary"
+			class="shrink-0 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-[10px] font-mono font-bold bg-white text-black"
 			aria-hidden="true"
 		>
 			{activeCount}
