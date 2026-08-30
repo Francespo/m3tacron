@@ -5,13 +5,30 @@ function normalizeBackendApiBase(raw: string): string {
     return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
 }
 
+function previewBackendHost(): string | null {
+    // PR-specific backend containers are reachable as `backend-pr-<N>` on the
+    // shared coolify network. The generic `backend` alias belongs to the old
+    // shared backend, so previews must target their own container.
+    // COOLIFY_BRANCH is like `pull/131/head` but Coolify quotes the value
+    // (e.g. `"pull/131/head"`), so strip any surrounding quotes first.
+    const branch = String(process.env.COOLIFY_BRANCH || '').replace(/^"|"$/g, '');
+    const fromBranch = branch.match(/^pull\/(\d+)/);
+    if (fromBranch) {
+        return `backend-pr-${fromBranch[1]}`;
+    }
+    return null;
+}
+
 function resolveBackendFromRequestHost(url: URL): string | null {
     const host = url.hostname.toLowerCase();
 
-    // Preview deployment - talk directly to local backend container via docker network
+    // Preview deployment - talk directly to this PR's own backend container
+    // via docker network (NEVER the shared/generic `backend` alias, which is
+    // the old shared backend with a stale schema that lacks total_lists /
+    // total_games).
     const previewMatch = host.match(/^(\d+)\.dev\.m3tacron\.com$/);
     if (previewMatch) {
-        return 'http://backend:8888/api';
+        return `http://backend-pr-${previewMatch[1]}:8888/api`;
     }
 
     // Shared dev domain.
@@ -28,8 +45,12 @@ function resolveBackendFromRequestHost(url: URL): string | null {
 }
 
 function resolveBackendApiBase(url: URL): string {
-    // Preview deployments: always use internal Docker network to reach backend
+    // Preview deployments: always use this PR's own backend container.
     if (process.env.ENV_VAR_SOURCE === 'preview' || process.env.COOLIFY_BRANCH?.startsWith('pull/')) {
+        const host = previewBackendHost();
+        if (host) {
+            return `http://${host}:8888/api`;
+        }
         return 'http://backend:8888/api';
     }
 
