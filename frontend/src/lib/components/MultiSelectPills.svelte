@@ -80,7 +80,7 @@
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="transition-transform {open ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
         </button>
         {#if open && filtered.length > 0}
-            <div class="absolute z-20 mt-1 w-full max-h-[180px] overflow-y-auto rounded-md border border-border-dark bg-terminal-panel shadow-lg">
+            <div class="absolute z-[80] mt-1 w-full max-h-[180px] overflow-y-auto rounded-md border border-border-dark bg-terminal-panel shadow-xl">
                 {#each filtered as opt}
                     {@const sel = selected.includes(opt)}
                     <button

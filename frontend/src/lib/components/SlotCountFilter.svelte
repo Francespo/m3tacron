@@ -65,7 +65,7 @@
         </div>
     {/if}
 
-    <div class="flex flex-wrap items-end gap-2 rounded-lg border border-white/10 bg-black/20 p-2.5">
+    <div class="flex flex-wrap items-end gap-2">
         <div class="flex flex-col gap-1 flex-1 min-w-[140px]">
             <span class="text-[10px] font-mono text-secondary/60">Slot</span>
             <div class="relative">
@@ -77,7 +77,7 @@
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {slotOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
                 </button>
                 {#if slotOpen}
-                    <div class="absolute z-20 mt-1 w-full max-h-[200px] overflow-y-auto rounded-md border border-border-dark bg-terminal-panel shadow-lg">
+                    <div class="absolute z-[80] mt-1 w-full max-h-[200px] overflow-y-auto rounded-md border border-border-dark bg-terminal-panel shadow-xl">
                         {#each SLOT_OPTIONS as s}
                             {@const sel = slotSel === s}
                             <button type="button" onmousedown={(e) => { e.preventDefault(); slotSel = s; slotOpen = false; }} class="w-full text-left px-2 py-1.5 text-xs font-mono hover:bg-white/[0.06] flex items-center gap-2 {sel ? 'text-primary bg-white/[0.04]' : 'text-secondary'}">

@@ -166,9 +166,10 @@
     }
 </script>
 
-<div class="w-full">
-    <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
-    <div class="rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+<div class="w-full space-y-4 tournament-filters-root">
+    <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4 tournament-main-grid">
+    <div class="relative rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+        <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-60" aria-hidden="true"></div>
         <button type="button" onclick={() => (dateOpen = !dateOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
             <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Date Range</span>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {dateOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
@@ -176,7 +177,8 @@
         {#if dateOpen}<div class="px-3.5 pb-3.5 pt-1"><DateRangeField hideLabel={true} /></div>{/if}
     </div>
 
-    <div class="rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+    <div class="relative rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden lg:col-span-2 2xl:col-span-1 2xl:col-start-3 2xl:row-start-1">
+        <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-60" aria-hidden="true"></div>
         <button type="button" onclick={() => (locationOpen = !locationOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
             <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Location</span>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {locationOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
@@ -280,7 +282,8 @@
     </div>
 
     <!-- Format — card style -->
-    <div class="rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+    <div class="relative rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+        <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-60" aria-hidden="true"></div>
         <button type="button" onclick={() => (formatOpen = !formatOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
             <span class="flex items-center gap-2 text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Format {#if filters.selectedFormats.length > 0}<span class="min-w-5 h-5 px-1 rounded-full bg-primary text-black text-[10px] font-mono font-bold inline-flex items-center justify-center">{filters.selectedFormats.length}</span>{/if}</span>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {formatOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
@@ -312,7 +315,8 @@
             </div>{/if}
     </div>
 
-    <div class="rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+    <div class="relative rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+        <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-60" aria-hidden="true"></div>
         <button type="button" onclick={() => (sourceOpen = !sourceOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
             <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Source</span>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {sourceOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
@@ -338,7 +342,9 @@
 
     </div>
 
-    <div class="rounded-xl border border-white/5 bg-black/15 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] space-y-1">
+    <div class="relative rounded-xl border border-white/5 bg-black/15 overflow-hidden lg:col-span-2 2xl:col-span-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+        <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-60" aria-hidden="true"></div>
+        <div class="p-3.5">
         <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Search Name</span
         >
         <DebouncedTextInput
@@ -350,5 +356,6 @@
             placeholder="Search name..."
             ariaLabel="Search tournament name"
         />
+        </div>
     </div>
 </div>

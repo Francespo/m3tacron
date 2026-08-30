@@ -1,15 +1,10 @@
 <script lang="ts">
-	import ContentSourceToggle from "./ContentSourceToggle.svelte";
 	/**
 	 * MobileTopBar
 	 *
 	 * Sticky top chrome for <md viewports. Sits above page content, below the
 	 * nav/filter drawers (which are z-60). The desktop sidebar (z-100, hidden
 	 * on <md) is unaffected by this component.
-	 *
-	 * The right side hosts the shared ContentSourceToggle (XWA / LGCY / Epic)
-	 * so mobile users can switch game content source in one tap without
-	 * opening the full filter drawer.
 	 */
 	let { onOpenNav }: { onOpenNav: () => void } = $props();
 </script>
@@ -29,6 +24,6 @@
 
 		<a href="/" class="flex-1 min-w-0 text-center text-primary font-sans font-bold tracking-[0.12em] text-[17px] sm:text-xl truncate focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 rounded-sm">M3TACRON</a>
 
-		<div class="shrink-0"><ContentSourceToggle compact /></div>
+		<span class="shrink-0 w-10" aria-hidden="true"></span>
 	</div>
 </header>

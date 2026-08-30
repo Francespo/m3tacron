@@ -3,7 +3,7 @@
     import ContentLoader from "$lib/components/ContentLoader.svelte";
     import ErrorPanel from "$lib/components/ErrorPanel.svelte";
     import LocalFilterBar from "$lib/components/LocalFilterBar.svelte";
-    import TournamentFilters from "$lib/components/TournamentFilters.svelte";
+    import TournamentPageFilters from "$lib/components/TournamentPageFilters.svelte";
     import { invalidateAll } from "$app/navigation";
     import { filters } from "$lib/stores/filters.svelte";
     import { scheduleSync } from "$lib/sync/urlSync.svelte";
@@ -137,7 +137,7 @@
         <!-- Tournaments have no per-section game filters: the only page filters ARE the dataset filters (dates, locations, formats, sources, search). Expose them as an inline collapsible LocalFilterBar like Card filters, not just a FAB. Dataset is still the global concept; this bar just makes tournament dataset filters discoverable inline. -->
         <div class="mb-6">
             <LocalFilterBar id="tournaments-local" label="Tournament filters" activeCount={tournamentLocalCount} chips={tournamentLocalChips} onRemoveChip={(k) => filters.removeChip(k)} onClear={clearTournamentFilters}>
-                <div class="tournament-3col"><TournamentFilters /></div>
+                <TournamentPageFilters />
             </LocalFilterBar>
         </div>
         {#if !resolved}
@@ -317,16 +317,4 @@
     </main>
 </div>
 
-<style>
-    :global(.tournament-3col > div) {
-        display: grid;
-        grid-template-columns: repeat(1, minmax(0, 1fr));
-        gap: 1rem;
-    }
-    @media (min-width: 1024px) {
-        :global(.tournament-3col > div) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    }
-    :global(.tournament-3col > div > div) { min-width: 0; }
-    :global(.tournament-3col > div > div:nth-child(2)) { order: 3; } /* Location alone */
-    :global(.tournament-3col > div > div:nth-child(3)) { order: 2; } /* Format swaps with Location */
-</style>
+

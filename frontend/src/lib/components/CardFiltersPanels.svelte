@@ -65,12 +65,13 @@
         <span class="flex-1 h-px bg-white/5 ml-2"></span>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4 items-start auto-rows-min">
 
         <!-- Card 1: Cost & Legality — collapsible -->
-        <div class="rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+        <div class="relative rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden self-start">
+            <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-60" aria-hidden="true"></div>
             <button type="button" onclick={() => (costOpen = !costOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
-                <span class="text-[10px] font-bold tracking-widest uppercase font-mono text-secondary/80">Cost &amp; Legality</span>
+                <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Cost &amp; Legality</span>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {costOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
             </button>
             {#if costOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-3">
@@ -138,12 +139,13 @@
 
         <!-- Card 2: Traits & Loadout — only on Pilots tab — collapsible -->
         {#if isPilotsTab}
-            <div class="rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+            <div class="relative rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] {traitsOpen ? 'overflow-visible z-[70]' : 'overflow-hidden'} self-start">
+            <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-60" aria-hidden="true"></div>
                 <button type="button" onclick={() => (traitsOpen = !traitsOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
-                    <span class="text-[10px] font-bold tracking-widest uppercase font-mono text-secondary/80">Traits &amp; Loadout</span>
+                    <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Traits &amp; Loadout</span>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {traitsOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
                 </button>
-                {#if traitsOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-3">
+                {#if traitsOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-3 overflow-visible">
                 <SlotCountFilter />
                 <MultiSelectPills label="Keywords" options={KEYWORD_OPTIONS} bind:selected={filters.selectedKeywords} bind:mode={filters.keywordFilterMode} placeholder="Search keywords…" />
                 <ActionPairFilter />
@@ -152,9 +154,10 @@
         {/if}
 
         <!-- Stat ranges — collapsible -->
-        <div class="rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden lg:col-span-2 2xl:col-span-1 2xl:col-start-3 2xl:row-start-1 self-start min-w-0">
+        <div class="relative rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden lg:col-span-2 2xl:col-span-1 2xl:col-start-3 2xl:row-start-1 self-start min-w-0 h-fit">
+            <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-60" aria-hidden="true"></div>
             <button type="button" onclick={() => (statRangesOpen = !statRangesOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
-                <span class="text-[10px] font-bold tracking-widest uppercase font-mono text-secondary/80">Stat ranges</span>
+                <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Stat ranges</span>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {statRangesOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
             </button>
             {#if statRangesOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-3">
@@ -179,9 +182,10 @@
 
         <!-- Card 4: Stats — collapsible, two columns on xl -->
         {#if isPilotsTab}
-            <div class="lg:col-span-2 2xl:col-span-3 rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+            <div class="relative lg:col-span-2 2xl:col-span-3 rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden self-start">
+            <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-60" aria-hidden="true"></div>
                 <button type="button" onclick={() => (statsOpen = !statsOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
-                    <span class="text-[10px] font-bold tracking-widest uppercase font-mono text-secondary/80">Stats</span>
+                    <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Stats</span>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {statsOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
                 </button>
                 {#if statsOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-3">
@@ -189,7 +193,7 @@
                     <!-- Left: 6 capsules — Initiative/Hull/Shields/Agility/Charges/Force (equal height, equal gap) -->
                     <div class="grid grid-cols-1 gap-2 content-start auto-rows-fr">
                         {#each STAT_ROWS as row}
-                            <label class="flex items-center gap-2 rounded-lg border border-white/5 bg-black/15 px-2 py-2 min-h-[36px]">
+                            <label class="flex items-center gap-2 py-1.5 border-b border-white/5">
                                 <span class="flex items-center gap-1.5 w-[6.2rem] shrink-0">
                                     {#if row.font}
                                         <i class="xwing-miniatures-font xwing-miniatures-font-{row.font} text-sm leading-none" style="color: {row.color};" aria-hidden="true"></i>
@@ -202,7 +206,7 @@
                                 <input type="number" inputmode="numeric" placeholder="—" class="w-[48px] bg-black border border-border-dark rounded px-1.5 py-1 text-xs font-mono text-primary placeholder:text-secondary/40 focus:border-primary focus:outline-none" bind:value={(filters as any)[row.max]} aria-label="{row.label} max" />
                             </label>
                         {/each}
-                        <label class="flex items-center gap-2 rounded-lg border border-white/5 bg-black/15 px-2 py-2 min-h-[36px]">
+                        <label class="flex items-center gap-2 py-1.5 border-b border-white/5">
                             <span class="flex items-center gap-1.5 w-[6.2rem] shrink-0">
                                 <i class="xwing-miniatures-font xwing-miniatures-font-charge text-sm leading-none" style="text-transform:none; color:#facc15" aria-hidden="true"></i>
                                 <span class="text-[10px] font-bold font-mono uppercase tracking-wider" style="color:#facc15">Charges</span>
@@ -212,7 +216,7 @@
                             <span class="text-[10px] font-mono text-secondary/70">to</span>
                             <input type="number" inputmode="numeric" placeholder="—" class="w-[48px] bg-black border border-border-dark rounded px-1.5 py-1 text-xs font-mono text-primary placeholder:text-secondary/40 focus:border-primary focus:outline-none" bind:value={filters.chargesMax} aria-label="Charges max" />
                         </label>
-                        <label class="flex items-center gap-2 rounded-lg border border-white/5 bg-black/15 px-2 py-1.5 min-h-[36px]">
+                        <label class="flex items-center gap-2 py-1.5 border-b border-white/5">
                             <span class="flex items-center gap-1.5 w-[6.2rem] shrink-0">
                                 <i class="xwing-miniatures-font xwing-miniatures-font-forcecharge text-sm leading-none" style="text-transform:none; color:#a78bfa" aria-hidden="true"></i>
                                 <span class="text-[10px] font-bold font-mono uppercase tracking-wider" style="color:#a78bfa">Force</span>
@@ -226,7 +230,7 @@
                     <!-- Right: 6 Arcs — same count/height/gap as left for equal vertical space -->
                     <div class="grid grid-cols-1 gap-2 content-start auto-rows-fr">
                         {#each ARCS as arc}
-                            <label class="flex items-center gap-1.5 rounded-lg border border-white/5 bg-black/15 px-2 py-2 min-h-[36px]">
+                            <label class="flex items-center gap-1.5 py-1.5 border-b border-white/5">
                                 <span class="flex items-center gap-1.5 w-[6.2rem] shrink-0">
                                     <i class="xwing-miniatures-font xwing-miniatures-font-{arc.font} text-sm leading-none" style="color:#f87171" aria-hidden="true"></i>
                                     <span class="text-[10px] font-bold font-mono uppercase tracking-wider" style="color:#f87171">{arc.label}</span>
@@ -245,9 +249,10 @@
 
         <!-- Card 5: Upgrade Slots — only on Upgrades tab — collapsible -->
         {#if !isPilotsTab}
-            <div class="rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+            <div class="relative rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden self-start">
+            <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-60" aria-hidden="true"></div>
                 <button type="button" onclick={() => (upgradeSlotsOpen = !upgradeSlotsOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
-                    <span class="text-[10px] font-bold tracking-widest uppercase font-mono text-secondary/80">Upgrade Slots</span>
+                    <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Upgrade Slots</span>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {upgradeSlotsOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
                 </button>
                 {#if upgradeSlotsOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-3">

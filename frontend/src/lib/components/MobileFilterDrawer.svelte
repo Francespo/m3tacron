@@ -213,8 +213,10 @@
 				<button type="button" onclick={() => { for (const chip of filters.activeChips.filter((c) => c.key.startsWith("format:") || c.key.startsWith("continent:") || c.key.startsWith("country:") || c.key.startsWith("city:") || c.key.startsWith("source:") || c.key === "dateStart" || c.key === "dateEnd")) filters.removeChip(chip.key); }} class="text-[11px] font-mono underline text-secondary hover:text-primary">Clear dataset</button>
 			</div>
 		{/if}
-		<!-- Dataset filters — flat, not collapsible, no extra section header (title already in drawer header). -->
-		<div class="min-w-0 space-y-4">
+		<!-- Dataset filters — flat, not collapsible, single column in the drawer.
+		     Force TournamentFilters' inner grid to a single column so it
+		     doesn't stay cramped at lg/2xl breakpoints inside the 380px drawer. -->
+		<div class="min-w-0 space-y-4 dataset-drawer-singlecol">
 			<TournamentFilters />
 		</div>
 		{#if pageFilterTitle && children}
@@ -252,3 +254,15 @@
 		</footer>
 	{/if}
 </div>
+
+<style>
+    /* Inside the drawer, force TournamentFilters' inner grid to a single
+       column — the drawer is only 380px, so lg/2xl 2-3 cols would cramp
+       every filter. Search Name (outside the grid) stays full-width. */
+    :global(.dataset-drawer-singlecol .tournament-main-grid) {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+    :global(.dataset-drawer-singlecol .tournament-main-grid > *) {
+        grid-column: auto !important;
+    }
+</style>

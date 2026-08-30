@@ -156,27 +156,29 @@
 </script>
 
 {#snippet basicFiltersContent()}
-    <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
-        <div class="rounded-xl border border-white/5 bg-black/20 p-3.5 space-y-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            <button type="button" onclick={() => (textSearchOpen = !textSearchOpen)} class="flex items-center justify-between w-full text-secondary hover:text-primary transition-colors">
-                <span class="text-[11px] font-mono font-bold tracking-widest uppercase">Text Search</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="transition-transform {textSearchOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
+    <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4 items-start auto-rows-min">
+        <div class="relative rounded-xl border border-white/5 bg-black/20 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] w-full self-start">
+            <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-60" aria-hidden="true"></div>
+            <button type="button" onclick={() => (textSearchOpen = !textSearchOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
+                <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Text Search</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {textSearchOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
             </button>
-            {#if textSearchOpen}<DebouncedTextInput value={filters.searchName} onDebouncedChange={(v) => { filters.searchName = v; scheduleSync(250); }} placeholder="Search card text" ariaLabel="Search card text" />{/if}
+            {#if textSearchOpen}<div class="px-3.5 pb-3.5 pt-1">
+            <DebouncedTextInput value={filters.searchName} onDebouncedChange={(v) => { filters.searchName = v; scheduleSync(250); }} placeholder="Search card text" ariaLabel="Search card text" />
+            </div>{/if}
         </div>
         <!-- Col 2: Faction — icon-only, uniform grid -->
-        <div class="rounded-xl border border-white/5 bg-black/20 p-3.5 space-y-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            <div class="flex items-center justify-between gap-2">
+        <div class="relative rounded-xl border border-white/5 bg-black/20 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] w-full self-start">
+            <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-60" aria-hidden="true"></div>
+            <button type="button" onclick={() => (factionOpen = !factionOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
                 <span class="flex items-center gap-1.5 text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">
                     Faction
                     {#if filters.selectedFactions.length > 0}<span class="min-w-5 h-5 px-1 rounded-full bg-primary text-black text-[10px] font-mono font-bold inline-flex items-center justify-center">{filters.selectedFactions.length}</span>{/if}
                 </span>
-                <button type="button" onclick={() => (factionOpen = !factionOpen)} class="text-xs font-mono text-secondary hover:text-primary flex items-center gap-1 shrink-0">
-                    {factionOpen ? "Hide" : "Show"} <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="transition-transform {factionOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
-                </button>
-            </div>
-            {#if factionOpen}
-                <div class="grid grid-cols-4 sm:grid-cols-7 gap-1.5 pt-1">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {factionOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            {#if factionOpen}<div class="px-3.5 pb-3.5 pt-1">
+                <div class="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
                     {#each ALL_FACTIONS as f}
                         {@const _sel = filters.selectedFactions.includes(f)}
                         <button type="button" title={getFactionLabel(f)} aria-label={getFactionLabel(f)} aria-pressed={_sel} onclick={() => toggleFaction(f)} class="flex flex-col items-center justify-center gap-1 rounded-lg border px-1 py-2 transition-colors {_sel ? 'bg-white border-white shadow-sm' : 'bg-black/30 border-white/10 hover:border-white/20 hover:bg-white/[0.04]'}">
@@ -187,15 +189,10 @@
                         </button>
                     {/each}
                 </div>
-            {/if}
+            </div>{/if}
         </div>
-        <!-- Col 3: Ship chassis — only on Pilots (no filler on Upgrades, no wasted space) -->
         {#if data.tab === "pilots"}
-            <div class="lg:col-span-1">
-                <div class="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                    <ShipChassisFilter selectedFactions={filters.selectedFactions} showModeToggle={false} />
-                </div>
-            </div>
+            <ShipChassisFilter selectedFactions={filters.selectedFactions} showModeToggle={false} />
         {/if}
     </div>
 {/snippet}
