@@ -208,7 +208,7 @@
 <div class="flex min-h-screen">
     <MobileFilterTrigger
         activeCount={globalActive}
-        label="Dataset filters"
+        label="Dataset"
         onClick={() => (globalInputOpen = true)}
     />
     <MobileFilterDrawer
