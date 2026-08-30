@@ -170,6 +170,11 @@
                 if (err?.name === "AbortError") return;
                 console.error("Dashboard Fetch Error:", err);
                 if (!isCancelled) {
+                    // Drop any stale cached snapshot so a transient failure
+                    // (e.g. backend restart, empty cache race) can never
+                    // leave `meta` stuck on an old/zeroed payload — the next
+                    // retry always hits the network fresh.
+                    import("$lib/api/cache").then((m) => m.clearApiCache());
                     error = true;
                     errorMsg = `URL: ${targetUrl} | Error: ${err.message || String(err)}`;
                     loading = false;
