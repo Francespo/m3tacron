@@ -129,7 +129,13 @@
 
     $effect(() => {
         if (!browser) return;
+        // Track BOTH the data source AND the epic toggle so the dashboard
+        // re-fetches whenever the user changes either one via the
+        // ContentSourceToggle. Reading both inside the effect makes them
+        // reactive dependencies under Svelte 5 runes. `retryToken` is read
+        // so the "Try again" button re-runs this fetch.
         const source = filters.dataSource;
+        const epic = filters.includeEpic;
         const _rt = retryToken;
         // Ensure data is loaded
         xwingData.setSource(source as any);
@@ -145,8 +151,13 @@
         // state updates; the abort actually stops the network request.
         const controller = new AbortController();
 
+        // Pass `epic` to the meta-snapshot even though the backend currently
+        // ignores it; the dashboard will already be wired correctly if the
+        // endpoint starts honoring it. The `data_source` query param is the
+        // one that actually filters the snapshot today.
         const params = new URLSearchParams();
         params.set("data_source", source);
+        if (epic) params.set("epic", "true");
         const targetUrl = `/api/meta-snapshot?${params.toString()}`;
         cachedFetchJson(targetUrl, undefined, controller.signal)
             .then((data) => {
@@ -430,14 +441,19 @@
 </script>
 
 <div class="min-h-screen p-6 font-sans">
-    <header
-        class="mb-8 flex flex-col md:flex-row md:items-start justify-between gap-4 w-full"
-    >
-        <div>
-            <h1 class="text-3xl font-sans font-bold text-primary mb-1">
-                Meta Dashboard
-            </h1>
-        </div>
+    <header class="mb-5 flex flex-wrap items-baseline justify-between gap-3">
+        <h1 class="text-3xl font-sans font-bold text-primary leading-none shrink-0">Meta Dashboard</h1>
+        {#if !loading && !error && meta}
+            <div class="hidden md:flex items-center gap-2 text-xs font-mono text-secondary shrink-0">
+                <span class="tracking-widest">{meta.date_range || "Last 90 days"}</span>
+                <span class="w-px h-4 bg-white/10"></span>
+                <span class="tracking-widest {filters.dataSource === 'legacy' ? 'text-violet-400' : 'text-amber-400'}">{filters.dataSource === 'legacy' ? 'Legacy' : 'XWA'}</span>
+                <span class="w-px h-4 bg-white/10"></span>
+                <span class="hidden lg:inline text-secondary">{#if periodRange}Tournament data {periodRange.start} → {periodRange.end}{:else}Tournament data · last 90 days{/if}</span>
+                <span class="hidden lg:inline w-px h-4 bg-white/10"></span>
+                <span class="hidden xl:inline text-secondary">Last sync {meta.last_sync || "Unknown"}</span>
+            </div>
+        {/if}
     </header>
 
     {#if error}
@@ -504,136 +520,38 @@
             </div>
         </div>
     {:else}
-        <!-- Period Banner: prominent "Last 90 Days" indicator -->
-        <div
-            class="bg-terminal-panel border border-border-dark rounded-lg p-4 mb-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-        >
-            <div class="flex flex-col sm:flex-row sm:items-center gap-3 flex-wrap">
-                <div
-                    class="px-2 py-1 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded text-xs font-mono font-bold uppercase tracking-wider self-start"
-                >
-                    {meta.date_range || "Last 90 Days"}
-                </div>
-                <div
-                    data-testid="period-banner-data-source"
-                    class="px-2 py-1 {filters.dataSource === 'legacy'
-                        ? 'bg-purple-500/20 text-purple-400 border-purple-500/30'
-                        : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'} border rounded text-xs font-mono font-bold uppercase tracking-wider self-start"
-                >
-                    {filters.dataSource === 'legacy' ? 'Legacy' : 'XWA'}
-                </div>
-                <span class="text-sm text-secondary font-mono">
-                    {#if periodRange}
-                        Tournament data from {periodRange.start} to {periodRange.end}
-                    {:else}
-                        Tournament data from the most recent 90 days
-                    {/if}
-                </span>
-            </div>
-        </div>
-
-        <!-- Top Stats Row -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <div
-                class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] flex flex-col items-start gap-1"
-            >
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <!-- Tournaments -->
+            <div class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] flex flex-col items-start gap-1">
                 <div class="flex items-center gap-2">
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        class="text-secondary"
-                        ><path
-                            d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2Z"
-                        /></svg
-                    >
-                    <span
-                        class="text-secondary font-mono text-[10px] font-bold uppercase tracking-widest"
-                        >Tournaments</span
-                    >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-secondary"><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/></svg>
+                    <span class="text-secondary font-mono text-[10px] font-bold uppercase tracking-widest">Tournaments</span>
                 </div>
-                <div
-                    data-testid="dashboard-total-tournaments"
-                    class="text-4xl font-bold font-mono text-primary"
-                >
-                    {meta.total_tournaments ?? 0}
-                </div>
+                <div data-testid="dashboard-total-tournaments" class="text-4xl font-bold font-mono text-primary">{meta.total_tournaments ?? 0}</div>
             </div>
-
-            <div
-                class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] flex flex-col items-start gap-1"
-            >
+            <!-- Lists (sidebar icon) -->
+            <div class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] flex flex-col items-start gap-1">
                 <div class="flex items-center gap-2">
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        class="text-secondary"
-                        ><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path
-                            d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"
-                        /><path d="M4 22h16" /><path
-                            d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"
-                        /><path
-                            d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"
-                        /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg
-                    >
-                    <span
-                        class="text-secondary font-mono text-[10px] font-bold uppercase tracking-widest"
-                        >Players</span
-                    >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-secondary"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                    <span class="text-secondary font-mono text-[10px] font-bold uppercase tracking-widest">Lists</span>
                 </div>
-                <div
-                    data-testid="dashboard-total-players"
-                    class="text-4xl font-bold font-mono text-primary"
-                >
-                    {meta.total_players ?? 0}
-                </div>
+                <div data-testid="dashboard-total-lists" class="text-4xl font-bold font-mono text-primary">{meta.total_lists ?? 0}</div>
             </div>
-
-            <div
-                class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] flex flex-col items-start gap-1"
-            >
+            <!-- Players (person) -->
+            <div class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] flex flex-col items-start gap-1">
                 <div class="flex items-center gap-2">
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        class="text-secondary"
-                        ><path
-                            d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
-                        /><path d="M3 3v5h5" /><path
-                            d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"
-                        /><path d="M16 21v-5h5" /></svg
-                    >
-                    <span
-                        class="text-secondary font-mono text-[10px] font-bold uppercase tracking-widest"
-                        >Last Sync</span
-                    >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-secondary"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    <span class="text-secondary font-mono text-[10px] font-bold uppercase tracking-widest">Players</span>
                 </div>
-                <div
-                    data-testid="dashboard-last-sync"
-                    class="text-2xl font-bold font-mono text-primary leading-tight mt-1"
-                >
-                    {meta.last_sync || "Unknown"}
+                <div data-testid="dashboard-total-players" class="text-4xl font-bold font-mono text-primary">{meta.total_players ?? 0}</div>
+            </div>
+            <!-- Games (crossed swords) -->
+            <div class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] flex flex-col items-start gap-1">
+                <div class="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-secondary"><path d="M14.5 17.5 3 6V3h3l11.5 11.5-3 3z"/><path d="M13 19 3 9"/><path d="M9.5 17.5 20 6V3h-3L6.5 13.5l3 3z"/><path d="M11 19l-2 2"/></svg>
+                    <span class="text-secondary font-mono text-[10px] font-bold uppercase tracking-widest">Games</span>
                 </div>
+                <div data-testid="dashboard-total-games" class="text-4xl font-bold font-mono text-primary">{meta.total_games ?? 0}</div>
             </div>
         </div>
 

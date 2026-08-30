@@ -28,6 +28,7 @@
     import BackLink from "$lib/components/BackLink.svelte";
     import SortBy from "$lib/components/SortBy.svelte";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
+    import StatIcon from "$lib/components/StatIcon.svelte";
     import { API_BASE } from "$lib/api";
 
     let { data } = $props();
@@ -72,11 +73,6 @@
         xwingData.setSource(filters.dataSource as any);
     });
 
-    // True when the ship can be flown by more than one canonical faction.
-    let hasMultipleFactions = $derived(
-        (info.factions ?? []).filter((f: string) => f && f !== "unknown").length > 1,
-    );
-
     // Primary faction for the glow / accent color.
     // When "all" is selected, use the ship's first faction for a subtle
     // default accent; when a specific faction is selected, use it.
@@ -88,12 +84,9 @@
     let factionColor = $derived(getFactionColor(primaryFaction));
 
     // Accent color for borders/glows on sub-capsules: GRAY when "All" is
-    // selected for multi-faction ships, faction-colored otherwise.
-    // For single-faction ships, always use the faction color so the page
-    // has the themed glow/halo by default (single-faction detail should be
-    // colored without needing a faction toggle).
+    // selected, faction-colored when a specific faction is selected.
     let accentColor = $derived(
-        selectedFaction === "all" && hasMultipleFactions ? "#888888" : factionColor,
+        selectedFaction === "all" ? "#888888" : factionColor,
     );
     let accentBorder = $derived(
         `color-mix(in srgb, ${accentColor} 30%, transparent)`,
@@ -102,11 +95,15 @@
         `0 0 14px color-mix(in srgb, ${accentColor} 10%, transparent)`,
     );
 
+    // True when the ship can be flown by more than one canonical faction.
+    let hasMultipleFactions = $derived(
+        (info.factions ?? []).filter((f: string) => f && f !== "unknown").length > 1,
+    );
+
     // Fetch pilots whenever the selected faction changes. The server-scoped
     // data from +page.ts is already correct for the initial faction, so skip
-    // the first run. Initialize to the current faction to avoid a duplicate
-    // 4x fetch on mount (load already fetched this faction).
-    let fetchedFaction = $state<string | null>(selectedFaction);
+    // the first run (that's what `data.faction` matched).
+    let fetchedFaction = $state<string | null>(null);
     $effect(() => {
         // This effect drives client-side refetches (window) — never run it
         // during SSR. In the browser, `window` exists and the fetch fires.
@@ -120,16 +117,17 @@
             const u = new URL(`${API_BASE}${path}`, window.location.origin);
             // Carry forward every global filter currently in the page URL
             // (formats, date range, location, platforms, player counts,
-            // data_source, search, etc.) so the refetch stays
+            // data_source, epic, search, etc.) so the refetch stays
             // consistent with the ships overview the user came from. Skip
             // page/size/sort which are ships-list-specific.
             for (const [k, v] of new URLSearchParams(window.location.search).entries()) {
                 if (k === 'page' || k === 'size' || k === 'sort_metric' || k === 'sort_direction') continue;
-                if (k === 'faction' || k === 'epic') continue; // detail toggle handled below; epic always on
+                if (k === 'faction') continue; // detail toggle handled below
                 u.searchParams.append(k, v);
             }
             // data_source: keep server-provided default in sync with client store
             if (!u.searchParams.has('data_source')) u.searchParams.set('data_source', ds);
+            if (!u.searchParams.has('epic')) u.searchParams.set('epic', String(filters.includeEpic || false));
             // detail faction toggle (overrides global factions)
             if (faction && faction !== 'all') u.searchParams.set('faction', faction);
             if (extra) for (const [k, v] of Object.entries(extra)) u.searchParams.set(k, v);
@@ -249,30 +247,12 @@
     // ------------------------------------------------------------------------
     // Pilot breakdown — client-side sorting
     // ------------------------------------------------------------------------
-    type PilotSortKey =
-        | "name"
-        | "initiative"
-        | "cost"
-        | "loadout"
-        | "games"
-        | "pct"
-        | "winrate";
+    type PilotSortKey = "name" | "cost" | "games" | "pct" | "winrate";
 
-    let pilotSortKey = $state<PilotSortKey>("games");
+    let pilotSortKey = $state<PilotSortKey>("pct");
     let pilotSortDir = $state<"asc" | "desc">("desc");
 
-    // Loadout value only exists for the XWA (2.5) ruleset. Show the sort
-    // option + column only when the selected data source is XWA.
     let isXwa = $derived((filters.dataSource || "xwa") === "xwa");
-
-    function togglePilotSort(key: PilotSortKey) {
-        if (pilotSortKey === key) {
-            pilotSortDir = pilotSortDir === "asc" ? "desc" : "asc";
-        } else {
-            pilotSortKey = key;
-            pilotSortDir = key === "name" ? "asc" : "desc";
-        }
-    }
 
     function resolvePilotName(p: { xws: string; name?: string }): string {
         return (
@@ -285,20 +265,14 @@
         const wins = Math.max(0, p.wins || 0);
         const wr = games > 0 ? (wins / games) * 100 : -1;
         const pct = totalGames > 0 ? (games / totalGames) * 100 : 0;
-        const pData = xwingData.getPilot(p.xws);
-        const initiative = pData?.initiative ?? p.initiative ?? -1;
+        const pData = xwingData.getPilot(p.xws) as any;
         const cost = pData?.cost ?? p.cost ?? 0;
-        const loadout = pData?.loadout ?? p.loadout ?? 0;
 
         switch (pilotSortKey) {
             case "name":
                 return resolvePilotName(p).toLowerCase();
-            case "initiative":
-                return initiative;
             case "cost":
                 return cost;
-            case "loadout":
-                return loadout;
             case "games":
                 return games;
             case "pct":
@@ -322,21 +296,7 @@
         });
     });
 
-    // ------------------------------------------------------------------------
-    // Sort indicator (small arrow icon)
-    // ------------------------------------------------------------------------
-    function sortIndicator(key: PilotSortKey): string {
-        if (pilotSortKey !== key) return "";
-        return pilotSortDir === "asc" ? "▲" : "▼";
-    }
 
-    function sortHeaderClass(key: PilotSortKey): string {
-        const base =
-            "px-3 py-2 text-[11px] font-mono uppercase tracking-wider cursor-pointer select-none transition-colors hover:text-primary";
-        return pilotSortKey === key
-            ? `${base} text-primary`
-            : `${base} text-secondary`;
-    }
 
     // ------------------------------------------------------------------------
     // Top Performing Lists — client-side sort
@@ -637,281 +597,70 @@
                 value={pilotSortKey}
                 direction={pilotSortDir}
                 options={[
-                    { value: "name", label: "Name" },
-                    { value: "initiative", label: "Init" },
-                    { value: "cost", label: "Cost" },
-                    ...(isXwa ? [{ value: "loadout", label: "Loadout" }] : []),
+                    { value: "pct", label: "% of games" },
                     { value: "games", label: "Games" },
-                    { value: "pct", label: "% of Games" },
-                    { value: "winrate", label: "Win Rate" }
+                    { value: "winrate", label: "Win Rate" },
+                    { value: "name", label: "Name" },
+                    { value: "cost", label: "Points" }
                 ]}
                 onChange={(v, d) => {
-                    pilotSortKey = v as
-                        | "name"
-                        | "initiative"
-                        | "cost"
-                        | "loadout"
-                        | "games"
-                        | "pct"
-                        | "winrate";
+                    pilotSortKey = v as PilotSortKey;
                     pilotSortDir = d;
                 }}
             />
         </div>
 
-        <div
-            class="bg-terminal-panel border rounded-lg overflow-hidden shadow-[0_4px_12px_rgba(0,0,0,0.4)]"
-            style="border-color: {accentBorder}; box-shadow: 0 4px 12px rgba(0,0,0,0.4), 0 0 22px color-mix(in srgb, {accentColor} 12%, transparent);"
-        >
-            <!-- Column headers (clickable to sort). Grid gains a Loadout
-                 column in XWA mode. -->
-            <div
-                class="hidden lg:grid {isXwa
-                    ? 'grid-cols-[minmax(0,2.2fr)_64px_64px_64px_72px_minmax(0,1.4fr)_84px]'
-                    : 'grid-cols-[minmax(0,2.2fr)_64px_64px_72px_minmax(0,1.4fr)_84px]'} gap-3 px-4 py-2.5 border-b border-border-dark bg-[#0c0c0c]"
-            >
-                <button
-                    type="button"
-                    class={sortHeaderClass("name") +
-                        " text-left rounded-md"}
-                    onclick={() => togglePilotSort("name")}
-                >
-                    Pilot {sortIndicator("name")}
-                </button>
-                <button
-                    type="button"
-                    class={sortHeaderClass("initiative") + " text-right rounded-md"}
-                    onclick={() => togglePilotSort("initiative")}
-                >
-                    Init {sortIndicator("initiative")}
-                </button>
-                <button
-                    type="button"
-                    class={sortHeaderClass("cost") + " text-right rounded-md"}
-                    onclick={() => togglePilotSort("cost")}
-                >
-                    Cost {sortIndicator("cost")}
-                </button>
-                {#if isXwa}
-                    <button
-                        type="button"
-                        class={sortHeaderClass("loadout") + " text-right rounded-md"}
-                        onclick={() => togglePilotSort("loadout")}
-                    >
-                        Loadout {sortIndicator("loadout")}
-                    </button>
-                {/if}
-                <button
-                    type="button"
-                    class={sortHeaderClass("games") + " text-right rounded-md"}
-                    onclick={() => togglePilotSort("games")}
-                >
-                    Games {sortIndicator("games")}
-                </button>
-                <button
-                    type="button"
-                    class={sortHeaderClass("pct") + " text-right rounded-md"}
-                    onclick={() => togglePilotSort("pct")}
-                >
-                    % of Games {sortIndicator("pct")}
-                </button>
-                <button
-                    type="button"
-                    class={sortHeaderClass("winrate") + " text-right rounded-md"}
-                    onclick={() => togglePilotSort("winrate")}
-                >
-                    Win Rate {sortIndicator("winrate")}
-                </button>
-            </div>
-
-            <!-- Rows -->
-            {#if sortedPilots.length > 0}
-                <div class="divide-y divide-border-dark/50">
-                    {#each sortedPilots as pilot (pilot.xws)}
-                        {@const pData = xwingData.getPilot(pilot.xws)}
-                        {@const gamesVal = Math.max(0, pilot.games_count || 0)}
-                        {@const winsVal = Math.max(0, pilot.wins || 0)}
-                        {@const wrNum = gamesVal > 0 ? (winsVal / gamesVal) * 100 : 0}
-                        {@const wrStr =
-                            gamesVal > 0 ? wrNum.toFixed(1) + "%" : "NA"}
-                        {@const pctOfChassis =
-                            totalGames > 0
-                                ? (gamesVal / totalGames) * 100
-                                : 0}
-                        {@const pilotName = resolvePilotName(pilot)}
-                        {@const initiative = pData?.initiative ?? pilot.initiative}
-                        {@const cost = pData?.cost ?? pilot.cost}
-                        {@const loadout = pData?.loadout ?? pilot.loadout}
-                        {@const pilotImg = pData?.image}
-                        {@const wrBadgeColor = getWinRateColor(wrNum)}
-                        <a
-                            href="/pilot/{pilot.xws}"
-                            class="grid grid-cols-[88px_minmax(0,1fr)] {isXwa
-                                ? 'lg:grid-cols-[minmax(0,2.2fr)_64px_64px_64px_72px_minmax(0,1.4fr)_84px]'
-                                : 'lg:grid-cols-[minmax(0,2.2fr)_64px_64px_72px_minmax(0,1.4fr)_84px]'} gap-4 px-4 py-3 hover:bg-[#ffffff05] hover:border-l-2 hover:border-l-primary transition-colors group items-center"
-                        >
-                            <!-- Pilot cell: image + name (one grid column) -->
-                            <div
-                                class="col-span-2 lg:col-span-1 flex items-center gap-4 min-w-0"
-                            >
-                                <div
-                                    class="w-24 h-24 lg:w-24 lg:h-24 flex-shrink-0 flex items-center justify-center overflow-visible"
-                                >
-                                    {#if pilotImg}
-                                        <img
-                                            src={pilotImg}
-                                            alt={pilotName}
-                                            class="w-full h-full object-contain"
-                                            loading="lazy"
-                                        />
-                                    {:else}
-                                        <i
-                                            class="xwing-miniatures-ship xwing-miniatures-ship-{data.shipXws} text-4xl"
-                                            style="color: {factionColor}; opacity: 0.6;"
-                                        ></i>
-                                    {/if}
-                                </div>
-                                <div class="min-w-0 flex-1">
-                                    <div
-                                        class="text-base font-sans font-bold text-primary group-hover:text-accent transition-colors truncate"
-                                    >
-                                        {pilotName}
-                                    </div>
-                                    <!-- Mobile + tablet inline stats -->
-                                    <div
-                                        class="flex items-center gap-1.5 mt-1 lg:hidden flex-wrap"
-                                    >
-                                        {#if initiative !== undefined && initiative !== null}
-                                            <span
-                                                class="px-1.5 py-0.5 text-[10px] font-mono rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                                                >I{initiative}</span
-                                            >
-                                        {/if}
-                                        {#if cost !== undefined && cost !== null}
-                                            <span
-                                                class="px-1.5 py-0.5 text-[10px] font-mono rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                                                >{cost} PT</span
-                                            >
-                                        {/if}
-                                        {#if isXwa && loadout !== undefined && loadout !== null}
-                                            <span
-                                                class="px-1.5 py-0.5 text-[10px] font-mono rounded-md bg-sky-500/20 text-sky-400 border border-sky-500/30"
-                                                >{loadout} LV</span
-                                            >
-                                        {/if}
-                                        <span
-                                            class="text-[10px] font-mono text-secondary"
-                                        >
-                                            · {gamesVal} g
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Initiative (desktop) -->
-                            <div
-                                class="hidden lg:flex justify-end items-center"
-                            >
-                                {#if initiative !== undefined && initiative !== null}
-                                    <span
-                                        class="px-2 py-0.5 text-xs font-mono rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/20"
-                                        >I{initiative}</span
-                                    >
-                                {:else}
-                                    <span class="text-xs font-mono text-secondary"
-                                        >—</span
-                                    >
-                                {/if}
-                            </div>
-
-                            <!-- Cost (desktop) -->
-                            <div
-                                class="hidden lg:flex justify-end items-center"
-                            >
-                                {#if cost !== undefined && cost !== null}
-                                    <span
-                                        class="px-2 py-0.5 text-xs font-mono rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
-                                        >{cost}</span
-                                    >
-                                {:else}
-                                    <span class="text-xs font-mono text-secondary"
-                                        >—</span
-                                    >
-                                {/if}
-                            </div>
-
-                            <!-- Loadout (desktop, XWA only) -->
-                            {#if isXwa}
-                                <div
-                                    class="hidden lg:flex justify-end items-center"
-                                >
-                                    {#if loadout !== undefined && loadout !== null}
-                                        <span
-                                            class="px-2 py-0.5 text-xs font-mono rounded-md bg-sky-500/15 text-sky-400 border border-sky-500/20"
-                                            >{loadout}</span
-                                        >
-                                    {:else}
-                                        <span
-                                            class="text-xs font-mono text-secondary"
-                                            >—</span
-                                        >
-                                    {/if}
-                                </div>
-                            {/if}
-
-                            <!-- Games (desktop) -->
-                            <div
-                                class="hidden lg:flex justify-end items-center font-mono text-sm text-primary tabular-nums"
-                            >
-                                {gamesVal.toLocaleString()}
-                            </div>
-
-                            <!-- % of Games (desktop) -->
-                            <div
-                                class="hidden lg:flex justify-end items-center gap-2"
-                            >
-                                <div
-                                    class="w-20 h-1.5 bg-black rounded-full overflow-hidden border border-white/5"
-                                >
-                                    <div
-                                        class="h-full bg-blue-500/60"
-                                        style="width: {Math.min(
-                                            100,
-                                            pctOfChassis,
-                                        ).toFixed(1)}%"
-                                    ></div>
-                                </div>
-                                <span
-                                    class="text-xs font-mono text-secondary tabular-nums w-12 text-right"
-                                >
-                                    {pctOfChassis.toFixed(1)}%
+        {#if sortedPilots.length > 0}
+            <!-- Grid 2 col like squadron — full-height pilot PNGs, % on bar, GAMES/WR top-right -->
+            <div class="grid gap-4 grid-cols-1 md:grid-cols-2">
+                {#each sortedPilots as pilot (pilot.xws)}
+                    {@const pData = xwingData.getPilot(pilot.xws) as any}
+                    {@const pilotName = resolvePilotName(pilot)}
+                    {@const pts = pData?.cost ?? pilot.cost ?? 0}
+                    {@const loadout = pData?.loadout}
+                    {@const hasLoadout = isXwa && loadout !== undefined && loadout !== null}
+                    {@const gamesVal = Math.max(0, pilot.games_count || 0)}
+                    {@const winsVal = Math.max(0, pilot.wins || 0)}
+                    {@const wrNum = gamesVal > 0 ? (winsVal / gamesVal) * 100 : 0}
+                    {@const wrC = getWinRateColor(wrNum)}
+                    {@const pct = totalGames > 0 ? (gamesVal / totalGames) * 100 : 0}
+                    {@const pilotImg = pData?.image}
+                    {@const isLandscape = !!(pilotImg && String(pilotImg).includes('/quickbuilds/'))}
+                    <a href="/pilot/{pilot.xws}" class="relative bg-terminal-panel border border-border-dark rounded-lg flex items-stretch overflow-hidden hover:border-primary/30 transition-colors group min-h-[144px] p-2 gap-2">
+                        {#if pilotImg}
+                            <img src={pilotImg} alt={pilotName} class="{isLandscape ? 'w-44 sm:w-52 object-contain object-left' : 'w-24 sm:w-28 object-contain object-center'} self-stretch flex-shrink-0 rounded-md drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]" style="min-height: 100%; background: transparent;" loading="lazy" />
+                        {:else}
+                            <div class="w-24 sm:w-28 self-stretch flex-shrink-0 flex items-center justify-center rounded-md bg-black/20 border border-white/5"><StatIcon type={data.shipXws} size="2.4rem" color="rgba(255,255,255,0.15)" isShip={true} /></div>
+                        {/if}
+                        <div class="min-w-0 flex-1 flex flex-col py-1 gap-2">
+                            <div class="flex justify-end">
+                                <span class="flex items-center gap-1.5">
+                                    <span class="px-1.5 py-0.5 bg-[#ffffff08] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">GAMES {gamesVal.toLocaleString()}</span>
+                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border" style="background: {wrC}18; color: {wrC}; border-color: {wrC}35;">WR {gamesVal > 0 ? wrNum.toFixed(1) + '%' : 'NA'}</span>
                                 </span>
                             </div>
-
-                            <!-- Win Rate (desktop) -->
-                            <div class="hidden lg:flex justify-end items-center">
-                                {#if wrStr !== "NA"}
-                                    <span
-                                        class="px-2 py-0.5 text-xs font-mono rounded-md font-bold tabular-nums"
-                                        style="color: {wrBadgeColor}; background: {wrBadgeColor}18;"
-                                    >
-                                        {wrStr}
-                                    </span>
-                                {:else}
-                                    <span class="text-xs font-mono text-secondary"
-                                        >—</span
-                                    >
-                                {/if}
+                            <div class="min-w-0">
+                                <p class="font-sans font-bold text-primary truncate group-hover:text-accent transition-colors text-[15px] leading-tight" title={pilotName}>{pilotName}</p>
+                                <div class="flex flex-wrap gap-1.5 mt-2">
+                                    <span class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded text-[11px] font-mono font-bold">PTS {pts}</span>
+                                    {#if hasLoadout}<span class="px-1.5 py-0.5 bg-violet-500/20 text-violet-400 border border-violet-500/30 rounded text-[11px] font-mono font-bold">LV {loadout}</span>{/if}
+                                </div>
                             </div>
-                        </a>
-                    {/each}
-                </div>
-            {:else}
-                <div class="py-10 text-center text-sm font-mono text-secondary">
-                    No pilot data available.
-                </div>
-            {/if}
-        </div>
+                            <div class="mt-auto flex items-center gap-2 pt-2">
+                                <div class="flex-1 h-2 bg-black/40 rounded-full overflow-hidden border border-white/5">
+                                    <div class="h-full bg-sky-400 rounded-full" style="width: {Math.max(2, Math.min(100, pct))}%"></div>
+                                </div>
+                                <span class="font-mono text-sm font-bold text-primary tabular-nums shrink-0" title={`present in ${gamesVal.toLocaleString()} games of this ship`}>{pct.toFixed(1)}% <span class="font-normal text-secondary/80 text-xs">of games</span></span>
+                            </div>
+                        </div>
+                    </a>
+                {/each}
+            </div>
+        {:else}
+            <div class="bg-terminal-panel border border-border-dark rounded-lg py-10 px-6 text-center">
+                <p class="text-sm font-mono text-secondary">No pilot data available.</p>
+            </div>
+        {/if}
     </section>
 
     <!-- ====================================================================
@@ -1044,37 +793,27 @@
                             class="bg-terminal-panel border border-border-dark rounded-lg p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] hover:border-primary/40 transition-all h-full flex flex-col gap-3 group-hover:bg-[#ffffff03]"
                             style="border-left: 3px solid {sFactionColor};"
                         >
-                            <!-- Header: faction + name + games -->
-                            <div
-                                class="flex items-start justify-between gap-3"
-                            >
+                            <!-- Header: faction + pills top-right — LISTS/ENTRIES in secondary, GAMES/WR compact -->
+                            <div class="flex items-start justify-between gap-2">
                                 <div class="flex items-center gap-2 min-w-0">
-                                    <FactionIcon
-                                        faction={sFaction}
-                                        size="lg"
-                                        className="shrink-0"
-                                    />
-                                    <span
-                                        class="text-[11px] font-mono uppercase tracking-wider text-secondary truncate"
-                                        title={getFactionLabel(sFaction)}
-                                    >
-                                        {getFactionLabel(sFaction)}
-                                    </span>
+                                    <FactionIcon faction={sFaction} size="lg" className="shrink-0" />
+                                    <span class="text-[11px] font-mono uppercase tracking-wider text-secondary truncate" title={getFactionLabel(sFaction)}>{getFactionLabel(sFaction)}</span>
                                 </div>
-                                <span
-                                    class="shrink-0 px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
-                                >
-                                    GAMES {sGames}
+                                <span class="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">LISTS {sListCount}</span>
+                                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">ENTRIES {sEntries}</span>
+                                    <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded text-[10px] font-mono font-bold text-secondary">GAMES {sGames}</span>
+                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border" style="color: {sWrColor}; background: {sWrColor}18; border-color: {sWrColor}35;">WR {sWrNum.toFixed(1)}%</span>
                                 </span>
                             </div>
 
-                            <!-- Ship composition -->
+                            <!-- Ship composition — allargata, più respiro grazie al footer rimosso -->
                             <div
-                                class="flex flex-wrap gap-1.5 min-h-[2.5rem] items-center"
+                                class="flex flex-wrap gap-2 min-h-[3rem] items-center"
                             >
                                 {#each shipCounts as sc (sc.id)}
                                     <div
-                                        class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#ffffff04] border border-white/5"
+                                        class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#ffffff06] border border-white/10"
                                         title="{sc.count}x {sc.name}"
                                     >
                                         {#if sc.count > 1}
@@ -1096,31 +835,7 @@
                                 {/each}
                             </div>
 
-                            <!-- Stats footer -->
-                            <div
-                                class="flex items-center gap-2 pt-3 border-t border-border-dark/60 mt-auto flex-wrap"
-                            >
-                                <span
-                                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
-                                >
-                                    LISTS {sListCount}
-                                </span>
-                                <span
-                                    class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-primary"
-                                >
-                                    ENTRIES {sEntries}
-                                </span>
-                                <span
-                                    class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold"
-                                    style="color: {sWrColor}; background: {sWrColor}18;"
-                                >
-                                    WR {sWrNum.toFixed(1)}%
-                                </span>
-                                <span
-                                    class="ml-auto text-[10px] font-mono text-secondary opacity-60 group-hover:opacity-100 group-hover:text-primary transition-all"
-                                    >View Squad →</span
-                                >
-                            </div>
+
                         </div>
                     </a>
                 {/each}

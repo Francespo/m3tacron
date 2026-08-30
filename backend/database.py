@@ -50,65 +50,8 @@ if DATABASE_URL.startswith("sqlite"):
         cursor.close()
 
 
-def _ensure_performance_indexes(conn) -> None:
-    """Create the 6 analytics hot-path indexes idempotently.
-
-    These are required for ship-detail and card aggregations to avoid
-    seq scans over 96K+ playerstanding rows (18s → 0.002s). They are NOT
-    created by SQLModel's create_all — they must be declared explicitly.
-    Safe to re-run on every startup (IF NOT EXISTS).
-    """
-    from sqlalchemy import text as _text
-
-    indexes = [
-        ("ix_playerstanding_tournament_id", "playerstanding", "tournament_id"),
-        ("ix_tournament_date", "tournament", "date"),
-        ("ix_tournament_source", "tournament", "source"),
-        ("ix_tournament_format", "tournament", "format"),
-        ("ix_playerstanding_faction_xws_normalized", "playerstanding", "faction_xws_normalized"),
-        ("ix_list_faction_xws_normalized", "list", "faction_xws_normalized"),
-        ("ix_pilot_ship_mapping_ship_xws", "pilot_ship_mapping", "ship_xws"),
-    ]
-    for name, table, col in indexes:
-        try:
-            conn.execute(_text(f"CREATE INDEX IF NOT EXISTS {name} ON {table} ({col})"))
-        except Exception as exc:
-            print(f"[startup] index {name} skipped: {exc}")
-
-
-def _ensure_team_event_columns(conn) -> None:
-    """Add team-event columns idempotently for stale dumps.
-
-    The dev dump is restored on every local dev launch and may predate
-    the team-event schema. Without these columns every analytics query
-    that filters on is_team_event 500s and the prewarm fails.
-    """
-    from sqlalchemy import text as _text
-
-    for ddl in [
-        "ALTER TABLE tournament ADD COLUMN IF NOT EXISTS is_team_event boolean NOT NULL DEFAULT false",
-        "ALTER TABLE playerstanding ADD COLUMN IF NOT EXISTS is_team_member boolean NOT NULL DEFAULT false",
-        "CREATE TABLE IF NOT EXISTS team_member (id SERIAL PRIMARY KEY, teamstanding_id integer NOT NULL REFERENCES teamstanding(id) ON DELETE CASCADE, playerstanding_id integer NOT NULL REFERENCES playerstanding(id) ON DELETE CASCADE, list_id integer REFERENCES list(id), list_json jsonb, CONSTRAINT uq_team_member_team_player UNIQUE (teamstanding_id, playerstanding_id))",
-        "CREATE UNIQUE INDEX IF NOT EXISTS uq_team_member_player ON team_member(playerstanding_id)",
-        "CREATE INDEX IF NOT EXISTS ix_team_member_teamstanding ON team_member(teamstanding_id)",
-    ]:
-        try:
-            conn.execute(_text(ddl))
-        except Exception as exc:
-            print(f"[startup] team schema {ddl[:60]}... skipped: {exc}")
-
-
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
-    # Ensure team-event schema + performance indexes on every startup (idempotent).
-    try:
-        from sqlalchemy import text as _text
-
-        with engine.begin() as conn:
-            _ensure_team_event_columns(conn)
-            _ensure_performance_indexes(conn)
-    except Exception as exc:
-        print(f"[startup] team/performance ensures skipped: {exc}")
     # Self-heal pilot_ship_mapping for fresh or legacy databases:
     #  - Table is declared in models.PilotShipMapping so create_all above
     #    creates it on fresh DBs.

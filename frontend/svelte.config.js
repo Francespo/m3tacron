@@ -4,15 +4,21 @@ import adapter from '@sveltejs/adapter-node';
 const config = {
 	kit: {
 		adapter: adapter(),
-		// Ko-fi sends server-to-server POST as application/x-www-form-urlencoded
-		// with no Origin header. SvelteKit's built-in CSRF blocks form POSTs
-		// with missing Origin before hooks.server.ts runs, so
-		// https://m3tacron.com/api/support/webhook/ko-fi would 403.
-		// Disable the built-in check and re-implement it in hooks.server.ts
-		// for every route except the Ko-fi webhook (which is authenticated
-		// via verification_token instead).
 		csrf: {
-			checkOrigin: false
+			checkOrigin: true,
+			trustedOrigins: [
+				'http://server-francesco:*',
+				'http://server-francesco.gazella-ule.ts.net:*',
+				'http://*.gazella-ule.ts.net:*',
+				'http://100.69.158.7:*',
+				'http://[fd7a:115c:a1e0::613a:9e08]:*',
+				'http://localhost:*',
+				'http://127.0.0.1:*',
+				'https://ko-fi.com',
+				'https://*.ko-fi.com',
+				'https://m3tacron.com',
+				'https://*.m3tacron.com'
+			]
 		}
 	}
 };

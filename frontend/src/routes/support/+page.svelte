@@ -1,10 +1,28 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import HallOfHeroes from "$lib/components/HallOfHeroes.svelte";
-  import type { PageProps } from "./$types";
+  import { API_BASE } from "$lib/api";
+  import { cachedFetchJson } from "$lib/api/cache";
 
-  let { data }: PageProps = $props();
-  let supporters = $derived(data.supporters);
+  let supporters: { name: string; message?: string | null; isMonthly?: boolean }[] = $state([]);
+  let loading = $state(true);
+
   let displaySupporters = $derived(supporters);
+
+  async function fetchData() {
+    try {
+      const data = await cachedFetchJson(`${API_BASE}/support/supporters`);
+      supporters = Array.isArray(data) ? data : [];
+    } catch (e) {
+      console.error("Failed to fetch support data", e);
+    } finally {
+      loading = false;
+    }
+  }
+
+  onMount(() => {
+    fetchData();
+  });
 </script>
 
 <svelte:head>
@@ -116,7 +134,17 @@
       </div>
 
       <div class="space-y-4">
-        <HallOfHeroes supporters={displaySupporters} />
+        {#if loading}
+          <div class="grid grid-cols-2 gap-3 opacity-10 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {#each Array(6) as _}
+              <div
+                class="h-14 rounded-xl border border-border-dark bg-terminal-panel"
+              ></div>
+            {/each}
+          </div>
+        {:else}
+          <HallOfHeroes supporters={displaySupporters} />
+        {/if}
       </div>
     </section>
   </div>

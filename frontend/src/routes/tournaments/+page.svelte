@@ -1,23 +1,25 @@
 <script lang="ts">
-    import FilterPanel from "$lib/components/FilterPanel.svelte";
-    import MobileFilterDrawer from "$lib/components/MobileFilterDrawer.svelte";
-    import MobileFilterTrigger from "$lib/components/MobileFilterTrigger.svelte";
-    import SortBy from "$lib/components/SortBy.svelte";
     import PendingIndicator from "$lib/components/PendingIndicator.svelte";
+    import ContentLoader from "$lib/components/ContentLoader.svelte";
     import ErrorPanel from "$lib/components/ErrorPanel.svelte";
+    import LocalFilterBar from "$lib/components/LocalFilterBar.svelte";
+    import TournamentPageFilters from "$lib/components/TournamentPageFilters.svelte";
     import { invalidateAll } from "$app/navigation";
     import { filters } from "$lib/stores/filters.svelte";
     import { scheduleSync } from "$lib/sync/urlSync.svelte";
     import { getFormatLabel, getFormatColor } from "$lib/data/formats";
-    import Pagination from "$lib/components/Pagination.svelte";
-    import { page as currentPage } from "$app/state";
-    import { untrack } from "svelte";
 
     let { data } = $props();
 
-    let filterOpen = $state(false);
     let page = $state(1);
     const size = 20;
+    let _localRestored = false;
+    $effect(() => {
+        if (_localRestored) return;
+        const _sp = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+        filters.restoreLocalFilters('tournaments', _sp);
+        _localRestored = true;
+    });
 
     // The loader streams the tournament rows in via `itemsPromise`
     // (non-blocking navigation). `resolved` keeps the LAST good payload so
@@ -64,18 +66,12 @@
     // on top. URL hydration on direct nav is handled by the layout via
     // `filters.applyFromSearchParams`.
     $effect(() => {
-        const curPage = page;
         const params = filters.toSearchParams('tournaments');
-        params.set('page', String(curPage - 1));
+        params.set('page', String(page - 1));
         params.set('size', String(size));
         scheduleSync(0, params);
-    });
-
-    // Keep page in sync with URL (direct navigation ?page=2)
-    $effect(() => {
-        const urlPage = Number(currentPage.url.searchParams.get('page') ?? '0');
-        const desiredPage = urlPage + 1;
-        if (untrack(() => page) !== desiredPage) page = desiredPage;
+        // Persist local filters per route (survives navigation, not shared across routes)
+        queueMicrotask(() => filters.saveLocalFilters('tournaments'));
     });
 
     function prevPage() {
@@ -95,6 +91,11 @@
             filters.sortBy = "Date";
         }
     });
+    function isGlobalChip(k:string){ return k.startsWith("format:")||k.startsWith("continent:")||k.startsWith("country:")||k.startsWith("city:")||k.startsWith("source:")||k==="dateStart"||k==="dateEnd"; }
+    let tournamentLocalChips = $derived(filters.activeChips.filter(c=>!isGlobalChip(c.key)));
+    let tournamentLocalCount = $derived(tournamentLocalChips.length);
+    let datasetActive = $derived(filters.activeChips.filter(c=>isGlobalChip(c.key)).length);
+    function clearTournamentFilters(){ for (const ch of [...tournamentLocalChips]) filters.removeChip(ch.key); }
 </script>
 
 <!-- Sort By was moved to the main content section header (rendered by
@@ -108,45 +109,36 @@
 </svelte:head>
 
 <div class="flex min-h-screen">
-    <!-- Filter Panel (2nd column). No children: the page's only filter
-         (sort) lives in the main content section header so there is no
-         sidebar content to render. -->
-    <FilterPanel />
-
-    <MobileFilterTrigger
-        activeCount={filters.activeChips.length}
-        onClick={() => (filterOpen = true)}
-    />
-    <MobileFilterDrawer
-        open={filterOpen}
-        onClose={() => (filterOpen = false)}
-        title="Filters"
-        activeCount={filters.activeChips.length}
-    >
-        {#snippet children()}
-            <!-- No sidebar filters on this page; sort lives in the main content. -->
-        {/snippet}
-    </MobileFilterDrawer>
+    <!-- Filters now live in the right-side drawer (FAB) on all breakpoints.
+         No fixed left filter panel — the FAB + drawer replace it on desktop
+         too, matching the mobile pattern. -->
+    <!-- Tournaments: no FAB — filters are inline in the collapsible bar below (standalone from dataset) -->
 
     <!-- Main Content (3rd column) -->
     <main class="flex-1 min-w-0 p-6 md:p-8 pb-20 lg:pb-8">
-        <div class="flex items-start justify-between gap-3 mb-1 flex-wrap">
-            <h1 class="text-3xl font-sans font-bold text-primary">
-                Tournaments
-            </h1>
-            <SortBy
-                value={filters.sortBy || "Date"}
-                direction={filters.sortDirection}
-                options={[
-                    { value: "Date", label: "Date" },
-                    { value: "Players", label: "Players" },
-                    { value: "Name", label: "Name" },
-                ]}
-                onChange={(v, d) => {
-                    filters.sortBy = v;
-                    filters.sortDirection = d;
-                }}
-            />
+        <!-- Page header — standardized: title + count | Sort by (outside filters, always visible even collapsed) -->
+        <div class="flex flex-wrap items-baseline justify-between gap-3 mb-4">
+            <h1 class="text-3xl font-sans font-bold text-primary leading-none shrink-0">Tournaments</h1>
+            <div class="flex items-center gap-2 shrink-0 self-center">
+                {#if resolved}
+                    <span class="hidden lg:inline text-xs font-mono text-secondary">{resolved.total ?? 0} Tournaments Found</span>
+                    <span class="hidden lg:inline w-px h-4 bg-white/10 shrink-0" aria-hidden="true"></span>
+                {#if pending}<span class="hidden lg:inline"><PendingIndicator active mode="tag" label="Updating…" /></span>{/if}
+                {/if}
+                <span class="hidden sm:inline text-xs font-mono text-secondary uppercase tracking-wider">Sort by</span>
+                <select class="bg-terminal-panel border border-border-dark rounded-md text-xs font-mono text-primary px-2 py-1.5 focus:outline-none" value={filters.sortBy || "Date"} onchange={(e) => { filters.sortBy = (e.target as HTMLSelectElement).value; }} aria-label="Sort by">
+                    <option value="Date">Date</option><option value="Players">Players</option><option value="Name">Name</option>
+                </select>
+                <button type="button" onclick={() => { filters.sortDirection = filters.sortDirection === "asc" ? "desc" : "asc"; }} class="inline-flex items-center justify-center w-7 h-7 bg-terminal-panel border border-border-dark rounded-md text-secondary hover:text-primary hover:bg-[#ffffff05] active:bg-[#ffffff14] transition-colors shrink-0" aria-label={filters.sortDirection === "asc" ? "Sort ascending" : "Sort descending"}>
+                    {#if filters.sortDirection === "asc"}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>{:else}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>{/if}
+                </button>
+            </div>
+        </div>
+        <!-- Tournaments have no per-section game filters: the only page filters ARE the dataset filters (dates, locations, formats, sources, search). Expose them as an inline collapsible LocalFilterBar like Card filters, not just a FAB. Dataset is still the global concept; this bar just makes tournament dataset filters discoverable inline. -->
+        <div class="mb-6">
+            <LocalFilterBar id="tournaments-local" label="Tournament filters" activeCount={tournamentLocalCount} chips={tournamentLocalChips} onRemoveChip={(k) => filters.removeChip(k)} onClear={clearTournamentFilters}>
+                <TournamentPageFilters />
+            </LocalFilterBar>
         </div>
         {#if !resolved}
             {#if failed}
@@ -157,7 +149,7 @@
                     />
                 </div>
             {:else}
-                <p class="text-secondary font-mono text-sm mb-6">Loading…</p>
+                <ContentLoader label="Loading Tournaments" />
 
                 <!-- Loading Skeleton (matches tournament row shape:
                      format badge / title+meta / player count) -->
@@ -199,20 +191,11 @@
             {@const resolvedTotal = resolved?.total ?? 0}
             {@const items = resolved?.items ?? []}
 
-            <!-- Stale rows stay visible while a refetch runs: the rows
-                 container dims while `pending` and smoothly returns to full
-                 opacity; the neutral inline tag next to the count says the
-                 update is in flight. -->
-            <div class="flex items-center gap-2.5 mb-6">
-                <p class="text-secondary font-mono text-sm">
-                    {resolvedTotal} Tournaments Found
-                </p>
-                <PendingIndicator
-                    active={pending}
-                    mode="tag"
-                    label="Updating…"
-                />
+            <div class="flex items-center gap-2.5 mt-1.5 mb-2 lg:hidden">
+                <p class="text-secondary font-mono text-sm">{resolvedTotal} Tournaments Found</p>
+                <PendingIndicator active={pending} mode="tag" label="Updating…" />
             </div>
+            
 
             <div
                 class="transition-opacity duration-200 {pending
@@ -324,8 +307,14 @@
                 </div>
             {/if}
 
-            <Pagination total={resolvedTotal} {page} {size} onPrev={prevPage} onNext={nextPage} />
+            <div class="flex items-center justify-center gap-2 mt-6">
+                <button class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed" onclick={prevPage} disabled={page <= 1}>← Prev</button>
+                <span class="text-xs font-mono text-secondary">Showing {resolvedTotal === 0 ? 0 : (page - 1) * size + 1}–{Math.min(page * size, resolvedTotal)} of {resolvedTotal} · Page {page}/{Math.max(1, Math.ceil(resolvedTotal / size))}</span>
+                <button class="px-3 py-1 text-xs font-mono border border-border-dark rounded-md hover:bg-[#ffffff08] text-secondary hover:text-primary active:bg-[#ffffff14] transition-colors disabled:opacity-30 disabled:cursor-not-allowed" onclick={nextPage} disabled={page * size >= resolvedTotal}>Next →</button>
+            </div>
             </div>
         {/if}
     </main>
 </div>
+
+

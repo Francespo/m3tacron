@@ -3,11 +3,15 @@
     import { goto } from "$app/navigation";
     import BackLink from "$lib/components/BackLink.svelte";
     import { filters } from "$lib/stores/filters.svelte";
-import { getFactionColor } from "$lib/data/factions";
+    import { getFactionColor } from "$lib/data/factions";
 import SortBy from "$lib/components/SortBy.svelte";
 import FactionIcon from "$lib/components/FactionIcon.svelte";
 import { xwingData } from "$lib/stores/xwingData.svelte";
 import ListRowCard from "$lib/components/ListRowCard.svelte";
+import LocalFilterBar from "$lib/components/LocalFilterBar.svelte";
+import DebouncedTextInput from "$lib/components/DebouncedTextInput.svelte";
+import { page as pageState } from "$app/state";
+import { untrack } from "svelte";
 
     let { data }: { data: any } = $props();
     import StatIcon from "$lib/components/StatIcon.svelte";
@@ -49,6 +53,8 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
     let configSortKey = $state<ConfigSortKey>("lists");
     let configSortDir = $state<"asc" | "desc">("desc");
 
+    // --- Local section filters: per-section, URL-prefix ready (upg_*, cfg_*, plist_*) ---
+
     function configSortValue(c: any): number {
         switch (configSortKey) {
             case "winrate":
@@ -59,10 +65,12 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
                 return Math.max(0, c.count ?? 0);
         }
     }
+    let filteredListsSource = $derived(pilotListsItems as any[]);
+    let filteredConfigurationsSource = $derived(configurations as any[]);
 
     let sortedConfigurations = $derived.by(() => {
         const dir = configSortDir === "asc" ? 1 : -1;
-        return [...configurations].sort((a, b) => {
+        return [...filteredConfigurationsSource].sort((a, b) => {
             const diff = configSortValue(a) - configSortValue(b);
             if (diff !== 0) return diff * dir;
             // Stable tiebreaker: most-used first, then by name.
@@ -86,10 +94,11 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
         const w = Math.max(0, Number(u.wins ?? 0));
         return g > 0 ? (w / g) * 100 : -1;
     }
+    let filteredUpgrades = $derived(upgrades as any[]);
 
     let sortedUpgrades = $derived.by(() => {
         const dir = upgSortDir === "asc" ? 1 : -1;
-        return [...upgrades].sort((a, b) => {
+        return [...filteredUpgrades].sort((a, b) => {
             let diff: number;
             if (upgSortKey === "winrate") {
                 diff = upgWinRate(a) - upgWinRate(b);
@@ -104,11 +113,13 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
         });
     });
 
-    function getDefaultFormats(ds: "xwa" | "legacy"): string[] {
+    function getDefaultFormats(ds: "xwa" | "legacy", includeEpic: boolean): string[] {
         if (ds === "xwa") {
-            return ["xwa"];
+            return includeEpic ? ["xwa", "xwa_epic"] : ["xwa"];
         }
-        return ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum"];
+        return includeEpic
+            ? ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum", "legacy_epic"]
+            : ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum"];
     }
 
     $effect(() => {
@@ -116,16 +127,30 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
         if (data.ds === "legacy" || data.ds === "xwa") {
             filters.dataSource = data.ds;
         }
+        // Only sync the epic flag from the URL when the URL explicitly
+        // carries it. A plain navigation from another page (e.g. a card
+        // link) drops the query string, and the store must keep its value
+        // so the toggle stays consistent across routes.
+        if (data.hasEpicParam) {
+            filters.includeEpic = !!data.includeEpic;
+        }
         initialized = true;
     });
 
     $effect(() => {
         if (!initialized) return;
 
+        const keep = browser ? new URLSearchParams(window.location.search) : new URLSearchParams();
         const params = new URLSearchParams();
         params.set("data_source", filters.dataSource);
-        for (const f of getDefaultFormats(filters.dataSource)) {
+        if (filters.includeEpic) params.set("epic", "true");
+        for (const f of getDefaultFormats(filters.dataSource, filters.includeEpic)) {
             params.append("formats", f);
+        }
+        // preserve style + local prefixes (URL with prefix)
+        for (const k of ["style", "upg_search", "upg_slot", "cfg_search", "plist_search"]) {
+            const v = keep.get(k);
+            if (v !== null && v !== "") params.set(k, v);
         }
 
         goto(`?${params.toString()}`, {
@@ -334,6 +359,7 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
         </div>
     {/if}
 
+
     <!-- Compatible Upgrades — hidden for standard-loadout (horizontal) pilots that have no upgrade slots -->
     {#if !hasNoUpgradesConfig}
     <section class="mb-10">
@@ -472,9 +498,9 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
             />
         </div>
 
-        {#if pilotListsItems.length > 0}
+        {#if filteredListsSource.length > 0}
             <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                {#each pilotListsItems as lst (lst.signature)}
+                {#each filteredListsSource as lst (lst.signature)}
                     <ListRowCard list={lst} />
                 {/each}
             </div>
@@ -485,7 +511,7 @@ import ListRowCard from "$lib/components/ListRowCard.svelte";
             </div>
         {:else}
             <div class="bg-terminal-panel border border-border-dark rounded-lg p-8 text-center">
-                <p class="text-secondary font-mono text-sm">No lists found featuring this pilot.</p>
+                <p class="text-secondary font-mono text-sm">"No lists found featuring this pilot."</p>
             </div>
         {/if}
     </section>

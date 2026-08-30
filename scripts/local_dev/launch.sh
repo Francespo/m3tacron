@@ -58,16 +58,23 @@ else
   fi
 fi
 
-# --- Detect tailnet hostname ---
+# --- Detect tailnet hostname + MagicDNS ---
 HOSTNAME_SHORT="$(hostname -s 2>/dev/null || echo localhost)"
 TAILSCALE_HOST=""
+TAILSCALE_FQDN=""
+TAILSCALE_SUFFIX=""
 if command -v tailscale &>/dev/null; then
-  TAILSCALE_HOST="$(tailscale status --json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['Self']['HostName'])" 2>/dev/null || true)"
+  TAILSCALE_HOST="$(tailscale status --json 2>/dev/null | python3 -c "import sys,json; j=json.load(sys.stdin); print(j.get('Self',{}).get('HostName',''))" 2>/dev/null || true)"
+  TAILSCALE_FQDN="$(tailscale status --json 2>/dev/null | python3 -c "import sys,json; j=json.load(sys.stdin); print(j.get('Self',{}).get('DNSName','').rstrip('.'))" 2>/dev/null || true)"
+  TAILSCALE_SUFFIX="$(tailscale status --json 2>/dev/null | python3 -c "import sys,json; j=json.load(sys.stdin); print(j.get('MagicDNSSuffix','') or '')" 2>/dev/null || true)"
 fi
 TAILNET_HOST="${TAILSCALE_HOST:-$HOSTNAME_SHORT}"
-
-# Vite allowed hosts: localhost + tailnet hostname
-VITE_ALLOWED="localhost,127.0.0.1,${TAILNET_HOST},$(tailscale ip -4 2>/dev/null)"
+TAILNET_FQDN="${TAILSCALE_FQDN:-$TAILNET_HOST}"
+# Vite allowed hosts: localhost + tailnet short + FQDN + both Tailscale IPs
+TAIL_IP4="$(tailscale ip -4 2>/dev/null | tr '\n' ',' | sed 's/,$//')"
+TAIL_IP6="$(tailscale ip -6 2>/dev/null | head -1 | tr -d '\n')"
+VITE_ALLOWED="localhost,127.0.0.1,${TAILNET_HOST},${TAILNET_FQDN},${TAIL_IP4:-},${TAIL_IP6:-}"
+VITE_ALLOWED="$(echo "$VITE_ALLOWED" | sed 's/,,*/,/g; s/^,//; s/,$//')"
 
 # --- Setup if needed ---
 bash "$SCRIPT_DIR/ensure-setup.sh"

@@ -5,13 +5,15 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
     url.search; // Force reactivity
     const upgradeXws = params.id;
     const ds = url.searchParams.get('data_source') === 'legacy' ? 'legacy' : 'xwa';
+    const includeEpic = url.searchParams.get('epic') === 'true';
+    const hasEpicParam = url.searchParams.has('epic');
 
     const formatsFromUrl = url.searchParams.getAll('formats');
     const formats = formatsFromUrl.length > 0
         ? formatsFromUrl
         : (ds === 'xwa'
-            ? ['xwa']
-            : ['legacy_x2po', 'legacy_xlc', 'ffg', 'legacy_pandorum']);
+            ? (includeEpic ? ['xwa', 'xwa_epic'] : ['xwa'])
+            : (includeEpic ? ['legacy_x2po', 'legacy_xlc', 'ffg', 'legacy_pandorum', 'legacy_epic'] : ['legacy_x2po', 'legacy_xlc', 'ffg', 'legacy_pandorum']));
 
     const formatQuery = formats.map((f) => `formats=${encodeURIComponent(f)}`).join('&');
     const formatSuffix = formatQuery ? `&${formatQuery}` : '';
@@ -63,6 +65,8 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
     return {
         upgradeXws,
         ds,
+        includeEpic,
+        hasEpicParam,
         formats,
         info,
         pilots,
