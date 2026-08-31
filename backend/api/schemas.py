@@ -115,13 +115,6 @@ class PlayerStandingData(BaseModel):
     cut_rank: int | None = None
     wins: int
     losses: int
-    draws: int = 0
-    event_points: int | None = None
-    tie_breaker_points: int | None = None
-    swiss_event_points: int | None = None
-    swiss_tie_breaker_points: int | None = None
-    cut_event_points: int | None = None
-    cut_tie_breaker_points: int | None = None
     list_json: dict[str, Any] | None = None
     faction: Faction
     # FK into the normalized `list` table. Optional because some legacy
@@ -153,6 +146,8 @@ class MetaSnapshotResponse(BaseModel):
     date_range: str
     total_tournaments: int
     total_players: int
+    total_lists: int
+    total_games: int
 
 
 class PaginatedTournamentsResponse(BaseModel):

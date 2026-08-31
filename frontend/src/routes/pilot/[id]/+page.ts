@@ -7,6 +7,8 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
     url.search; // Force reactivity
     const pilotXws = params.id;
     const ds = url.searchParams.get('data_source') || (browser ? filters.dataSource : 'xwa');
+    const includeEpic = url.searchParams.get('epic') === 'true';
+    const hasEpicParam = url.searchParams.has('epic');
 
     const formatsFromUrl = url.searchParams.getAll('formats');
     const formats = formatsFromUrl.length > 0
@@ -57,6 +59,8 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
     return {
         pilotXws,
         ds,
+        includeEpic,
+        hasEpicParam,
         formats,
         info,
         upgrades: upgradesData.items || [],

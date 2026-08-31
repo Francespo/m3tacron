@@ -315,16 +315,11 @@
 
         <!-- Pilots / Composition Section -->
         <div class="space-y-4">
-            <div class="flex items-center justify-between gap-3 mb-4">
+            <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
                 <h2
-                    class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2 flex items-baseline gap-2"
+                    class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2"
                 >
                     Composition
-                    <span
-                        class="text-secondary text-base font-normal"
-                        >({(stats.pilots || []).length}
-                        pilot{(stats.pilots || []).length === 1 ? "" : "s"})</span
-                    >
                 </h2>
                 <SortBy
                     value={pilotSortKey}

@@ -31,13 +31,18 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                 # Parse ship-level stats from stats array
                 ship_stats_raw = ship_data.get("stats", [])
                 stats_flat = {}
+                # Per-arc attack values for arc-specific filtering (OR between arcs)
+                ship_arcs: dict[str, int] = {}
                 for s_entry in ship_stats_raw:
                     stat_type = s_entry.get("type")
                     if stat_type in ("hull", "shields", "agility"):
                         stats_flat[stat_type] = s_entry.get("value", 0)
                     elif stat_type == "attack":
-                        # Take max attack value if multiple arcs
-                        stats_flat["attack"] = max(stats_flat.get("attack", 0), s_entry.get("value", 0))
+                        val = int(s_entry.get("value", 0) or 0)
+                        stats_flat["attack"] = max(stats_flat.get("attack", 0), val)
+                        arc_name = s_entry.get("arc")
+                        if arc_name:
+                            ship_arcs[arc_name] = val
                 
                 for pilot in ship_data.get("pilots", []):
                     xws_id = pilot.get("xws", "")
@@ -45,6 +50,8 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                         # Store pilot's legal upgrade slots (used to filter compatible upgrades on detail page)
                         raw_slots = pilot.get("slots") or []
                         normalized_slots = [str(s).strip().lower() for s in raw_slots if s]
+                        # Effective actions: pilot shipActions override ship defaults if present
+                        eff_actions = pilot.get("shipActions") if pilot.get("shipActions") is not None else ship_data.get("actions", [])
                         all_pilots[xws_id] = {
                             "name": pilot.get("name", xws_id),
                             "caption": pilot.get("caption", ""),
@@ -59,11 +66,18 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                             "loadout": pilot.get("loadout", 0),
                             "ability": pilot.get("ability", ""),
                             "slots": normalized_slots,
+                            # Keywords / charges / force for YASB-style filters
+                            "keywords": [str(k).strip() for k in (pilot.get("keywords") or []) if k],
+                            "charges": pilot.get("charges"),
+                            "force": pilot.get("force"),
+                            # Effective ship actions (for Action / Linked Action filtering)
+                            "ship_actions": eff_actions,
                             # Ship stats for filtering
                             "hull": stats_flat.get("hull"),
                             "shields": stats_flat.get("shields"),
                             "agility": stats_flat.get("agility"),
                             "attack": stats_flat.get("attack"),
+                            "ship_arcs": ship_arcs,
                             "size": ship_size,
                             "limited": pilot.get("limited", 0),
                             # Formats

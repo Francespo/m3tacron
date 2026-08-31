@@ -111,6 +111,95 @@ def aggregate_card_stats(
     is_not_limited = filters.get("is_not_limited", False)
     base_sizes = filters.get("base_sizes", {})
 
+    # YASB-inspired filters — composite slot counts and action pairs (preferred) + legacy flat
+    import json as _json
+    # Composite slot filter: JSON "[{slot,count}]" with mode Any/O or All/E
+    _slot_counts_raw = filters.get("slot_counts") or filters.get("slotCounts") or ""
+    slot_entries: list[dict] = []
+    try:
+        if _slot_counts_raw:
+            _parsed = _json.loads(_slot_counts_raw) if isinstance(_slot_counts_raw, str) else _slot_counts_raw
+            if isinstance(_parsed, list):
+                for _e in _parsed:
+                    if isinstance(_e, dict) and _e.get("slot"):
+                        slot_entries.append({"slot": str(_e["slot"]).lower(), "count": int(_e.get("count", 1) or 1)})
+    except Exception:
+        pass
+    slot_count_mode = filters.get("slot_count_mode") or filters.get("slotCountMode") or "any"
+    selected_slots = [s.lower() for s in (filters.get("selected_slots") or []) if s]
+    slot_filter_mode = filters.get("slot_filter_mode", "any")
+    has_multiple_slots = filters.get("has_multiple_slots", False)
+    selected_keywords = [k.lower() for k in (filters.get("selected_keywords") or []) if k]
+    keyword_filter_mode = filters.get("keyword_filter_mode", "any")
+    # Composite action pairs: [{action, linked}]  action/linked may be null = wildcard (composite) + legacy flat
+    _action_pairs_raw = filters.get("action_pairs") or filters.get("actionPairs") or ""
+    action_pairs: list[dict] = []
+    try:
+        if _action_pairs_raw:
+            _parsed2 = _json.loads(_action_pairs_raw) if isinstance(_action_pairs_raw, str) else _action_pairs_raw
+            if isinstance(_parsed2, list):
+                for _e in _parsed2:
+                    if isinstance(_e, dict):
+                        a = _e.get("action"); lk = _e.get("linked")
+                        action_pairs.append({"action": str(a).lower() if a else None, "linked": str(lk).lower() if lk else None})
+    except Exception:
+        pass
+    action_pair_mode = filters.get("action_pair_mode") or filters.get("actionPairMode") or "any"
+    selected_actions = [a.lower() for a in (filters.get("selected_actions") or []) if a]
+    action_filter_mode = filters.get("action_filter_mode", "any")
+    selected_linked_actions = [a.lower() for a in (filters.get("selected_linked_actions") or []) if a]
+    linked_action_filter_mode = filters.get("linked_action_filter_mode", "any")
+
+    # Arc ranges (OR between arcs)
+    def _arc_has_filter(v):
+        return v is not None and v != ""
+    arc_filters = {}
+    for arc_key, param_min, param_max in [
+        ("Front Arc", filters.get("front_arc_min"), filters.get("front_arc_max")),
+        ("Single Turret Arc", filters.get("single_turret_min"), filters.get("single_turret_max")),
+        ("Double Turret Arc", filters.get("double_turret_min"), filters.get("double_turret_max")),
+        ("Full Front Arc", filters.get("full_front_min"), filters.get("full_front_max")),
+        ("Rear Arc", filters.get("rear_arc_min"), filters.get("rear_arc_max")),
+        ("Bullseye Arc", filters.get("bullseye_min"), filters.get("bullseye_max")),
+    ]:
+        try:
+            lo = int(param_min) if _arc_has_filter(param_min) else None
+        except (ValueError, TypeError):
+            lo = None
+        try:
+            hi = int(param_max) if _arc_has_filter(param_max) else None
+        except (ValueError, TypeError):
+            hi = None
+        if lo is not None or hi is not None:
+            arc_filters[arc_key] = (lo if lo is not None else 0, hi if hi is not None else 99)
+
+    # Charges / Force / Recurring
+    try:
+        charges_min = int(filters["charges_min"]) if filters.get("charges_min") not in (None, "") else None
+    except (ValueError, TypeError, KeyError):
+        charges_min = None
+    try:
+        charges_max = int(filters["charges_max"]) if filters.get("charges_max") not in (None, "") else None
+    except (ValueError, TypeError, KeyError):
+        charges_max = None
+    is_recurring = filters.get("is_recurring", False)
+    is_not_recurring = filters.get("is_not_recurring", False)
+    try:
+        force_min = int(filters["force_min"]) if filters.get("force_min") not in (None, "") else None
+    except (ValueError, TypeError, KeyError):
+        force_min = None
+    try:
+        force_max = int(filters["force_max"]) if filters.get("force_max") not in (None, "") else None
+    except (ValueError, TypeError, KeyError):
+        force_max = None
+
+    # Upgrade-specific
+    selected_used_slots = [s.lower() for s in (filters.get("selected_used_slots") or []) if s]
+    used_slot_filter_mode = filters.get("used_slot_filter_mode", "any")
+    selected_used_double_slots = [s.lower() for s in (filters.get("selected_used_double_slots") or []) if s]
+    used_double_slot_filter_mode = filters.get("used_double_slot_filter_mode", "any")
+    only_multi_slot = filters.get("only_multi_slot", False)
+
     # --- PHASE 1: Filter the in-memory catalog -------------------------------
     # Builds the `stats` dict with zeroed counts for eligible cards.
     # This block is preserved exactly as in the original implementation —
@@ -213,6 +302,161 @@ def aggregate_card_stats(
                 if not match:
                     continue
 
+            # Uniqueness (redefined: Unique=ltd 1, Limited=ltd >=2, Generic=ltd 0)
+            if is_unique or is_limited or is_not_limited:
+                p_limited = int(p_info.get("limited", 0) or 0)
+                allowed_ltd = set()
+                if is_unique:
+                    allowed_ltd.add(1)
+                if is_limited:
+                    allowed_ltd.update(range(2, 20))  # 2,3,4,5,6... any >=2
+                if is_not_limited:
+                    allowed_ltd.add(0)
+                if p_limited not in allowed_ltd:
+                    continue
+
+            # Slots — composite slotCounts preferred, legacy flat as fallback
+            if slot_entries:
+                def _slot_satisfies(entry):
+                    return (p_info.get("slots") or []) and [s.lower() for s in (p_info.get("slots") or [])].count(entry["slot"]) >= entry["count"]
+                p_slots_lower = [s.lower() for s in (p_info.get("slots") or [])]
+                # Build per-entry pass list
+                def _entry_pass(e):
+                    return p_slots_lower.count(e["slot"]) >= int(e["count"])
+                if slot_count_mode == "all":
+                    if not all(_entry_pass(e) for e in slot_entries):
+                        continue
+                else:
+                    if not any(_entry_pass(e) for e in slot_entries):
+                        continue
+            elif selected_slots:
+                p_slots = [s.lower() for s in (p_info.get("slots") or [])]
+                if slot_filter_mode == "all":
+                    if not all(s in p_slots for s in selected_slots):
+                        continue
+                else:
+                    if not any(s in p_slots for s in selected_slots):
+                        continue
+                if has_multiple_slots:
+                    if sum(p_slots.count(s) for s in selected_slots) < 2:
+                        found = False
+                        for s in selected_slots:
+                            if p_slots.count(s) >= 2:
+                                found = True
+                                break
+                        if not found:
+                            continue
+
+            # Keywords (OR/AND)
+            if selected_keywords:
+                p_kws = [k.lower() for k in (p_info.get("keywords") or [])]
+                if keyword_filter_mode == "all":
+                    if not all(k in p_kws for k in selected_keywords):
+                        continue
+                else:
+                    if not any(k in p_kws for k in selected_keywords):
+                        continue
+
+            # Actions — composite actionPairs preferred (pairs of action→linked), legacy flat as fallback
+            _has_composite = len(action_pairs) > 0
+            if _has_composite:
+                eff = p_info.get("ship_actions") or []
+                # Normalize: list of (type_lower, linked_lower_or_None)
+                normalized = []
+                for a in eff:
+                    t = (a.get("type", "") or "").lower()
+                    lk = a.get("linked")
+                    lk_t = (lk.get("type", "") or "").lower() if lk and lk.get("type") else None
+                    normalized.append((t, lk_t))
+                def _pair_matches(pair):
+                    pa = pair.get("action"); lk = pair.get("linked")
+                    # pair is {action: str|null, linked: str|null}
+                    if pa is None and lk is None:
+                        return False
+                    if pa is not None and lk is not None:
+                        return any(t == pa and lkt == lk for (t, lkt) in normalized)
+                    if pa is not None:
+                        return any(t == pa for (t, _) in normalized)
+                    # pa is None, lk is not None: any action with that linked
+                    return any(lkt == lk for (_, lkt) in normalized)
+                if action_pair_mode == "all":
+                    if not all(_pair_matches(p) for p in action_pairs):
+                        continue
+                else:
+                    if not any(_pair_matches(p) for p in action_pairs):
+                        continue
+            else:
+                if selected_actions:
+                    eff = p_info.get("ship_actions") or []
+                    p_actions = set((a.get("type", "") or "").lower() for a in eff)
+                    if action_filter_mode == "all":
+                        if not all(a in p_actions for a in selected_actions):
+                            continue
+                    else:
+                        if not any(a in p_actions for a in selected_actions):
+                            continue
+                if selected_linked_actions:
+                    eff = p_info.get("ship_actions") or []
+                    p_linked = set()
+                    for a in eff:
+                        lk = a.get("linked")
+                        if lk and lk.get("type"):
+                            p_linked.add(lk["type"].lower())
+                    if linked_action_filter_mode == "all":
+                        if not all(a in p_linked for a in selected_linked_actions):
+                            continue
+                    else:
+                        if not any(a in p_linked for a in selected_linked_actions):
+                            continue
+
+            # Arc filter — OR between arcs (grid solution A)
+            if arc_filters:
+                p_arcs = p_info.get("ship_arcs") or {}
+                matched_any = False
+                for arc_name, (lo, hi) in arc_filters.items():
+                    v = p_arcs.get(arc_name)
+                    if v is not None and lo <= int(v) <= hi:
+                        matched_any = True
+                        break
+                if not matched_any:
+                    continue
+
+            # Charges / Force / Recurring (pilots)
+            if charges_min is not None or charges_max is not None or is_recurring or is_not_recurring:
+                ch = p_info.get("charges")
+                if ch is None:
+                    # No charges on this pilot -> only passes if no numeric bound and not requiring recurring exclusion
+                    # If user filtered by charges range, cards without charges should NOT match
+                    if charges_min is not None or charges_max is not None:
+                        continue
+                    # Recurring filter alone on cards without charges: exclude
+                    if is_recurring or is_not_recurring:
+                        continue
+                else:
+                    ch_val = int(ch.get("value", 0) or 0)
+                    if charges_min is not None and ch_val < charges_min:
+                        continue
+                    if charges_max is not None and ch_val > charges_max:
+                        continue
+                    ch_rec = int(ch.get("recovers", 0) or 0)
+                    is_rec = ch_rec != 0 and ch_rec != -1  # recovers 1 = recurring, 0 = not, -1 sometimes used
+                    if is_recurring and not is_not_recurring:
+                        if not is_rec:
+                            continue
+                    elif is_not_recurring and not is_recurring:
+                        if is_rec:
+                            continue
+                    # both checked or both unchecked -> no filter on recurring
+            if force_min is not None or force_max is not None:
+                fc = p_info.get("force")
+                if fc is None:
+                    continue
+                fc_val = int(fc.get("value", 0) or 0)
+                if force_min is not None and fc_val < force_min:
+                    continue
+                if force_max is not None and fc_val > force_max:
+                    continue
+
             stats[pid] = {
                 "xws": pid,
                 "games_count": 0,
@@ -307,6 +551,71 @@ def aggregate_card_stats(
                     u_text = u_info.get("text", "").lower()
                 match = (text_filter in u_name) or (text_filter in u_text)
                 if not match:
+                    continue
+
+            # Uniqueness for upgrades (same redefined semantics: Generic=0, Unique=1, Limited>=2)
+            if is_unique or is_limited or is_not_limited:
+                u_limited = int(u_info.get("limited", 0) or 0)
+                allowed_ltd = set()
+                if is_unique:
+                    allowed_ltd.add(1)
+                if is_limited:
+                    allowed_ltd.update(range(2, 20))
+                if is_not_limited:
+                    allowed_ltd.add(0)
+                if u_limited not in allowed_ltd:
+                    continue
+
+            # Charges / Force / Recurring for upgrades
+            if charges_min is not None or charges_max is not None or is_recurring or is_not_recurring:
+                ch = u_info.get("charges")
+                if ch is None:
+                    if charges_min is not None or charges_max is not None:
+                        continue
+                    if is_recurring or is_not_recurring:
+                        continue
+                else:
+                    ch_val = int(ch.get("value", 0) or 0)
+                    if charges_min is not None and ch_val < charges_min:
+                        continue
+                    if charges_max is not None and ch_val > charges_max:
+                        continue
+                    ch_rec = int(ch.get("recovers", 0) or 0)
+                    is_rec = ch_rec != 0 and ch_rec != -1
+                    if is_recurring and not is_not_recurring:
+                        if not is_rec:
+                            continue
+                    elif is_not_recurring and not is_recurring:
+                        if is_rec:
+                            continue
+            if force_min is not None or force_max is not None:
+                fc = u_info.get("force")
+                if fc is None:
+                    continue
+                fc_val = int(fc.get("value", 0) or 0)
+                if force_min is not None and fc_val < force_min:
+                    continue
+                if force_max is not None and fc_val > force_max:
+                    continue
+
+            # Upgrade-specific: Used slot / Used double-slot / Only multi-slot
+            u_slots = [s.lower() for s in (u_info.get("slots") or [])]
+            if selected_used_slots:
+                if used_slot_filter_mode == "all":
+                    if not all(s in u_slots for s in selected_used_slots):
+                        continue
+                else:
+                    if not any(s in u_slots for s in selected_used_slots):
+                        continue
+            if selected_used_double_slots:
+                if used_double_slot_filter_mode == "all":
+                    if not all(s in u_slots for s in selected_used_double_slots):
+                        continue
+                else:
+                    if not any(s in u_slots for s in selected_used_double_slots):
+                        continue
+            if only_multi_slot:
+                if len(u_slots) < 2:
                     continue
 
             stats[u_xws] = {

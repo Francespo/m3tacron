@@ -16,14 +16,13 @@
 </script>
 
 <div class="w-full space-y-4">
-    <div class="flex items-center justify-between">
-        <span
-            class="text-xs font-bold tracking-widest text-primary font-mono uppercase"
-        >
-            Advanced Filters
-        </span>
+    <div class="flex items-center gap-2">
+        <span class="text-[11px] font-bold tracking-[0.14em] text-secondary font-mono uppercase">Advanced Filters</span>
+        <span class="flex-1 h-px bg-white/5 ml-2"></span>
     </div>
 
+    <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
+        <div class="space-y-3 rounded-xl border border-white/5 bg-black/15 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
     <!-- Point Costs (Range) -->
     <div class="space-y-1">
         <span
@@ -137,7 +136,9 @@
             </div>
         </div>
     {/if}
-
+        </div>
+        <div class="space-y-3 rounded-xl border border-white/5 bg-black/15 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+            <span class="text-[10px] font-bold tracking-widest uppercase font-mono text-secondary/80">Pilot Stats</span>
     <!-- Pilot-Specific Stats -->
     {#if isPilotsTab}
         <div class="space-y-2 pt-2">
@@ -233,4 +234,10 @@
             </div>
         </div>
     {/if}
+        </div>
+        <div class="hidden 2xl:block rounded-xl border border-dashed border-white/10 bg-black/10 p-4 min-h-[120px] flex flex-col gap-2">
+            <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary/70">Tips</span>
+            <p class="text-[11px] font-mono leading-relaxed text-secondary/60">Ranges are inclusive. Combine factions with chassis for sharper card searches.</p>
+        </div>
+    </div>
 </div>

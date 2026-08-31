@@ -7,7 +7,6 @@ from ..models import Tournament, PlayerStanding, Match
 from ..data_structures.formats import Format
 from ..data_structures.source import Source
 from ..data_structures.factions import Faction
-from ..cache import get_cached_or_compute
 from .schemas import (
     PaginatedTournamentsResponse,
     TournamentData,
@@ -84,7 +83,7 @@ def get_tournaments(
     sort_direction: str = Query("desc"),
     search: str | None = None,
     formats: list[str] | None = Query(None),
-    sources: list[str] | None = Query(None),
+    sources: list[str] | None = Query(None), 
     continent: list[str] | None = Query(None),
     country: list[str] | None = Query(None),
     city: list[str] | None = Query(None),
@@ -93,115 +92,100 @@ def get_tournaments(
     player_count_min: int | None = Query(None),
     player_count_max: int | None = Query(None),
 ):
-    # Tournaments listing: cache page 0 (most visited) with all filter combos.
-    # Cache key excludes page pagination slice but includes sort/filters — the
-    # deep pages 1..4 are rare and not prewarmed. Include page in key so each
-    # page is cached separately (unlike lists/squadrons where page is excluded).
-    cache_key = (
-        f"tournaments|{page}|{size}|{sort_metric}|{sort_direction}"
-        f"|{search or ''}"
-        f"|{','.join(sorted(formats or []))}"
-        f"|{','.join(sorted(sources or []))}"
-        f"|{','.join(sorted(continent or []))}"
-        f"|{','.join(sorted(country or []))}"
-        f"|{','.join(sorted(city or []))}"
-        f"|{date_start or ''}|{date_end or ''}"
-        f"|{player_count_min}|{player_count_max}"
-    )
+    with Session(engine) as session:
+        query = select(Tournament)
+        
+        if search:
+            query = query.where(Tournament.name.ilike(f"%{search}%"))  # pyright: ignore[reportAttributeAccessIssue,reportOptionalMemberAccess]
+        if formats:
+            query = query.where(Tournament.format.in_(formats))  # pyright: ignore[reportAttributeAccessIssue,reportOptionalMemberAccess]
+        if sources:
+            query = query.where(Tournament.source.in_(sources))  # pyright: ignore[reportAttributeAccessIssue,reportOptionalMemberAccess]
+        if continent:
+            query = query.where(Tournament.location["continent"].as_string().in_(continent))  # pyright: ignore[reportIndexIssue,reportOptionalSubscript]
+        if country:
+            query = query.where(Tournament.location["country"].as_string().in_(country))  # pyright: ignore[reportIndexIssue,reportOptionalSubscript]
+        if city:
+            query = query.where(Tournament.location["city"].as_string().in_(city))  # pyright: ignore[reportIndexIssue,reportOptionalSubscript]
+        if date_start:
+            try:
+                ds = date.fromisoformat(date_start)
+            except ValueError:
+                ds = None
+            if ds is not None:
+                query = query.where(Tournament.date >= ds)
+        if date_end:
+            try:
+                de = date.fromisoformat(date_end)
+            except ValueError:
+                de = None
+            if de is not None:
+                query = query.where(Tournament.date <= de)
+        if player_count_min is not None:
+            query = query.where(Tournament.player_count >= player_count_min)
+        if player_count_max is not None:
+            query = query.where(Tournament.player_count <= player_count_max)
+            
+        # Apply sorting
+        if sort_metric == "Players":
+            sort_attr = Tournament.player_count
+        elif sort_metric == "Name":
+            sort_attr = Tournament.name
+        else: # Default to Date
+            sort_attr = Tournament.date
+            
+        if sort_direction == "asc":
+            query = query.order_by(sort_attr.asc())  # pyright: ignore[reportAttributeAccessIssue]
+        else:
+            query = query.order_by(sort_attr.desc())  # pyright: ignore[reportAttributeAccessIssue]
+            
+        # Count total
+        count_query = select(func.count()).select_from(query.subquery())
+        total = session.exec(count_query).one()
+        
+        # Paginate
+        results = session.exec(query.offset(page * size).limit(size)).all()
+        
+        items = []
+        for t in results:
+            player_count = t.player_count
+            if player_count == 0:
+                player_count = session.exec(
+                    select(func.count(PlayerStanding.id)).where(  # pyright: ignore[reportArgumentType,reportAttributeAccessIssue]
+                        PlayerStanding.tournament_id == t.id
+                    )
+                ).one_or_none() or 0
 
-    def compute():
-        with Session(engine) as session:
-            query = select(Tournament)
+            loc_str = _get_location_string(t.location)
 
-            if search:
-                query = query.where(Tournament.name.ilike(f"%{search}%"))  # pyright: ignore[reportAttributeAccessIssue,reportOptionalMemberAccess]
-            if formats:
-                query = query.where(Tournament.format.in_(formats))  # pyright: ignore[reportAttributeAccessIssue,reportOptionalMemberAccess]
-            if sources:
-                query = query.where(Tournament.source.in_(sources))  # pyright: ignore[reportAttributeAccessIssue,reportOptionalMemberAccess]
-            if continent:
-                query = query.where(Tournament.location["continent"].as_string().in_(continent))  # pyright: ignore[reportIndexIssue,reportOptionalSubscript]
-            if country:
-                query = query.where(Tournament.location["country"].as_string().in_(country))  # pyright: ignore[reportIndexIssue,reportOptionalSubscript]
-            if city:
-                query = query.where(Tournament.location["city"].as_string().in_(city))  # pyright: ignore[reportIndexIssue,reportOptionalSubscript]
-            if date_start:
-                try:
-                    ds = date.fromisoformat(date_start)
-                except ValueError:
-                    ds = None
-                if ds is not None:
-                    query = query.where(Tournament.date >= ds)
-            if date_end:
-                try:
-                    de = date.fromisoformat(date_end)
-                except ValueError:
-                    de = None
-                if de is not None:
-                    query = query.where(Tournament.date <= de)
-            if player_count_min is not None:
-                query = query.where(Tournament.player_count >= player_count_min)
-            if player_count_max is not None:
-                query = query.where(Tournament.player_count <= player_count_max)
+            # Ensure valid format and platform enums
+            fmt_str = t.format.lower() if t.format else "unknown"
+            try:
+                # Direct match first (for case sensitivity if StrEnum requires it)
+                # StrEnum usually keeps case, let's try lower() if values are lower
+                # Checking formats.py earlier, values were lowercase mostly: "amg", "xwa"
+                fmt = Format(fmt_str)
+            except ValueError:
+                fmt = Format.UNKNOWN
 
-            # Apply sorting
-            if sort_metric == "Players":
-                sort_attr = Tournament.player_count
-            elif sort_metric == "Name":
-                sort_attr = Tournament.name
-            else: # Default to Date
-                sort_attr = Tournament.date
+            src_str = t.source.lower() if t.source else "unknown"
+            try:
+                src = Source(src_str)
+            except ValueError:
+                src = Source.UNKNOWN
 
-            if sort_direction == "asc":
-                query = query.order_by(sort_attr.asc())  # pyright: ignore[reportAttributeAccessIssue]
-            else:
-                query = query.order_by(sort_attr.desc())  # pyright: ignore[reportAttributeAccessIssue]
-
-            # Count total
-            count_query = select(func.count()).select_from(query.subquery())
-            total = session.exec(count_query).one()
-
-            # Paginate
-            results = session.exec(query.offset(page * size).limit(size)).all()
-
-            items = []
-            for t in results:
-                player_count = t.player_count
-                if player_count == 0:
-                    player_count = session.exec(
-                        select(func.count(PlayerStanding.id)).where(  # pyright: ignore[reportArgumentType,reportAttributeAccessIssue]
-                            PlayerStanding.tournament_id == t.id
-                        )
-                    ).one_or_none() or 0
-
-                loc_str = _get_location_string(t.location)
-
-                fmt_str = t.format.lower() if t.format else "unknown"
-                try:
-                    fmt = Format(fmt_str)
-                except ValueError:
-                    fmt = Format.UNKNOWN
-
-                src_str = t.source.lower() if t.source else "unknown"
-                try:
-                    src = Source(src_str)
-                except ValueError:
-                    src = Source.UNKNOWN
-
-                items.append(TournamentData(
-                    id=t.id,  # pyright: ignore[reportArgumentType,reportAttributeAccessIssue]
-                    name=t.name,
-                    date=t.date.strftime("%Y-%m-%d") if t.date else "Unknown",
-                    players=player_count,
-                    format=fmt,
-                    source=src,
-                    location=loc_str,
-                    url=t.url or ""
-                ))
-
-            return PaginatedTournamentsResponse(items=items, total=total, page=page, size=size)
-
-    return get_cached_or_compute(cache_key, compute)
+            items.append(TournamentData(
+                id=t.id,  # pyright: ignore[reportArgumentType,reportAttributeAccessIssue]
+                name=t.name,
+                date=t.date.strftime("%Y-%m-%d") if t.date else "Unknown",
+                players=player_count,
+                format=fmt,
+                source=src,
+                location=loc_str,
+                url=t.url or ""
+            ))
+            
+        return PaginatedTournamentsResponse(items=items, total=total, page=page, size=size)
 
 @router.get("/{tournament_id}", response_model=TournamentDetailResponse)
 def get_tournament_detail(tournament_id: int):
@@ -285,13 +269,6 @@ def get_tournament_detail(tournament_id: int):
                 cut_rank=p.cut_rank,
                 wins=(p.swiss_wins or 0) + (p.cut_wins or 0),
                 losses=(p.swiss_losses or 0) + (p.cut_losses or 0),
-                draws=(p.swiss_draws or 0) + (p.cut_draws or 0),
-                event_points=p.swiss_event_points,
-                tie_breaker_points=p.swiss_tie_breaker_points,
-                swiss_event_points=p.swiss_event_points,
-                swiss_tie_breaker_points=p.swiss_tie_breaker_points,
-                cut_event_points=p.cut_event_points,
-                cut_tie_breaker_points=p.cut_tie_breaker_points,
                 faction=faction_enum,
                 list_json=p.list_json if has_list else None,
                 list_id=p.list_id,
@@ -299,16 +276,8 @@ def get_tournament_detail(tournament_id: int):
 
             players_swiss.append(p_res)
             if p.cut_rank is not None:
-                p_cut = p_res.model_copy(
-                    update={
-                        "rank": p.cut_rank,
-                        "wins": p.cut_wins or 0,
-                        "losses": p.cut_losses or 0,
-                        "draws": p.cut_draws or 0,
-                        "event_points": p.cut_event_points,
-                        "tie_breaker_points": p.cut_tie_breaker_points,
-                    }
-                )
+                p_cut = p_res.copy()
+                p_cut.rank = p.cut_rank
                 players_cut.append(p_cut)
                 
         players_swiss.sort(key=lambda x: x.swiss_rank)
