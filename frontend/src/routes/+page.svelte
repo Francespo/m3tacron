@@ -35,6 +35,19 @@
     type SortKey = "lists" | "entries" | "winrate" | "games";
     type SortDir = "asc" | "desc";
     const DASHBOARD_RANKING_PREFS_KEY = "m3tacron.dashboard.rankingModes.v1";
+    const DASHBOARD_TIME_RANGE_PREFS_KEY = "m3tacron.dashboard.timeRange.v1";
+
+    const TIME_RANGE_OPTIONS = [
+        { value: "7", label: "Last 7 days" },
+        { value: "30", label: "Last 30 days" },
+        { value: "90", label: "Last 90 days" },
+        { value: "180", label: "Last 6 months" },
+        { value: "365", label: "Last year" },
+        { value: "all", label: "All time" },
+    ];
+
+    let selectedTimeRange = $state<string>("90");
+
     const WR_MIN_GAMES = {
         pilots: 3,
         upgrades: 3,
@@ -63,6 +76,11 @@
         if (!browser) return;
 
         try {
+            const savedRange = localStorage.getItem(DASHBOARD_TIME_RANGE_PREFS_KEY);
+            if (savedRange && ["7", "30", "90", "180", "365", "all"].includes(savedRange)) {
+                selectedTimeRange = savedRange;
+            }
+
             const raw = localStorage.getItem(DASHBOARD_RANKING_PREFS_KEY);
             if (!raw) return;
 
@@ -109,7 +127,7 @@
                 listSortDir = lists.dir;
             }
         } catch (err) {
-            console.warn("Failed to read dashboard ranking preferences", err);
+            console.warn("Failed to read dashboard preferences", err);
         }
     });
 
@@ -117,6 +135,7 @@
         if (!browser) return;
 
         try {
+            localStorage.setItem(DASHBOARD_TIME_RANGE_PREFS_KEY, selectedTimeRange);
             localStorage.setItem(
                 DASHBOARD_RANKING_PREFS_KEY,
                 JSON.stringify({
@@ -127,19 +146,17 @@
                 }),
             );
         } catch (err) {
-            console.warn("Failed to save dashboard ranking preferences", err);
+            console.warn("Failed to save dashboard preferences", err);
         }
     });
 
     $effect(() => {
         if (!browser) return;
-        // Track BOTH the data source AND the epic toggle so the dashboard
-        // re-fetches whenever the user changes either one via the
-        // ContentSourceToggle. Reading both inside the effect makes them
-        // reactive dependencies under Svelte 5 runes. `retryToken` is read
-        // so the "Try again" button re-runs this fetch.
+        // Track data source, epic toggle, and selected time range so the dashboard
+        // re-fetches whenever the user changes any of them.
         const source = filters.dataSource;
         const epic = filters.includeEpic;
+        const timeRange = selectedTimeRange;
         const _rt = retryToken;
         // Ensure data is loaded
         xwingData.setSource(source as any);
@@ -155,13 +172,14 @@
         // state updates; the abort actually stops the network request.
         const controller = new AbortController();
 
-        // Pass `epic` to the meta-snapshot even though the backend currently
-        // ignores it; the dashboard will already be wired correctly if the
-        // endpoint starts honoring it. The `data_source` query param is the
-        // one that actually filters the snapshot today.
         const params = new URLSearchParams();
         params.set("data_source", source);
         if (epic) params.set("epic", "true");
+        if (timeRange && timeRange !== "all") {
+            params.set("days", timeRange);
+        } else if (timeRange === "all") {
+            params.set("days", "0");
+        }
         const targetUrl = `/api/meta-snapshot?${params.toString()}`;
         cachedFetchJson(targetUrl, undefined, controller.signal)
             .then((data) => {
@@ -429,38 +447,109 @@
     );
 
     /**
-     * Period banner range. We treat the snapshot's `last_sync` as the end of
-     * the 90-day window and compute the start by subtracting 90 days. This
-     * keeps the banner purely client-side and avoids any backend changes.
-     * Returns null when `last_sync` is missing or unparseable so the banner
-     * can fall back to a generic "last 90 days" label.
+     * Period banner range. Computes start and end dates based on
+     * backend metadata or client-side date window calculation.
      */
     let periodRange = $derived.by(() => {
-        const endStr = meta?.last_sync;
+        if (selectedTimeRange === "all") {
+            if (meta?.date_start && meta?.date_end) {
+                return { start: meta.date_start, end: meta.date_end, isAll: true };
+            }
+            const endStr = meta?.date_end || meta?.last_sync;
+            const endVal = endStr && endStr !== "Never" ? endStr : "present";
+            return { start: meta?.date_start || "All recorded", end: endVal, isAll: true };
+        }
+
+        const daysNum = parseInt(selectedTimeRange, 10) || 90;
+        const endStr = meta?.date_end || meta?.last_sync;
         if (!endStr || typeof endStr !== "string" || endStr === "Never") {
             return null;
         }
         const end = new Date(endStr);
         if (Number.isNaN(end.getTime())) return null;
-        const start = new Date(end);
-        start.setDate(start.getDate() - 90);
+
         const fmt = (d: Date) => d.toISOString().slice(0, 10);
-        return { start: fmt(start), end: fmt(end) };
+        let startStr = meta?.date_start;
+        if (!startStr) {
+            const start = new Date(end);
+            start.setDate(start.getDate() - daysNum);
+            startStr = fmt(start);
+        }
+        return { start: startStr, end: fmt(end), isAll: false };
     });
 </script>
 
 <div class="min-h-screen p-6 font-sans">
-    <header class="mb-5 flex flex-wrap items-baseline justify-between gap-3">
-        <h1 class="text-3xl font-sans font-bold text-primary leading-none shrink-0">Meta Dashboard</h1>
+    <header class="mb-5 flex flex-col gap-3">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h1 class="text-3xl font-sans font-bold text-primary leading-none shrink-0">Meta Dashboard</h1>
+
+            <div class="flex flex-wrap items-center gap-3">
+                <!-- Time Range Dropdown Selector -->
+                <div class="flex items-center gap-2">
+                    <label for="time-range-select" class="text-xs text-secondary font-mono uppercase tracking-wider whitespace-nowrap">
+                        Time range
+                    </label>
+                    <select
+                        id="time-range-select"
+                        bind:value={selectedTimeRange}
+                        class="bg-terminal-panel border border-border-dark rounded-md text-xs font-mono text-primary px-2.5 py-1.5 focus:outline-none focus:border-white/40 cursor-pointer shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                    >
+                        {#each TIME_RANGE_OPTIONS as opt}
+                            <option value={opt.value}>{opt.label}</option>
+                        {/each}
+                    </select>
+                </div>
+
+                {#if !loading && !error && meta}
+                    <div class="hidden md:flex items-center gap-2 text-xs font-mono text-secondary shrink-0">
+                        <span class="w-px h-4 bg-white/10"></span>
+                        <span class="tracking-widest {filters.dataSource === 'legacy' ? 'text-violet-400' : 'text-amber-400'}">
+                            {filters.dataSource === 'legacy' ? 'Legacy' : 'XWA'}
+                        </span>
+                        <span class="w-px h-4 bg-white/10"></span>
+                        <span class="hidden lg:inline text-secondary">
+                            {#if periodRange}
+                                {#if periodRange.isAll}
+                                    Tournament data · All time
+                                {:else}
+                                    Tournament data {periodRange.start} → {periodRange.end}
+                                {/if}
+                            {:else}
+                                Tournament data · {meta.date_range || "Last 90 days"}
+                            {/if}
+                        </span>
+                        <span class="hidden lg:inline w-px h-4 bg-white/10"></span>
+                        <span class="hidden xl:inline text-secondary">Last sync {meta.last_sync || "Unknown"}</span>
+                    </div>
+                {/if}
+            </div>
+        </div>
+
+        <!-- Mobile Info Banner / Subtitle (shown on mobile < md viewports) -->
         {#if !loading && !error && meta}
-            <div class="hidden md:flex items-center gap-2 text-xs font-mono text-secondary shrink-0">
-                <span class="tracking-widest">{meta.date_range || "Last 90 days"}</span>
-                <span class="w-px h-4 bg-white/10"></span>
-                <span class="tracking-widest {filters.dataSource === 'legacy' ? 'text-violet-400' : 'text-amber-400'}">{filters.dataSource === 'legacy' ? 'Legacy' : 'XWA'}</span>
-                <span class="w-px h-4 bg-white/10"></span>
-                <span class="hidden lg:inline text-secondary">{#if periodRange}Tournament data {periodRange.start} → {periodRange.end}{:else}Tournament data · last 90 days{/if}</span>
-                <span class="hidden lg:inline w-px h-4 bg-white/10"></span>
-                <span class="hidden xl:inline text-secondary">Last sync {meta.last_sync || "Unknown"}</span>
+            <div class="flex md:hidden flex-wrap items-center gap-x-2 gap-y-1 text-xs font-mono text-secondary">
+                <span class="tracking-widest font-semibold text-primary">
+                    {meta.date_range || (selectedTimeRange === 'all' ? 'All time' : `Last ${selectedTimeRange} days`)}
+                </span>
+                <span class="w-px h-3.5 bg-white/15"></span>
+                <span class="tracking-widest font-semibold {filters.dataSource === 'legacy' ? 'text-violet-400' : 'text-amber-400'}">
+                    {filters.dataSource === 'legacy' ? 'Legacy' : 'XWA'}
+                </span>
+                {#if periodRange}
+                    <span class="w-px h-3.5 bg-white/15"></span>
+                    <span class="text-secondary/80">
+                        {#if periodRange.isAll}
+                            All data
+                        {:else}
+                            {periodRange.start} → {periodRange.end}
+                        {/if}
+                    </span>
+                {/if}
+                {#if meta.last_sync && meta.last_sync !== "Never" && meta.last_sync !== "Unknown"}
+                    <span class="w-px h-3.5 bg-white/15"></span>
+                    <span class="text-secondary/60 text-[11px]">Sync: {meta.last_sync}</span>
+                {/if}
             </div>
         {/if}
     </header>
