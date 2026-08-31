@@ -1,5 +1,7 @@
 import type { PageLoad } from './$types';
 import { API_BASE } from '$lib/api';
+import { browser } from '$app/environment';
+import { filters } from '$lib/stores/filters.svelte';
 
 function buildForwardParams(url: URL): URLSearchParams {
     // Forward every global filter from the URL to the 4 ship detail endpoints.
@@ -16,10 +18,17 @@ function buildForwardParams(url: URL): URLSearchParams {
 
     // Ensure data_source always present (backend defaults to xwa but we want explicit)
     if (!out.has('data_source')) {
-        const ds = url.searchParams.get('data_source') || 'xwa';
+        const ds = url.searchParams.get('data_source') || (browser ? filters.dataSource : 'xwa');
         out.set('data_source', ds);
     }
 
+    const ds = out.get('data_source') || 'xwa';
+    if (!out.has('formats')) {
+        const defFormats = ds === 'legacy' ? ['legacy_x2po'] : ['xwa'];
+        for (const f of defFormats) {
+            out.append('formats', f);
+        }
+    }
     return out;
 }
 

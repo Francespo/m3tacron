@@ -1,5 +1,7 @@
 import type { PageLoad } from './$types';
 import { API_BASE } from '$lib/api';
+import { browser } from '$app/environment';
+import { filters } from '$lib/stores/filters.svelte';
 
 // Client-side cache for the ships stats lookup.
 // Page changes are client-side sliced (mergedShips.slice), so changing page
@@ -19,6 +21,7 @@ function shipsFilterKey(url: URL): string {
 
 export const load: PageLoad = async ({ fetch, url }) => {
     url.search; // Force reactivity when any query param changes
+    const ds = url.searchParams.get('data_source') || (browser ? filters.dataSource : 'xwa');
 
     const sort_metric = url.searchParams.get('sort_metric') || 'Lists';
     const sort_direction = url.searchParams.get('sort_direction') || 'desc';
@@ -31,6 +34,15 @@ export const load: PageLoad = async ({ fetch, url }) => {
         for (const [key, value] of url.searchParams.entries()) {
             if (key === 'page' || key === 'size') continue;
             mergeApiUrl.searchParams.append(key, value);
+        }
+        if (!mergeApiUrl.searchParams.has('data_source')) {
+            mergeApiUrl.searchParams.set('data_source', ds);
+        }
+        if (!mergeApiUrl.searchParams.has('formats')) {
+            const defFormats = ds === 'legacy' ? ['legacy_x2po'] : ['xwa'];
+            for (const f of defFormats) {
+                mergeApiUrl.searchParams.append('formats', f);
+            }
         }
         mergeApiUrl.searchParams.set('page', '0');
         mergeApiUrl.searchParams.set('size', '200');
