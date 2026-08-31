@@ -87,15 +87,13 @@
     // write-loop) while ensuring the SortBy in the main content header
     // always has a real value matching one of its options.
     $effect(() => {
-        if (!filters.sortBy) {
-            filters.sortBy = "Date";
+        if (!filters.tournamentSortBy) {
+            filters.tournamentSortBy = "Date";
         }
     });
-    function isGlobalChip(k:string){ return k.startsWith("format:")||k.startsWith("continent:")||k.startsWith("country:")||k.startsWith("city:")||k.startsWith("source:")||k==="dateStart"||k==="dateEnd"; }
-    let tournamentLocalChips = $derived(filters.activeChips.filter(c=>!isGlobalChip(c.key)));
+    let tournamentLocalChips = $derived(filters.tournamentActiveChips);
     let tournamentLocalCount = $derived(tournamentLocalChips.length);
-    let datasetActive = $derived(filters.activeChips.filter(c=>isGlobalChip(c.key)).length);
-    function clearTournamentFilters(){ for (const ch of [...tournamentLocalChips]) filters.removeChip(ch.key); }
+    function clearTournamentFilters(){ filters.clearTournamentFilters(); }
 </script>
 
 <!-- Sort By was moved to the main content section header (rendered by
@@ -126,17 +124,17 @@
                 {#if pending}<span class="hidden lg:inline"><PendingIndicator active mode="tag" label="Updating…" /></span>{/if}
                 {/if}
                 <span class="hidden sm:inline text-xs font-mono text-secondary uppercase tracking-wider">Sort by</span>
-                <select class="bg-terminal-panel border border-border-dark rounded-md text-xs font-mono text-primary px-2 py-1.5 focus:outline-none" value={filters.sortBy || "Date"} onchange={(e) => { filters.sortBy = (e.target as HTMLSelectElement).value; }} aria-label="Sort by">
+                <select class="bg-terminal-panel border border-border-dark rounded-md text-xs font-mono text-primary px-2 py-1.5 focus:outline-none" value={filters.tournamentSortBy || "Date"} onchange={(e) => { filters.tournamentSortBy = (e.target as HTMLSelectElement).value; }} aria-label="Sort by">
                     <option value="Date">Date</option><option value="Players">Players</option><option value="Name">Name</option>
                 </select>
-                <button type="button" onclick={() => { filters.sortDirection = filters.sortDirection === "asc" ? "desc" : "asc"; }} class="inline-flex items-center justify-center w-7 h-7 bg-terminal-panel border border-border-dark rounded-md text-secondary hover:text-primary hover:bg-[#ffffff05] active:bg-[#ffffff14] transition-colors shrink-0" aria-label={filters.sortDirection === "asc" ? "Sort ascending" : "Sort descending"}>
-                    {#if filters.sortDirection === "asc"}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>{:else}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>{/if}
+                <button type="button" onclick={() => { filters.tournamentSortDirection = filters.tournamentSortDirection === "asc" ? "desc" : "asc"; }} class="inline-flex items-center justify-center w-7 h-7 bg-terminal-panel border border-border-dark rounded-md text-secondary hover:text-primary hover:bg-[#ffffff05] active:bg-[#ffffff14] transition-colors shrink-0" aria-label={filters.tournamentSortDirection === "asc" ? "Sort ascending" : "Sort descending"}>
+                    {#if filters.tournamentSortDirection === "asc"}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>{:else}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>{/if}
                 </button>
             </div>
         </div>
-        <!-- Tournaments have no per-section game filters: the only page filters ARE the dataset filters (dates, locations, formats, sources, search). Expose them as an inline collapsible LocalFilterBar like Card filters, not just a FAB. Dataset is still the global concept; this bar just makes tournament dataset filters discoverable inline. -->
+        <!-- Tournaments have no per-section game filters: the only page filters ARE the tournament local filters (dates, locations, formats, sources, search). Expose them as an inline collapsible LocalFilterBar. -->
         <div class="mb-6">
-            <LocalFilterBar id="tournaments-local" label="Tournament filters" activeCount={tournamentLocalCount} chips={tournamentLocalChips} onRemoveChip={(k) => filters.removeChip(k)} onClear={clearTournamentFilters}>
+            <LocalFilterBar id="tournaments-local" label="Tournament filters" activeCount={tournamentLocalCount} chips={tournamentLocalChips} onRemoveChip={(k) => filters.removeTournamentChip(k)} onClear={clearTournamentFilters}>
                 <TournamentPageFilters />
             </LocalFilterBar>
         </div>

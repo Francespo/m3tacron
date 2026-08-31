@@ -64,6 +64,20 @@ let winRateMax = $state('');
 let sortBy = $state<string>('');
 let sortDirection = $state<'asc' | 'desc'>('desc');
 
+// ---------------------------------------------------------------------------
+// Tournament-specific Local Filters (isolated from global dataset filters)
+// ---------------------------------------------------------------------------
+let tournamentDateStart = $state('');
+let tournamentDateEnd = $state('');
+let tournamentContinents = $state<string[]>([]);
+let tournamentCountries = $state<string[]>([]);
+let tournamentCities = $state<string[]>([]);
+let tournamentFormats = $state<string[]>([]);
+let tournamentSources = $state<string[]>([]);
+let tournamentSearchName = $state('');
+let tournamentSortBy = $state('Date');
+let tournamentSortDirection = $state<'asc' | 'desc'>('desc');
+
 // Advanced Filters (Cards Page)
 let pointsMin = $state('');
 let pointsMax = $state('');
@@ -221,6 +235,43 @@ function buildActiveChips(): FilterChip[] {
     if (onlyMultiSlot) chips.push({ key: 'onlyMultiSlot', label: 'Only multi-slot' });
 
     return chips;
+}
+
+let tournamentActiveChips = $derived<FilterChip[]>(buildTournamentActiveChips());
+
+function buildTournamentActiveChips(): FilterChip[] {
+    const chips: FilterChip[] = [];
+    if (tournamentDateStart) chips.push({ key: 't:dateStart', label: `From ${tournamentDateStart}` });
+    if (tournamentDateEnd) chips.push({ key: 't:dateEnd', label: `To ${tournamentDateEnd}` });
+    for (const c of tournamentContinents) chips.push({ key: `t:continent:${c}`, label: c });
+    for (const c of tournamentCountries) chips.push({ key: `t:country:${c}`, label: c });
+    for (const c of tournamentCities) chips.push({ key: `t:city:${c}`, label: c });
+    for (const s of tournamentSources) chips.push({ key: `t:source:${s}`, label: s });
+    for (const f of tournamentFormats) chips.push({ key: `t:format:${f}`, label: getFormatFullLabel(f) });
+    if (tournamentSearchName) chips.push({ key: 't:search', label: `"${tournamentSearchName}"` });
+    return chips;
+}
+
+function removeTournamentChip(key: string) {
+    if (key === 't:dateStart') tournamentDateStart = '';
+    else if (key === 't:dateEnd') tournamentDateEnd = '';
+    else if (key === 't:search') tournamentSearchName = '';
+    else if (key.startsWith('t:continent:')) tournamentContinents = tournamentContinents.filter(c => c !== key.slice(12));
+    else if (key.startsWith('t:country:')) tournamentCountries = tournamentCountries.filter(c => c !== key.slice(10));
+    else if (key.startsWith('t:city:')) tournamentCities = tournamentCities.filter(c => c !== key.slice(7));
+    else if (key.startsWith('t:source:')) tournamentSources = tournamentSources.filter(s => s !== key.slice(9));
+    else if (key.startsWith('t:format:')) tournamentFormats = tournamentFormats.filter(f => f !== key.slice(9));
+}
+
+function clearTournamentFilters() {
+    tournamentDateStart = '';
+    tournamentDateEnd = '';
+    tournamentContinents = [];
+    tournamentCountries = [];
+    tournamentCities = [];
+    tournamentFormats = [];
+    tournamentSources = [];
+    tournamentSearchName = '';
 }
 
 function removeChip(key: string) {
@@ -692,6 +743,47 @@ function defaultFormatsForSource(source: 'xwa' | 'legacy'): string[] {
  * are added to the emitted formats (see `resolveFormats`).
  */
 function toSearchParams(routeId: RouteId): URLSearchParams {
+    if (routeId === 'tournaments') {
+        const params = new URLSearchParams();
+        if (dataSource !== 'xwa') {
+            params.set(SINGLE_KEY.dataSource, dataSource);
+        }
+        if (includeEpic) {
+            params.set(SINGLE_KEY.includeEpic, 'true');
+        }
+        if (tournamentSearchName) {
+            params.set(SINGLE_KEY.searchName, tournamentSearchName);
+        }
+        if (tournamentDateStart) {
+            params.set(SINGLE_KEY.dateStart, tournamentDateStart);
+        }
+        if (tournamentDateEnd) {
+            params.set(SINGLE_KEY.dateEnd, tournamentDateEnd);
+        }
+        for (const c of tournamentContinents) {
+            params.append(SINGLE_KEY.selectedContinents, c);
+        }
+        for (const c of tournamentCountries) {
+            params.append(SINGLE_KEY.selectedCountries, c);
+        }
+        for (const c of tournamentCities) {
+            params.append(SINGLE_KEY.selectedCities, c);
+        }
+        for (const s of tournamentSources) {
+            params.append('sources', s);
+        }
+        for (const f of tournamentFormats) {
+            params.append(SINGLE_KEY.selectedFormats, f);
+        }
+        if (tournamentSortBy && tournamentSortBy !== 'Date') {
+            params.set(SINGLE_KEY.sortBy, tournamentSortBy);
+        }
+        if (tournamentSortDirection !== 'desc') {
+            params.set(SINGLE_KEY.sortDirection, tournamentSortDirection);
+        }
+        return params;
+    }
+
     const params = new URLSearchParams();
     const fields = ROUTE_FIELDS[routeId];
 
@@ -965,7 +1057,7 @@ function toSearchParams(routeId: RouteId): URLSearchParams {
  * carry across routes" behavior. Boolean values are parsed from the string
  * `'true'`.
  */
-function applyFromSearchParams(params: URLSearchParams): void {
+function applyFromSearchParams(params: URLSearchParams, routeId?: RouteId): void {
     if (params.has('data_source')) {
         const dataSourceVal = params.get('data_source');
         const nextDs = dataSourceVal === 'legacy' ? 'legacy' : 'xwa';
@@ -995,6 +1087,29 @@ function applyFromSearchParams(params: URLSearchParams): void {
     }
 
     includeEpic = params.get('epic') === 'true';
+
+    if (routeId === 'tournaments') {
+        if (params.has('search')) tournamentSearchName = params.get('search') ?? '';
+        if (params.has('date_start')) tournamentDateStart = params.get('date_start') ?? '';
+        if (params.has('date_end')) tournamentDateEnd = params.get('date_end') ?? '';
+        const tContinents = params.getAll('continent');
+        if (tContinents.length > 0) tournamentContinents = tContinents;
+        const tCountries = params.getAll('country');
+        if (tCountries.length > 0) tournamentCountries = tCountries;
+        const tCities = params.getAll('city');
+        if (tCities.length > 0) tournamentCities = tCities;
+        const tSources = params.getAll('sources');
+        if (tSources.length > 0) tournamentSources = tSources;
+        const tFormats = params.getAll('formats');
+        if (tFormats.length > 0) tournamentFormats = tFormats;
+        if (params.has('sort_metric')) tournamentSortBy = params.get('sort_metric') ?? 'Date';
+        if (params.has('sort_direction')) {
+            const sd = params.get('sort_direction');
+            if (sd === 'asc' || sd === 'desc') tournamentSortDirection = sd;
+        }
+        return;
+    }
+
     if (params.has('search')) {
         const v = params.get('search') ?? '';
         if (v) searchName = v;
@@ -1227,7 +1342,18 @@ const LOCAL_KEYS_BY_ROUTE: Record<RouteId, string[]> = {
     lists: ['selectedFactions','selectedShips','selectedPilots','pilotFilterMode','shipFilterMode','listsMin','listsMax','entriesMin','entriesMax','gamesMin','gamesMax','winRateMin','winRateMax','sortBy','sortDirection'],
     ships: ['selectedFactions','selectedShips','shipFilterMode','listsMin','listsMax','entriesMin','entriesMax','gamesMin','gamesMax','winRateMin','winRateMax','sortBy','sortDirection'],
     squadrons: ['selectedFactions','selectedShips','shipFilterMode','listsMin','listsMax','entriesMin','entriesMax','gamesMin','gamesMax','winRateMin','winRateMax','sortBy','sortDirection'],
-    tournaments: ['searchName','sortBy','sortDirection'],
+    tournaments: [
+        'tournamentSearchName',
+        'tournamentDateStart',
+        'tournamentDateEnd',
+        'tournamentContinents',
+        'tournamentCountries',
+        'tournamentCities',
+        'tournamentFormats',
+        'tournamentSources',
+        'tournamentSortBy',
+        'tournamentSortDirection',
+    ],
 };
 
 function localStorageKey(route: RouteId): string { return `m3tacron:localFilters:${route}`; }
@@ -1306,6 +1432,18 @@ function snapshotLocal(route: RouteId): Record<string, unknown> {
             case 'gamesMax': out[k] = gamesMax; break;
             case 'winRateMin': out[k] = winRateMin; break;
             case 'winRateMax': out[k] = winRateMax; break;
+            case 'sortBy': out[k] = sortBy; break;
+            case 'sortDirection': out[k] = sortDirection; break;
+            case 'tournamentSearchName': out[k] = tournamentSearchName; break;
+            case 'tournamentDateStart': out[k] = tournamentDateStart; break;
+            case 'tournamentDateEnd': out[k] = tournamentDateEnd; break;
+            case 'tournamentContinents': out[k] = [...tournamentContinents]; break;
+            case 'tournamentCountries': out[k] = [...tournamentCountries]; break;
+            case 'tournamentCities': out[k] = [...tournamentCities]; break;
+            case 'tournamentFormats': out[k] = [...tournamentFormats]; break;
+            case 'tournamentSources': out[k] = [...tournamentSources]; break;
+            case 'tournamentSortBy': out[k] = tournamentSortBy; break;
+            case 'tournamentSortDirection': out[k] = tournamentSortDirection; break;
         }
     }
     return out;
@@ -1388,6 +1526,16 @@ function clearLocalKeysForRoutesExcept(activeRoute: RouteId): void {
             case 'winRateMax': winRateMax = ''; break;
             case 'sortBy': sortBy = ''; break;
             case 'sortDirection': sortDirection = 'desc'; break;
+            case 'tournamentSearchName': tournamentSearchName = ''; break;
+            case 'tournamentDateStart': tournamentDateStart = ''; break;
+            case 'tournamentDateEnd': tournamentDateEnd = ''; break;
+            case 'tournamentContinents': tournamentContinents = []; break;
+            case 'tournamentCountries': tournamentCountries = []; break;
+            case 'tournamentCities': tournamentCities = []; break;
+            case 'tournamentFormats': tournamentFormats = []; break;
+            case 'tournamentSources': tournamentSources = []; break;
+            case 'tournamentSortBy': tournamentSortBy = 'Date'; break;
+            case 'tournamentSortDirection': tournamentSortDirection = 'desc'; break;
         }
     }
 }
@@ -1462,6 +1610,18 @@ function applyLocalSnapshot(route: RouteId, snap: Record<string, unknown>): void
     if (has('gamesMax') && typeof snap['gamesMax']==='string') gamesMax = snap['gamesMax'] as string;
     if (has('winRateMin') && typeof snap['winRateMin']==='string') winRateMin = snap['winRateMin'] as string;
     if (has('winRateMax') && typeof snap['winRateMax']==='string') winRateMax = snap['winRateMax'] as string;
+    if (has('sortBy') && typeof snap['sortBy']==='string') sortBy = snap['sortBy'] as string;
+    if (has('sortDirection') && (snap['sortDirection']==='asc'||snap['sortDirection']==='desc')) sortDirection = snap['sortDirection'] as 'asc'|'desc';
+    if (has('tournamentSearchName') && typeof snap['tournamentSearchName']==='string') tournamentSearchName = snap['tournamentSearchName'] as string;
+    if (has('tournamentDateStart') && typeof snap['tournamentDateStart']==='string') tournamentDateStart = snap['tournamentDateStart'] as string;
+    if (has('tournamentDateEnd') && typeof snap['tournamentDateEnd']==='string') tournamentDateEnd = snap['tournamentDateEnd'] as string;
+    if (has('tournamentContinents') && Array.isArray(snap['tournamentContinents'])) tournamentContinents = snap['tournamentContinents'] as string[];
+    if (has('tournamentCountries') && Array.isArray(snap['tournamentCountries'])) tournamentCountries = snap['tournamentCountries'] as string[];
+    if (has('tournamentCities') && Array.isArray(snap['tournamentCities'])) tournamentCities = snap['tournamentCities'] as string[];
+    if (has('tournamentFormats') && Array.isArray(snap['tournamentFormats'])) tournamentFormats = snap['tournamentFormats'] as string[];
+    if (has('tournamentSources') && Array.isArray(snap['tournamentSources'])) tournamentSources = snap['tournamentSources'] as string[];
+    if (has('tournamentSortBy') && typeof snap['tournamentSortBy']==='string') tournamentSortBy = snap['tournamentSortBy'] as string;
+    if (has('tournamentSortDirection') && (snap['tournamentSortDirection']==='asc'||snap['tournamentSortDirection']==='desc')) tournamentSortDirection = snap['tournamentSortDirection'] as 'asc'|'desc';
 }
 
 function saveLocalFilters(route: RouteId): void {
@@ -1472,7 +1632,9 @@ function saveLocalFilters(route: RouteId): void {
 function restoreLocalFilters(route: RouteId, urlParams: URLSearchParams): void {
     if (typeof localStorage === 'undefined') return;
     // If URL already carries any local key for this route, it is the source of truth (shareable URL).
-    const hasLocalInUrl = LOCAL_KEYS_BY_ROUTE[route]?.some(k => {
+    const hasLocalInUrl = route === 'tournaments'
+        ? (urlParams.has('search') || urlParams.has('date_start') || urlParams.has('date_end') || urlParams.has('continent') || urlParams.has('country') || urlParams.has('city') || urlParams.has('sources') || urlParams.has('formats') || urlParams.has('sort_metric') || urlParams.has('sort_direction'))
+        : LOCAL_KEYS_BY_ROUTE[route]?.some(k => {
         const urlKey = (SINGLE_KEY as unknown as Record<string,string>)[k];
         if (!urlKey) return urlParams.has(k) || urlParams.has('pilots') || urlParams.has('factions') || urlParams.has('ships');
         return urlParams.has(urlKey) || (k==='selectedFactions' && urlParams.has('factions')) || (k==='selectedShips' && urlParams.has('ships')) || (k==='selectedPilots' && urlParams.has('pilots'));
@@ -1613,6 +1775,30 @@ export const filters = {
     get attackMin() { return attackMin; }, set attackMin(v: string) { attackMin = v; },
     get attackMax() { return attackMax; }, set attackMax(v: string) { attackMax = v; },
     // End Adv
+    // Tournament local filters
+    get tournamentDateStart() { return tournamentDateStart; },
+    set tournamentDateStart(v: string) { tournamentDateStart = v; },
+    get tournamentDateEnd() { return tournamentDateEnd; },
+    set tournamentDateEnd(v: string) { tournamentDateEnd = v; },
+    get tournamentContinents() { return tournamentContinents; },
+    set tournamentContinents(v: string[]) { tournamentContinents = v; },
+    get tournamentCountries() { return tournamentCountries; },
+    set tournamentCountries(v: string[]) { tournamentCountries = v; },
+    get tournamentCities() { return tournamentCities; },
+    set tournamentCities(v: string[]) { tournamentCities = v; },
+    get tournamentFormats() { return tournamentFormats; },
+    set tournamentFormats(v: string[]) { tournamentFormats = v; },
+    get tournamentSources() { return tournamentSources; },
+    set tournamentSources(v: string[]) { tournamentSources = v; },
+    get tournamentSearchName() { return tournamentSearchName; },
+    set tournamentSearchName(v: string) { tournamentSearchName = v; },
+    get tournamentSortBy() { return tournamentSortBy; },
+    set tournamentSortBy(v: string) { tournamentSortBy = v; },
+    get tournamentSortDirection() { return tournamentSortDirection; },
+    set tournamentSortDirection(v: 'asc' | 'desc') { tournamentSortDirection = v; },
+    get tournamentActiveChips() { return tournamentActiveChips; },
+    removeTournamentChip,
+    clearTournamentFilters,
     saveLocalFilters,
     restoreLocalFilters,
     /** Memoized chip descriptors for every non-default filter. */
