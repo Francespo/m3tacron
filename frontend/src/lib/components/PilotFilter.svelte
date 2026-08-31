@@ -90,12 +90,12 @@
                 <FilterAnyAllToggle bind:value={filters.pilotFilterMode} label="Match" />
             </div>{/if}
             {#if selectedCount > 0}
-                <div class="flex flex-wrap gap-1.5 items-center min-w-0 py-0.5">
+                <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar min-w-0 py-1 -mx-0.5 px-0.5" style="overscroll-behavior: contain; -webkit-overflow-scrolling: touch;">
                     {#each allPilots.filter(isGroupSelected) as group (group.key)}
                         {@const fac = group.faction ?? "unknown"}
-                        <span class="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-white/10 border border-white/10 text-[11px] font-mono text-primary max-w-full">
+                        <span class="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-white/10 border border-white/10 text-[11px] font-mono text-primary shrink-0">
                             <span class="font-xwing text-[10px] leading-none opacity-80 shrink-0" style="color: {getFactionColor(fac)}">{fac === 'rebelalliance' ? '!' : fac === 'galacticempire' ? '@' : fac === 'scumandvillainy' ? '#' : fac === 'resistance' ? '!' : fac === 'firstorder' ? '+' : fac === 'galacticrepublic' ? '/' : fac === 'separatistalliance' ? '.' : '?'}</span>
-                            <span class="truncate max-w-[130px]">{group.name}</span>
+                            <span class="truncate max-w-[120px]">{group.name}</span>
                             <button type="button" onclick={() => togglePilotGroup(group)} aria-label={`Remove ${group.name}`} class="ml-0.5 w-4 h-4 rounded-full hover:bg-white/15 inline-flex items-center justify-center shrink-0 transition-colors">
                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                             </button>
@@ -112,7 +112,7 @@
                 class="w-full bg-black border border-border-dark rounded-md px-2 py-1.5 text-xs font-mono text-primary placeholder-secondary focus:border-primary focus:outline-none"
                 bind:value={search}
             />
-            <div class="grid gap-1 max-h-[220px] overflow-y-auto overflow-x-hidden pilot-scrollbar pr-1 min-w-0" style="overscroll-behavior: contain; -webkit-overflow-scrolling: touch;">
+            <div class="grid gap-1 max-h-[220px] overflow-y-auto overflow-x-hidden pilot-scrollbar pr-1 pb-8 min-w-0" style="overscroll-behavior: contain; -webkit-overflow-scrolling: touch;">
                 {#if filteredPilots.length === 0}
                     <div class="text-xs text-secondary font-mono">No pilots match.</div>
                 {:else}
@@ -132,6 +132,13 @@
 </div>
 
 <style>
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
     .pilot-scrollbar::-webkit-scrollbar {
         width: 4px;
     }

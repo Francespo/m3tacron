@@ -82,11 +82,11 @@
                 <FilterAnyAllToggle bind:value={filters.shipFilterMode} label="Match" />
             </div>{/if}
             {#if selectedCount > 0}
-                <div class="flex flex-wrap gap-1.5 items-center min-w-0 py-0.5">
+                <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar min-w-0 py-1 -mx-0.5 px-0.5" style="overscroll-behavior: contain; -webkit-overflow-scrolling: touch;">
                     {#each ships.filter((s) => filters.selectedShips.includes(s.xws)) as ship (ship.xws)}
-                        <span class="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-white/10 border border-white/10 text-[11px] font-mono text-primary max-w-full">
+                        <span class="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-white/10 border border-white/10 text-[11px] font-mono text-primary shrink-0">
                             <i class="xwing-miniatures-ship xwing-miniatures-ship-{ship.xws} text-xs leading-none shrink-0"></i>
-                            <span class="truncate max-w-[130px]">{ship.name}</span>
+                            <span class="truncate max-w-[120px]">{ship.name}</span>
                             <button type="button" onclick={() => toggleShip(ship.xws)} aria-label={`Remove ${ship.name}`} class="ml-0.5 w-4 h-4 rounded-full hover:bg-white/15 inline-flex items-center justify-center shrink-0 transition-colors">
                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                             </button>
@@ -105,7 +105,8 @@
             />
 
             <div
-                class="grid gap-1 max-h-[220px] overflow-y-auto custom-scrollbar pr-1"
+                class="grid gap-1 max-h-[220px] overflow-y-auto custom-scrollbar pr-1 pb-8 min-w-0"
+                style="overscroll-behavior: contain; -webkit-overflow-scrolling: touch;"
             >
                 {#if isLoading && ships.length === 0}
                     <div class="space-y-1.5">
@@ -147,6 +148,13 @@
 </div>
 
 <style>
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
     .chassis-scrollbar::-webkit-scrollbar {
         width: 4px;
     }
