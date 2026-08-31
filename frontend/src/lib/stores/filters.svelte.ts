@@ -21,7 +21,17 @@ import { isPendingSync, resolvePendingSync, markHydrated } from "$lib/sync/urlSy
 // State
 // ---------------------------------------------------------------------------
 
-let dataSource = $state<'xwa' | 'legacy'>('xwa');
+function getInitialDataSource(): 'xwa' | 'legacy' {
+    if (typeof localStorage !== 'undefined') {
+        try {
+            const saved = localStorage.getItem('m3tacron:dataSource');
+            if (saved === 'legacy' || saved === 'xwa') return saved;
+        } catch (e) {}
+    }
+    return 'xwa';
+}
+
+let dataSource = $state<'xwa' | 'legacy'>(getInitialDataSource());
 let includeEpic = $state(false);
 let dateStart = $state('');
 let dateEnd = $state('');
@@ -956,8 +966,33 @@ function toSearchParams(routeId: RouteId): URLSearchParams {
  * `'true'`.
  */
 function applyFromSearchParams(params: URLSearchParams): void {
-    const dataSourceVal = params.get('data_source');
-    dataSource = dataSourceVal === 'legacy' ? 'legacy' : 'xwa';
+    if (params.has('data_source')) {
+        const dataSourceVal = params.get('data_source');
+        const nextDs = dataSourceVal === 'legacy' ? 'legacy' : 'xwa';
+        if (dataSource !== nextDs) {
+            dataSource = nextDs;
+            if (typeof localStorage !== 'undefined') {
+                try { localStorage.setItem('m3tacron:dataSource', nextDs); } catch (e) {}
+            }
+            if (nextDs === 'xwa') {
+                selectedFormats = ['xwa'];
+            } else {
+                selectedFormats = ['legacy_x2po'];
+            }
+        }
+    } else if (typeof localStorage !== 'undefined') {
+        try {
+            const saved = localStorage.getItem('m3tacron:dataSource');
+            if ((saved === 'legacy' || saved === 'xwa') && dataSource !== saved) {
+                dataSource = saved;
+                if (saved === 'xwa') {
+                    selectedFormats = ['xwa'];
+                } else {
+                    selectedFormats = ['legacy_x2po'];
+                }
+            }
+        } catch (e) {}
+    }
 
     includeEpic = params.get('epic') === 'true';
     if (params.has('search')) {
@@ -1462,6 +1497,9 @@ export const filters = {
     get dataSource() { return dataSource; },
     set dataSource(v: 'xwa' | 'legacy') {
         dataSource = v;
+        if (typeof localStorage !== 'undefined') {
+            try { localStorage.setItem('m3tacron:dataSource', v); } catch (e) {}
+        }
         if (v === 'xwa') {
             selectedFormats = ['xwa'];
         } else if (v === 'legacy') {

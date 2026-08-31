@@ -17,7 +17,7 @@ function buildForwardParams(url: URL): URLSearchParams {
 
     // Ensure data_source always present (backend defaults to xwa but we want explicit)
     if (!out.has('data_source')) {
-        const ds = url.searchParams.get('data_source') || 'xwa';
+        const ds = url.searchParams.get('data_source') || (browser ? filters.dataSource : 'xwa');
         out.set('data_source', ds);
     }
 
@@ -28,6 +28,13 @@ function buildForwardParams(url: URL): URLSearchParams {
         (browser && filters.includeEpic);
     out.set('epic', String(includeEpic));
 
+    const ds = out.get('data_source') || 'xwa';
+    if (!out.has('formats')) {
+        const defFormats = ds === 'legacy' ? ['legacy_x2po'] : ['xwa'];
+        for (const f of defFormats) {
+            out.append('formats', f);
+        }
+    }
     return out;
 }
 
