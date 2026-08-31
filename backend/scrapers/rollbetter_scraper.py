@@ -250,14 +250,20 @@ class RollbetterScraper(BaseScraper):
                         f"Attempt {attempt+1}: Failed to extract LF JSON.")
 
                     # Last attempt: build a UI-only fallback so we still scrape metadata and matches.
+                    # Only cache it if it actually has players; otherwise fall
+                    # through to the API fallback (2849/2864 were saved as
+                    # 0-player because of this early return while Started).
                     if attempt == 2:
                         ui_data = self._build_fallback_from_ui(
                             page, tournament_id, url)
-                        if ui_data:
+                        if ui_data and len(ui_data.get("players", [])) > 0:
                             logger.info(
                                 f"Using UI-only fallback for {tournament_id}.")
                             self.cache[tournament_id] = ui_data
                             return
+                        if ui_data is not None:
+                            logger.warning(
+                                f"UI fallback for {tournament_id} has 0 player(s); trying API fallback instead.")
 
             except TournamentSkipped:
                 # Expected, informational skip — do not retry or treat as error.
