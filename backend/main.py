@@ -247,17 +247,17 @@ def _warm_ship_details() -> None:
         base = _ship_filter_cache_suffix(
             formats=None, factions=None, ships=None, continent=None, country=None, city=None,
             platforms=None, sources=None, date_start=None, date_end=None,
-            player_count_min=None, player_count_max=None, search=None, faction=None,
+            player_count_min=None, player_count_max=None, search=None, epic=False, faction=None,
         )
         xwa = _ship_filter_cache_suffix(
             formats=["xwa"], factions=None, ships=None, continent=None, country=None, city=None,
             platforms=None, sources=None, date_start=None, date_end=None,
-            player_count_min=None, player_count_max=None, search=None, faction=None,
+            player_count_min=None, player_count_max=None, search=None, epic=False, faction=None,
         )
         legacy = _ship_filter_cache_suffix(
             formats=["legacy_x2po"], factions=None, ships=None, continent=None, country=None, city=None,
             platforms=None, sources=None, date_start=None, date_end=None,
-            player_count_min=None, player_count_max=None, search=None, faction=None,
+            player_count_min=None, player_count_max=None, search=None, epic=False, faction=None,
         )
         return [(base, {"epic": True, "include_epic": True}), (xwa, {"epic": True, "include_epic": True, "allowed_formats": ["xwa"]}), (legacy, {"epic": True, "include_epic": True, "allowed_formats": ["legacy_x2po"]})]
 
@@ -310,37 +310,55 @@ def _warm_ship_details() -> None:
             print(f"[prewarm] ship pilots bulk {ds.value}: FAILED ({e})")
             fail += len(all_xws) * 3
 
-        # --- Phase 2: lists / squadrons per-ship — prewarm default suffix only ---
+        # --- Phase 2: lists / squadrons bulk partition across all ships ---
         suffix_default = _ship_filter_cache_suffix(
             formats=None, factions=None, ships=None, continent=None, country=None, city=None,
             platforms=None, sources=None, date_start=None, date_end=None,
-            player_count_min=None, player_count_max=None, search=None, faction=None,
+            player_count_min=None, player_count_max=None, search=None, epic=False, faction=None,
         )
-        for xws in sorted(all_xws):
-            for kind in ("lists", "squadrons"):
-                limit = 10
-                if kind == "lists":
-                    cache_key = f"ship_lists|{xws}|{ds.value}|{limit}{suffix_default}"
-                    def _compute_lists(xws=xws, ds=ds):  # type: ignore
-                        f = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None)
-                        return aggregate_list_stats(f, data_source=ds)
-                    try:
-                        get_cached_or_compute(cache_key, _compute_lists)
-                        ok += 1
-                    except Exception as e:
-                        print(f"[prewarm] ship lists {xws}/{ds.value}: {e}")
-                        fail += 1
-                else:
-                    cache_key = f"ship_squadrons|{xws}|{ds.value}|{limit}{suffix_default}"
-                    def _compute_sq(xws=xws, ds=ds):  # type: ignore
-                        f = _build_filters(ship_xws=xws, formats=None, factions=None, faction=None, ships=None, continent=None, country=None, city=None, platforms=None, sources=None, date_start=None, date_end=None, player_count_min=None, player_count_max=None, search=None)
-                        return aggregate_squadron_stats(f, SortingCriteria.WINRATE, SortDirection.DESCENDING, ds)
-                    try:
-                        get_cached_or_compute(cache_key, _compute_sq)
-                        ok += 1
-                    except Exception as e:
-                        print(f"[prewarm] ship squadrons {xws}/{ds.value}: {e}")
-                        fail += 1
+        try:
+            bulk_lists = aggregate_list_stats(filters_bulk, data_source=ds)
+            lists_by_ship: dict[str, list[dict]] = {}
+            for item in bulk_lists:
+                sl = item.get("ship_list", "")
+                ships_in_list = sl.split(",") if isinstance(sl, str) else (sl if isinstance(sl, list) else [])
+                for s in set(ships_in_list):
+                    if s:
+                        lists_by_ship.setdefault(s, []).append(item)
+            for xws in sorted(all_xws):
+                cache_key = f"ship_lists|{xws}|{ds.value}|10{suffix_default}"
+                val = lists_by_ship.get(xws, [])
+                try:
+                    get_cached_or_compute(cache_key, lambda v=val: list(v))
+                    ok += 1
+                except Exception as e:
+                    print(f"[prewarm] ship lists {xws}/{ds.value}: {e}")
+                    fail += 1
+        except Exception as e:
+            print(f"[prewarm] ship lists bulk {ds.value}: FAILED ({e})")
+            fail += len(all_xws)
+
+        try:
+            bulk_sq = aggregate_squadron_stats(filters_bulk, SortingCriteria.WINRATE, SortDirection.DESCENDING, ds)
+            sq_by_ship: dict[str, list[dict]] = {}
+            for item in bulk_sq:
+                sl = item.get("ship_list", "")
+                ships_in_sq = sl.split(",") if isinstance(sl, str) else (sl if isinstance(sl, list) else [])
+                for s in set(ships_in_sq):
+                    if s:
+                        sq_by_ship.setdefault(s, []).append(item)
+            for xws in sorted(all_xws):
+                cache_key = f"ship_squadrons|{xws}|{ds.value}|10{suffix_default}"
+                val = sq_by_ship.get(xws, [])
+                try:
+                    get_cached_or_compute(cache_key, lambda v=val: list(v))
+                    ok += 1
+                except Exception as e:
+                    print(f"[prewarm] ship squadrons {xws}/{ds.value}: {e}")
+                    fail += 1
+        except Exception as e:
+            print(f"[prewarm] ship squadrons bulk {ds.value}: FAILED ({e})")
+            fail += len(all_xws)
 
     elapsed = _t.time() - t0
     # info + pilots × 3 suffixes, lists/squadrons × 1 suffix
