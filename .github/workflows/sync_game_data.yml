@@ -1,0 +1,88 @@
+name: Sync Game Data
+
+permissions:
+  contents: write
+
+on:
+  schedule:
+    # Run at 06:00 UTC every day
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      sync_submodules:
+        description: "Update git submodules from remote HEADs"
+        required: true
+        default: true
+        type: boolean
+      sync_j1mbob:
+        description: "Pull card fixes from J1mBob/xwing-data2"
+        required: false
+        default: false
+        type: boolean
+      sync_yasb:
+        description: "Patch latest points & loadouts from YASB (Raithos)"
+        required: false
+        default: false
+        type: boolean
+      sync_legacy:
+        description: "Pull updates from Darker333/xwing-data2-legacy"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run Game Data Sync
+        run: |
+          ARGS="--rebuild-manifests"
+          
+          # If scheduled run, update submodules by default
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            ARGS="$ARGS --sync-submodules"
+          else
+            if [ "${{ inputs.sync_submodules }}" = "true" ]; then ARGS="$ARGS --sync-submodules"; fi
+            if [ "${{ inputs.sync_j1mbob }}" = "true" ]; then ARGS="$ARGS --sync-j1mbob"; fi
+            if [ "${{ inputs.sync_yasb }}" = "true" ]; then ARGS="$ARGS --sync-yasb"; fi
+            if [ "${{ inputs.sync_legacy }}" = "true" ]; then ARGS="$ARGS --sync-legacy"; fi
+          fi
+          
+          echo "Executing: python3 scripts/sync_game_data.py $ARGS"
+          python3 scripts/sync_game_data.py $ARGS
+
+      - name: Commit and Push Updated Submodule & Manifests
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          git add external_data frontend/static/data-xwa/xwing-data.json frontend/static/data-legacy/xwing-data.json
+          
+          if git diff --cached --quiet; then
+            echo "No game data changes detected. Everything is up to date."
+            exit 0
+          fi
+          
+          git commit -m "chore(data): sync game data submodules and update manifests [skip ci]"
+          
+          # Push to current branch
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          git push origin "$BRANCH" || echo "Push failed (check branch permissions)"

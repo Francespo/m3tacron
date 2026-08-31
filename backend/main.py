@@ -513,8 +513,15 @@ def read_root():
 @app.get("/api/meta-snapshot", response_model=MetaSnapshotResponse)
 def get_snapshot(
     data_source: str = Query("xwa", description="Data source: xwa or legacy"),
+    days: int | None = Query(90, description="Time window in days (7, 30, 90, 180, 365, or 0/None for all time)"),
+    date_start: str | None = Query(None, description="Start date (YYYY-MM-DD)"),
+    date_end: str | None = Query(None, description="End date (YYYY-MM-DD)"),
 ):
     ds_enum = DataSource.XWA if data_source == "xwa" else DataSource.LEGACY
+    normalized_days = None if (days == 0 or days is None) else days
+    if date_start:
+        normalized_days = None
+
     def compute():
         # Source -> formats mapping. Epic content is always included.
         if ds_enum == DataSource.XWA:
@@ -522,10 +529,17 @@ def get_snapshot(
         else:
             allowed_formats = ["legacy_x2po"]
 
-        # Runs the 5 aggregations + 2 count queries. Cached by data_source
+        # Runs the 5 aggregations + 2 count queries. Cached by data_source + days + date range
         # (epic always on) so the dashboard only pays the cost once per data_version.
         from .api.formatters import enrich_list_data
-        snapshot = get_meta_snapshot(ds_enum, allowed_formats=allowed_formats, include_epic=True)
+        snapshot = get_meta_snapshot(
+            ds_enum,
+            allowed_formats=allowed_formats,
+            include_epic=True,
+            days_back=normalized_days,
+            date_start=date_start,
+            date_end=date_end,
+        )
 
         # Enrich list data with pilot/ship metadata (names, ship icons,
         # pack captions, upgrade names) before serving to the dashboard.
@@ -536,22 +550,28 @@ def get_snapshot(
         total_players = 0
         try:
             with Session(engine) as session:
-                start_date = (datetime.now() - timedelta(days=90)).date()
-
                 total_tournaments_query = (
                     select(func.count(Tournament.id))
-                    .where(Tournament.date >= start_date)
                     .where(Tournament.format.in_(allowed_formats))
                 )
-                res_tournaments = session.exec(total_tournaments_query).one_or_none()
-                total_tournaments = res_tournaments if res_tournaments else 0
-
                 total_players_query = (
                     select(func.count(PlayerStanding.id))
                     .join(Tournament)
-                    .where(Tournament.date >= start_date)
                     .where(Tournament.format.in_(allowed_formats))
                 )
+
+                if snapshot.get("date_start"):
+                    s_date = datetime.strptime(snapshot["date_start"], "%Y-%m-%d").date()
+                    total_tournaments_query = total_tournaments_query.where(Tournament.date >= s_date)
+                    total_players_query = total_players_query.where(Tournament.date >= s_date)
+                if snapshot.get("date_end"):
+                    e_date = datetime.strptime(snapshot["date_end"], "%Y-%m-%d").date()
+                    total_tournaments_query = total_tournaments_query.where(Tournament.date <= e_date)
+                    total_players_query = total_players_query.where(Tournament.date <= e_date)
+
+                res_tournaments = session.exec(total_tournaments_query).one_or_none()
+                total_tournaments = res_tournaments if res_tournaments else 0
+
                 res_players = session.exec(total_players_query).one_or_none()
                 total_players = res_players if res_players else 0
         except Exception as e:
@@ -580,11 +600,16 @@ def get_snapshot(
             "upgrades": snapshot.get("upgrades", []),
             "last_sync": snapshot.get("last_sync", "Never"),
             "date_range": snapshot.get("date_range", "Unknown"),
+            "date_start": snapshot.get("date_start"),
+            "date_end": snapshot.get("date_end"),
             "total_tournaments": total_tournaments,
             "total_players": total_players,
             "total_lists": total_lists,
             "total_games": total_games,
         }
 
-    cached = get_cached_or_compute(f"meta_snapshot|{ds_enum.value}|True", compute)
+    cached = get_cached_or_compute(
+        f"meta_snapshot|{ds_enum.value}|True|{normalized_days}|{date_start or ''}|{date_end or ''}",
+        compute,
+    )
     return MetaSnapshotResponse(**cached)

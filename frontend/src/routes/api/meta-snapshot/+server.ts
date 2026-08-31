@@ -48,11 +48,20 @@ function resolveBackendApiBase(url: URL): string {
 export async function GET({ url, fetch }) {
     const source = url.searchParams.get('data_source') || 'xwa';
     const epic = url.searchParams.get('epic') === 'true';
+    const days = url.searchParams.get('days');
+    const dateStart = url.searchParams.get('date_start');
+    const dateEnd = url.searchParams.get('date_end');
     const backendApiBase = resolveBackendApiBase(url);
 
     try {
-        const epicQuery = epic ? '&epic=true' : '';
-        const res = await fetch(`${backendApiBase}/meta-snapshot?data_source=${source}${epicQuery}`);
+        const params = new URLSearchParams();
+        params.set('data_source', source);
+        if (epic) params.set('epic', 'true');
+        if (days !== null && days !== undefined && days !== '') params.set('days', days);
+        if (dateStart) params.set('date_start', dateStart);
+        if (dateEnd) params.set('date_end', dateEnd);
+
+        const res = await fetch(`${backendApiBase}/meta-snapshot?${params.toString()}`);
         if (!res.ok) {
             throw new Error(`Backend error: ${res.status}`);
         }

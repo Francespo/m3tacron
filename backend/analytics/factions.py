@@ -202,6 +202,9 @@ def get_meta_snapshot(
     data_source: DataSource = DataSource.XWA,
     allowed_formats: list[str] | None = None,
     include_epic: bool = False,
+    days_back: int | None = 90,
+    date_start: str | None = None,
+    date_end: str | None = None,
 ) -> dict:
     """
     Get meta snapshot data for home page.
@@ -209,15 +212,40 @@ def get_meta_snapshot(
     """
     from datetime import datetime, timedelta
 
-    # 90 days range
-    days_back = 90
-    date_str = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
-
     filters = {
-        "date_start": date_str,
         "include_epic": include_epic,
         "epic": include_epic,
     }
+
+    resolved_date_start = date_start
+    resolved_date_end = date_end
+    date_range_label = "All Time"
+
+    if resolved_date_start:
+        filters["date_start"] = resolved_date_start
+        if resolved_date_end:
+            filters["date_end"] = resolved_date_end
+            date_range_label = f"{resolved_date_start} → {resolved_date_end}"
+        else:
+            date_range_label = f"From {resolved_date_start}"
+    elif days_back is not None and days_back > 0:
+        resolved_date_start = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+        filters["date_start"] = resolved_date_start
+        if days_back == 7:
+            date_range_label = "Last 7 Days"
+        elif days_back == 30:
+            date_range_label = "Last 30 Days"
+        elif days_back == 90:
+            date_range_label = "Last 90 Days"
+        elif days_back == 180:
+            date_range_label = "Last 6 Months"
+        elif days_back == 365:
+            date_range_label = "Last Year"
+        else:
+            date_range_label = f"Last {days_back} Days"
+    else:
+        date_range_label = "All Time"
+
     if allowed_formats:
         filters["allowed_formats"] = get_active_formats(allowed_formats)
     else:
@@ -260,7 +288,9 @@ def get_meta_snapshot(
         "pilots": pilot_stats,
         "upgrades": upgrade_stats,
         "last_sync": last_sync_val,
-        "date_range": "Last 90 Days",
+        "date_range": date_range_label,
+        "date_start": resolved_date_start,
+        "date_end": resolved_date_end,
         "total_tournaments": 0,
         "total_players": 0,
     }
