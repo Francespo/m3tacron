@@ -52,6 +52,35 @@ def ship_list_filter_clause(
     return "(" + joiner.join(parts) + ")"
 
 
+def pilot_filter_clause(
+    pilots: Iterable[str] | None,
+    params: dict,
+    mode: str = "any",
+) -> str:
+    """Build a WHERE fragment that matches lists containing pilot ids.
+
+    `mode="any"` → at least one of the pilots (OR).
+    `mode="all"` → every pilot must be present (AND of EXISTS).
+    Uses jsonb_array_elements on l.list_json->'pilots'.
+    Mutates `params`.
+    """
+    if not pilots:
+        return ""
+    if mode not in ("any", "all"):
+        raise ValueError(f"pilot_filter_clause: mode must be 'any' or 'all', got {mode!r}")
+    pilots = list(pilots)
+    if mode == "any":
+        params["pilots_any"] = pilots
+        return "EXISTS (SELECT 1 FROM jsonb_array_elements(l.list_json::jsonb->'pilots') sp WHERE sp->>'id' = ANY(:pilots_any))"
+    # mode == "all": one EXISTS per pilot
+    parts = []
+    for i, p in enumerate(pilots):
+        key = f"pilot_all_{i}"
+        params[key] = p
+        parts.append(f"EXISTS (SELECT 1 FROM jsonb_array_elements(l.list_json::jsonb->'pilots') sp WHERE sp->>'id' = :{key})")
+    return "(" + " AND ".join(parts) + ")"
+
+
 def format_filter_clause(
     formats,
     params: dict,

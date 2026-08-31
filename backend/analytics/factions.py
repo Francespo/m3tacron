@@ -7,7 +7,7 @@ from sqlmodel import Session
 from ..database import engine
 from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
-from .filter_helpers import format_filter_clause
+from .filter_helpers import format_filter_clause, huge_ships_exclusion_clause
 from .filters import get_active_formats
 
 
@@ -70,7 +70,11 @@ def aggregate_faction_stats(
     # Team events: exclude placeholder rows
     where_clauses.append("(NOT t.is_team_event OR ps.is_team_member)")
 
-    # Epic content is always included — no epic/huge-ship exclusion.
+    # Epic / huge-ship filter
+    if not filters.get("epic", False) and not filters.get("include_epic", False):
+        huge_clause = huge_ships_exclusion_clause(False, data_source, params)
+        if huge_clause:
+            where_clauses.append(huge_clause)
 
     where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
@@ -197,7 +201,7 @@ def _read_last_scrape_at() -> str | None:
 def get_meta_snapshot(
     data_source: DataSource = DataSource.XWA,
     allowed_formats: list[str] | None = None,
-    include_epic: bool = True,
+    include_epic: bool = False,
 ) -> dict:
     """
     Get meta snapshot data for home page.

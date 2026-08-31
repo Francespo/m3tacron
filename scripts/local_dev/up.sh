@@ -13,18 +13,23 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DUMPS_DIR="$REPO_ROOT/local-data/dumps"
 DUMP_FILE="$DUMPS_DIR/dev_latest.dump"
-VITE_PID_FILE="/tmp/m3tacron-alert-baboon.pid"
-VITE_LOG="/tmp/m3tacron-alert-baboon.log"
+VITE_PID_FILE="/tmp/m3tacron-fix-filter-ux-restructure.pid"
+VITE_LOG="/tmp/m3tacron-fix-filter-ux-restructure.log"
 DEFAULT_PORT="${VITE_PORT:-3335}"
 VITE_PORT="$DEFAULT_PORT"
 
-# --- Detect tailnet hostname ---
+# --- Detect tailnet hostname + MagicDNS ---
 HOSTNAME_SHORT="$(hostname -s 2>/dev/null || echo localhost)"
 TAILSCALE_HOST=""
+TAILSCALE_FQDN=""
 if command -v tailscale &>/dev/null; then
-  TAILSCALE_HOST="$(tailscale status --json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['Self']['HostName'])" 2>/dev/null || true)"
+  TAILSCALE_HOST="$(tailscale status --json 2>/dev/null | python3 -c "import sys,json; j=json.load(sys.stdin); print(j.get('Self',{}).get('HostName',''))" 2>/dev/null || true)"
+  TAILSCALE_FQDN="$(tailscale status --json 2>/dev/null | python3 -c "import sys,json; j=json.load(sys.stdin); print(j.get('Self',{}).get('DNSName','').rstrip('.'))" 2>/dev/null || true)"
 fi
 TAILNET_HOST="${TAILSCALE_HOST:-$HOSTNAME_SHORT}"
+TAILNET_FQDN="${TAILSCALE_FQDN:-$TAILNET_HOST}"
+TAIL_IP4="$(tailscale ip -4 2>/dev/null | tr '\n' ',' | sed 's/,$//')"
+TAIL_IP6="$(tailscale ip -6 2>/dev/null | head -1 | tr -d '\n')"
 
 cd "$REPO_ROOT"
 
@@ -121,6 +126,7 @@ if [ "$BACKEND_PORT" != "$ORIG_BACKEND_PORT" ] || [ "$POSTGRES_PORT" != "$ORIG_P
 fi
 
 echo "==> Bringing up backend stack (postgres + backend in Docker)..."
+BACKEND_PORT="${BACKEND_PORT:-8890}"
 docker compose -f docker-compose.local.yml up -d --build postgres db-seed backend
 
 echo "==> Waiting for backend healthcheck..."
@@ -143,10 +149,12 @@ if [[ ! -x "$VITE_BIN" ]]; then
   echo "!! vite not found. Running npm install in frontend/..."
   (cd "$REPO_ROOT/frontend" && npm install --no-audit --no-fund)
 fi
+VITE_ALLOWED="localhost,127.0.0.1,${TAILNET_HOST},${TAILNET_FQDN},${TAIL_IP4:-},${TAIL_IP6:-}"
+VITE_ALLOWED="$(echo "$VITE_ALLOWED" | sed 's/,,*/,/g; s/^,//; s/,$//')"
 nohup env \
   NODE_OPTIONS="--max-old-space-size=4096" \
   VITE_API_BASE="http://localhost:${BACKEND_PORT}/api" \
-  VITE_ALLOWED_HOSTS="localhost,127.0.0.1,${TAILNET_HOST}" \
+  VITE_ALLOWED_HOSTS="$VITE_ALLOWED" \
   ORIGIN="http://${TAILNET_HOST}:$VITE_PORT" \
   "$VITE_BIN" dev --host 0.0.0.0 --port "$VITE_PORT" \
   > "$VITE_LOG" 2>&1 &

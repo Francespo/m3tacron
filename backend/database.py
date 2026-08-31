@@ -88,7 +88,7 @@ def _retry_with_backoff(fn, *, attempts: int = 5, base_sleep: float = 0.7):
 
 
 def _ensure_performance_indexes(conn) -> None:
-    """Create the 6 analytics hot-path indexes idempotently.
+    """Create the analytics hot-path indexes idempotently.
 
     These are required for ship-detail and card aggregations to avoid
     seq scans over 96K+ playerstanding rows (18s → 0.002s). They are NOT
@@ -172,7 +172,6 @@ def create_db_and_tables():
     # incident left every index missing and the entire ships cache cold).
     try:
         from sqlalchemy import text as _text
-
         with engine.begin() as conn:
             # Pass the raw connection's savepoint capability: wrap each helper
             # so it can rollback internally without invalidating the outer
@@ -180,7 +179,7 @@ def create_db_and_tables():
             _ensure_team_event_columns(conn)
             _ensure_performance_indexes(conn)
     except Exception as exc:
-        print(f"[startup] team/performance ensures skipped: {exc}")
+        print(f"[startup] index/team-event ensure skipped: {exc}")
     # Self-heal pilot_ship_mapping for fresh or legacy databases:
     #  - Table is declared in models.PilotShipMapping so create_all above
     #    creates it on fresh DBs.
@@ -215,28 +214,37 @@ def create_db_and_tables():
                     pass
 
         # Backfill missing factions from the vendored xwing manifests (idempotent).
+        # IMPORTANT: the read (`SELECT COUNT(*)`) must be committed/closed BEFORE
+        # calling populate, otherwise this session stays `idle in transaction`
+        # holding AccessShareLock on pilot_ship_mapping — which blocks the
+        # ALTER/backfill of the *other* uvicorn worker (and any other service
+        # on the shared DB) indefinitely.
         try:
             with _Session(engine) as session:
                 try:
                     total = session.execute(_text("SELECT COUNT(*) FROM pilot_ship_mapping")).scalar() or 0
                     nulls = session.execute(_text("SELECT COUNT(*) FROM pilot_ship_mapping WHERE faction IS NULL OR faction = ''")).scalar() or 0
+                    session.commit()  # release read locks immediately
                 except Exception:
                     total = 0
                     nulls = 0
-                if total == 0 or nulls > 0:
-                    # Import lazily to avoid circular import at module load.
-                    try:
-                        from .scripts.populate_pilot_ship_mapping import populate as _populate_psm
+                    session.rollback()
 
-                        _populate_psm()
-                    except Exception as exc:
-                        print(f"[startup] pilot_ship_mapping backfill failed: {exc}")
-                # Normalize any legacy faction values that still contain spaces/caps
+            if total == 0 or nulls > 0:
+                # Import lazily to avoid circular import at module load.
+                try:
+                    from .scripts.populate_pilot_ship_mapping import populate as _populate_psm
+
+                    _populate_psm()
+                except Exception as exc:
+                    print(f"[startup] pilot_ship_mapping backfill failed: {exc}")
+            # Normalize any legacy faction values that still contain spaces/caps
+            with _Session(engine) as session:
                 try:
                     session.execute(_text("UPDATE pilot_ship_mapping SET faction = lower(replace(replace(faction, ' ', ''), '-', '')) WHERE faction IS NOT NULL AND faction != lower(replace(replace(faction, ' ', ''), '-', ''))"))
                     session.commit()
                 except Exception:
-                    pass
+                    session.rollback()
         except Exception as exc:
             print(f"[startup] pilot_ship_mapping ensure skipped: {exc}")
     except Exception as exc:

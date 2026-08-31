@@ -6,6 +6,7 @@
     import { cachedFetchJson } from "$lib/api/cache";
     import { getFormatFullLabel } from "$lib/data/formats";
     import DebouncedTextInput from "./DebouncedTextInput.svelte";
+    import DateRangeField from "./DateRangeField.svelte";
     import Toggle from "./Toggle.svelte";
 
     let dateOpen = $state(false);
@@ -165,110 +166,24 @@
     }
 </script>
 
-<div class="w-full space-y-3">
-    <!-- Header -->
-    <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2">
-            <span class="text-xs font-bold tracking-widest text-primary font-mono">
-                TOURNAMENT FILTERS
-            </span>
-            <button
-                type="button"
-                class="group relative inline-flex items-center justify-center w-4 h-4 rounded-full text-secondary hover:text-primary active:text-white focus:outline-none focus:ring-1 focus:ring-primary"
-                aria-label="How tournament filters work"
-            >
-                <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                >
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="16" x2="12" y2="12" />
-                    <line x1="12" y1="8" x2="12.01" y2="8" />
-                </svg>
-                <div
-                    class="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-64 p-2 bg-terminal-panel border border-border-dark rounded-md text-[10px] font-mono text-secondary opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-opacity z-50 pointer-events-none"
-                >
-                    Tournament filters are applied to the page's input data. The
-                    page-specific filters and the tournament filters are
-                    complementary — for example, if you filter for tournaments
-                    on a list page, only data from tournaments that match your
-                    filter is shown.
-                </div>
-            </button>
-        </div>
+<div class="w-full space-y-4 tournament-filters-root">
+    <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4 tournament-main-grid">
+    <div class="relative rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+        <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-60" aria-hidden="true"></div>
+        <button type="button" onclick={() => (dateOpen = !dateOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
+            <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Date Range</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {dateOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        {#if dateOpen}<div class="px-3.5 pb-3.5 pt-1"><DateRangeField hideLabel={true} /></div>{/if}
     </div>
 
-    <!-- Date Range Accordion -->
-    <div class="border-b border-border-dark">
-        <button
-            class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
-            onclick={() => (dateOpen = !dateOpen)}
-        >
-            <span class="text-xs font-mono font-bold tracking-wider"
-                >Date Range</span
-            >
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="transition-transform {dateOpen ? 'rotate-180' : ''}"
-                ><path d="m6 9 6 6 6-6" /></svg
-            >
+    <div class="relative rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden lg:col-span-2 2xl:col-span-1 2xl:col-start-3 2xl:row-start-1">
+        <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-60" aria-hidden="true"></div>
+        <button type="button" onclick={() => (locationOpen = !locationOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
+            <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Location</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {locationOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
         </button>
-        {#if dateOpen}
-            <div class="pb-3 space-y-1.5 pl-2">
-                <input
-                    type="date"
-                    class="w-full bg-black border border-border-dark rounded px-2 py-1.5 text-xs font-mono text-primary focus:border-primary focus:outline-none"
-                    bind:value={filters.dateStart}
-                />
-                <span class="text-xs text-secondary block text-center">to</span>
-                <input
-                    type="date"
-                    class="w-full bg-black border border-border-dark rounded px-2 py-1.5 text-xs font-mono text-primary focus:border-primary focus:outline-none"
-                    bind:value={filters.dateEnd}
-                />
-            </div>
-        {/if}
-    </div>
-
-    <!-- Location Accordion -->
-    <div class="border-b border-border-dark">
-        <button
-            class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
-            onclick={() => (locationOpen = !locationOpen)}
-        >
-            <span class="text-xs font-mono font-bold tracking-wider"
-                >Location</span
-            >
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="transition-transform {locationOpen ? 'rotate-180' : ''}"
-                ><path d="m6 9 6 6 6-6" /></svg
-            >
-        </button>
-        {#if locationOpen}
-            <div class="pb-3 space-y-3 pl-2 pr-1 text-xs">
+        {#if locationOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-3 text-xs">
                 <!-- Mini Search Bar -->
                 <input
                     type="text"
@@ -363,44 +278,17 @@
                         </div>
                     </div>
                 {/if}
-            </div>
-        {/if}
+            </div>{/if}
     </div>
 
-    <!-- Format Accordion -->
-    <div class="border-b border-border-dark">
-        <button
-            class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
-            onclick={() => (formatOpen = !formatOpen)}
-        >
-            <div class="flex items-center gap-2">
-                <span class="text-xs font-mono font-bold tracking-wider"
-                    >Format</span
-                >
-                {#if filters.selectedFormats.length > 0}
-                    <span
-                        class="text-[10px] bg-white/10 text-secondary px-1.5 rounded-full font-mono"
-                    >
-                        {filters.selectedFormats.length}
-                    </span>
-                {/if}
-            </div>
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="transition-transform {formatOpen ? 'rotate-180' : ''}"
-                ><path d="m6 9 6 6 6-6" /></svg
-            >
+    <!-- Format — card style -->
+    <div class="relative rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+        <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-60" aria-hidden="true"></div>
+        <button type="button" onclick={() => (formatOpen = !formatOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
+            <span class="flex items-center gap-2 text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Format {#if filters.selectedFormats.length > 0}<span class="min-w-5 h-5 px-1 rounded-full bg-primary text-black text-[10px] font-mono font-bold inline-flex items-center justify-center">{filters.selectedFormats.length}</span>{/if}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {formatOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
         </button>
-        {#if formatOpen}
-            <div class="pb-3 space-y-3 pl-2 max-h-[300px] overflow-y-auto pr-1">
+        {#if formatOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
                 {#each formatGroups as group}
                     <div class="space-y-1">
                         <span
@@ -424,35 +312,16 @@
                         {/each}
                     </div>
                 {/each}
-            </div>
-        {/if}
+            </div>{/if}
     </div>
 
-    <!-- Source Filter Section -->
-    <div class="border-b border-border-dark">
-        <button
-            class="flex items-center justify-between w-full py-2 text-secondary hover:text-primary active:text-primary active:bg-[#ffffff06] rounded-sm transition-colors"
-            onclick={() => (sourceOpen = !sourceOpen)}
-        >
-            <span class="text-xs font-mono font-bold tracking-wider"
-                >Source</span
-            >
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="transition-transform {sourceOpen ? 'rotate-180' : ''}"
-                ><path d="m6 9 6 6 6-6" /></svg
-            >
+    <div class="relative rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+        <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-60" aria-hidden="true"></div>
+        <button type="button" onclick={() => (sourceOpen = !sourceOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
+            <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Source</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {sourceOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
         </button>
-        {#if sourceOpen}
-            <div class="pb-3 space-y-1 pl-2">
+        {#if sourceOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-1">
                 {#each sources as source}
                     <label
                         class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
@@ -468,14 +337,15 @@
                         <span class="font-mono">{source.label}</span>
                     </label>
                 {/each}
-            </div>
-        {/if}
+            </div>{/if}
     </div>
 
-    <!-- Search Name -->
-    <div class="space-y-1">
-        <span class="text-xs font-mono font-bold tracking-wider text-secondary"
-            >Search Name</span
+    </div>
+
+    <div class="relative rounded-xl border border-white/5 bg-black/15 overflow-hidden lg:col-span-2 2xl:col-span-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+        <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-60" aria-hidden="true"></div>
+        <div class="p-3.5">
+        <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Search Name</span
         >
         <DebouncedTextInput
             value={filters.searchName}
@@ -486,5 +356,6 @@
             placeholder="Search name..."
             ariaLabel="Search tournament name"
         />
+        </div>
     </div>
 </div>
