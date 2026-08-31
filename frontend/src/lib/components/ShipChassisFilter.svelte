@@ -77,10 +77,26 @@
         </span>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {isOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
     </button>
-        {#if isOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-3">
-            {#if effectiveShow}<div class="flex items-center justify-between gap-2 flex-wrap">
+        {#if isOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-2.5 min-w-0">
+            {#if effectiveShow}<div class="flex items-center justify-between gap-2 min-w-0 flex-wrap">
                 <FilterAnyAllToggle bind:value={filters.shipFilterMode} label="Match" />
             </div>{/if}
+            {#if selectedCount > 0}
+                <div class="flex flex-wrap gap-1.5 items-center min-w-0 py-0.5">
+                    {#each ships.filter((s) => filters.selectedShips.includes(s.xws)) as ship (ship.xws)}
+                        <span class="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-white/10 border border-white/10 text-[11px] font-mono text-primary max-w-full">
+                            <i class="xwing-miniatures-ship xwing-miniatures-ship-{ship.xws} text-xs leading-none shrink-0"></i>
+                            <span class="truncate max-w-[130px]">{ship.name}</span>
+                            <button type="button" onclick={() => toggleShip(ship.xws)} aria-label={`Remove ${ship.name}`} class="ml-0.5 w-4 h-4 rounded-full hover:bg-white/15 inline-flex items-center justify-center shrink-0 transition-colors">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                            </button>
+                        </span>
+                    {/each}
+                    <button type="button" onclick={() => { filters.selectedShips = []; }} class="text-[10px] font-mono text-secondary hover:text-primary underline ml-1 shrink-0">
+                        Clear all
+                    </button>
+                </div>
+            {/if}
             <input
                 type="text"
                 placeholder="Search ships..."
