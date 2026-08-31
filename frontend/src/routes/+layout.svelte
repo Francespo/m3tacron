@@ -147,8 +147,9 @@
 	// contamination from a module-level $state singleton).
 	$effect(() => {
 		const searchParams = page.url.searchParams;
+		const routeId = (page.route.id ? page.route.id.replace(/^\//, '').split('/')[0] : '') as any;
 		untrack(() => {
-			filters.applyFromSearchParams(searchParams);
+			filters.applyFromSearchParams(searchParams, routeId);
 		});
 	});
 

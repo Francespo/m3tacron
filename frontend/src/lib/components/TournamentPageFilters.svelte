@@ -34,8 +34,8 @@
     let availableCountries = $derived.by(() => {
         let countries = new Set<string>();
         let conts =
-            filters.selectedContinents.length > 0
-                ? filters.selectedContinents
+            filters.tournamentContinents.length > 0
+                ? filters.tournamentContinents
                 : availableContinents;
         for (const c of conts) {
             if (locationHierarchy[c]) {
@@ -50,14 +50,14 @@
     let availableCities = $derived.by(() => {
         let cities = new Set<string>();
         let conts =
-            filters.selectedContinents.length > 0
-                ? filters.selectedContinents
+            filters.tournamentContinents.length > 0
+                ? filters.tournamentContinents
                 : availableContinents;
         for (const c of conts) {
             if (!locationHierarchy[c]) continue;
             let countryKeys =
-                filters.selectedCountries.length > 0
-                    ? filters.selectedCountries.filter(
+                filters.tournamentCountries.length > 0
+                    ? filters.tournamentCountries.filter(
                           (cO) => locationHierarchy[c][cO],
                       )
                     : Object.keys(locationHierarchy[c]);
@@ -116,52 +116,52 @@
     ];
 
     function toggleContinent(c: string) {
-        if (filters.selectedContinents.includes(c)) {
-            filters.selectedContinents = filters.selectedContinents.filter(
+        if (filters.tournamentContinents.includes(c)) {
+            filters.tournamentContinents = filters.tournamentContinents.filter(
                 (x) => x !== c,
             );
         } else {
-            filters.selectedContinents = [...filters.selectedContinents, c];
+            filters.tournamentContinents = [...filters.tournamentContinents, c];
         }
     }
 
     function toggleCountry(c: string) {
-        if (filters.selectedCountries.includes(c)) {
-            filters.selectedCountries = filters.selectedCountries.filter(
+        if (filters.tournamentCountries.includes(c)) {
+            filters.tournamentCountries = filters.tournamentCountries.filter(
                 (x) => x !== c,
             );
         } else {
-            filters.selectedCountries = [...filters.selectedCountries, c];
+            filters.tournamentCountries = [...filters.tournamentCountries, c];
         }
     }
 
     function toggleCity(c: string) {
-        if (filters.selectedCities.includes(c)) {
-            filters.selectedCities = filters.selectedCities.filter(
+        if (filters.tournamentCities.includes(c)) {
+            filters.tournamentCities = filters.tournamentCities.filter(
                 (x) => x !== c,
             );
         } else {
-            filters.selectedCities = [...filters.selectedCities, c];
+            filters.tournamentCities = [...filters.tournamentCities, c];
         }
     }
 
     function toggleSource(pId: string) {
-        if (filters.selectedSources.includes(pId)) {
-            filters.selectedSources = filters.selectedSources.filter(
+        if (filters.tournamentSources.includes(pId)) {
+            filters.tournamentSources = filters.tournamentSources.filter(
                 (x) => x !== pId,
             );
         } else {
-            filters.selectedSources = [...filters.selectedSources, pId];
+            filters.tournamentSources = [...filters.tournamentSources, pId];
         }
     }
 
     function toggleFormat(fId: string) {
-        if (filters.selectedFormats.includes(fId)) {
-            filters.selectedFormats = filters.selectedFormats.filter(
+        if (filters.tournamentFormats.includes(fId)) {
+            filters.tournamentFormats = filters.tournamentFormats.filter(
                 (x) => x !== fId,
             );
         } else {
-            filters.selectedFormats = [...filters.selectedFormats, fId];
+            filters.tournamentFormats = [...filters.tournamentFormats, fId];
         }
     }
 </script>
@@ -174,7 +174,7 @@
             <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Date Range</span>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {dateOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
         </button>
-        {#if dateOpen}<div class="px-3.5 pb-3.5 pt-1"><DateRangeField hideLabel={true} /></div>{/if}
+        {#if dateOpen}<div class="px-3.5 pb-3.5 pt-1"><DateRangeField hideLabel={true} bind:startDate={filters.tournamentDateStart} bind:endDate={filters.tournamentDateEnd} /></div>{/if}
     </div>
 
     <div class="relative rounded-xl border border-white/5 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] overflow-hidden lg:col-span-2 2xl:col-span-1 2xl:col-start-3 2xl:row-start-1 self-start h-fit">
@@ -207,7 +207,7 @@
                                     <Toggle
                                         size="xs"
                                         ariaLabel={`Toggle continent ${c}`}
-                                        checked={filters.selectedContinents.includes(
+                                        checked={filters.tournamentContinents.includes(
                                             c,
                                         )}
                                         onchange={() => toggleContinent(c)}
@@ -236,7 +236,7 @@
                                     <Toggle
                                         size="xs"
                                         ariaLabel={`Toggle country ${c}`}
-                                        checked={filters.selectedCountries.includes(
+                                        checked={filters.tournamentCountries.includes(
                                             c,
                                         )}
                                         onchange={() => toggleCountry(c)}
@@ -265,7 +265,7 @@
                                     <Toggle
                                         size="xs"
                                         ariaLabel={`Toggle city ${c}`}
-                                        checked={filters.selectedCities.includes(
+                                        checked={filters.tournamentCities.includes(
                                             c,
                                         )}
                                         onchange={() => toggleCity(c)}
@@ -285,7 +285,7 @@
     <div class="relative rounded-xl border border-white/5 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] overflow-hidden self-start h-fit">
         <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-60" aria-hidden="true"></div>
         <button type="button" onclick={() => (formatOpen = !formatOpen)} class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
-            <span class="flex items-center gap-2 text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Format {#if filters.selectedFormats.length > 0}<span class="min-w-5 h-5 px-1 rounded-full bg-primary text-black text-[10px] font-mono font-bold inline-flex items-center justify-center">{filters.selectedFormats.length}</span>{/if}</span>
+            <span class="flex items-center gap-2 text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Format {#if filters.tournamentFormats.length > 0}<span class="min-w-5 h-5 px-1 rounded-full bg-primary text-black text-[10px] font-mono font-bold inline-flex items-center justify-center">{filters.tournamentFormats.length}</span>{/if}</span>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {formatOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
         </button>
         {#if formatOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
@@ -302,7 +302,7 @@
                                 <Toggle
                                     size="xs"
                                     ariaLabel={`Toggle format ${f.id}`}
-                                    checked={filters.selectedFormats.includes(
+                                    checked={filters.tournamentFormats.includes(
                                         f.id,
                                     )}
                                     onchange={() => toggleFormat(f.id)}
@@ -329,7 +329,7 @@
                         <Toggle
                             size="xs"
                             ariaLabel={`Toggle source ${source.id}`}
-                            checked={filters.selectedSources.includes(
+                            checked={filters.tournamentSources.includes(
                                 source.id,
                             )}
                             onchange={() => toggleSource(source.id)}
@@ -348,9 +348,9 @@
         <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Search Name</span
         >
         <DebouncedTextInput
-            value={filters.searchName}
+            value={filters.tournamentSearchName}
             onDebouncedChange={(v) => {
-                filters.searchName = v;
+                filters.tournamentSearchName = v;
                 scheduleSync(250);
             }}
             placeholder="Search name..."
