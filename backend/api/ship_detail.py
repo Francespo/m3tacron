@@ -150,93 +150,27 @@ def _build_filters(
     return filters
 
 
-@router.get("/{ship_xws}")
-def get_ship_info(
+def _fetch_ship_pilots(
     ship_xws: str,
-    data_source: str = Query("xwa"),
-    # global filters (same as /api/ships)
-    formats: list[str] | None = Query(None),
-    factions: list[str] | None = Query(None),
-    ships: list[str] | None = Query(None),
-    continent: list[str] | None = Query(None),
-    country: list[str] | None = Query(None),
-    city: list[str] | None = Query(None),
-    platforms: list[str] | None = Query(None),
-    sources: list[str] | None = Query(None),
-    date_start: str | None = Query(None),
-    date_end: str | None = Query(None),
-    player_count_min: int | None = Query(None),
-    player_count_max: int | None = Query(None),
-    search: str | None = Query(None),
-    epic: bool = Query(False),
-    # per-ship faction breakdown toggle (overrides global factions)
-    faction: str | None = Query(None),
-):
-    """Return static ship info and top-level stats."""
-    ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
-    all_ships = load_all_ships(ds)
-    info = all_ships.get(ship_xws, {"name": ship_xws, "xws": ship_xws, "factions": []})
-
-    cache_key = (
-        f"ship_info|{ship_xws}|{ds.value}"
-        + _ship_filter_cache_suffix(formats, factions, ships, continent, country, city, platforms, sources, date_start, date_end, player_count_min, player_count_max, search, epic, faction)
-    )
-
-    def compute():
-        filters = _build_filters(
-            ship_xws=ship_xws,
-            formats=formats,
-            factions=factions,
-            faction=faction,
-            ships=ships,
-            continent=continent,
-            country=country,
-            city=city,
-            platforms=platforms,
-            sources=sources,
-            date_start=date_start,
-            date_end=date_end,
-            player_count_min=player_count_min,
-            player_count_max=player_count_max,
-            search=search,
-            epic=epic,
-        )
-        stats = aggregate_ship_stats(filters, SortingCriteria.GAMES, SortDirection.DESCENDING, ds)
-        return stats[0] if stats and len(stats) > 0 else {}
-
-    stat_info = get_cached_or_compute(cache_key, compute)
-    return {
-        "info": info,
-        "stats": stat_info,
-        "faction": faction or "all",
-    }
-
-
-@router.get("/{ship_xws}/pilots")
-def get_ship_pilots(
-    ship_xws: str,
-    data_source: str = Query("xwa"),
-    sort_metric: str = Query("Lists"),
-    sort_direction: str = Query("desc"),
-    epic: bool = Query(False),
-    # global filters
-    formats: list[str] | None = Query(None),
-    factions: list[str] | None = Query(None),
-    ships: list[str] | None = Query(None),
-    continent: list[str] | None = Query(None),
-    country: list[str] | None = Query(None),
-    city: list[str] | None = Query(None),
-    platforms: list[str] | None = Query(None),
-    sources: list[str] | None = Query(None),
-    date_start: str | None = Query(None),
-    date_end: str | None = Query(None),
-    player_count_min: int | None = Query(None),
-    player_count_max: int | None = Query(None),
-    search: str | None = Query(None),
-    faction: str | None = Query(None),
-):
-    """Return pilot stats filtered to this ship."""
-    ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
+    ds: DataSource,
+    sort_metric: str = "Lists",
+    sort_direction: str = "desc",
+    formats: list[str] | None = None,
+    factions: list[str] | None = None,
+    ships: list[str] | None = None,
+    continent: list[str] | None = None,
+    country: list[str] | None = None,
+    city: list[str] | None = None,
+    platforms: list[str] | None = None,
+    sources: list[str] | None = None,
+    date_start: str | None = None,
+    date_end: str | None = None,
+    player_count_min: int | None = None,
+    player_count_max: int | None = None,
+    search: str | None = None,
+    epic: bool = False,
+    faction: str | None = None,
+) -> list[dict]:
     criteria_map = {
         "Lists": SortingCriteria.LISTS,
         "Unique Lists": SortingCriteria.UNIQUE_LISTS,
@@ -272,33 +206,29 @@ def get_ship_pilots(
         )
         return aggregate_card_stats(filters, criteria, direction, "pilots", ds)
 
-    data = get_cached_or_compute(cache_key, compute)
-    return {"pilots": data, "faction": faction or "all"}
+    return get_cached_or_compute(cache_key, compute)
 
 
-@router.get("/{ship_xws}/lists")
-def get_ship_lists(
+def _fetch_ship_lists(
     ship_xws: str,
-    data_source: str = Query("xwa"),
-    limit: int = Query(10, ge=1, le=50),
-    formats: list[str] | None = Query(None),
-    factions: list[str] | None = Query(None),
-    ships: list[str] | None = Query(None),
-    continent: list[str] | None = Query(None),
-    country: list[str] | None = Query(None),
-    city: list[str] | None = Query(None),
-    platforms: list[str] | None = Query(None),
-    sources: list[str] | None = Query(None),
-    date_start: str | None = Query(None),
-    date_end: str | None = Query(None),
-    player_count_min: int | None = Query(None),
-    player_count_max: int | None = Query(None),
-    search: str | None = Query(None),
-    epic: bool = Query(False),
-    faction: str | None = Query(None),
-):
-    """Return top performing lists containing this ship."""
-    ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
+    ds: DataSource,
+    limit: int = 10,
+    formats: list[str] | None = None,
+    factions: list[str] | None = None,
+    ships: list[str] | None = None,
+    continent: list[str] | None = None,
+    country: list[str] | None = None,
+    city: list[str] | None = None,
+    platforms: list[str] | None = None,
+    sources: list[str] | None = None,
+    date_start: str | None = None,
+    date_end: str | None = None,
+    player_count_min: int | None = None,
+    player_count_max: int | None = None,
+    search: str | None = None,
+    epic: bool = False,
+    faction: str | None = None,
+) -> list[dict]:
     cache_key = (
         f"ship_lists|{ship_xws}|{ds.value}|{limit}"
         + _ship_filter_cache_suffix(formats, factions, ships, continent, country, city, platforms, sources, date_start, date_end, player_count_min, player_count_max, search, epic, faction)
@@ -327,48 +257,42 @@ def get_ship_lists(
 
     data = get_cached_or_compute(cache_key, compute_lists)
     
-    # Take top N that have a minimum number of games to avoid 100% WR outliers
     filtered_data = [d for d in data if d.get("games", 0) >= 5]
     filtered_data.sort(key=lambda x: x.get("win_rate", 0), reverse=True)
     if not filtered_data:
-        filtered_data = data  # Fallback if no robust lists
+        filtered_data = data
 
     top = filtered_data[:limit]
     signatures: list[str] = [l["signature"] for l in top if l.get("signature")]
     pilots_map = fetch_list_pilots(signatures) if signatures else {}
-    # Attach lazily-fetched pilots (aggregation returns empty pilots now);
-    # copy rows so the shared aggregation result is never mutated.
     enriched = [
         {**l, "pilots": pilots_map.get(l["signature"], [])}
         for l in top
         if l.get("signature")
     ]
-    return {"lists": [enrich_list_data(l, source=ds) for l in enriched]}
+    return [enrich_list_data(l, source=ds) for l in enriched]
 
 
-@router.get("/{ship_xws}/squadrons")
-def get_ship_squadrons(
+def _fetch_ship_squadrons(
     ship_xws: str,
-    data_source: str = Query("xwa"),
-    limit: int = Query(10, ge=1, le=50),
-    formats: list[str] | None = Query(None),
-    factions: list[str] | None = Query(None),
-    ships: list[str] | None = Query(None),
-    continent: list[str] | None = Query(None),
-    country: list[str] | None = Query(None),
-    city: list[str] | None = Query(None),
-    platforms: list[str] | None = Query(None),
-    sources: list[str] | None = Query(None),
-    date_start: str | None = Query(None),
-    date_end: str | None = Query(None),
-    player_count_min: int | None = Query(None),
-    player_count_max: int | None = Query(None),
-    search: str | None = Query(None),
-    epic: bool = Query(False),
-    faction: str | None = Query(None),
-):
-    """Return top performing squadrons containing this ship."""
-    ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
+    ds: DataSource,
+    limit: int = 10,
+    formats: list[str] | None = None,
+    factions: list[str] | None = None,
+    ships: list[str] | None = None,
+    continent: list[str] | None = None,
+    country: list[str] | None = None,
+    city: list[str] | None = None,
+    platforms: list[str] | None = None,
+    sources: list[str] | None = None,
+    date_start: str | None = None,
+    date_end: str | None = None,
+    player_count_min: int | None = None,
+    player_count_max: int | None = None,
+    search: str | None = None,
+    epic: bool = False,
+    faction: str | None = None,
+) -> list[dict]:
     cache_key = (
         f"ship_squadrons|{ship_xws}|{ds.value}|{limit}"
         + _ship_filter_cache_suffix(formats, factions, ships, continent, country, city, platforms, sources, date_start, date_end, player_count_min, player_count_max, search, epic, faction)
@@ -396,9 +320,204 @@ def get_ship_squadrons(
         return aggregate_squadron_stats(filters, SortingCriteria.WINRATE, SortDirection.DESCENDING, ds)
 
     data = get_cached_or_compute(cache_key, compute_squadrons)
-    
     filtered_data = [d for d in data if d.get("games", 0) >= 5]
     if not filtered_data:
         filtered_data = data
-        
-    return {"squadrons": filtered_data[:limit]}
+    return filtered_data[:limit]
+
+
+@router.get("/{ship_xws}")
+def get_ship_info(
+    ship_xws: str,
+    data_source: str = Query("xwa"),
+    formats: list[str] | None = Query(None),
+    factions: list[str] | None = Query(None),
+    ships: list[str] | None = Query(None),
+    continent: list[str] | None = Query(None),
+    country: list[str] | None = Query(None),
+    city: list[str] | None = Query(None),
+    platforms: list[str] | None = Query(None),
+    sources: list[str] | None = Query(None),
+    date_start: str | None = Query(None),
+    date_end: str | None = Query(None),
+    player_count_min: int | None = Query(None),
+    player_count_max: int | None = Query(None),
+    search: str | None = Query(None),
+    epic: bool = Query(False),
+    faction: str | None = Query(None),
+    limit: int = Query(10, ge=1, le=50),
+    full: bool = Query(True),
+):
+    """Return unified ship detail (info, stats, pilots, top lists, and top squadrons)."""
+    ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
+    all_ships = load_all_ships(ds)
+    info = all_ships.get(ship_xws, {"name": ship_xws, "xws": ship_xws, "factions": []})
+
+    cache_key = (
+        f"ship_info|{ship_xws}|{ds.value}"
+        + _ship_filter_cache_suffix(formats, factions, ships, continent, country, city, platforms, sources, date_start, date_end, player_count_min, player_count_max, search, epic, faction)
+    )
+
+    def compute():
+        filters = _build_filters(
+            ship_xws=ship_xws,
+            formats=formats,
+            factions=factions,
+            faction=faction,
+            ships=ships,
+            continent=continent,
+            country=country,
+            city=city,
+            platforms=platforms,
+            sources=sources,
+            date_start=date_start,
+            date_end=date_end,
+            player_count_min=player_count_min,
+            player_count_max=player_count_max,
+            search=search,
+            epic=epic,
+        )
+        stats = aggregate_ship_stats(filters, SortingCriteria.GAMES, SortDirection.DESCENDING, ds)
+        return stats[0] if stats and len(stats) > 0 else {}
+
+    stat_info = get_cached_or_compute(cache_key, compute)
+
+    if not full:
+        return {
+            "info": info,
+            "stats": stat_info,
+            "faction": faction or "all",
+        }
+
+    pilots = _fetch_ship_pilots(
+        ship_xws=ship_xws, ds=ds, sort_metric="Lists", sort_direction="desc",
+        formats=formats, factions=factions, ships=ships, continent=continent,
+        country=country, city=city, platforms=platforms, sources=sources,
+        date_start=date_start, date_end=date_end, player_count_min=player_count_min,
+        player_count_max=player_count_max, search=search, epic=epic, faction=faction,
+    )
+
+    lists = _fetch_ship_lists(
+        ship_xws=ship_xws, ds=ds, limit=limit,
+        formats=formats, factions=factions, ships=ships, continent=continent,
+        country=country, city=city, platforms=platforms, sources=sources,
+        date_start=date_start, date_end=date_end, player_count_min=player_count_min,
+        player_count_max=player_count_max, search=search, epic=epic, faction=faction,
+    )
+
+    squadrons = _fetch_ship_squadrons(
+        ship_xws=ship_xws, ds=ds, limit=limit,
+        formats=formats, factions=factions, ships=ships, continent=continent,
+        country=country, city=city, platforms=platforms, sources=sources,
+        date_start=date_start, date_end=date_end, player_count_min=player_count_min,
+        player_count_max=player_count_max, search=search, epic=epic, faction=faction,
+    )
+
+    return {
+        "info": info,
+        "stats": stat_info,
+        "pilots": pilots,
+        "lists": lists,
+        "squadrons": squadrons,
+        "faction": faction or "all",
+    }
+
+
+@router.get("/{ship_xws}/pilots")
+def get_ship_pilots(
+    ship_xws: str,
+    data_source: str = Query("xwa"),
+    sort_metric: str = Query("Lists"),
+    sort_direction: str = Query("desc"),
+    epic: bool = Query(False),
+    formats: list[str] | None = Query(None),
+    factions: list[str] | None = Query(None),
+    ships: list[str] | None = Query(None),
+    continent: list[str] | None = Query(None),
+    country: list[str] | None = Query(None),
+    city: list[str] | None = Query(None),
+    platforms: list[str] | None = Query(None),
+    sources: list[str] | None = Query(None),
+    date_start: str | None = Query(None),
+    date_end: str | None = Query(None),
+    player_count_min: int | None = Query(None),
+    player_count_max: int | None = Query(None),
+    search: str | None = Query(None),
+    faction: str | None = Query(None),
+):
+    """Return pilot stats filtered to this ship."""
+    ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
+    pilots = _fetch_ship_pilots(
+        ship_xws=ship_xws, ds=ds, sort_metric=sort_metric, sort_direction=sort_direction,
+        formats=formats, factions=factions, ships=ships, continent=continent,
+        country=country, city=city, platforms=platforms, sources=sources,
+        date_start=date_start, date_end=date_end, player_count_min=player_count_min,
+        player_count_max=player_count_max, search=search, epic=epic, faction=faction,
+    )
+    return {"pilots": pilots, "faction": faction or "all"}
+
+
+@router.get("/{ship_xws}/lists")
+def get_ship_lists(
+    ship_xws: str,
+    data_source: str = Query("xwa"),
+    limit: int = Query(10, ge=1, le=50),
+    formats: list[str] | None = Query(None),
+    factions: list[str] | None = Query(None),
+    ships: list[str] | None = Query(None),
+    continent: list[str] | None = Query(None),
+    country: list[str] | None = Query(None),
+    city: list[str] | None = Query(None),
+    platforms: list[str] | None = Query(None),
+    sources: list[str] | None = Query(None),
+    date_start: str | None = Query(None),
+    date_end: str | None = Query(None),
+    player_count_min: int | None = Query(None),
+    player_count_max: int | None = Query(None),
+    search: str | None = Query(None),
+    epic: bool = Query(False),
+    faction: str | None = Query(None),
+):
+    """Return top performing lists containing this ship."""
+    ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
+    lists = _fetch_ship_lists(
+        ship_xws=ship_xws, ds=ds, limit=limit,
+        formats=formats, factions=factions, ships=ships, continent=continent,
+        country=country, city=city, platforms=platforms, sources=sources,
+        date_start=date_start, date_end=date_end, player_count_min=player_count_min,
+        player_count_max=player_count_max, search=search, epic=epic, faction=faction,
+    )
+    return {"lists": lists}
+
+
+@router.get("/{ship_xws}/squadrons")
+def get_ship_squadrons(
+    ship_xws: str,
+    data_source: str = Query("xwa"),
+    limit: int = Query(10, ge=1, le=50),
+    formats: list[str] | None = Query(None),
+    factions: list[str] | None = Query(None),
+    ships: list[str] | None = Query(None),
+    continent: list[str] | None = Query(None),
+    country: list[str] | None = Query(None),
+    city: list[str] | None = Query(None),
+    platforms: list[str] | None = Query(None),
+    sources: list[str] | None = Query(None),
+    date_start: str | None = Query(None),
+    date_end: str | None = Query(None),
+    player_count_min: int | None = Query(None),
+    player_count_max: int | None = Query(None),
+    search: str | None = Query(None),
+    epic: bool = Query(False),
+    faction: str | None = Query(None),
+):
+    """Return top performing squadrons containing this ship."""
+    ds = DataSource(data_source) if data_source in ("xwa", "legacy") else DataSource.XWA
+    squadrons = _fetch_ship_squadrons(
+        ship_xws=ship_xws, ds=ds, limit=limit,
+        formats=formats, factions=factions, ships=ships, continent=continent,
+        country=country, city=city, platforms=platforms, sources=sources,
+        date_start=date_start, date_end=date_end, player_count_min=player_count_min,
+        player_count_max=player_count_max, search=search, epic=epic, faction=faction,
+    )
+    return {"squadrons": squadrons}
