@@ -65,7 +65,22 @@ def _get_db_version_impl() -> str | None:
 def _check_version() -> bool:
     """
     Check if the database version changed since last check.
-    If so, clear the cache. Returns True if cache was cleared.
+
+    Fix 1 (stale-while-revalidate): keep serving the previous warm cache
+    while the new data_version is being rewarmed in the background. The
+    old behaviour did ``_cache.clear()`` here, which left every request
+    cold (25s seq scan) for the ~13 min it takes to rewarm 1472 ship
+    keys on the 1-CPU prod box. Preview builds share the same DB, so a
+    preview warm at the same minute as a scheduled scrape made prod
+    appear to be invalidated by the preview.
+
+    Now: bump ``_cached_version`` and clear only the in-flight deduplication
+    state, but keep ``_cache`` entries as stale. The background auto-rewarm
+    (``main.py:_start_cache_auto_rewarm``) overwrites hot keys with fresh
+    data; until then stale hits are fast (0.1s) instead of cold (25s).
+    Fix 2: always bump ``_cached_version`` so we do not loop-clear on
+    every request (the 2026-08-31 prod incident left ``_cached_version``
+    at ``None`` with ``entries:0`` after a warm).
     """
     global _cached_version, _last_version_check
 
@@ -77,10 +92,13 @@ def _check_version() -> bool:
     db_version = _get_db_version()
 
     if db_version is not None and db_version != _cached_version:
-        _cache.clear()
+        old = _cached_version
+        _cached_version = db_version
+        # Do NOT clear _cache — keep stale entries (Fix 1).
         _in_flight.clear()
         _in_flight_errors.clear()
-        _cached_version = db_version
+        if old is not None:
+            print(f"[cache] data_version {old} -> {db_version}, keeping {len(_cache)} stale entries while rewarming")
         return True
 
     return False
@@ -157,6 +175,19 @@ def get_cached_or_compute(key: str, compute_fn: Callable[[], T]) -> T:
             _in_flight_errors.pop(key, None)
 
         return result
+
+
+def set_cached_version(version: str | None) -> None:
+    """Sync the in-memory version after a successful warm (Fix 2).
+
+    Called from ``main.py`` after startup / auto-rewarm so ``_check_version``
+    does not re-trigger a clear on the next request. Updates ``_last_version_check``
+    as well so we do not immediately re-poll.
+    """
+    global _cached_version, _last_version_check
+    with _lock:
+        _cached_version = version
+        _last_version_check = time.monotonic()
 
 
 def invalidate_cache():
