@@ -5,11 +5,18 @@ permissions:
 
 on:
   schedule:
-    # Run at 05:00 UTC every day — writes to prod (direct live update).
+    # Main scrape: 05:00 UTC every day — writes to prod (direct live update).
     # 05:00 UTC = 07:00 CEST (Europe early-morning) / 01:00 EDT / 22:00 PDT-1.
     # Low-traffic window for both continents; avoids scraping tournaments
     # still in-progress in the US daytime.
     - cron: "0 5 * * *"
+    # One-shot backfill ~24h before the fixed schedule, to catch the
+    # 23/08 tournament that fell outside the old 7-day ending-today window
+    # before it scrolls out of even the new 14-day window. Runs once at
+    # 04:30 UTC (30 min before the next 05:00 daily) and dedup makes it
+    # harmless to leave — after it passes it is just a second daily trigger.
+    # Safe to remove after 2026-09-06.
+    - cron: "30 4 * * *"
   workflow_dispatch:
     inputs:
       platform:
@@ -132,12 +139,16 @@ jobs:
           # Scheduled daily run must not include today: scraping a tournament
           # at 05:00 UTC while it is still Started (e.g. US afternoon events
           # like 2849/2864 on 2026-08-29) saves 0 players and the dedup then
-          # blocks it forever. Use a 7-day window ending yesterday.
+          # blocks it forever. Use a 14-day window ending yesterday to also
+          # catch late-closed events (e.g. a 23/08 tournament still open on
+          # 01/09). 14 vs 7 days roughly doubles Rollbetter candidates (2→8
+          # for XWA) but existing_urls dedup skips seen URLs without
+          # Playwright — observed +30-60s on a 4-5 min job.
           if [ "${{ github.event_name }}" = "schedule" ]; then
             YESTERDAY=$(date -u -d "yesterday" +%Y-%m-%d)
-            SEVEN_DAYS_AGO=$(date -u -d "7 days ago" +%Y-%m-%d)
-            TIME_RANGE="${SEVEN_DAYS_AGO}:${YESTERDAY}"
-            echo "Schedule mode: overriding TIME_RANGE to $TIME_RANGE (excludes today)"
+            FOURTEEN_DAYS_AGO=$(date -u -d "14 days ago" +%Y-%m-%d)
+            TIME_RANGE="${FOURTEEN_DAYS_AGO}:${YESTERDAY}"
+            echo "Schedule mode: overriding TIME_RANGE to $TIME_RANGE (14d ending yesterday, excludes today)"
           fi
 
           # Build DATABASE_URL from secrets via SSH tunnel.
