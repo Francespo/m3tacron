@@ -10553,5 +10553,15 @@
     "city": "Mahwah",
     "country": "United States",
     "continent": "North America"
+  },
+  "Thee Ozogas!, Michigan,\u00a0United States": {
+    "city": "Chicago",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "The Tabletop Forge, Ontario,\u00a0Canada": {
+    "city": "Toronto",
+    "country": "Canada",
+    "continent": "North America"
   }
 }
