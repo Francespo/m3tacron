@@ -84,9 +84,10 @@
     let factionColor = $derived(getFactionColor(primaryFaction));
 
     // Accent color for borders/glows on sub-capsules: GRAY when "All" is
-    // selected, faction-colored when a specific faction is selected.
+    // selected on a multi-faction ship, faction-colored when a specific
+    // faction is selected (or for single-faction ships).
     let accentColor = $derived(
-        selectedFaction === "all" ? "#888888" : factionColor,
+        hasMultipleFactions && selectedFaction === "all" ? "#888888" : factionColor,
     );
     let accentBorder = $derived(
         `color-mix(in srgb, ${accentColor} 30%, transparent)`,
