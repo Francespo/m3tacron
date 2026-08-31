@@ -239,9 +239,11 @@ def build_snapshot(ds: DataSource) -> dict:
             JOIN list l ON l.id = ps.list_id
             JOIN jsonb_array_elements(l.list_json::jsonb->'pilots') p ON true
             WHERE (NOT t.is_team_event OR ps.is_team_member)
+              AND t.format = :fmt
             GROUP BY p->>'id'
         """)
-        header_rows = session.execute(sql3).fetchall()
+        target_fmt = "xwa" if ds == DataSource.XWA else "legacy_x2po"
+        header_rows = session.execute(sql3, {"fmt": target_fmt}).fetchall()
 
     header = {}
     for card_xws, entries, wins, games, diff_lists, sq in header_rows:

@@ -1,9 +1,11 @@
 import type { PageLoad } from './$types';
 import { API_BASE } from '$lib/api';
+import { browser } from '$app/environment';
+import { filters } from '$lib/stores/filters.svelte';
 
 export const load: PageLoad = async ({ params, fetch, url }) => {
     const signature = params.signature;
-    const ds = url.searchParams.get('data_source') || 'xwa';
+    const ds = url.searchParams.get('data_source') || (browser ? filters.dataSource : 'xwa');
 
     const [statsRes, pilotsRes, listsRes] = await Promise.allSettled([
         fetch(`${API_BASE}/squadron/${encodeURIComponent(signature)}/stats?data_source=${ds}`),
