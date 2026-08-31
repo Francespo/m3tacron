@@ -60,9 +60,10 @@ import { untrack } from "svelte";
             case "winrate":
                 return Math.max(0, c.win_rate ?? 0);
             case "games":
+                return Math.max(0, c.games ?? 0);
             case "lists":
             default:
-                return Math.max(0, c.count ?? 0);
+                return Math.max(0, c.lists ?? c.count ?? 0);
         }
     }
 
@@ -451,7 +452,7 @@ import { untrack } from "svelte";
                             <div class="flex flex-wrap items-center gap-1.5 justify-end">
                                 <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary">LISTS {config.lists ?? config.count}</span>
                                 <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary">GAMES {config.games ?? 0}</span>
-                                <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold" style="background: {wrColor(config.win_rate)}15; color: {wrColor(config.win_rate)};">WR {config.win_rate}%</span>
+                                <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold" style="background: {wrColor(config.win_rate)}15; color: {wrColor(config.win_rate)};">WR {Number(config.win_rate ?? 0).toFixed(1)}%</span>
                             </div>
                         </div>
                         {#if config.upgrades.length > 0}
