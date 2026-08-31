@@ -23,7 +23,7 @@ T = TypeVar("T")
 
 # Configuration
 CACHE_CHECK_INTERVAL = 5.0  # seconds between version checks
-MAX_CACHE_ENTRIES = 1000
+MAX_CACHE_ENTRIES = 10000
 CACHE_DIR = Path(__file__).parent / "data"
 
 # Internal state
@@ -69,6 +69,7 @@ def _save_disk_cache(version: str | None):
     if not path:
         return
     try:
+        path.parent.mkdir(parents=True, exist_ok=True)
         with _lock:
             snapshot = dict(_cache)
         if not snapshot:
