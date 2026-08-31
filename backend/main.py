@@ -541,7 +541,8 @@ def get_snapshot(
 
         total_tournaments = 0
         total_players = 0
-
+        total_lists = 0
+        total_games = 0
         try:
             with Session(engine) as session:
                 start_date = datetime.now() - timedelta(days=90)
@@ -562,9 +563,20 @@ def get_snapshot(
                 )
                 res_players = session.exec(total_players_query).one_or_none()
                 total_players = res_players if res_players else 0
+
+                # Ship-level totals (derived from the snapshot to keep a
+                # single source of truth; fall back to 0 on DB error).
+                try:
+                    ships = snapshot.get("ships", []) or []
+                    total_lists = sum(int(s.get("list_count", 0) or 0) for s in ships)
+                    total_games = sum(int(s.get("games_count", 0) or 0) for s in ships)
+                except Exception:
+                    total_lists = 0
+                    total_games = 0
         except Exception as e:
-            # Fallback to 0 if database fails or is empty initially
             print(f"Error reading DB: {e}")
+            total_lists = 0
+            total_games = 0
 
         return {
             "factions": snapshot.get("factions", []),
@@ -576,6 +588,8 @@ def get_snapshot(
             "date_range": snapshot.get("date_range", "Unknown"),
             "total_tournaments": total_tournaments,
             "total_players": total_players,
+            "total_lists": total_lists,
+            "total_games": total_games,
         }
 
     cached = get_cached_or_compute(f"meta_snapshot|{ds_enum.value}|True", compute)
