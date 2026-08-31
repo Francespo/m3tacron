@@ -113,9 +113,10 @@ import { untrack } from "svelte";
         });
     });
 
-    function getDefaultFormats(ds: "xwa" | "legacy", includeEpic: boolean): string[] {
+    function getDefaultFormats(ds: "xwa" | "legacy", includeEpic?: boolean): string[] {
         if (ds === "xwa") {
             return includeEpic ? ["xwa", "xwa_epic"] : ["xwa"];
+        }
         return ["legacy_x2po"];
     }
 
