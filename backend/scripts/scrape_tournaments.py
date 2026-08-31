@@ -718,6 +718,20 @@ def scrape_platform(
             # Ensure the URL is always stored; scrapers may not set it consistently.
             tournament.url = url
 
+            # Rollbetter tournaments scraped while still Started can come back
+            # with 0 players (2849/2864 on 2026-08-29 did). Do not persist an
+            # empty record — it permanently blocks the tournament via
+            # existing_urls / dedup. The scheduled run now excludes today
+            # entirely; this is the last defense in depth.
+            if len(players) == 0:
+                logger.warning(
+                    f"[{scraper_name}] '{tournament.name}' ({url}) has 0 players — not saving; will be retried tomorrow when Ended.")
+                # Release the reservation so tomorrow's run can re-discover it.
+                with _DB_WRITE_LOCK:
+                    existing_urls.discard(url)
+                skipped += 1
+                continue
+
             # Keep a copy of the raw matches (dicts) before save_tournament_data
             # converts them to Match objects, so they can be reused for SQLite output.
             raw_matches = list(matches)
