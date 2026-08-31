@@ -389,29 +389,33 @@ def get_ship_info(
             "faction": faction or "all",
         }
 
-    pilots = _fetch_ship_pilots(
-        ship_xws=ship_xws, ds=ds, sort_metric="Lists", sort_direction="desc",
-        formats=formats, factions=factions, ships=ships, continent=continent,
-        country=country, city=city, platforms=platforms, sources=sources,
-        date_start=date_start, date_end=date_end, player_count_min=player_count_min,
-        player_count_max=player_count_max, search=search, epic=epic, faction=faction,
-    )
+    # Fetch remaining sections in parallel — cached-or-compute is thread-safe
+    # and cold aggregations are DB-bound (2-3s each for pilots). Serial was
+    # 3× latency; parallel ~max(pilots,lists,squadrons) => 2-3s -> 0.8s warm.
+    from concurrent.futures import ThreadPoolExecutor
 
-    lists = _fetch_ship_lists(
-        ship_xws=ship_xws, ds=ds, limit=limit,
-        formats=formats, factions=factions, ships=ships, continent=continent,
-        country=country, city=city, platforms=platforms, sources=sources,
-        date_start=date_start, date_end=date_end, player_count_min=player_count_min,
-        player_count_max=player_count_max, search=search, epic=epic, faction=faction,
-    )
-
-    squadrons = _fetch_ship_squadrons(
-        ship_xws=ship_xws, ds=ds, limit=limit,
-        formats=formats, factions=factions, ships=ships, continent=continent,
-        country=country, city=city, platforms=platforms, sources=sources,
-        date_start=date_start, date_end=date_end, player_count_min=player_count_min,
-        player_count_max=player_count_max, search=search, epic=epic, faction=faction,
-    )
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        fut_pilots = pool.submit(
+            _fetch_ship_pilots,
+            ship_xws, ds, "Lists", "desc",
+            formats, factions, ships, continent, country, city, platforms, sources,
+            date_start, date_end, player_count_min, player_count_max, search, epic, faction,
+        )
+        fut_lists = pool.submit(
+            _fetch_ship_lists,
+            ship_xws, ds, limit,
+            formats, factions, ships, continent, country, city, platforms, sources,
+            date_start, date_end, player_count_min, player_count_max, search, epic, faction,
+        )
+        fut_squadrons = pool.submit(
+            _fetch_ship_squadrons,
+            ship_xws, ds, limit,
+            formats, factions, ships, continent, country, city, platforms, sources,
+            date_start, date_end, player_count_min, player_count_max, search, epic, faction,
+        )
+        pilots = fut_pilots.result()
+        lists = fut_lists.result()
+        squadrons = fut_squadrons.result()
 
     return {
         "info": info,

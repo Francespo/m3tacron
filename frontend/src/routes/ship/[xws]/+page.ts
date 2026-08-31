@@ -23,9 +23,10 @@ function buildForwardParams(url: URL): URLSearchParams {
 
     // Epic: URL param wins; on client, also honor the shared filter store so
     // navigating from /ships with the toggle on keeps Huge pilots visible.
+    // Always forward epic so the backend cache key (|epic=...) is explicit.
     const includeEpic =
         url.searchParams.get('epic') === 'true' ||
-        (browser && filters.includeEpic);
+        (browser && filters.includeEpic === true);
     out.set('epic', String(includeEpic));
 
     const ds = out.get('data_source') || 'xwa';
