@@ -104,9 +104,9 @@
                         No ships match.
                     </div>
                 {:else}
-                    {#each filteredShips as ship}
+                    {#each filteredShips as ship (ship.xws)}
                         <label
-                            class="grid cursor-pointer text-xs text-secondary hover:text-primary group" style="grid-template-columns: 14px 22px 1fr auto; column-gap: 0.5rem; align-items: center;"
+                            class="grid cursor-pointer text-xs text-secondary hover:text-primary group min-w-0 w-full" style="grid-template-columns: 14px 22px minmax(0, 1fr) auto; column-gap: 0.5rem; align-items: center;"
                         >
                             <Toggle
                                 size="xs"
@@ -114,17 +114,16 @@
                                 checked={filters.selectedShips.includes(ship.xws)}
                                 onchange={() => toggleShip(ship.xws)}
                             />
-                            <span class="w-[22px] h-[14px] inline-flex items-center justify-center leading-none">
+                            <span class="w-[22px] h-[14px] inline-flex items-center justify-center leading-none shrink-0">
                                 <i class="xwing-miniatures-ship xwing-miniatures-ship-{ship.xws} text-sm leading-none"></i>
                             </span>
-                            <span class="font-mono truncate text-xs text-left">{ship.name}</span>
-                            <span class="flex items-center gap-0.5 justify-end">
+                            <span class="font-mono truncate text-xs text-left min-w-0">{ship.name}</span>
+                            <span class="flex items-center gap-0.5 justify-end shrink-0">
                                 {#each ship.factions as faction}
                                     <FactionIcon faction={faction} size="sm" className="drop-shadow-sm opacity-90" />
                                 {/each}
                             </span>
                         </label>
-                        {#if false}{/if}
                     {/each}
                 {/if}
             </div>
