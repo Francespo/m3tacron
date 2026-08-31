@@ -14,7 +14,7 @@
 
     function getDefaultFormats(ds: "xwa" | "legacy"): string[] {
         if (ds === "xwa") return ["xwa"];
-        return ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum"];
+        return ["legacy_x2po"];
     }
 
     let initialized = $state(false);

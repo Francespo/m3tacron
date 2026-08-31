@@ -1,17 +1,17 @@
 import type { PageLoad } from './$types';
 import { API_BASE } from '$lib/api';
+import { browser } from '$app/environment';
+import { filters } from '$lib/stores/filters.svelte';
 
 export const load: PageLoad = async ({ fetch, params, url }) => {
     url.search; // Force reactivity
     const upgradeXws = params.id;
-    const ds = url.searchParams.get('data_source') === 'legacy' ? 'legacy' : 'xwa';
+    const ds = url.searchParams.get('data_source') || (browser ? filters.dataSource : 'xwa');
 
     const formatsFromUrl = url.searchParams.getAll('formats');
     const formats = formatsFromUrl.length > 0
         ? formatsFromUrl
-        : (ds === 'xwa'
-            ? ['xwa']
-            : ['legacy_x2po', 'legacy_xlc', 'ffg', 'legacy_pandorum']);
+        : (ds === 'xwa' ? ['xwa'] : ['legacy_x2po']);
 
     const formatQuery = formats.map((f) => `formats=${encodeURIComponent(f)}`).join('&');
     const formatSuffix = formatQuery ? `&${formatQuery}` : '';
@@ -21,7 +21,7 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
     const pilotsP = fetch(`${API_BASE}/upgrade/${upgradeXws}/pilots?data_source=${ds}${formatSuffix}`);
     const shipsP = fetch(`${API_BASE}/upgrade/${upgradeXws}/ships?data_source=${ds}${formatSuffix}`);
     const chartP = fetch(`${API_BASE}/upgrade/${upgradeXws}/chart?data_source=${ds}${formatSuffix}`);
-    const statsP = fetch(`${API_BASE}/cards/upgrades?data_source=${ds}&upgrade_id=${upgradeXws}&size=1&page=0`);
+    const statsP = fetch(`${API_BASE}/cards/upgrades?data_source=${ds}&upgrade_id=${upgradeXws}&size=1&page=0${formatSuffix}`);
 
     const infoRes = await infoP;
     const pilotsRes = await pilotsP;
