@@ -357,3 +357,58 @@ class TestShipStatsCountingPostgres:
                     if tournament:
                         cleanup.delete(tournament)
                     cleanup.commit()
+
+
+# ---------------------------------------------------------------------------
+# Pilot filter clause & grouping tests
+# ---------------------------------------------------------------------------
+
+def test_group_pilots_groups_variants_together():
+    from backend.analytics.filter_helpers import _group_pilots
+    pilots = [
+        "lukeskywalker",
+        "lukeskywalker-battleofyavin",
+        "lukeskywalker-swz104",
+        "wedgeantilles",
+    ]
+    groups = _group_pilots(pilots, DataSource.XWA)
+    assert len(groups) == 2
+    luke_group = [g for g in groups if "lukeskywalker" in g][0]
+    wedge_group = [g for g in groups if "wedgeantilles" in g][0]
+    assert set(luke_group) == {"lukeskywalker", "lukeskywalker-battleofyavin", "lukeskywalker-swz104"}
+    assert set(wedge_group) == {"wedgeantilles"}
+
+
+def test_pilot_filter_clause_any_mode():
+    from backend.analytics.filter_helpers import pilot_filter_clause
+    params = {}
+    clause = pilot_filter_clause(["lukeskywalker", "wedgeantilles"], params, mode="any")
+    assert clause == "EXISTS (SELECT 1 FROM jsonb_array_elements(l.list_json::jsonb->'pilots') sp WHERE sp->>'id' = ANY(:pilots_any))"
+    assert params["pilots_any"] == ["lukeskywalker", "wedgeantilles"]
+
+
+def test_pilot_filter_clause_all_mode_with_variants():
+    from backend.analytics.filter_helpers import pilot_filter_clause
+    params = {}
+    pilots = ["lukeskywalker", "lukeskywalker-battleofyavin", "wedgeantilles"]
+    clause = pilot_filter_clause(pilots, params, mode="all", data_source=DataSource.XWA)
+    assert " AND " in clause
+    assert "pilot_grp_0" in params
+    assert "pilot_grp_1" in params
+    all_grp_values = [set(params["pilot_grp_0"]), set(params["pilot_grp_1"])]
+    assert {"lukeskywalker", "lukeskywalker-battleofyavin"} in all_grp_values
+    assert {"wedgeantilles"} in all_grp_values
+
+
+def test_pilot_filter_clause_empty():
+    from backend.analytics.filter_helpers import pilot_filter_clause
+    params = {}
+    assert pilot_filter_clause([], params) == ""
+    assert pilot_filter_clause(None, params) == ""
+
+
+def test_pilot_filter_clause_invalid_mode():
+    from backend.analytics.filter_helpers import pilot_filter_clause
+    with pytest.raises(ValueError):
+        pilot_filter_clause(["lukeskywalker"], {}, mode="invalid")
+

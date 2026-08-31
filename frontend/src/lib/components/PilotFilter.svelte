@@ -6,7 +6,7 @@
     import FilterAnyAllToggle from "./FilterAnyAllToggle.svelte";
     import { getFactionColor } from "$lib/data/factions";
 
-    let { selectedFactions = [] }: { selectedFactions?: string[] } = $props();
+    let { selectedFactions = [], showModeToggle = true }: { selectedFactions?: string[]; showModeToggle?: boolean } = $props();
 
     let isOpen = $state(true); // mini-collapsible
     let search = $state("");
@@ -46,8 +46,9 @@
         return [...r].sort((a, b) => a.name.localeCompare(b.name) || a.ship.localeCompare(b.ship));
     });
 
-    let selectedCount = $derived(filters.selectedPilots.length);
-    let autoShow = $derived(filters.selectedPilots.length > 1);
+    let selectedCount = $derived(allPilots.filter(isGroupSelected).length);
+    let autoShow = $derived(selectedCount > 1);
+    let effectiveShow = $derived(showModeToggle && autoShow);
 
     function isGroupSelected(g: PilotGroup): boolean {
         // Checked if ANY variant of the group is selected (union view)
@@ -85,7 +86,7 @@
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {isOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
     </button>
         {#if isOpen}<div class="px-3.5 pb-3.5 pt-1 space-y-3">
-            {#if autoShow}<div class="flex items-center gap-2">
+            {#if effectiveShow}<div class="flex items-center justify-between gap-2 flex-wrap">
                 <FilterAnyAllToggle bind:value={filters.pilotFilterMode} label="Match" />
             </div>{/if}
             <input

@@ -52,15 +52,47 @@ def ship_list_filter_clause(
     return "(" + joiner.join(parts) + ")"
 
 
+def _group_pilots(pilots: list[str], source = None) -> list[list[str]]:
+    from ..data_structures.data_source import DataSource
+    from ..utils.xwing_data.pilots import load_all_pilots, PACK_SUFFIXES
+    ds = source if isinstance(source, DataSource) else DataSource.XWA
+    try:
+        all_pilots_dict = load_all_pilots(ds)
+    except Exception:
+        all_pilots_dict = {}
+
+    groups: dict[str, list[str]] = {}
+    for p in pilots:
+        info = all_pilots_dict.get(p)
+        if not info:
+            clean_id = p
+            for suf in PACK_SUFFIXES:
+                if clean_id.endswith(suf):
+                    clean_id = clean_id[:-len(suf)]
+            info = all_pilots_dict.get(clean_id)
+        if not info and "-" in p:
+            base_id = p.split("-")[0]
+            info = all_pilots_dict.get(base_id)
+        if info:
+            key = f"{(info.get('name') or p).strip().lower()}|{info.get('ship_xws') or ''}"
+        else:
+            key = p.split("-")[0].strip().lower() if "-" in p else p.strip().lower()
+        if key not in groups:
+            groups[key] = []
+        groups[key].append(p)
+    return list(groups.values())
+
+
 def pilot_filter_clause(
     pilots: Iterable[str] | None,
     params: dict,
     mode: str = "any",
+    data_source = None,
 ) -> str:
     """Build a WHERE fragment that matches lists containing pilot ids.
 
     `mode="any"` → at least one of the pilots (OR).
-    `mode="all"` → every pilot must be present (AND of EXISTS).
+    `mode="all"` → every pilot group must be present (AND of EXISTS).
     Uses jsonb_array_elements on l.list_json->'pilots'.
     Mutates `params`.
     """
@@ -72,12 +104,13 @@ def pilot_filter_clause(
     if mode == "any":
         params["pilots_any"] = pilots
         return "EXISTS (SELECT 1 FROM jsonb_array_elements(l.list_json::jsonb->'pilots') sp WHERE sp->>'id' = ANY(:pilots_any))"
-    # mode == "all": one EXISTS per pilot
+    # mode == "all": one EXISTS per pilot group
+    groups = _group_pilots(pilots, data_source)
     parts = []
-    for i, p in enumerate(pilots):
-        key = f"pilot_all_{i}"
-        params[key] = p
-        parts.append(f"EXISTS (SELECT 1 FROM jsonb_array_elements(l.list_json::jsonb->'pilots') sp WHERE sp->>'id' = :{key})")
+    for i, grp in enumerate(groups):
+        key = f"pilot_grp_{i}"
+        params[key] = grp
+        parts.append(f"EXISTS (SELECT 1 FROM jsonb_array_elements(l.list_json::jsonb->'pilots') sp WHERE sp->>'id' = ANY(:{key}))")
     return "(" + " AND ".join(parts) + ")"
 
 
