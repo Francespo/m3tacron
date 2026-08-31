@@ -17,8 +17,8 @@
     import { invalidateAll } from "$app/navigation";
     import { filters } from "$lib/stores/filters.svelte";
     import { scheduleSync } from "$lib/sync/urlSync.svelte";
-    import { xwingData } from "$lib/stores/xwingData.svelte";
-            import { page as appPage } from "$app/state";
+    import { xwingData, type XWingSource } from "$lib/stores/xwingData.svelte";
+    import { page as appPage } from "$app/state";
 
     let { data } = $props();
 
@@ -75,12 +75,12 @@
         const epic = filters.includeEpic;
         const currentSortBy = filters.sortBy;
         const currentSortDir = filters.sortDirection;
-        // Chassis filter — backend already receives `?ships=...`, but the merge
-        // iterates over the full xwingData manifest, so we have to apply the
-        // filter client-side too or un-selected ships leak through with 0 stats.
         const selectedShips = filters.selectedShips;
+        const currentSource = (filters.dataSource || 'xwa') as XWingSource;
+        const manifest = xwingData.data[currentSource];
+
         // Trigger xwingData load (and re-run this effect when it resolves).
-        xwingData.setSource(filters.dataSource as any);
+        xwingData.setSource(currentSource);
 
         // A new API promise means a refetch is in flight: keep the stale grid
         // visible and show the updating bar until the new data is merged.
@@ -91,10 +91,10 @@
             failed = false;
         }
 
-        p.then((apiShips: any[]) => {
-            const xwingShips = xwingData.data[xwingData.currentSource]?.ships;
-            if (!xwingShips) return; // xwingData not loaded yet
+        const xwingShips = manifest?.ships;
+        if (!xwingShips) return; // Manifest not loaded yet; $effect will re-run when xwingData.data changes
 
+        p.then((apiShips: any[]) => {
             // Build lookup from API response
             const apiMap = new Map<string, any>();
             for (const s of apiShips) apiMap.set(s.xws, s);

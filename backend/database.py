@@ -94,16 +94,59 @@ def _retry_with_backoff(fn, *, attempts: int = 5, base_sleep: float = 0.7):
         raise last_exc
 
 
+def _has_column(conn, table: str, column: str) -> bool:
+    try:
+        from sqlalchemy import text as _text
+        res = conn.execute(
+            _text("SELECT 1 FROM information_schema.columns WHERE table_name = :t AND column_name = :c"),
+            {"t": table.lower(), "c": column.lower()}
+        ).fetchone()
+        if res is not None:
+            return True
+        cols = [r[1] for r in conn.execute(_text(f"PRAGMA table_info({table})")).fetchall()]
+        return column.lower() in [c.lower() for c in cols]
+    except Exception:
+        return False
+
+
+def _has_table(conn, table: str) -> bool:
+    try:
+        from sqlalchemy import text as _text
+        res = conn.execute(
+            _text("SELECT 1 FROM information_schema.tables WHERE table_name = :t"),
+            {"t": table.lower()}
+        ).fetchone()
+        if res is not None:
+            return True
+        tables = [r[0] for r in conn.execute(_text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()]
+        return table.lower() in [t.lower() for t in tables]
+    except Exception:
+        return False
+
+
+def _has_index(conn, index_name: str) -> bool:
+    try:
+        from sqlalchemy import text as _text
+        res = conn.execute(
+            _text("SELECT 1 FROM pg_indexes WHERE indexname = :i"),
+            {"i": index_name.lower()}
+        ).fetchone()
+        if res is not None:
+            return True
+        indexes = [r[0] for r in conn.execute(_text("SELECT name FROM sqlite_master WHERE type='index'")).fetchall()]
+        return index_name.lower() in [i.lower() for i in indexes]
+    except Exception:
+        return False
+
+
 def _ensure_performance_indexes(conn) -> None:
     """Create the analytics hot-path indexes idempotently.
 
     These are required for ship-detail and card aggregations to avoid
     seq scans over 96K+ playerstanding rows (18s → 0.002s). They are NOT
     created by SQLModel's create_all — they must be declared explicitly.
-    Safe to re-run on every startup (IF NOT EXISTS). Each DDL runs in
-    its own SAVEPOINT so a deadlock on one does not abort the others —
-    the 2026-08-30 prod incident poisoned the whole transaction and left
-    every index missing, so ships/detail fell back to cold seq scans.
+    Safe to re-run on every startup. Checks pg_indexes first to avoid
+    acquiring table locks if the index already exists.
     """
     from sqlalchemy import text as _text
 
@@ -117,8 +160,10 @@ def _ensure_performance_indexes(conn) -> None:
         ("ix_pilot_ship_mapping_ship_xws", "pilot_ship_mapping", "ship_xws"),
     ]
     for name, table, col in indexes:
+        if _has_index(conn, name):
+            continue
         ddl = f"CREATE INDEX IF NOT EXISTS {name} ON {table} ({col})"
-        for attempt in range(5):
+        for attempt in range(3):
             try:
                 with conn.begin_nested():
                     conn.execute(_text(ddl))
@@ -126,9 +171,8 @@ def _ensure_performance_indexes(conn) -> None:
             except Exception as exc:
                 msg = str(exc)
                 retryable = any(k in msg for k in ("DeadlockDetected", "deadlock detected", "InFailedSqlTransaction", "current transaction is aborted"))
-                if retryable and attempt < 4:
+                if retryable and attempt < 2:
                     import time as _t
-                    print(f"[startup] index {name} retryable (attempt {attempt+1}/5): {exc}")
                     _t.sleep(0.7 * (2**attempt))
                     continue
                 print(f"[startup] index {name} skipped: {exc}")
@@ -138,94 +182,84 @@ def _ensure_performance_indexes(conn) -> None:
 def _ensure_team_event_columns(conn) -> None:
     """Add team-event columns idempotently for stale dumps.
 
-    The dev dump is restored on every local dev launch and may predate
-    the team-event schema. Without these columns every analytics query
-    that filters on is_team_event 500s and the prewarm fails.
-    Each DDL runs in its own SAVEPOINT so a deadlock on the ALTER TABLE
-    does not poison the following CREATE TABLE / CREATE INDEX.
+    Checks information_schema first to avoid acquiring AccessExclusiveLock
+    on hot production tables when the columns already exist.
     """
     from sqlalchemy import text as _text
 
-    ddls = [
-        "ALTER TABLE tournament ADD COLUMN IF NOT EXISTS is_team_event boolean NOT NULL DEFAULT false",
-        "ALTER TABLE playerstanding ADD COLUMN IF NOT EXISTS is_team_member boolean NOT NULL DEFAULT false",
-        "CREATE TABLE IF NOT EXISTS team_member (id SERIAL PRIMARY KEY, teamstanding_id integer NOT NULL REFERENCES teamstanding(id) ON DELETE CASCADE, playerstanding_id integer NOT NULL REFERENCES playerstanding(id) ON DELETE CASCADE, list_id integer REFERENCES list(id), list_json jsonb, CONSTRAINT uq_team_member_team_player UNIQUE (teamstanding_id, playerstanding_id))",
-        "CREATE UNIQUE INDEX IF NOT EXISTS uq_team_member_player ON team_member(playerstanding_id)",
-        "CREATE INDEX IF NOT EXISTS ix_team_member_teamstanding ON team_member(teamstanding_id)",
-    ]
-    for ddl in ddls:
-        for attempt in range(5):
-            try:
-                with conn.begin_nested():
-                    conn.execute(_text(ddl))
-                break
-            except Exception as exc:
-                msg = str(exc)
-                retryable = any(k in msg for k in ("DeadlockDetected", "deadlock detected", "InFailedSqlTransaction", "current transaction is aborted"))
-                if retryable and attempt < 4:
-                    import time as _t
-                    print(f"[startup] team schema retryable (attempt {attempt+1}/5): {ddl[:60]}: {exc}")
-                    _t.sleep(0.7 * (2**attempt))
-                    continue
-                print(f"[startup] team schema {ddl[:60]}... skipped: {exc}")
-                break
+    if not _has_column(conn, "tournament", "is_team_event"):
+        try:
+            with conn.begin_nested():
+                conn.execute(_text("ALTER TABLE tournament ADD COLUMN is_team_event boolean NOT NULL DEFAULT false"))
+        except Exception as e:
+            print(f"[startup] add tournament.is_team_event skipped: {e}")
+
+    if not _has_column(conn, "playerstanding", "is_team_member"):
+        try:
+            with conn.begin_nested():
+                conn.execute(_text("ALTER TABLE playerstanding ADD COLUMN is_team_member boolean NOT NULL DEFAULT false"))
+        except Exception as e:
+            print(f"[startup] add playerstanding.is_team_member skipped: {e}")
+
+    if not _has_table(conn, "team_member"):
+        try:
+            with conn.begin_nested():
+                conn.execute(_text("CREATE TABLE team_member (id SERIAL PRIMARY KEY, teamstanding_id integer NOT NULL REFERENCES teamstanding(id) ON DELETE CASCADE, playerstanding_id integer NOT NULL REFERENCES playerstanding(id) ON DELETE CASCADE, list_id integer REFERENCES list(id), list_json jsonb, CONSTRAINT uq_team_member_team_player UNIQUE (teamstanding_id, playerstanding_id))"))
+        except Exception as e:
+            print(f"[startup] create team_member table skipped: {e}")
+
+    if not _has_index(conn, "uq_team_member_player"):
+        try:
+            with conn.begin_nested():
+                conn.execute(_text("CREATE UNIQUE INDEX IF NOT EXISTS uq_team_member_player ON team_member(playerstanding_id)"))
+        except Exception as e:
+            print(f"[startup] index uq_team_member_player skipped: {e}")
+
+    if not _has_index(conn, "ix_team_member_teamstanding"):
+        try:
+            with conn.begin_nested():
+                conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_team_member_teamstanding ON team_member(teamstanding_id)"))
+        except Exception as e:
+            print(f"[startup] index ix_team_member_teamstanding skipped: {e}")
 
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
-    # Ensure team-event schema + performance indexes on every startup (idempotent).
-    # Each DDL retries on DeadlockDetected and rolls back so one poisoned
-    # statement does not abort the remaining ALTERs/indexes (the prod 8/30
-    # incident left every index missing and the entire ships cache cold).
     try:
         from sqlalchemy import text as _text
         with engine.begin() as conn:
-            # Pass the raw connection's savepoint capability: wrap each helper
-            # so it can rollback internally without invalidating the outer
-            # engine.begin() transaction.
+            try:
+                conn.execute(_text("SET LOCAL lock_timeout = '2s'"))
+            except Exception:
+                pass
             _ensure_team_event_columns(conn)
             _ensure_performance_indexes(conn)
     except Exception as exc:
         print(f"[startup] index/team-event ensure skipped: {exc}")
-    # Self-heal pilot_ship_mapping for fresh or legacy databases:
-    #  - Table is declared in models.PilotShipMapping so create_all above
-    #    creates it on fresh DBs.
-    #  - Existing DBs (restored from dumps taken before the faction column
-    #    existed) will have the 3-column table without `faction`; create_all
-    #    does NOT add missing columns, so we patch the column and backfill.
+
     try:
         from sqlalchemy import text as _text
         from sqlmodel import Session as _Session
 
         with engine.begin() as conn:
-            # Back-compat: add new Contribution columns for older DBs/migrations
-            for ddl in [
-                "ALTER TABLE contribution ADD COLUMN IF NOT EXISTS type TEXT",
-                "ALTER TABLE contribution ADD COLUMN IF NOT EXISTS is_subscription_payment BOOLEAN",
-                "ALTER TABLE contribution ADD COLUMN IF NOT EXISTS is_first_subscription_payment BOOLEAN",
-                "ALTER TABLE contribution ADD COLUMN IF NOT EXISTS tier_name TEXT",
-            ]:
-                try:
-                    conn.execute(_text(ddl))
-                except Exception:
-                    pass
             try:
-                conn.execute(_text("ALTER TABLE pilot_ship_mapping ADD COLUMN IF NOT EXISTS faction TEXT"))
+                conn.execute(_text("SET LOCAL lock_timeout = '2s'"))
             except Exception:
-                # SQLite < 3.?? has no IF NOT EXISTS for ADD COLUMN – check PRAGMA then add.
+                pass
+            for col in ["type", "is_subscription_payment", "is_first_subscription_payment", "tier_name"]:
+                if not _has_column(conn, "contribution", col):
+                    try:
+                        col_type = "BOOLEAN" if "is_" in col else "TEXT"
+                        conn.execute(_text(f"ALTER TABLE contribution ADD COLUMN {col} {col_type}"))
+                    except Exception:
+                        pass
+            if not _has_column(conn, "pilot_ship_mapping", "faction"):
                 try:
-                    cols = [r[1] for r in conn.execute(_text("PRAGMA table_info(pilot_ship_mapping)")).fetchall()]
-                    if "faction" not in cols:
-                        conn.execute(_text("ALTER TABLE pilot_ship_mapping ADD COLUMN faction TEXT"))
+                    conn.execute(_text("ALTER TABLE pilot_ship_mapping ADD COLUMN faction TEXT"))
                 except Exception:
                     pass
 
         # Backfill missing factions from the vendored xwing manifests (idempotent).
-        # IMPORTANT: the read (`SELECT COUNT(*)`) must be committed/closed BEFORE
-        # calling populate, otherwise this session stays `idle in transaction`
-        # holding AccessShareLock on pilot_ship_mapping — which blocks the
-        # ALTER/backfill of the *other* uvicorn worker (and any other service
-        # on the shared DB) indefinitely.
         try:
             with _Session(engine) as session:
                 try:
