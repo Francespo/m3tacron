@@ -44,10 +44,17 @@ if DATABASE_URL.startswith("sqlite"):
 
     @event.listens_for(engine, "connect")
     def _set_sqlite_pragma(dbapi_connection, connection_record):  # noqa: ARG001
-        """Enable WAL mode for better concurrent read performance."""
+        """Enable WAL mode for better concurrent read performance and custom functions."""
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA journal_mode=WAL;")
         cursor.close()
+        try:
+            dbapi_connection.create_function("GREATEST", -1, max)
+            dbapi_connection.create_function("greatest", -1, max)
+            dbapi_connection.create_function("LEAST", -1, min)
+            dbapi_connection.create_function("least", -1, min)
+        except Exception:
+            pass
 
 
 def _retry_with_backoff(fn, *, attempts: int = 5, base_sleep: float = 0.7):
