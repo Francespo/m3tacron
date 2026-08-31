@@ -15,11 +15,9 @@
 
     let { data }: { data: any } = $props();
 
-    function getDefaultFormats(ds: "xwa" | "legacy", includeEpic: boolean): string[] {
+    function getDefaultFormats(ds: "xwa" | "legacy", includeEpic?: boolean): string[] {
         if (ds === "xwa") return includeEpic ? ["xwa", "xwa_epic"] : ["xwa"];
-        return includeEpic
-            ? ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum", "legacy_epic"]
-            : ["legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum"];
+        return ["legacy_x2po"];
     }
 
     let initialized = $state(false);

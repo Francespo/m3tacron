@@ -230,7 +230,7 @@ def aggregate_card_stats(
                 if ("xwa_epic" in allowed_formats or "legacy_epic" in allowed_formats) and is_epic:
                     show_card = True
                 if data_source == DataSource.LEGACY:
-                    legacy_keys = {"legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum"}
+                    legacy_keys = {"legacy_x2po", "legacy_epic"} if filters.get("include_epic") else {"legacy_x2po"}
                     if not legacy_keys.isdisjoint(allowed_formats) and is_legal:
                         show_card = True
             else:
@@ -509,7 +509,7 @@ def aggregate_card_stats(
                 if ("xwa_epic" in allowed_formats or "legacy_epic" in allowed_formats) and is_epic:
                     show_card = True
                 if data_source == DataSource.LEGACY:
-                    legacy_keys = {"legacy_x2po", "legacy_xlc", "ffg", "legacy_pandorum"}
+                    legacy_keys = {"legacy_x2po", "legacy_epic"} if filters.get("include_epic") else {"legacy_x2po"}
                     if not legacy_keys.isdisjoint(allowed_formats) and is_legal:
                         show_card = True
             else:

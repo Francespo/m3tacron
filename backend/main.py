@@ -240,7 +240,7 @@ def get_snapshot(
         if ds_enum == DataSource.XWA:
             allowed_formats = ["xwa", "amg"] if epic else ["xwa"]
         else:
-            allowed_formats = ["legacy_x2po", "legacy_xlc", "legacy_pandorum"] if epic else ["legacy_x2po", "legacy_xlc", "legacy_pandorum"]
+            allowed_formats = ["legacy_x2po"]
 
         # Runs the 5 aggregations + 2 count queries. Cached by (data_source, epic),
         # so the dashboard (which hits this on every load / filter toggle)
