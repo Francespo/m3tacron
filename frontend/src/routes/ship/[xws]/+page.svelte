@@ -540,41 +540,41 @@
     <!-- ====================================================================
          KEY METRICS — compact stat cards
     ===================================================================== -->
-    <section class="grid grid-cols-5 gap-2 mb-10">
+    <section class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 md:gap-3 mb-10">
         <!-- Squadrons — compact, single line (halo like the other capsules) -->
         <div class="bg-terminal-panel border rounded-lg px-3 py-3 flex flex-col gap-1 min-w-0" style="border-color: {accentBorder}; box-shadow: {accentGlow};">
-            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest whitespace-nowrap">Squadrons</span>
-            <span class="text-xl md:text-2xl font-mono font-bold text-primary truncate">{(stats.squadron_count ?? squadrons.length).toLocaleString()}</span>
+            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest truncate" title="Squadrons">Squadrons</span>
+            <span class="text-lg sm:text-xl md:text-2xl font-mono font-bold text-primary truncate">{(stats.squadron_count ?? squadrons.length).toLocaleString()}</span>
         </div>
 
         <!-- Lists — no subtitle -->
         <div class="bg-terminal-panel border rounded-lg px-3 py-3 flex flex-col gap-1 min-w-0" style="border-color: {accentBorder}; box-shadow: {accentGlow};">
-            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest whitespace-nowrap">Lists</span>
-            <span class="text-xl md:text-2xl font-mono font-bold text-primary truncate">{listCount.toLocaleString()}</span>
+            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest truncate" title="Lists">Lists</span>
+            <span class="text-lg sm:text-xl md:text-2xl font-mono font-bold text-primary truncate">{listCount.toLocaleString()}</span>
         </div>
 
         <!-- Tournament Entries — renamed from Entries -->
         <div class="bg-terminal-panel border rounded-lg px-3 py-3 flex flex-col gap-1 min-w-0" style="border-color: {accentBorder}; box-shadow: {accentGlow};">
-            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest whitespace-nowrap">Tournament Entries</span>
-            <span class="text-xl md:text-2xl font-mono font-bold text-primary truncate">{(stats.entries_count ?? listCount).toLocaleString()}</span>
+            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest truncate" title="Tournament Entries">Tournament Entries</span>
+            <span class="text-lg sm:text-xl md:text-2xl font-mono font-bold text-primary truncate">{(stats.entries_count ?? listCount).toLocaleString()}</span>
         </div>
 
-        <!-- Total Games — compact, single line -->
+        <!-- Games (renamed from Total Games) -->
         <div
             class="bg-terminal-panel border rounded-lg px-3 py-3 flex flex-col gap-1 min-w-0"
             style="border-color: {accentBorder}; box-shadow: {accentGlow};"
         >
-            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest whitespace-nowrap">Total Games</span>
-            <span class="text-xl md:text-2xl font-mono font-bold text-primary truncate">{totalGames.toLocaleString()}</span>
+            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest truncate" title="Games">Games</span>
+            <span class="text-lg sm:text-xl md:text-2xl font-mono font-bold text-primary truncate">{totalGames.toLocaleString()}</span>
         </div>
 
         <!-- Win Rate -->
         <div
-            class="bg-terminal-panel border rounded-lg px-3 py-3 flex flex-col gap-1 min-w-0"
+            class="bg-terminal-panel border rounded-lg px-3 py-3 flex flex-col gap-1 min-w-0 col-span-2 sm:col-span-1"
             style="border-color: {accentBorder}; box-shadow: {accentGlow};"
         >
-            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest whitespace-nowrap">Win Rate</span>
-            <span class="text-xl md:text-2xl font-mono font-bold truncate" style="color: {getWinRateColor(winRateNum)};">{winRateStr}</span>
+            <span class="text-[10px] font-mono text-secondary uppercase tracking-widest truncate" title="Win Rate">Win Rate</span>
+            <span class="text-lg sm:text-xl md:text-2xl font-mono font-bold truncate" style="color: {getWinRateColor(winRateNum)};">{winRateStr}</span>
             <span class="text-[10px] font-mono text-secondary truncate">{wins.toLocaleString()} wins</span>
         </div>
     </section>
@@ -584,7 +584,7 @@
          Sortable rows, large pilot images, clickable to /pilot/{xws}
     ===================================================================== -->
     <section class="mb-12">
-        <div class="flex items-center justify-between gap-3 mb-4">
+        <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
             <h2
                 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2 flex items-baseline gap-2"
             >
@@ -668,7 +668,7 @@
          Uses the existing ListRowCard component for visual consistency.
     ===================================================================== -->
     <section class="mb-12">
-        <div class="flex items-center justify-between gap-3 mb-4">
+        <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
             <h2
                 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2 flex items-baseline gap-2"
             >
@@ -716,7 +716,7 @@
          Custom cards: ship composition icons + stats.
     ===================================================================== -->
     <section class="mb-12">
-        <div class="flex items-center justify-between gap-3 mb-4">
+        <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
             <h2
                 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2 flex items-baseline gap-2"
             >
