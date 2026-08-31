@@ -223,7 +223,7 @@ def get_pilot_configurations(
                 "image": info.get("image", ""),
                 "cost": cost_val,
             })
-        wr = round((cfg["wins"] / cfg["count"]) * 100, 1) if cfg["count"] > 0 else 0
+        wr = round((cfg["wins"] / cfg["games"]) * 100, 1) if cfg["games"] > 0 else 0.0
         results.append({
             "upgrades": enriched_upgrades,
             "count": cfg["count"],

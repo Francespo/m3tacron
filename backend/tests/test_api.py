@@ -95,3 +95,36 @@ def test_ships():
         s = data["items"][0]
         assert "ship_name" in s
         assert "faction_xws" in s
+
+from unittest.mock import patch
+
+def test_pilot_configurations_winrate():
+    mock_snapshot = {
+        "pilot_configs": {
+            "xwa": {
+                "wedgeantilles": {
+                    "protontorpedoes|elusive": {
+                        "upgrade_ids": ["protontorpedoes", "elusive"],
+                        "count": 1,
+                        "lists": 1,
+                        "games": 5,
+                        "wins": 4,
+                    }
+                }
+            }
+        }
+    }
+    with patch("backend.api.pilot_detail.get_snapshot", return_value=mock_snapshot), \
+         patch("backend.api.pilot_detail.load_all_upgrades", return_value={}):
+        res = client.get("/api/pilot/wedgeantilles/configurations?data_source=xwa")
+        assert res.status_code == 200
+        cfg_data = res.json()
+        assert "configurations" in cfg_data
+        assert len(cfg_data["configurations"]) == 1
+        cfg = cfg_data["configurations"][0]
+        assert cfg["count"] == 1
+        assert cfg["games"] == 5
+        assert cfg["wins"] == 4
+        assert cfg["win_rate"] == 80.0
+
+
