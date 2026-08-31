@@ -50,13 +50,53 @@ if DATABASE_URL.startswith("sqlite"):
         cursor.close()
 
 
+def _retry_with_backoff(fn, *, attempts: int = 5, base_sleep: float = 0.7):
+    """Run *fn* with exponential backoff on serialization/deadlock failures.
+
+    The prod backend starts at the same time as the scraper/promote loop, so
+    DDL races with long-running analytics scans (playerstanding ↔ tournament)
+    and can raise psycopg2.errors.DeadlockDetected / InFailedSqlTransaction.
+    Do not let one DDL failure poison the entire startup transaction.
+    """
+    import time as _t
+
+    last_exc: Exception | None = None
+    for i in range(attempts):
+        try:
+            return fn()
+        except Exception as exc:  # noqa: BLE001  (psycopg2 + sqlalchemy both)
+            msg = str(exc)
+            is_retryable = any(
+                k in msg
+                for k in (
+                    "DeadlockDetected",
+                    "deadlock detected",
+                    "InFailedSqlTransaction",
+                    "current transaction is aborted",
+                    "SerializationFailure",
+                    "could not serialize access",
+                    "connection already closed",
+                )
+            )
+            if not is_retryable or i == attempts - 1:
+                raise
+            last_exc = exc
+            print(f"[startup] retryable DDL error (attempt {i+1}/{attempts}): {exc}")
+            _t.sleep(base_sleep * (2**i))
+    if last_exc:
+        raise last_exc
+
+
 def _ensure_performance_indexes(conn) -> None:
     """Create the analytics hot-path indexes idempotently.
 
     These are required for ship-detail and card aggregations to avoid
     seq scans over 96K+ playerstanding rows (18s → 0.002s). They are NOT
     created by SQLModel's create_all — they must be declared explicitly.
-    Safe to re-run on every startup (IF NOT EXISTS).
+    Safe to re-run on every startup (IF NOT EXISTS). Each DDL runs in
+    its own SAVEPOINT so a deadlock on one does not abort the others —
+    the 2026-08-30 prod incident poisoned the whole transaction and left
+    every index missing, so ships/detail fell back to cold seq scans.
     """
     from sqlalchemy import text as _text
 
@@ -70,10 +110,22 @@ def _ensure_performance_indexes(conn) -> None:
         ("ix_pilot_ship_mapping_ship_xws", "pilot_ship_mapping", "ship_xws"),
     ]
     for name, table, col in indexes:
-        try:
-            conn.execute(_text(f"CREATE INDEX IF NOT EXISTS {name} ON {table} ({col})"))
-        except Exception as exc:
-            print(f"[startup] index {name} skipped: {exc}")
+        ddl = f"CREATE INDEX IF NOT EXISTS {name} ON {table} ({col})"
+        for attempt in range(5):
+            try:
+                with conn.begin_nested():
+                    conn.execute(_text(ddl))
+                break
+            except Exception as exc:
+                msg = str(exc)
+                retryable = any(k in msg for k in ("DeadlockDetected", "deadlock detected", "InFailedSqlTransaction", "current transaction is aborted"))
+                if retryable and attempt < 4:
+                    import time as _t
+                    print(f"[startup] index {name} retryable (attempt {attempt+1}/5): {exc}")
+                    _t.sleep(0.7 * (2**attempt))
+                    continue
+                print(f"[startup] index {name} skipped: {exc}")
+                break
 
 
 def _ensure_team_event_columns(conn) -> None:
@@ -82,28 +134,48 @@ def _ensure_team_event_columns(conn) -> None:
     The dev dump is restored on every local dev launch and may predate
     the team-event schema. Without these columns every analytics query
     that filters on is_team_event 500s and the prewarm fails.
+    Each DDL runs in its own SAVEPOINT so a deadlock on the ALTER TABLE
+    does not poison the following CREATE TABLE / CREATE INDEX.
     """
     from sqlalchemy import text as _text
 
-    for ddl in [
-        "ALTER TABLE tournament ADD COLUMN IF NOT EXISTS is_team_event BOOLEAN DEFAULT false",
-        "ALTER TABLE playerstanding ADD COLUMN IF NOT EXISTS is_team_event BOOLEAN DEFAULT false",
+    ddls = [
+        "ALTER TABLE tournament ADD COLUMN IF NOT EXISTS is_team_event boolean NOT NULL DEFAULT false",
+        "ALTER TABLE playerstanding ADD COLUMN IF NOT EXISTS is_team_member boolean NOT NULL DEFAULT false",
+        "CREATE TABLE IF NOT EXISTS team_member (id SERIAL PRIMARY KEY, teamstanding_id integer NOT NULL REFERENCES teamstanding(id) ON DELETE CASCADE, playerstanding_id integer NOT NULL REFERENCES playerstanding(id) ON DELETE CASCADE, list_id integer REFERENCES list(id), list_json jsonb, CONSTRAINT uq_team_member_team_player UNIQUE (teamstanding_id, playerstanding_id))",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_team_member_player ON team_member(playerstanding_id)",
         "CREATE INDEX IF NOT EXISTS ix_team_member_teamstanding ON team_member(teamstanding_id)",
-    ]:
-        try:
-            conn.execute(_text(ddl))
-        except Exception as exc:
-            print(f"[startup] team-event column {ddl} skipped: {exc}")
+    ]
+    for ddl in ddls:
+        for attempt in range(5):
+            try:
+                with conn.begin_nested():
+                    conn.execute(_text(ddl))
+                break
+            except Exception as exc:
+                msg = str(exc)
+                retryable = any(k in msg for k in ("DeadlockDetected", "deadlock detected", "InFailedSqlTransaction", "current transaction is aborted"))
+                if retryable and attempt < 4:
+                    import time as _t
+                    print(f"[startup] team schema retryable (attempt {attempt+1}/5): {ddl[:60]}: {exc}")
+                    _t.sleep(0.7 * (2**attempt))
+                    continue
+                print(f"[startup] team schema {ddl[:60]}... skipped: {exc}")
+                break
 
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
-    # Restore the analytics hot-path indexes + team-event columns that the
-    # app relies on. They are NOT part of create_all; without them the
-    # analytics queries seq-scan the shared DB and stall the whole server.
+    # Ensure team-event schema + performance indexes on every startup (idempotent).
+    # Each DDL retries on DeadlockDetected and rolls back so one poisoned
+    # statement does not abort the remaining ALTERs/indexes (the prod 8/30
+    # incident left every index missing and the entire ships cache cold).
     try:
         from sqlalchemy import text as _text
         with engine.begin() as conn:
+            # Pass the raw connection's savepoint capability: wrap each helper
+            # so it can rollback internally without invalidating the outer
+            # engine.begin() transaction.
             _ensure_team_event_columns(conn)
             _ensure_performance_indexes(conn)
     except Exception as exc:
