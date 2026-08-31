@@ -17,6 +17,32 @@
 
 	let { children }: { children: Snippet } = $props();
 
+	let scrollerEl: HTMLElement | null = $state(null);
+
+	// Scroll position map keyed by history index or URL
+	const scrollPositions = new Map<string, number>();
+
+	function getHistoryKey(): string {
+		if (typeof window === "undefined") return "";
+		const sveltekitIndex = window.history.state?.["sveltekit:index"];
+		if (sveltekitIndex !== undefined) {
+			return `idx_${sveltekitIndex}`;
+		}
+		return window.location.pathname + window.location.search;
+	}
+
+	function saveCurrentScroll() {
+		if (!scrollerEl || typeof window === "undefined") return;
+		const key = getHistoryKey();
+		if (key) {
+			scrollPositions.set(key, scrollerEl.scrollTop);
+		}
+	}
+
+	function handleScroll() {
+		saveCurrentScroll();
+	}
+
 	// Global navigation progress: a thin bar across the top of the viewport
 	// that appears only when a navigation actually takes noticeable time
 	// (sidebar links, pagination, tab switches, filter-driven `goto`s) and
@@ -31,6 +57,9 @@
 	let navSafetyTimer: ReturnType<typeof setTimeout> | null = null;
 
 	beforeNavigate(() => {
+		// Save current scroll position before leaving the page
+		saveCurrentScroll();
+
 		// Reset any previous timer
 		if (navShowTimer !== null) clearTimeout(navShowTimer);
 		if (navSafetyTimer !== null) clearTimeout(navSafetyTimer);
@@ -51,7 +80,7 @@
 		}, 8000);
 	});
 
-	afterNavigate(() => {
+	afterNavigate((navigation) => {
 		// Navigation finished. Fast routes clear the pending timer and
 		// never show it, and slow ones disappear the moment the route is
 		// ready (the page-level pending indicators cover any still-streaming
@@ -66,19 +95,37 @@
 		}
 		navActive = false;
 
-		// Every route change must land at the top — scroll is per-page,
-		// not global. Without this the main column keeps its scrollTop
-		// across navigations (e.g. 80% down on /lists → click a list →
-		// /list/[id] already 80% down).
-		requestAnimationFrame(() => {
-			const scroller = document.querySelector(
-				".flex-1.overflow-y-auto",
-			) as HTMLElement | null;
-			if (scroller) scroller.scrollTop = 0;
-			window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
-			document.documentElement.scrollTop = 0;
-			document.body.scrollTop = 0;
-		});
+		const isPopState = navigation.type === "popstate";
+		const isSamePageQuery =
+			navigation.type === "goto" &&
+			navigation.from?.url.pathname === navigation.to?.url.pathname &&
+			navigation.delta === undefined;
+
+		if (isPopState) {
+			// Restore scroll position when going back/forward in history
+			const targetKey = getHistoryKey();
+			const savedTop = scrollPositions.get(targetKey) ?? 0;
+			const applySavedScroll = () => {
+				if (scrollerEl) scrollerEl.scrollTop = savedTop;
+			};
+			applySavedScroll();
+			requestAnimationFrame(applySavedScroll);
+			setTimeout(applySavedScroll, 30);
+			setTimeout(applySavedScroll, 100);
+		} else if (!isSamePageQuery) {
+			// When navigating to another page (via link, interactable, or forward goto),
+			// always land at the top of the destination page.
+			const resetToTop = () => {
+				if (scrollerEl) scrollerEl.scrollTop = 0;
+				window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
+				document.documentElement.scrollTop = 0;
+				document.body.scrollTop = 0;
+			};
+			resetToTop();
+			requestAnimationFrame(resetToTop);
+			setTimeout(resetToTop, 30);
+			setTimeout(resetToTop, 100);
+		}
 	});
 
 	// Mobile-only nav drawer state. Bound to MobileTopBar's hamburger (open)
@@ -140,6 +187,8 @@
 	     and from the outer page. The left margin tracks the sidebar width
 	     (260px expanded, 72px collapsed) so the content reflows. -->
 	<div
+		bind:this={scrollerEl}
+		onscroll={handleScroll}
 		class="flex-1 overflow-y-auto transition-all duration-200 relative overflow-x-hidden {sidebarCollapsed ? 'md:ml-[72px]' : 'md:ml-[260px]'}"
 	>
 		<!-- Slot renders the specific route +page.svelte -->
