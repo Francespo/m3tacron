@@ -238,24 +238,25 @@ def _warm_ship_details() -> None:
     # The detail page is reached from /ships which appends ?formats=xwa (or
     # legacy). That produces a different cache suffix than the bare
     # `formats=None` key. To make the first click fast regardless of format
-    # filtering, fan-out into 3 suffixes per ship/DS: no-format + xwa + legacy.
+    # filtering, fan-out per ship/DS: xwa + legacy with epic=True/False
+    # matching the suffix. Each suffix MUST match its filter's epic value.
+    # No base (formats=None) suffix: it is never requested by the frontend.
     def _suffixes_for_ds(ds: DataSource) -> list[tuple[str, dict]]:
-        base = _ship_filter_cache_suffix(
-            formats=None, factions=None, ships=None, continent=None, country=None, city=None,
-            platforms=None, sources=None, date_start=None, date_end=None,
-            player_count_min=None, player_count_max=None, search=None, epic=False, faction=None,
-        )
-        xwa = _ship_filter_cache_suffix(
-            formats=["xwa"], factions=None, ships=None, continent=None, country=None, city=None,
-            platforms=None, sources=None, date_start=None, date_end=None,
-            player_count_min=None, player_count_max=None, search=None, epic=False, faction=None,
-        )
-        legacy = _ship_filter_cache_suffix(
-            formats=["legacy_x2po"], factions=None, ships=None, continent=None, country=None, city=None,
-            platforms=None, sources=None, date_start=None, date_end=None,
-            player_count_min=None, player_count_max=None, search=None, epic=False, faction=None,
-        )
-        return [(base, {"epic": True, "include_epic": True}), (xwa, {"epic": True, "include_epic": True, "allowed_formats": ["xwa"]}), (legacy, {"epic": True, "include_epic": True, "allowed_formats": ["legacy_x2po"]})]
+        suffixes: list[tuple[str, dict]] = []
+        for epic_val in (False, True):
+            xwa = _ship_filter_cache_suffix(
+                formats=["xwa"], factions=None, ships=None, continent=None, country=None, city=None,
+                platforms=None, sources=None, date_start=None, date_end=None,
+                player_count_min=None, player_count_max=None, search=None, epic=epic_val, faction=None,
+            )
+            legacy = _ship_filter_cache_suffix(
+                formats=["legacy_x2po"], factions=None, ships=None, continent=None, country=None, city=None,
+                platforms=None, sources=None, date_start=None, date_end=None,
+                player_count_min=None, player_count_max=None, search=None, epic=epic_val, faction=None,
+            )
+            suffixes.append((xwa, {"epic": epic_val, "include_epic": epic_val, "allowed_formats": ["xwa"]}))
+            suffixes.append((legacy, {"epic": epic_val, "include_epic": epic_val, "allowed_formats": ["legacy_x2po"]}))
+        return suffixes
 
     for ds in combos:
         # Phase 1: ship_info and ship_pilots per suffix
@@ -314,8 +315,14 @@ def _warm_ship_details() -> None:
                 bulk_sq = aggregate_squadron_stats(flt, SortingCriteria.WINRATE, SortDirection.DESCENDING, ds)
                 sq_by_ship: dict[str, list[dict]] = {}
                 for item in bulk_sq:
-                    sl = item.get("ship_list", "")
-                    ships_in_sq = sl.split(",") if isinstance(sl, str) else (sl if isinstance(sl, list) else [])
+                    # squadrons analytics returns {signature, ships} — not ship_list
+                    raw = item.get("ships") or item.get("signature") or item.get("ship_list") or ""
+                    if isinstance(raw, list):
+                        ships_in_sq = raw
+                    elif isinstance(raw, str):
+                        ships_in_sq = [s.strip() for s in raw.split(",") if s.strip()]
+                    else:
+                        ships_in_sq = []
                     for s in set(ships_in_sq):
                         if s:
                             sq_by_ship.setdefault(s, []).append(item)
@@ -329,8 +336,9 @@ def _warm_ship_details() -> None:
                 fail += len(all_xws)
 
     elapsed = _t.time() - t0
-    total_keys = len(all_xws) * len(combos) * 3 * 4
-    print(f"[prewarm] ship details bulk: {ok} ok, {fail} fail in {elapsed:.1f}s ({len(all_xws)} ships × 2 DS × 3 suffixes × 4 sections = {total_keys} keys) ✓")
+    suffixes_per_ds = 4  # xwa/legacy × epic false/true (no base suffix)
+    total_keys = len(all_xws) * len(combos) * suffixes_per_ds * 4
+    print(f"[prewarm] ship details bulk: {ok} ok, {fail} fail in {elapsed:.1f}s ({len(all_xws)} ships × 2 DS × {suffixes_per_ds} suffixes × 4 sections = {total_keys} keys) ✓")
     _warm_state["ship_details"] = {
         "ok": ok, "fail": fail, "elapsed_s": round(elapsed, 1),
         "total_urls": total_keys, "ships": len(all_xws), "workers": 1,
@@ -499,7 +507,7 @@ def cache_stats_endpoint():
         "warm": dict(_warm_state),
         "config": {
             "warm_endpoints": len(_warm_endpoint_list()),
-            "ship_detail_total_urls": 1472,  # 92 ships × 2 DS × 8 keys: info×3 + pilots×3 + lists + squadrons (epic always on)
+            "ship_detail_total_urls": 2944,  # 92 ships × 2 DS × 4 suffixes × 4 sections (xwa/legacy × epic false/true)
             "max_cache_entries": MAX_CACHE_ENTRIES,
         },
     }

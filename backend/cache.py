@@ -70,14 +70,28 @@ def _save_disk_cache(version: str | None):
         return
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
+        # Copy under lock, then release before slow pickle (prewarm would stall API reads)
         with _lock:
             snapshot = dict(_cache)
         if not snapshot:
             return
-        tmp_path = path.with_suffix(".tmp")
+        # Use pid+thread-specific tmp to avoid cross-worker race (2 uvicorn
+        # workers previously shared api_cache_68.tmp -> No such file).
+        tmp_path = path.with_name(f"{path.name}.tmp.{os.getpid()}.{threading.get_ident()}")
         with open(tmp_path, "wb") as f:
             pickle.dump(snapshot, f, protocol=pickle.HIGHEST_PROTOCOL)
-        tmp_path.replace(path)
+        # atomic replace; handle concurrent replace gracefully
+        try:
+            tmp_path.replace(path)
+        except FileNotFoundError:
+            # tmp already moved by another thread/worker — ignore
+            pass
+        finally:
+            try:
+                if tmp_path.exists():
+                    tmp_path.unlink()
+            except Exception:
+                pass
     except Exception as exc:
         print(f"[cache] disk cache save skipped: {exc}")
 

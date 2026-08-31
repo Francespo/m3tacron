@@ -295,6 +295,7 @@ def aggregate_list_stats(
                 l.faction_xws_normalized,
                 l.name,
                 l.points,
+                l.ship_list,
                 COUNT(*) as entries,
                 SUM(
                     GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.swiss_losses, 0)) +
@@ -307,7 +308,7 @@ def aggregate_list_stats(
             JOIN list l ON l.id = ps.list_id
             WHERE {where_sql}
             GROUP BY l.id, l.canonical_signature, l.faction, l.faction_xws_normalized,
-                     l.name, l.points
+                     l.name, l.points, l.ship_list
             """
         )
         result = session.execute(sql, params).fetchall()
@@ -320,7 +321,7 @@ def aggregate_list_stats(
     #
     # Row tuple column order:
     #   0 canonical_signature, 1 faction, 2 faction_xws_normalized,
-    #   3 name, 4 points, 5 entries, 6 total_games, 7 wins
+    #   3 name, 4 points, 5 ship_list, 6 entries, 7 total_games, 8 wins
     final_list = []
     for row in result:
         faction = row[1] or "unknown"
@@ -328,9 +329,9 @@ def aggregate_list_stats(
             f_enum = Faction.from_xws(faction)
         except (ValueError, AttributeError):
             f_enum = Faction.UNKNOWN
-        wins = int(row[7] or 0)
-        games = int(row[6] or 0)
-        entries = int(row[5] or 0)
+        wins = int(row[8] or 0)
+        games = int(row[7] or 0)
+        entries = int(row[6] or 0)
         # win_rate as a percentage (0-100), one decimal place. Avoid
         # division-by-zero — empty groups surface as 0.0.
         win_rate = round((wins / games) * 100, 1) if games else 0.0
@@ -340,6 +341,7 @@ def aggregate_list_stats(
             "points": row[4] or 0,
             "original_points": 0,
             "faction_xws": f_enum,
+            "ship_list": row[5] or "",
             "pilots": [],
             "wins": wins,
             "games": games,
