@@ -363,7 +363,7 @@ import { untrack } from "svelte";
     <!-- Compatible Upgrades — hidden for standard-loadout (horizontal) pilots that have no upgrade slots -->
     {#if !hasNoUpgradesConfig}
     <section class="mb-10">
-        <div class="flex items-center justify-between gap-3 mb-4">
+        <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
             <h2 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2">Compatible Upgrades</h2>
             <SortBy
                 value={upgSortKey}
@@ -427,13 +427,12 @@ import { untrack } from "svelte";
         {@const configTotalPages = Math.max(1, Math.ceil(sortedConfigurations.length / CONFIG_PAGE_SIZE))}
         {@const configPageItems = sortedConfigurations.slice(configPage * CONFIG_PAGE_SIZE, (configPage + 1) * CONFIG_PAGE_SIZE)}
         <section>
-            <div class="flex items-center justify-between gap-3 mb-4">
+            <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
                 <h2 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2">Configurations</h2>
                 <SortBy
                     value={configSortKey}
                     direction={configSortDir}
                     options={[
-                        { value: "lists", label: "Lists" },
                         { value: "lists", label: "Lists" },
                         { value: "games", label: "Games" },
                         { value: "winrate", label: "Win Rate" }
@@ -485,7 +484,7 @@ import { untrack } from "svelte";
 
     <!-- Lists Featuring This Pilot — reuses existing ListRowCard (SQL-paginated, 4/page, 2 cols) -->
     <section>
-        <div class="flex items-center justify-between gap-3 mb-4">
+        <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
             <h2 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2">Lists Featuring This Pilot</h2>
             <SortBy
                 value={pilotListsSort}

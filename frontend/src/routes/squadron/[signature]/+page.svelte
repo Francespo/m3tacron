@@ -392,7 +392,7 @@
         {/if}
 
         <!-- Top Performing Lists -->
-        <div class="flex items-center justify-between gap-3 mb-4 mt-12">
+        <div class="flex items-center justify-between gap-3 mb-4 mt-12 flex-wrap">
             <h2
                 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2 flex items-baseline gap-2"
             >
