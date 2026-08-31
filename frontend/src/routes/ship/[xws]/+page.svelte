@@ -51,18 +51,17 @@
     // single-faction ships. Filtering by the ship's sole faction via
     // ps.faction_xws_normalized excludes a few lists with unknown/cross-
     // faction data (HMP: 763→760 games) so it must not be auto-applied.
-    let selectedFaction = $state(
-        (() => {
-            const urlFaction = (data as any).faction && (data as any).faction !== "all" ? (data as any).faction : null;
-            if (urlFaction) return urlFaction;
-            // Also check actual URL for SSR hydration where data.faction may be missing
-            if (typeof window !== 'undefined') {
-                const qsFaction = new URLSearchParams(window.location.search).get('faction');
-                if (qsFaction && qsFaction !== 'all') return qsFaction;
-            }
-            return "all";
-        })(),
-    );
+    const initialFaction = (() => {
+        const urlFaction = (data as any).faction && (data as any).faction !== "all" ? (data as any).faction : null;
+        if (urlFaction) return urlFaction;
+        // Also check actual URL for SSR hydration where data.faction may be missing
+        if (typeof window !== 'undefined') {
+            const qsFaction = new URLSearchParams(window.location.search).get('faction');
+            if (qsFaction && qsFaction !== 'all') return qsFaction;
+        }
+        return "all";
+    })();
+    let selectedFaction = $state(initialFaction);
 
     // True while a faction-scoped pilots refetch is in flight.
     let pilotsLoading = $state(false);
@@ -83,6 +82,11 @@
     );
     let factionColor = $derived(getFactionColor(primaryFaction));
 
+    // True when the ship can be flown by more than one canonical faction.
+    let hasMultipleFactions = $derived(
+        (info.factions ?? []).filter((f: string) => f && f !== "unknown").length > 1,
+    );
+
     // Accent color for borders/glows on sub-capsules: GRAY when "All" is
     // selected on a multi-faction ship, faction-colored when a specific
     // faction is selected (or for single-faction ships).
@@ -96,15 +100,10 @@
         `0 0 14px color-mix(in srgb, ${accentColor} 10%, transparent)`,
     );
 
-    // True when the ship can be flown by more than one canonical faction.
-    let hasMultipleFactions = $derived(
-        (info.factions ?? []).filter((f: string) => f && f !== "unknown").length > 1,
-    );
-
     // Fetch pilots whenever the selected faction changes. The server-scoped
     // data from +page.ts is already correct for the initial faction, so skip
     // the first run (that's what `data.faction` matched).
-    let fetchedFaction = $state<string | null>(null);
+    let fetchedFaction = $state<string | null>(initialFaction);
     $effect(() => {
         // This effect drives client-side refetches (window) — never run it
         // during SSR. In the browser, `window` exists and the fetch fires.

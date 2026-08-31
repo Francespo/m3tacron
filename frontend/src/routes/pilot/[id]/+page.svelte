@@ -65,6 +65,11 @@ import { untrack } from "svelte";
                 return Math.max(0, c.count ?? 0);
         }
     }
+
+    // Server-paginated pilot lists (4/page, SQL): real total (e.g. 266 for Vader), not capped to 12.
+    // Use local $state so mutating after fetch is reactive — mutating data.* from $props is not.
+    let pilotListsItems = $state(data.pilotLists ?? []);
+    let pilotListsTotal = $state(Number(data.pilotListsTotal ?? 0) || 0);
     let filteredListsSource = $derived(pilotListsItems as any[]);
     let filteredConfigurationsSource = $derived(configurations as any[]);
 
@@ -170,10 +175,6 @@ import { untrack } from "svelte";
     $effect(() => { void sortedConfigurations; configPage = 0; });
     $effect(() => { void sortedUpgrades; upgPage = 0; });
 
-    // Server-paginated pilot lists (4/page, SQL): real total (e.g. 266 for Vader), not capped to 12.
-    // Use local $state so mutating after fetch is reactive — mutating data.* from $props is not.
-    let pilotListsItems = $state(data.pilotLists ?? []);
-    let pilotListsTotal = $state(Number(data.pilotListsTotal ?? 0) || 0);
     let pilotListsTotalPages = $derived(Math.max(1, Math.ceil(pilotListsTotal / PILOT_LISTS_PAGE_SIZE)));
     $effect(() => {
         pilotListsItems = data.pilotLists ?? [];

@@ -5,12 +5,7 @@ function normalizeBackendApiBase(raw) {
 }
 
 function previewBackendHost() {
-	// PR-specific backend containers are reachable as `backend-pr-<N>` on the
-	// shared coolify network. The generic `backend` alias belongs to the old
-	// shared backend, so previews must target their own container.
-	// COOLIFY_BRANCH is like `pull/131/head` but Coolify quotes the value
-	// (e.g. `"pull/131/head"`), so strip any surrounding quotes first.
-	const branch = String(process.env.COOLIFY_BRANCH || '').replace(/^"|"$/g, '');
+	const branch = String(process.env.COOLIFY_BRANCH || '').replace(/^"|"$/g, '').trim();
 	const fromBranch = branch.match(/^pull\/(\d+)/);
 	if (fromBranch) {
 		return `backend-pr-${fromBranch[1]}`;
@@ -18,57 +13,61 @@ function previewBackendHost() {
 	return null;
 }
 
-function resolvePreviewBackendApiBase(requestUrl) {
-	try {
-		const host = new URL(requestUrl).hostname;
-		const match = host.match(/^(\d+)\.dev\.m3tacron\.com$/);
-		if (match) {
-			// Preview deployment - talk directly to local backend container via docker network
-			return `http://backend-pr-${match[1]}:8888/api`;
+/** @param {string | undefined} [requestUrl] */
+function resolveBackendApiBase(requestUrl) {
+	const cleanBranch = String(process.env.COOLIFY_BRANCH || '').replace(/^"|"$/g, '').trim();
+	const isPreview = process.env.ENV_VAR_SOURCE === 'preview' || cleanBranch.startsWith('pull/');
+	if (isPreview) {
+		const host = previewBackendHost();
+		if (host) {
+			return `http://${host}:8888/api`;
 		}
-	} catch {
-		// Fall through to the default proxy target.
+	}
+
+	if (requestUrl) {
+		try {
+			const host = new URL(requestUrl).hostname.toLowerCase();
+			const match = host.match(/^(\d+)\.dev\.m3tacron\.com$/);
+			if (match) {
+				return `http://backend-pr-${match[1]}:8888/api`;
+			}
+		} catch {}
+	}
+
+	const envBase = process.env.VITE_API_BASE;
+	if (envBase && !envBase.startsWith('/')) {
+		try {
+			const parsed = new URL(envBase);
+			if (parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1') {
+				return normalizeBackendApiBase(envBase);
+			}
+		} catch {}
 	}
 
 	return 'http://backend:8888/api';
 }
 
-function resolveBackendApiBase() {
-	const envBase = process.env.VITE_API_BASE;
-
-	if (!envBase || envBase.startsWith('/')) {
-		return null;
-	}
-
-	try {
-		const parsed = new URL(envBase);
-		if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') {
-			return null;
-		}
-		return normalizeBackendApiBase(envBase);
-	} catch {
-		return null;
-	}
-}
-
+/**
+ * @param {import('./$types').RequestEvent} event
+ * @param {string} method
+ */
 async function proxyToBackend({ params, url, request }, method) {
 	const path = params.path || '';
-	// Preview deployments: always use internal Docker network to reach backend
-	const isPreview = process.env.ENV_VAR_SOURCE === 'preview' || (process.env.COOLIFY_BRANCH || '').startsWith('pull/');
-	const previewHost = isPreview ? previewBackendHost() : null;
-	const backendBase = previewHost ? `http://${previewHost}:8888/api` : (resolveBackendApiBase() || resolvePreviewBackendApiBase(request.url));
+	const backendBase = resolveBackendApiBase(request?.url);
 	const target = new URL(`${backendBase}/${path}`);
 
 	for (const [key, value] of url.searchParams.entries()) {
 		target.searchParams.append(key, value);
 	}
 
+	/** @type {Record<string, string>} */
 	const headers = {};
 	const contentType = request.headers.get('content-type');
 	if (contentType) headers['content-type'] = contentType;
 	const accept = request.headers.get('accept');
 	if (accept) headers['accept'] = accept;
 
+	/** @type {RequestInit & { duplex?: string }} */
 	const init = { method, headers };
 	if (method !== 'GET' && method !== 'HEAD') {
 		init.body = await request.arrayBuffer();

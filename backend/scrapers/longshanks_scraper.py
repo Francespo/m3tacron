@@ -1,4 +1,4 @@
-﻿"""
+"""
 Longshanks Scraper Implementation (Playwright).
 
 Supports X-Wing 2.5 (xwing.longshanks.org) and Legacy 2.0 (xwing-legacy.longshanks.org).
@@ -130,6 +130,46 @@ class LongshanksScraper(BaseScraper):
                     f"Navigation attempt {attempt + 1}/{tries} failed for {url}: {exc}")
                 page.wait_for_timeout(3000 * (attempt + 1))
         raise last_exc or RuntimeError(f"Navigation failed: {url}")
+
+    @staticmethod
+    def _parse_record(wins: object, losses: object, draws: object, row_text: str) -> tuple[int, int, int]:
+        """Parse W/L/D, falling back to Longshanks' compact ``W/L[/D]`` record."""
+        def parse(value: object) -> int | None:
+            match = re.search(r"-?\d+", str(value))
+            return int(match.group(0)) if match else None
+
+        parsed_wins = parse(wins)
+        parsed_losses = parse(losses)
+        parsed_draws = parse(draws)
+        record = re.search(r"\b(\d+)\s*/\s*(\d+)(?:\s*/\s*(\d+))?\b", row_text)
+        if record:
+            if parsed_wins is None:
+                parsed_wins = int(record.group(1))
+            if parsed_losses is None:
+                parsed_losses = int(record.group(2))
+            if parsed_draws is None and record.group(3) is not None:
+                parsed_draws = int(record.group(3))
+
+        return parsed_wins or 0, parsed_losses or 0, parsed_draws or 0
+
+    @staticmethod
+    def _parse_round_option(text: str, value: object) -> tuple[int, RoundType]:
+        """Normalize current and legacy Longshanks round option labels."""
+        round_type = (
+            RoundType.CUT
+            if re.search(r"\b(?:cut|top)\b|round\s*c\s*\d+", text, re.IGNORECASE)
+            else RoundType.SWISS
+        )
+        match = re.search(
+            r"(?:round\s*c?|cut\s*round|top\s*cut\s*round)\s*(\d+)",
+            text,
+            re.IGNORECASE,
+        )
+        if match:
+            return int(match.group(1)), round_type
+
+        value_match = re.search(r"\d+", str(value))
+        return (int(value_match.group(0)) if value_match else 0), round_type
 
     def _parse_faction(self, value: str) -> str | None:
         """Parse faction from image alt/src."""

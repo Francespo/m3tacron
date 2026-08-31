@@ -12,6 +12,9 @@ Usage:
         lambda: aggregate_list_stats(filters)
     )
 """
+import os
+from pathlib import Path
+import pickle
 import threading
 import time
 from typing import Callable, TypeVar
@@ -21,15 +24,77 @@ T = TypeVar("T")
 # Configuration
 CACHE_CHECK_INTERVAL = 5.0  # seconds between version checks
 MAX_CACHE_ENTRIES = 1000
+CACHE_DIR = Path(__file__).parent / "data"
 
 # Internal state
-_lock = threading.Lock()
+_lock = threading.RLock()
 _cache: dict[str, object] = {}
 _cached_version: str | None = None
 _last_version_check: float = 0.0
-# In-flight computations: dedupe concurrent compute_fn() calls for the same key
 _in_flight: dict[str, threading.Event] = {}
 _in_flight_errors: dict[str, BaseException] = {}
+_writes_since_save: int = 0
+
+
+def _get_cache_file_path(version: str | None) -> Path | None:
+    if not version:
+        return None
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        clean_v = "".join(c for c in str(version) if c.isalnum() or c in ("-", "_"))
+        return CACHE_DIR / f"api_cache_{clean_v}.pkl"
+    except Exception:
+        return None
+
+
+def _load_disk_cache(version: str | None) -> bool:
+    path = _get_cache_file_path(version)
+    if not path or not path.exists():
+        return False
+    try:
+        with open(path, "rb") as f:
+            data = pickle.load(f)
+        if isinstance(data, dict) and data:
+            with _lock:
+                _cache.update(data)
+            print(f"[cache] restored {len(data)} warm entries from disk cache for data_version {version}")
+            return True
+    except Exception as exc:
+        print(f"[cache] failed to load disk cache for {version}: {exc}")
+    return False
+
+
+def _save_disk_cache(version: str | None):
+    path = _get_cache_file_path(version)
+    if not path:
+        return
+    try:
+        with _lock:
+            snapshot = dict(_cache)
+        if not snapshot:
+            return
+        tmp_path = path.with_suffix(".tmp")
+        with open(tmp_path, "wb") as f:
+            pickle.dump(snapshot, f, protocol=pickle.HIGHEST_PROTOCOL)
+        tmp_path.replace(path)
+    except Exception as exc:
+        print(f"[cache] disk cache save skipped: {exc}")
+
+
+def _purge_old_disk_caches(keep_version: str | None):
+    try:
+        if not CACHE_DIR.exists():
+            return
+        keep_path = _get_cache_file_path(keep_version)
+        for p in CACHE_DIR.glob("api_cache_*.pkl*"):
+            if keep_path and p == keep_path:
+                continue
+            try:
+                p.unlink()
+            except Exception:
+                pass
+    except Exception:
+        pass
 
 
 def get_db_version() -> str | None:
@@ -58,74 +123,65 @@ def _get_db_version_impl() -> str | None:
             row = result.fetchone()
             return row[0] if row else None
     except Exception:
-        # Table may not exist (SQLite test DB) — treat as version None
         return None
 
 
 def _check_version() -> bool:
     """
     Check if the database version changed since last check.
-
-    Fix 1 (stale-while-revalidate): keep serving the previous warm cache
-    while the new data_version is being rewarmed in the background. The
-    old behaviour did ``_cache.clear()`` here, which left every request
-    cold (25s seq scan) for the ~13 min it takes to rewarm 1472 ship
-    keys on the 1-CPU prod box. Preview builds share the same DB, so a
-    preview warm at the same minute as a scheduled scrape made prod
-    appear to be invalidated by the preview.
-
-    Now: bump ``_cached_version`` and clear only the in-flight deduplication
-    state, but keep ``_cache`` entries as stale. The background auto-rewarm
-    (``main.py:_start_cache_auto_rewarm``) overwrites hot keys with fresh
-    data; until then stale hits are fast (0.1s) instead of cold (25s).
-    Fix 2: always bump ``_cached_version`` so we do not loop-clear on
-    every request (the 2026-08-31 prod incident left ``_cached_version``
-    at ``None`` with ``entries:0`` after a warm).
+    Invalidates cache ONLY when data_version changes (after a successful scrape).
     """
     global _cached_version, _last_version_check
 
     now = time.monotonic()
     if now - _last_version_check < CACHE_CHECK_INTERVAL:
-        return False  # Not time to check yet
+        return False
 
     _last_version_check = now
     db_version = _get_db_version()
 
-    if db_version is not None and db_version != _cached_version:
+    if db_version is None:
+        return False
+
+    if _cached_version is None:
+        _cached_version = db_version
+        _load_disk_cache(db_version)
+        return False
+
+    if db_version != _cached_version:
         old = _cached_version
         _cached_version = db_version
-        # Do NOT clear _cache — keep stale entries (Fix 1).
+        _cache.clear()
         _in_flight.clear()
         _in_flight_errors.clear()
-        if old is not None:
-            print(f"[cache] data_version {old} -> {db_version}, keeping {len(_cache)} stale entries while rewarming")
+        _purge_old_disk_caches(db_version)
+        print(f"[cache] data_version {old} -> {db_version}: invalidated cache after scrape")
         return True
 
     return False
 
 
-def get_cached_or_compute(key: str, compute_fn: Callable[[], T]) -> T:
+def get_cached_or_compute(key: str, compute_fn: Callable[[], T], force: bool = False) -> T:
     """
     Get a value from cache, or compute and cache it.
-
     Thread-safe. Checks for data version changes every 5 seconds.
-    Cache is bounded to MAX_CACHE_ENTRIES via LRU eviction.
     """
-    # Loop handles the case where we become a follower, wait for the leader,
-    # but the leader's result isn't yet in _cache (race) or the leader failed
-    # and we need to become the new leader.
-    event: threading.Event | None = None
-    is_leader = False
-    for _attempt in range(3):
-        # Check for version change (at most every 5 seconds)
+    global _writes_since_save
+    if not force:
         with _lock:
             _check_version()
-
             if key in _cache:
                 return _cache[key]  # type: ignore
 
-            # If another worker is already computing this key, follow it.
-            # Otherwise, become the leader.
+    event: threading.Event | None = None
+    is_leader = False
+    for _attempt in range(3):
+        with _lock:
+            _check_version()
+
+            if not force and key in _cache:
+                return _cache[key]  # type: ignore
+
             if key in _in_flight:
                 event = _in_flight[key]
                 is_leader = False
@@ -135,24 +191,18 @@ def get_cached_or_compute(key: str, compute_fn: Callable[[], T]) -> T:
                 is_leader = True
 
         if is_leader:
-            break  # Proceed to compute below
+            break
 
         assert event is not None
-        # Follower: wait for the leader to finish
         if event.wait(timeout=120):
             with _lock:
                 if key in _cache:
                     return _cache[key]  # type: ignore
                 if key in _in_flight_errors:
                     raise _in_flight_errors[key]
-            # Leader set the event but the result isn't in cache and no error:
-            # this can happen if the leader process died mid-way. Loop and try again
-            # — we'll become the leader.
             continue
-        # Timed out — loop and try again as a new leader
 
     assert event is not None
-    # Cache miss — compute outside the lock (computation may be slow)
     try:
         result = compute_fn()
     except BaseException as e:
@@ -162,43 +212,51 @@ def get_cached_or_compute(key: str, compute_fn: Callable[[], T]) -> T:
             event.set()
         raise
     else:
+        save_needed = False
         with _lock:
-            # Evict oldest entries if cache is full
             if len(_cache) >= MAX_CACHE_ENTRIES and key not in _cache:
-                # Remove the oldest entry (first inserted)
                 oldest_key = next(iter(_cache))
                 del _cache[oldest_key]
             _cache[key] = result
-            # Wake up waiters and clean up in-flight state
+            _writes_since_save += 1
+            if _writes_since_save >= 10:
+                _writes_since_save = 0
+                save_needed = True
             event.set()
             _in_flight.pop(key, None)
             _in_flight_errors.pop(key, None)
+
+        if save_needed:
+            _save_disk_cache(_cached_version)
 
         return result
 
 
 def set_cached_version(version: str | None) -> None:
-    """Sync the in-memory version after a successful warm (Fix 2).
-
-    Called from ``main.py`` after startup / auto-rewarm so ``_check_version``
-    does not re-trigger a clear on the next request. Updates ``_last_version_check``
-    as well so we do not immediately re-poll.
-    """
+    """Sync the in-memory version after startup / warm."""
     global _cached_version, _last_version_check
     with _lock:
-        _cached_version = version
+        if version is not None:
+            _cached_version = version
         _last_version_check = time.monotonic()
+        if not _cache and _cached_version:
+            _load_disk_cache(_cached_version)
+
+
+def save_cache():
+    """Explicitly save in-memory cache to disk."""
+    _save_disk_cache(_cached_version)
 
 
 def invalidate_cache():
     """
     Manually invalidate the entire cache.
-    Useful for testing or manual data updates.
     """
     with _lock:
         _cache.clear()
         _in_flight.clear()
         _in_flight_errors.clear()
+        _purge_old_disk_caches(None)
 
 
 def cache_stats() -> dict:

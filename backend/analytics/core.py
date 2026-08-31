@@ -697,7 +697,7 @@ def aggregate_card_stats(
             ship_filter_sql = [ship_filter_sql]
         if ship_filter_sql:
             where_clauses.append(
-                "EXISTS (SELECT 1 FROM jsonb_array_elements(ps.list_json->'pilots') sp "
+                "EXISTS (SELECT 1 FROM jsonb_array_elements(l.list_json::jsonb->'pilots') sp "
                 "JOIN pilot_ship_mapping psm ON psm.pilot_xws = (sp->>'id') "
                 "WHERE psm.ship_xws = ANY(:ship_filter) "
                 "AND psm.source = :ship_source)"
@@ -709,7 +709,7 @@ def aggregate_card_stats(
     # Achieved with the same list_json->'pilots' containment trick.
     if filter_pilot_id:
         where_clauses.append(
-            "EXISTS (SELECT 1 FROM jsonb_array_elements(ps.list_json->'pilots') sp "
+            "EXISTS (SELECT 1 FROM jsonb_array_elements(l.list_json::jsonb->'pilots') sp "
             "WHERE sp->>'id' = :filter_pilot_id)"
         )
         params["filter_pilot_id"] = filter_pilot_id
@@ -721,7 +721,7 @@ def aggregate_card_stats(
     # on a non-object (psycopg2 errors.InvalidParameterValue otherwise).
     if filter_upgrade_id:
         where_clauses.append(
-            "EXISTS (SELECT 1 FROM jsonb_array_elements(ps.list_json->'pilots') sp "
+            "EXISTS (SELECT 1 FROM jsonb_array_elements(l.list_json::jsonb->'pilots') sp "
             "WHERE "
             "(jsonb_typeof(sp->'upgrades') = 'object' AND "
             "EXISTS (SELECT 1 FROM jsonb_each(sp->'upgrades') e, "

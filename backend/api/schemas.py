@@ -137,17 +137,17 @@ class MatchData(BaseModel):
 # Response Models
 
 class MetaSnapshotResponse(BaseModel):
-    factions: list[FactionStats]
-    ships: list[ShipStats]
-    lists: list[ListData]
-    pilots: list[PilotStats]
-    upgrades: list[UpgradeStats]
-    last_sync: str
-    date_range: str
-    total_tournaments: int
-    total_players: int
-    total_lists: int
-    total_games: int
+    factions: list[FactionStats] = []
+    ships: list[ShipStats] = []
+    lists: list[ListData] = []
+    pilots: list[PilotStats] = []
+    upgrades: list[UpgradeStats] = []
+    last_sync: str = "Never"
+    date_range: str = "Unknown"
+    total_tournaments: int = 0
+    total_players: int = 0
+    total_lists: int = 0
+    total_games: int = 0
 
 
 class PaginatedTournamentsResponse(BaseModel):

@@ -70,6 +70,12 @@ def on_startup():
 
     # Pre-warm the analytics cache so the first user request is instant.
     # Runs in a background thread so the server accepts traffic immediately.
+    try:
+        from .cache import get_db_version, set_cached_version
+        set_cached_version(get_db_version())
+    except Exception as exc:
+        print(f"[startup] initial set_cached_version failed: {exc}")
+
     if os.getenv("PREWARM_CACHE", "true").lower() == "true":
         _prewarm_cache()
 
@@ -412,12 +418,13 @@ def _prewarm_cache():
             "detail_snapshots": dict(_warm_state["detail_snapshots"]),
             "trigger": "startup",
         })
-        # Fix 2: mark the warm as authoritative for the current data_version
+        # Sync the cache version and persist warm cache to disk
         try:
-            from .cache import get_db_version, set_cached_version
+            from .cache import get_db_version, set_cached_version, save_cache
             set_cached_version(get_db_version())
+            save_cache()
         except Exception as exc:
-            print(f"[prewarm] set_cached_version failed: {exc}")
+            print(f"[prewarm] set_cached_version / save_cache failed: {exc}")
         print(f"[prewarm] done in {elapsed:.1f}s")
 
     thread = threading.Thread(target=_run, daemon=True, name="cache-prewarm")
@@ -455,7 +462,7 @@ def _start_cache_auto_rewarm():
                 time.sleep(poll_s)
                 cur = get_db_version()
                 if cur is not None and cur != last_seen:
-                    print(f"[auto-rewarm] data_version {last_seen} -> {cur}, rewarming cache… (stale cache kept live)")
+                    print(f"[auto-rewarm] data_version {last_seen} -> {cur}, rewarming cache…")
                     if debounce_s > 0:
                         time.sleep(debounce_s)
                     t0 = time.time()
@@ -473,12 +480,13 @@ def _start_cache_auto_rewarm():
                         "detail_snapshots": dict(_warm_state["detail_snapshots"]),
                         "trigger": f"auto-rewarm {last_seen}->{cur}",
                     })
-                    # Fix 2: seal the new version so we stop invalidating
+                    # Seal the new version and persist to disk
                     try:
-                        from .cache import set_cached_version
+                        from .cache import set_cached_version, save_cache
                         set_cached_version(cur)
+                        save_cache()
                     except Exception as exc:
-                        print(f"[auto-rewarm] set_cached_version failed: {exc}")
+                        print(f"[auto-rewarm] set_cached_version / save_cache failed: {exc}")
                     print(f"[auto-rewarm] done in {elapsed:.1f}s")
                     last_seen = cur
                 elif cur is not None:
@@ -541,11 +549,9 @@ def get_snapshot(
 
         total_tournaments = 0
         total_players = 0
-        total_lists = 0
-        total_games = 0
         try:
             with Session(engine) as session:
-                start_date = datetime.now() - timedelta(days=90)
+                start_date = (datetime.now() - timedelta(days=90)).date()
 
                 total_tournaments_query = (
                     select(func.count(Tournament.id))
@@ -563,20 +569,23 @@ def get_snapshot(
                 )
                 res_players = session.exec(total_players_query).one_or_none()
                 total_players = res_players if res_players else 0
-
-                # Ship-level totals (derived from the snapshot to keep a
-                # single source of truth; fall back to 0 on DB error).
-                try:
-                    ships = snapshot.get("ships", []) or []
-                    total_lists = sum(int(s.get("list_count", 0) or 0) for s in ships)
-                    total_games = sum(int(s.get("games_count", 0) or 0) for s in ships)
-                except Exception:
-                    total_lists = 0
-                    total_games = 0
         except Exception as e:
             print(f"Error reading DB: {e}")
-            total_lists = 0
-            total_games = 0
+
+        total_lists = 0
+        total_games = 0
+        try:
+            factions = snapshot.get("factions", []) or []
+            total_lists = sum(int(f.get("list_count", 0) or 0) for f in factions)
+            total_games = sum(int(f.get("games_count", 0) or 0) for f in factions)
+        except Exception:
+            try:
+                ships = snapshot.get("ships", []) or []
+                total_lists = sum(int(s.get("list_count", 0) or 0) for s in ships)
+                total_games = sum(int(s.get("games_count", 0) or 0) for s in ships)
+            except Exception:
+                total_lists = 0
+                total_games = 0
 
         return {
             "factions": snapshot.get("factions", []),
