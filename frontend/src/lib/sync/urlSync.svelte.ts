@@ -132,6 +132,13 @@ export function scheduleSync(delayMs: number = 0, overlay?: URLSearchParams): vo
                 'country',
                 'city',
                 'base_sizes',
+                'pilots',
+                'slots',
+                'keywords',
+                'actions',
+                'linked_actions',
+                'used_slots',
+                'used_double_slots',
             ]);
             for (const [k, v] of overlay) {
                 if (MULTI_VALUE_KEYS.has(k)) continue;

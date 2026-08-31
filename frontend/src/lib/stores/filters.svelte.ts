@@ -164,9 +164,17 @@ function buildActiveChips(): FilterChip[] {
     for (const c of selectedCities) chips.push({ key: `city:${c}`, label: c });
     for (const p of selectedSources) chips.push({ key: `source:${p}`, label: p });
     for (const s of selectedShips) chips.push({ key: `ship:${s}`, label: `Ship: ${s}` });
-    for (const f of selectedFactions) chips.push({ key: `faction:${f}`, label: `Faction: ${f}` });
-    for (const p of selectedPilots) chips.push({ key: `pilot:${p}`, label: `Pilot: ${p}` });
-    if (pilotFilterMode === 'all' && selectedPilots.length > 1) chips.push({ key: 'pilotMode', label: 'Pilots: All' });
+    const seenPilotBases = new Set<string>();
+    const uniquePilots: string[] = [];
+    for (const p of selectedPilots) {
+        const base = p.split('-')[0];
+        if (!seenPilotBases.has(base)) {
+            seenPilotBases.add(base);
+            uniquePilots.push(p);
+        }
+    }
+    for (const p of uniquePilots) chips.push({ key: `pilot:${p}`, label: `Pilot: ${p.split('-')[0]}` });
+    if (pilotFilterMode === 'all' && uniquePilots.length > 1) chips.push({ key: 'pilotMode', label: 'Pilots: All' });
     if (shipFilterMode === 'all' && selectedShips.length > 1) chips.push({ key: 'shipMode', label: 'Ships: All' });
     if (listsMin || listsMax) chips.push({ key: 'listsRange', label: `Lists: ${listsMin || '0'}–${listsMax || '∞'}` });
     if (entriesMin || entriesMax) chips.push({ key: 'entriesRange', label: `Entries: ${entriesMin || '0'}–${entriesMax || '∞'}` });
@@ -304,8 +312,11 @@ function removeChip(key: string) {
         selectedShips = selectedShips.filter(s => s !== key.slice(5));
     else if (key.startsWith('faction:'))
         selectedFactions = selectedFactions.filter(f => f !== key.slice(8));
-    else if (key.startsWith('pilot:'))
-        selectedPilots = selectedPilots.filter(p => p !== key.slice(6));
+    else if (key.startsWith('pilot:')) {
+        const p = key.slice(6);
+        const base = p.split('-')[0];
+        selectedPilots = selectedPilots.filter(x => x !== p && (!base || !x.startsWith(base + '-')));
+    }
     else if (key === 'pilotMode') pilotFilterMode = 'any';
     else if (key === 'shipMode') shipFilterMode = 'any';
     else if (key === 'slotMode') slotFilterMode = 'any';
@@ -1150,6 +1161,8 @@ function applyFromSearchParams(params: URLSearchParams, routeId?: RouteId): void
     if (params.has('pilot_mode')) {
         const v = params.get('pilot_mode');
         if (v === 'all' || v === 'any') pilotFilterMode = v;
+    } else if (!isPendingSync() && routeId === 'lists') {
+        pilotFilterMode = 'any';
     }
     if (params.has('ship_mode')) {
         const v = params.get('ship_mode');
@@ -1307,7 +1320,11 @@ function applyFromSearchParams(params: URLSearchParams, routeId?: RouteId): void
     const baseSizes = params.getAll('base_sizes');
     if (baseSizes.length > 0) selectedBaseSizes = baseSizes;
     const pilots = params.getAll('pilots');
-    if (pilots.length > 0) selectedPilots = pilots;
+    if (pilots.length > 0) {
+        selectedPilots = pilots;
+    } else if (!isPendingSync() && routeId === 'lists') {
+        selectedPilots = [];
+    }
     const slots = params.getAll('slots');
     if (slots.length > 0) selectedSlots = slots;
     const keywords = params.getAll('keywords');

@@ -274,7 +274,7 @@ def aggregate_list_stats(
         where_clauses.append(ship_clause2)
     if filters.get("pilots"):
         pm = filters.get("pilot_mode","any")
-        pc = pilot_filter_clause(filters.get("pilots"), params, mode=pm if pm in ("any","all") else "any")
+        pc = pilot_filter_clause(filters.get("pilots"), params, mode=pm if pm in ("any","all") else "any", data_source=data_source)
         if pc:
             where_clauses.append(pc)
 
