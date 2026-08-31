@@ -243,28 +243,6 @@ def get_lists(
         )
 
     filtered_data = get_cached_or_compute(cache_key, compute)
-    # Apply pilot + stat-range post-filters (AND between types, Any/All within pilots)
-    # Pilots need list_json; filter after cache but before sort/paginate.
-    if pilots:
-        # Lazy pilot check: need to load pilots for all rows to decide, but cached rows lack pilots.
-        # Fetch signatures map and filter.
-        sigs = [r.get("signature") for r in filtered_data if r.get("signature")]
-        pilots_map_all = fetch_list_pilots(sigs) if sigs else {}
-        want = set(pilots)
-        mode_all = pilot_mode == "all"
-        kept = []
-        for r in filtered_data:
-            sig = r.get("signature")
-            plist = pilots_map_all.get(sig, [])
-            ids = {str(p.get("id", p.get("xws", ""))) for p in plist}
-            # also consider raw pilot ids stored as xws strings; pilots param is xws
-            if mode_all:
-                if want.issubset(ids):
-                    kept.append(r)
-            else:
-                if want & ids:
-                    kept.append(r)
-        filtered_data = kept
     filtered_data = _apply_stat_ranges(filtered_data, filters)
     # Sort AFTER the cache lookup — the heavy aggregation is sort-independent.
     filtered_data = _sort_list_stats(filtered_data, sort_metric, sort_direction)
