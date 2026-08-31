@@ -389,6 +389,8 @@ def _prewarm_cache():
     HTTP requests (no external port needed) via the same uvicorn worker.
     Also eagerly builds the card-detail snapshots (xwa + legacy) so detail pages
     are warm on first visit, and all ship detail pages (xwa/legacy).
+    Fix 2: sync the in-memory cache version after warm so the next request
+    does not re-clear (the 2026-08-31 prod incident stayed at entries:0).
     """
     import threading
 
@@ -410,6 +412,12 @@ def _prewarm_cache():
             "detail_snapshots": dict(_warm_state["detail_snapshots"]),
             "trigger": "startup",
         })
+        # Fix 2: mark the warm as authoritative for the current data_version
+        try:
+            from .cache import get_db_version, set_cached_version
+            set_cached_version(get_db_version())
+        except Exception as exc:
+            print(f"[prewarm] set_cached_version failed: {exc}")
         print(f"[prewarm] done in {elapsed:.1f}s")
 
     thread = threading.Thread(target=_run, daemon=True, name="cache-prewarm")
@@ -447,7 +455,7 @@ def _start_cache_auto_rewarm():
                 time.sleep(poll_s)
                 cur = get_db_version()
                 if cur is not None and cur != last_seen:
-                    print(f"[auto-rewarm] data_version {last_seen} -> {cur}, rewarming cache…")
+                    print(f"[auto-rewarm] data_version {last_seen} -> {cur}, rewarming cache… (stale cache kept live)")
                     if debounce_s > 0:
                         time.sleep(debounce_s)
                     t0 = time.time()
@@ -465,6 +473,12 @@ def _start_cache_auto_rewarm():
                         "detail_snapshots": dict(_warm_state["detail_snapshots"]),
                         "trigger": f"auto-rewarm {last_seen}->{cur}",
                     })
+                    # Fix 2: seal the new version so we stop invalidating
+                    try:
+                        from .cache import set_cached_version
+                        set_cached_version(cur)
+                    except Exception as exc:
+                        print(f"[auto-rewarm] set_cached_version failed: {exc}")
                     print(f"[auto-rewarm] done in {elapsed:.1f}s")
                     last_seen = cur
                 elif cur is not None:
