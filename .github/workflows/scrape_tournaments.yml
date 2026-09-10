@@ -117,6 +117,27 @@ jobs:
           done
           pg_isready -h localhost -p 5432 || (echo "ERROR: DB tunnel failed" && exit 1)
 
+      # Pin pg_dump/psql to the live server major *before* any pg_dump runs.
+      # (Runner default is pg 16; prod is 18 today; stays correct on 19/20/…)
+      # Must run AFTER 'Start database tunnel' — it queries SHOW server_version_num.
+      - name: Derive DB password for pg client match
+        if: env.NEEDS_DB == 'true'
+        run: |
+          # PROD_DATABASE_URL may be a full URL or a bare password; each step
+          # gets a fresh shell so re-derive it here (same pattern as below).
+          RAW="${{ secrets.PROD_DATABASE_URL }}"
+          if echo "$RAW" | grep -q "://"; then
+            PASS=$(python3 -c "from urllib.parse import urlparse; import sys; u=urlparse(sys.argv[1]); print(u.password or '')" "$RAW")
+          else
+            PASS="$RAW"
+          fi
+          echo "::add-mask::$PASS"
+          echo "PGPASSWORD=$PASS" >> "$GITHUB_ENV"
+
+      - name: Match PostgreSQL client to server version
+        if: env.NEEDS_DB == 'true'
+        uses: ./.github/actions/pg-client-match
+
       - name: Run Scraper
         env:
           PYTHONPATH: .
@@ -215,13 +236,18 @@ jobs:
 
           # Backup is taken AFTER the scraper has committed (and bumped data_version).
           # Retention target: 3 daily + 1 weekly (prev. week) + 1 two-weeks ago + 1 monthly (max 6).
+          # Non-blocking: if pg_dump ever fails again (e.g. a brand-new server major
+          # not yet on PGDG), warn but keep the run green — the scrape already succeeded.
           STAMP=$(date -u +%Y%m%d_%H%M%S)
           BACKUP_FILE="/tmp/${BACKUP_DB}_${STAMP}.dump"
-          echo "Backing up ${BACKUP_DB} -> ${BACKUP_FILE}..."
-          pg_dump -h localhost -p 5432 -U postgres -Fc -f "$BACKUP_FILE" "$BACKUP_DB"
-          ls -lh "$BACKUP_FILE"
-
-          echo "BACKUP_FILE=$BACKUP_FILE" >> "$GITHUB_ENV"
+          echo "Backing up ${BACKUP_DB} -> ${BACKUP_FILE} (client: $(pg_dump --version 2>/dev/null || echo missing))..."
+          if pg_dump -h localhost -p 5432 -U postgres -Fc -f "$BACKUP_FILE" "$BACKUP_DB"; then
+            ls -lh "$BACKUP_FILE"
+            echo "BACKUP_FILE=$BACKUP_FILE" >> "$GITHUB_ENV"
+          else
+            echo "::warning::pg_dump failed (likely client/server version drift on a new major); skipping backup, scrape data is unaffected."
+            rm -f "$BACKUP_FILE"
+          fi
           echo "BACKUP_DB_NAME=$BACKUP_DB" >> "$GITHUB_ENV"
           # shellcheck disable=SC2129
           echo "PGPASSWORD=$PASS" >> "$GITHUB_ENV"
