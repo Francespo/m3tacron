@@ -223,9 +223,13 @@ def get_meta_snapshot(
 
     if resolved_date_start:
         filters["date_start"] = resolved_date_start
+        from ..data.points_history import get_latest_points_date
+        latest_pts = get_latest_points_date(data_source.value if hasattr(data_source, "value") else str(data_source))
         if resolved_date_end:
             filters["date_end"] = resolved_date_end
             date_range_label = f"{resolved_date_start} → {resolved_date_end}"
+        elif latest_pts and resolved_date_start == latest_pts:
+            date_range_label = f"Since Points Update ({resolved_date_start})"
         else:
             date_range_label = f"From {resolved_date_start}"
     elif days_back is not None and days_back > 0:

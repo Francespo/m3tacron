@@ -1,0 +1,53 @@
+{
+  "system": "amg",
+  "name": "Atomic Mass Games (AMG 2.5)",
+  "default_format": "amg",
+  "description": "Official 2.5 ruleset archives featuring 20 squad points, pilot Loadout Values (LV), and scenario play.",
+  "official_url": "https://www.atomicmassgames.com",
+  "points_url": "https://www.atomicmassgames.com/x-wing-documents",
+  "latest_date": "2024-09-06",
+  "updates": [
+    {
+      "date": "2024-09-06",
+      "version": "September 2024",
+      "name": "Final AMG Points & Print-and-Play Drop",
+      "description": "Final official AMG release including points for Alpha-Class Star Wing and TIE Phantom print-and-play."
+    },
+    {
+      "date": "2024-02-23",
+      "version": "February 2024",
+      "name": "Pre-Worlds / Endor Points Update",
+      "description": "Document SWZ Ship Points 02.23.24, Battle Over Endor scenario pack points and loadout tweaks."
+    },
+    {
+      "date": "2023-09-08",
+      "version": "September 2023",
+      "name": "Fall 2023 Product Update",
+      "description": "Points adjustments for YT-2400 Light Freighter and TIE/sa Bomber packs."
+    },
+    {
+      "date": "2023-05-18",
+      "version": "May 2023",
+      "name": "Major Balance Update & Starter Sets",
+      "description": "Major overhaul to squad points and loadout values, faction starter sets integration, Composure banned."
+    },
+    {
+      "date": "2022-10-28",
+      "version": "October 2022",
+      "name": "Fall 2022 Points Update",
+      "description": "Battle of Yavin and Hotshots & Aces II points additions and balance adjustments."
+    },
+    {
+      "date": "2022-06-15",
+      "version": "June 2022",
+      "name": "Mid-Year Errata & Points",
+      "description": "Minor points and upgrade slot adjustments accompanying Rules Reference v1.4.3.1."
+    },
+    {
+      "date": "2022-02-25",
+      "version": "2.5 Launch",
+      "name": "2.5 System Launch",
+      "description": "Introduction of 20-point squad system, pilot Loadout Values (LV), scenarios, and ban lists."
+    }
+  ]
+}

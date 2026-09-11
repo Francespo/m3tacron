@@ -55,6 +55,18 @@ def test_meta_snapshot_time_ranges():
     d_custom = res_custom.json()
     assert "2024-01-01" in d_custom["date_range"]
 
+    # Test points_update preset for XWA
+    res_pts_xwa = client.get("/api/meta-snapshot?time_range=points_update&data_source=xwa")
+    assert res_pts_xwa.status_code == 200
+    d_pts_xwa = res_pts_xwa.json()
+    assert d_pts_xwa["date_start"] == "2026-08-16"
+
+    # Test points_update preset for Legacy
+    res_pts_leg = client.get("/api/meta-snapshot?time_range=points_update&data_source=legacy")
+    assert res_pts_leg.status_code == 200
+    d_pts_leg = res_pts_leg.json()
+    assert d_pts_leg["date_start"] == "2026-03-31"
+
 def test_tournaments():
     response = client.get("/api/tournaments?size=10")
     assert response.status_code == 200

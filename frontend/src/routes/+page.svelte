@@ -16,6 +16,7 @@
     import ErrorPanel from "$lib/components/ErrorPanel.svelte";
     import Chart from "chart.js/auto";
     import FactionIcon from "$lib/components/FactionIcon.svelte";
+    import { getLatestPointsDate } from "$lib/data/points-history";
 
     let meta = $state<any>(null);
     let loading = $state(true);
@@ -38,6 +39,7 @@
     const DASHBOARD_TIME_RANGE_PREFS_KEY = "m3tacron.dashboard.timeRange.v1";
 
     const TIME_RANGE_OPTIONS = [
+        { value: "points_update", label: "Since last points change" },
         { value: "7", label: "Last 7 days" },
         { value: "30", label: "Last 30 days" },
         { value: "90", label: "Last 90 days" },
@@ -46,7 +48,7 @@
         { value: "all", label: "All time" },
     ];
 
-    let selectedTimeRange = $state<string>("90");
+    let selectedTimeRange = $state<string>("points_update");
 
     const WR_MIN_GAMES = {
         pilots: 3,
@@ -77,8 +79,10 @@
 
         try {
             const savedRange = localStorage.getItem(DASHBOARD_TIME_RANGE_PREFS_KEY);
-            if (savedRange && ["7", "30", "90", "180", "365", "all"].includes(savedRange)) {
+            if (savedRange && ["points_update", "7", "30", "90", "180", "365", "all"].includes(savedRange)) {
                 selectedTimeRange = savedRange;
+            } else {
+                selectedTimeRange = "points_update";
             }
 
             const raw = localStorage.getItem(DASHBOARD_RANKING_PREFS_KEY);
@@ -175,7 +179,12 @@
         const params = new URLSearchParams();
         params.set("data_source", source);
         if (epic) params.set("epic", "true");
-        if (timeRange && timeRange !== "all") {
+        if (timeRange === "points_update") {
+            const pointsDate = getLatestPointsDate(source);
+            if (pointsDate) {
+                params.set("date_start", pointsDate);
+            }
+        } else if (timeRange && timeRange !== "all") {
             params.set("days", timeRange);
         } else if (timeRange === "all") {
             params.set("days", "0");
@@ -460,6 +469,16 @@
             return { start: meta?.date_start || "All recorded", end: endVal, isAll: true };
         }
 
+        if (selectedTimeRange === "points_update") {
+            const startStr = meta?.date_start || getLatestPointsDate(filters.dataSource);
+            const endStr = meta?.date_end || meta?.last_sync;
+            const endVal =
+                endStr && endStr !== "Never" && !Number.isNaN(new Date(endStr).getTime())
+                    ? new Date(endStr).toISOString().slice(0, 10)
+                    : (meta?.date_end || "present");
+            return { start: startStr, end: endVal, isAll: false };
+        }
+
         const daysNum = parseInt(selectedTimeRange, 10) || 90;
         const endStr = meta?.date_end || meta?.last_sync;
         if (!endStr || typeof endStr !== "string" || endStr === "Never") {
@@ -529,10 +548,6 @@
         <!-- Mobile Info Banner / Subtitle (shown on mobile < md viewports) -->
         {#if !loading && !error && meta}
             <div class="flex md:hidden flex-wrap items-center gap-x-2 gap-y-1 text-xs font-mono text-secondary">
-                <span class="tracking-widest font-semibold text-primary">
-                    {meta.date_range || (selectedTimeRange === 'all' ? 'All time' : `Last ${selectedTimeRange} days`)}
-                </span>
-                <span class="w-px h-3.5 bg-white/15"></span>
                 <span class="tracking-widest font-semibold {filters.dataSource === 'legacy' ? 'text-violet-400' : 'text-amber-400'}">
                     {filters.dataSource === 'legacy' ? 'Legacy' : 'XWA'}
                 </span>
