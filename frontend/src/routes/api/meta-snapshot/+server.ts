@@ -51,6 +51,7 @@ export async function GET({ url, fetch }) {
     const days = url.searchParams.get('days');
     const dateStart = url.searchParams.get('date_start');
     const dateEnd = url.searchParams.get('date_end');
+    const timeRange = url.searchParams.get('time_range');
     const backendApiBase = resolveBackendApiBase(url);
 
     try {
@@ -60,6 +61,7 @@ export async function GET({ url, fetch }) {
         if (days !== null && days !== undefined && days !== '') params.set('days', days);
         if (dateStart) params.set('date_start', dateStart);
         if (dateEnd) params.set('date_end', dateEnd);
+        if (timeRange) params.set('time_range', timeRange);
 
         const res = await fetch(`${backendApiBase}/meta-snapshot?${params.toString()}`);
         if (!res.ok) {

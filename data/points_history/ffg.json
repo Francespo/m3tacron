@@ -1,0 +1,83 @@
+{
+  "system": "ffg",
+  "name": "Fantasy Flight Games (FFG 2.0)",
+  "default_format": "ffg",
+  "description": "Original Second Edition 200-point dogfight system released by Fantasy Flight Games (2018–2020).",
+  "official_url": "https://www.fantasyflightgames.com",
+  "points_url": "https://www.fantasyflightgames.com/en/products/x-wing-second-edition",
+  "latest_date": "2020-11-24",
+  "updates": [
+    {
+      "date": "2020-11-24",
+      "version": "November 2020",
+      "name": "2021 Season 1 Points Update",
+      "description": "Final official FFG balance adjustment for X-Wing Second Edition prior to AMG handover."
+    },
+    {
+      "date": "2020-10-29",
+      "version": "October 2020",
+      "name": "Wave VII & Emergency Nantex Update",
+      "description": "Unscheduled maintenance update for Nantex-class Starfighter, points for Wave VII."
+    },
+    {
+      "date": "2020-07-28",
+      "version": "July 2020",
+      "name": "July 2020 Balance Update",
+      "description": "Mid-year adjustments to squad and upgrade specs during COVID season."
+    },
+    {
+      "date": "2020-01-09",
+      "version": "January 2020",
+      "name": "January 2020 Points Update & Hyperspace Rotation",
+      "description": "Early-year points adjustments and curated Hyperspace rotation."
+    },
+    {
+      "date": "2019-10-28",
+      "version": "October 2019",
+      "name": "Epic Battles / Huge Ships Points",
+      "description": "Initial Huge Ship and Epic Battles points lists."
+    },
+    {
+      "date": "2019-09-10",
+      "version": "Wave V",
+      "name": "Wave V Points Addition",
+      "description": "Points values for Nantex-class Starfighter, BTL-B Y-Wing, and Wave V packs."
+    },
+    {
+      "date": "2019-07-10",
+      "version": "July 2019",
+      "name": "July 2019 Mid-Year Balance Update",
+      "description": "Scheduled bi-annual balance update."
+    },
+    {
+      "date": "2019-03-20",
+      "version": "Wave III",
+      "name": "Wave III Points Addition",
+      "description": "Republic and Separatist alliance faction introduction."
+    },
+    {
+      "date": "2019-02-28",
+      "version": "February 2019",
+      "name": "Emergency Upsilon-class Shuttle Update",
+      "description": "Targeted emergency increase for Upsilon-class Shuttle."
+    },
+    {
+      "date": "2019-01-28",
+      "version": "January 2019",
+      "name": "First Bi-Annual Balance Update (Balance in the Force)",
+      "description": "Increases to TIE Punisher, Supernatural Reflexes, high-initiative aces."
+    },
+    {
+      "date": "2018-12-13",
+      "version": "Wave II",
+      "name": "Wave II Points Addition & Hyperspace Launch",
+      "description": "Resistance and First Order conversion kits and Wave II points."
+    },
+    {
+      "date": "2018-09-13",
+      "version": "2.0 Launch",
+      "name": "Second Edition Core Launch",
+      "description": "Baseline Second Edition 200-point squad lists and conversion kits."
+    }
+  ]
+}

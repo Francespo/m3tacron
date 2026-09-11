@@ -1,0 +1,53 @@
+{
+  "system": "xwa",
+  "name": "X-Wing Alliance (XWA)",
+  "default_format": "xwa",
+  "description": "Community continuation of the 2.5 ruleset with objective play and 50-point squad balancing.",
+  "official_url": "https://xwing.life",
+  "points_url": "https://www.xwing.life/points",
+  "latest_date": "2026-08-16",
+  "updates": [
+    {
+      "date": "2026-08-16",
+      "version": "50P 2.1",
+      "name": "50P 2.1 Balance Update",
+      "description": "Pilot loadout values and squad costs rebalancing (including Resistance and Y-Wings)."
+    },
+    {
+      "date": "2026-04-26",
+      "version": "50P 2.0",
+      "name": "50P 2.0 Balance Update",
+      "description": "Refined squad balancing, loadouts, and upgrade restrictions following early 2026 events."
+    },
+    {
+      "date": "2026-01-27",
+      "version": "January 2026",
+      "name": "January 2026 CSV Points Update",
+      "description": "Updated pilot points and loadouts across all standard ship chassis."
+    },
+    {
+      "date": "2025-10-24",
+      "version": "50P 1.0",
+      "name": "50-Point Squad System Transition",
+      "description": "Transition from 20 squad points to 50-point squad-building system, restoring generic pilot pricing."
+    },
+    {
+      "date": "2025-06-23",
+      "version": "June 2025",
+      "name": "June 2025 Balance Adjustment",
+      "description": "Mid-year balance adjustment and card loadout passes."
+    },
+    {
+      "date": "2025-02-14",
+      "version": "February 2025",
+      "name": "February 2025 Balance Update",
+      "description": "Standardized loadout integration and ship point tweaks."
+    },
+    {
+      "date": "2024-09-02",
+      "version": "September 2024",
+      "name": "XWA Inaugural Rules & Points",
+      "description": "Inaugural points document under X-Wing Alliance stewardship continuing 2.5."
+    }
+  ]
+}

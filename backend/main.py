@@ -549,10 +549,15 @@ def get_snapshot(
     days: int | None = Query(90, description="Time window in days (7, 30, 90, 180, 365, or 0/None for all time)"),
     date_start: str | None = Query(None, description="Start date (YYYY-MM-DD)"),
     date_end: str | None = Query(None, description="End date (YYYY-MM-DD)"),
+    time_range: str | None = Query(None, description="Time range preset, e.g. points_update"),
 ):
     ds_enum = DataSource.XWA if data_source == "xwa" else DataSource.LEGACY
     normalized_days = None if (days == 0 or days is None) else days
-    if date_start:
+    if time_range == "points_update" and not date_start:
+        from .data.points_history import get_latest_points_date
+        date_start = get_latest_points_date(data_source)
+        normalized_days = None
+    elif date_start:
         normalized_days = None
 
     def compute():

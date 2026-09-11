@@ -1,0 +1,65 @@
+{
+  "system": "legacy",
+  "name": "X-Wing 2.0 Legacy (X2PO)",
+  "default_format": "legacy_x2po",
+  "description": "Community-maintained Second Edition 200-point combined squad/upgrade list-building format.",
+  "official_url": "https://x2po.org",
+  "points_url": "https://points.x2po.org",
+  "latest_date": "2026-03-31",
+  "updates": [
+    {
+      "date": "2026-03-31",
+      "version": "March 2026",
+      "name": "March 2026 Balance Update",
+      "description": "Bi-annual balance adjustments and squad points updates across pilots and upgrades."
+    },
+    {
+      "date": "2025-12-10",
+      "version": "December 2025",
+      "name": "December 2025 Points Update & WaT Release",
+      "description": "Points balancing and integration of the Weapons and Tactics pack."
+    },
+    {
+      "date": "2025-03-26",
+      "version": "March 2025",
+      "name": "March 2025 Balance Update",
+      "description": "5th scheduled points adjustment under Legacy stewardship; upgrade slot adjustments."
+    },
+    {
+      "date": "2024-09-26",
+      "version": "September 2024",
+      "name": "September 2024 Balance Update",
+      "description": "Rebalancing high-initiative pilot pricing and enhancing list diversity."
+    },
+    {
+      "date": "2024-03-27",
+      "version": "March 2024",
+      "name": "March 2024 Points Update",
+      "description": "Major update integrating AMG standard loadouts as Left Side Legal (LSL) into 200pt system."
+    },
+    {
+      "date": "2023-11-22",
+      "version": "3.1.1",
+      "name": "November 2023 Points Update",
+      "description": "Version 3.1.1 release and balance pass."
+    },
+    {
+      "date": "2023-03-01",
+      "version": "March 2023",
+      "name": "March 2023 Points Update",
+      "description": "Spring 2023 balance pass."
+    },
+    {
+      "date": "2022-09-15",
+      "version": "September 2022",
+      "name": "September 2022 Points Update",
+      "description": "Fall 2022 points adjustments."
+    },
+    {
+      "date": "2022-03-01",
+      "version": "March 2022",
+      "name": "Initial Legacy 2.0 Launch",
+      "description": "Baseline points list preserving the classic 200-point dogfight system following AMG 2.5 divergence."
+    }
+  ]
+}
