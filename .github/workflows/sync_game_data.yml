@@ -5,13 +5,20 @@ permissions:
 
 on:
   schedule:
-    # Run at 06:00 UTC every day
+    # Run at 06:00 UTC every day (1 hour after xwing-unified-data sync)
     - cron: "0 6 * * *"
+  repository_dispatch:
+    types: [game-data-updated]
   workflow_dispatch:
     inputs:
       sync_submodules:
         description: "Update git submodules from remote HEADs"
         required: true
+        default: true
+        type: boolean
+      sync_points_history:
+        description: "Sync points history files from external_data"
+        required: false
         default: true
         type: boolean
       sync_j1mbob:
@@ -54,10 +61,10 @@ jobs:
 
       - name: Run Game Data Sync
         run: |
-          ARGS="--rebuild-manifests"
+          ARGS="--rebuild-manifests --sync-points-history"
           
-          # If scheduled run, update submodules by default
-          if [ "${{ github.event_name }}" = "schedule" ]; then
+          # If scheduled run or repository_dispatch, update submodules by default
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "repository_dispatch" ]; then
             ARGS="$ARGS --sync-submodules"
           else
             if [ "${{ inputs.sync_submodules }}" = "true" ]; then ARGS="$ARGS --sync-submodules"; fi
@@ -74,7 +81,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           
-          git add external_data frontend/static/data-xwa/xwing-data.json frontend/static/data-legacy/xwing-data.json
+          git add external_data frontend/static/data-xwa/xwing-data.json frontend/static/data-legacy/xwing-data.json frontend/src/lib/data/points-history.json data/points_history backend/data/points_history
           
           if git diff --cached --quiet; then
             echo "No game data changes detected. Everything is up to date."

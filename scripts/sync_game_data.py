@@ -169,6 +169,22 @@ def sync_yasb_fast_points():
     print(f"Updated {updated_count} pilot points/loadouts in xwing-data2.")
 
 
+def sync_points_history():
+    """Sync points_history files from external_data/points_history to project dirs."""
+    print("\n=== Sincronizzazione Cronologia Punti ===")
+    src_dir = EXTERNAL_DATA_DIR / "points_history"
+    if not src_dir.exists():
+        print(f"Directory {src_dir} does not exist.")
+        return
+
+    import shutil
+    for dest in [ROOT_DIR / "data" / "points_history", ROOT_DIR / "backend" / "data" / "points_history"]:
+        dest.mkdir(parents=True, exist_ok=True)
+        for f in src_dir.glob("*.json"):
+            shutil.copy2(f, dest / f.name)
+            print(f"Copied {f.name} -> {dest}")
+
+
 def rebuild_manifests():
     """Run frontend/scripts/generate-xwing-data.js to compile static manifests."""
     print("\n=== Ricompilazione Manifest Frontend ===")
@@ -181,6 +197,7 @@ def rebuild_manifests():
 def main():
     parser = argparse.ArgumentParser(description="Synchronize X-Wing game data from upstream sources.")
     parser.add_argument("--sync-submodules", action="store_true", help="Update git submodules from remote HEADs")
+    parser.add_argument("--sync-points-history", action="store_true", help="Sync points history files from external_data")
     parser.add_argument("--sync-j1mbob", action="store_true", help="Fetch & merge card fixes from J1mBob/xwing-data2")
     parser.add_argument("--sync-yasb", action="store_true", help="Patch points and loadouts from YASB (Raithos)")
     parser.add_argument("--sync-legacy", action="store_true", help="Fetch & merge updates from Darker333/xwing-data2-legacy")
@@ -189,13 +206,15 @@ def main():
 
     args = parser.parse_args()
 
-    # If no flags passed, default to submodules + manifests
+    # If no flags passed, default to submodules + points history + manifests
     if not any(vars(args).values()):
         args.sync_submodules = True
+        args.sync_points_history = True
         args.rebuild_manifests = True
 
     if args.all:
         sync_submodules()
+        sync_points_history()
         sync_j1mbob()
         sync_legacy_darker()
         sync_yasb_fast_points()
@@ -204,6 +223,8 @@ def main():
 
     if args.sync_submodules:
         sync_submodules()
+    if args.sync_points_history:
+        sync_points_history()
     if args.sync_j1mbob:
         sync_j1mbob()
     if args.sync_legacy:

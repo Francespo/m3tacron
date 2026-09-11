@@ -29,14 +29,19 @@ def _normalize_system(system_or_format: str) -> str:
 
 def load_points_history(system_or_format: str) -> Optional[Dict[str, Any]]:
     system = _normalize_system(system_or_format)
-    file_path = POINTS_HISTORY_DIR / f"{system}.json"
-    if not file_path.exists():
-        # Fallback check at repo root data/points_history
-        alt_path = POINTS_HISTORY_DIR.parents[2] / "data" / "points_history" / f"{system}.json"
-        if alt_path.exists():
-            file_path = alt_path
-        else:
-            return None
+    # Check external_data/points_history first (from xwing-unified-data submodule)
+    ext_path = POINTS_HISTORY_DIR.parents[2] / "external_data" / "points_history" / f"{system}.json"
+    if ext_path.exists():
+        file_path = ext_path
+    else:
+        file_path = POINTS_HISTORY_DIR / f"{system}.json"
+        if not file_path.exists():
+            # Fallback check at repo root data/points_history
+            alt_path = POINTS_HISTORY_DIR.parents[2] / "data" / "points_history" / f"{system}.json"
+            if alt_path.exists():
+                file_path = alt_path
+            else:
+                return None
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)

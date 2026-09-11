@@ -1,18 +1,18 @@
 /**
  * Star Wars: X-Wing Points Change History & Constants
  *
- * Captures historical points change dates and metadata across:
- * - legacy: X-Wing 2.0 Legacy (X2PO)
- * - xwa: X-Wing Alliance (50P 2.5)
- * - amg: Atomic Mass Games (AMG 2.5 archive)
- * - ffg: Fantasy Flight Games (FFG 2.0 archive)
+ * Data is dynamically synchronized from `external_data/points_history`
+ * (Francespo/xwing-unified-data) by scripts/generate-xwing-data.js.
  */
+
+import pointsHistoryJson from './points-history.json';
 
 export interface PointsUpdate {
     date: string;
     version: string;
-    name: string;
+    name?: string;
     description: string;
+    highlights?: string[];
 }
 
 export interface PointsHistoryData {
@@ -26,269 +26,14 @@ export interface PointsHistoryData {
     updates: PointsUpdate[];
 }
 
-export const POINTS_HISTORY: Record<string, PointsHistoryData> = {
-    legacy: {
-        system: 'legacy',
-        name: 'X-Wing 2.0 Legacy (X2PO)',
-        default_format: 'legacy_x2po',
-        description: 'Community-maintained Second Edition 200-point combined squad/upgrade format.',
-        official_url: 'https://x2po.org',
-        points_url: 'https://points.x2po.org',
-        latest_date: '2026-03-31',
-        updates: [
-            {
-                date: '2026-03-31',
-                version: 'March 2026',
-                name: 'March 2026 Balance Update',
-                description: 'Bi-annual balance adjustments and squad points updates across pilots and upgrades.'
-            },
-            {
-                date: '2025-12-10',
-                version: 'December 2025',
-                name: 'December 2025 Points Update & WaT Release',
-                description: 'Points balancing and integration of the Weapons and Tactics pack.'
-            },
-            {
-                date: '2025-03-26',
-                version: 'March 2025',
-                name: 'March 2025 Balance Update',
-                description: '5th scheduled points adjustment under Legacy stewardship; upgrade slot adjustments.'
-            },
-            {
-                date: '2024-09-26',
-                version: 'September 2024',
-                name: 'September 2024 Balance Update',
-                description: 'Rebalancing high-initiative pilot pricing and enhancing list diversity.'
-            },
-            {
-                date: '2024-03-27',
-                version: 'March 2024',
-                name: 'March 2024 Points Update',
-                description: 'Major update integrating AMG standard loadouts as Left Side Legal (LSL) into 200pt system.'
-            },
-            {
-                date: '2023-11-22',
-                version: '3.1.1',
-                name: 'November 2023 Points Update',
-                description: 'Version 3.1.1 release and balance pass.'
-            },
-            {
-                date: '2023-03-01',
-                version: 'March 2023',
-                name: 'March 2023 Points Update',
-                description: 'Spring 2023 balance pass.'
-            },
-            {
-                date: '2022-09-15',
-                version: 'September 2022',
-                name: 'September 2022 Points Update',
-                description: 'Fall 2022 points adjustments.'
-            },
-            {
-                date: '2022-03-01',
-                version: 'March 2022',
-                name: 'Initial Legacy 2.0 Launch',
-                description: 'Baseline points list preserving the classic 200-point dogfight system following AMG 2.5 divergence.'
-            }
-        ]
-    },
-    xwa: {
-        system: 'xwa',
-        name: 'X-Wing Alliance (XWA)',
-        default_format: 'xwa',
-        description: 'Community continuation of the 2.5 ruleset with objective play and 50-point squad balancing.',
-        official_url: 'https://xwing.life',
-        points_url: 'https://www.xwing.life/points',
-        latest_date: '2026-08-16',
-        updates: [
-            {
-                date: '2026-08-16',
-                version: '50P 2.1',
-                name: '50P 2.1 Balance Update',
-                description: 'Pilot loadout values and squad costs rebalancing (including Resistance and Y-Wings).'
-            },
-            {
-                date: '2026-04-26',
-                version: '50P 2.0',
-                name: '50P 2.0 Balance Update',
-                description: 'Refined squad balancing, loadouts, and upgrade restrictions following early 2026 events.'
-            },
-            {
-                date: '2026-01-27',
-                version: 'January 2026',
-                name: 'January 2026 CSV Points Update',
-                description: 'Updated pilot points and loadouts across all standard ship chassis.'
-            },
-            {
-                date: '2025-10-24',
-                version: '50P 1.0',
-                name: '50-Point Squad System Transition',
-                description: 'Transition from 20 squad points to 50-point squad-building system, restoring generic pilot pricing.'
-            },
-            {
-                date: '2025-06-23',
-                version: 'June 2025',
-                name: 'June 2025 Balance Adjustment',
-                description: 'Mid-year balance adjustment and card loadout passes.'
-            },
-            {
-                date: '2025-02-14',
-                version: 'February 2025',
-                name: 'February 2025 Balance Update',
-                description: 'Standardized loadout integration and ship point tweaks.'
-            },
-            {
-                date: '2024-09-02',
-                version: 'September 2024',
-                name: 'XWA Inaugural Rules & Points',
-                description: 'Inaugural points document under X-Wing Alliance stewardship continuing 2.5.'
-            }
-        ]
-    },
-    amg: {
-        system: 'amg',
-        name: 'Atomic Mass Games (AMG 2.5)',
-        default_format: 'amg',
-        description: 'Official 2.5 ruleset archives featuring 20 squad points, pilot Loadout Values (LV), and scenario play.',
-        official_url: 'https://www.atomicmassgames.com',
-        points_url: 'https://www.atomicmassgames.com/x-wing-documents',
-        latest_date: '2024-09-06',
-        updates: [
-            {
-                date: '2024-09-06',
-                version: 'September 2024',
-                name: 'Final AMG Points & Print-and-Play Drop',
-                description: 'Final official AMG release including points for Alpha-Class Star Wing and TIE Phantom print-and-play.'
-            },
-            {
-                date: '2024-02-23',
-                version: 'February 2024',
-                name: 'Pre-Worlds / Endor Points Update',
-                description: 'Document SWZ Ship Points 02.23.24, Battle Over Endor scenario pack points and loadout tweaks.'
-            },
-            {
-                date: '2023-09-08',
-                version: 'September 2023',
-                name: 'Fall 2023 Product Update',
-                description: 'Points adjustments for YT-2400 Light Freighter and TIE/sa Bomber packs.'
-            },
-            {
-                date: '2023-05-18',
-                version: 'May 2023',
-                name: 'Major Balance Update & Starter Sets',
-                description: 'Major overhaul to squad points and loadout values, faction starter sets integration, Composure banned.'
-            },
-            {
-                date: '2022-10-28',
-                version: 'October 2022',
-                name: 'Fall 2022 Points Update',
-                description: 'Battle of Yavin and Hotshots & Aces II points additions and balance adjustments.'
-            },
-            {
-                date: '2022-06-15',
-                version: 'June 2022',
-                name: 'Mid-Year Errata & Points',
-                description: 'Minor points and upgrade slot adjustments accompanying Rules Reference v1.4.3.1.'
-            },
-            {
-                date: '2022-02-25',
-                version: '2.5 Launch',
-                name: '2.5 System Launch',
-                description: 'Introduction of 20-point squad system, pilot Loadout Values (LV), scenarios, and ban lists.'
-            }
-        ]
-    },
-    ffg: {
-        system: 'ffg',
-        name: 'Fantasy Flight Games (FFG 2.0)',
-        default_format: 'ffg',
-        description: 'Original Second Edition 200-point dogfight system released by Fantasy Flight Games (2018–2020).',
-        official_url: 'https://www.fantasyflightgames.com',
-        points_url: 'https://www.fantasyflightgames.com/en/products/x-wing-second-edition',
-        latest_date: '2020-11-24',
-        updates: [
-            {
-                date: '2020-11-24',
-                version: 'November 2020',
-                name: '2021 Season 1 Points Update',
-                description: 'Final official FFG balance adjustment for X-Wing Second Edition prior to AMG handover.'
-            },
-            {
-                date: '2020-10-29',
-                version: 'October 2020',
-                name: 'Wave VII & Emergency Nantex Update',
-                description: 'Unscheduled maintenance update for Nantex-class Starfighter, points for Wave VII.'
-            },
-            {
-                date: '2020-07-28',
-                version: 'July 2020',
-                name: 'July 2020 Balance Update',
-                description: 'Mid-year adjustments to squad and upgrade specs during COVID season.'
-            },
-            {
-                date: '2020-01-09',
-                version: 'January 2020',
-                name: 'January 2020 Points Update & Hyperspace Rotation',
-                description: 'Early-year points adjustments and curated Hyperspace rotation.'
-            },
-            {
-                date: '2019-10-28',
-                version: 'October 2019',
-                name: 'Epic Battles / Huge Ships Points',
-                description: 'Initial Huge Ship and Epic Battles points lists.'
-            },
-            {
-                date: '2019-09-10',
-                version: 'Wave V',
-                name: 'Wave V Points Addition',
-                description: 'Points values for Nantex-class Starfighter, BTL-B Y-Wing, and Wave V packs.'
-            },
-            {
-                date: '2019-07-10',
-                version: 'July 2019',
-                name: 'July 2019 Mid-Year Balance Update',
-                description: 'Scheduled bi-annual balance update.'
-            },
-            {
-                date: '2019-03-20',
-                version: 'Wave III',
-                name: 'Wave III Points Addition',
-                description: 'Republic and Separatist alliance faction introduction.'
-            },
-            {
-                date: '2019-02-28',
-                version: 'February 2019',
-                name: 'Emergency Upsilon-class Shuttle Update',
-                description: 'Targeted emergency increase for Upsilon-class Shuttle.'
-            },
-            {
-                date: '2019-01-28',
-                version: 'January 2019',
-                name: 'First Bi-Annual Balance Update (Balance in the Force)',
-                description: 'Increases to TIE Punisher, Supernatural Reflexes, high-initiative aces.'
-            },
-            {
-                date: '2018-12-13',
-                version: 'Wave II',
-                name: 'Wave II Points Addition & Hyperspace Launch',
-                description: 'Resistance and First Order conversion kits and Wave II points.'
-            },
-            {
-                date: '2018-09-13',
-                version: '2.0 Launch',
-                name: 'Second Edition Core Launch',
-                description: 'Baseline Second Edition 200-point squad lists and conversion kits.'
-            }
-        ]
-    }
-};
+export const POINTS_HISTORY: Record<string, PointsHistoryData> = (pointsHistoryJson as any) || {};
 
 /**
  * Normalize system or format string to one of the 4 key stewardship systems.
  */
 export function normalizeSystem(systemOrFormat: string | null | undefined): string {
     const s = (systemOrFormat || '').trim().toLowerCase();
-    if (s.includes('legacy') || s === 'x2po') return 'legacy';
+    if (s.includes('legacy') || s === 'x2po' || s.startsWith('legacy_')) return 'legacy';
     if (s === 'xwa' || s === 'amg_50p') return 'xwa';
     if (s === 'amg' || s === '2.5') return 'amg';
     if (s === 'ffg' || s === '2.0') return 'ffg';
@@ -308,17 +53,18 @@ export function getLatestPointsDate(systemOrFormat: string | null | undefined): 
 }
 
 /**
- * Get the latest points update object for the given system or dataSource.
+ * Get the most recent PointsUpdate object for the given system or dataSource.
  */
-export function getLatestPointsUpdate(systemOrFormat: string | null | undefined): PointsUpdate | undefined {
+export function getLatestPointsUpdate(systemOrFormat: string | null | undefined): PointsUpdate | null {
     const sys = normalizeSystem(systemOrFormat);
-    return POINTS_HISTORY[sys]?.updates[0];
+    const updates = POINTS_HISTORY[sys]?.updates;
+    return updates && updates.length > 0 ? updates[0] : null;
 }
 
 /**
- * Get full points history data for the given system or dataSource.
+ * Get the complete points history data record for the given system.
  */
-export function getPointsHistory(systemOrFormat: string | null | undefined): PointsHistoryData | undefined {
+export function getPointsHistory(systemOrFormat: string | null | undefined): PointsHistoryData | null {
     const sys = normalizeSystem(systemOrFormat);
-    return POINTS_HISTORY[sys];
+    return POINTS_HISTORY[sys] || null;
 }
