@@ -16,11 +16,6 @@ on:
         required: true
         default: true
         type: boolean
-      sync_points_history:
-        description: "Sync points history files from external_data"
-        required: false
-        default: true
-        type: boolean
       sync_j1mbob:
         description: "Pull card fixes from J1mBob/xwing-data2"
         required: false
@@ -61,7 +56,7 @@ jobs:
 
       - name: Run Game Data Sync
         run: |
-          ARGS="--rebuild-manifests --sync-points-history"
+          ARGS="--rebuild-manifests"
           
           # If scheduled run or repository_dispatch, update submodules by default
           if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "repository_dispatch" ]; then
@@ -81,7 +76,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           
-          git add external_data frontend/static/data-xwa/xwing-data.json frontend/static/data-legacy/xwing-data.json frontend/src/lib/data/points-history.json data/points_history backend/data/points_history
+          git add external_data frontend/static/data-xwa/xwing-data.json frontend/static/data-legacy/xwing-data.json frontend/src/lib/data/points-history.json
           
           if git diff --cached --quiet; then
             echo "No game data changes detected. Everything is up to date."
