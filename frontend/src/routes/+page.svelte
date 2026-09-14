@@ -283,23 +283,24 @@
         };
     }
 
+    // Dashboard shows only the 7 playable factions — never an "unknown"
+    // bar. The backend no longer emits one, but this filter also guards
+    // against stale cached snapshots that still contain it.
+    let factionRows = $derived(
+        (meta?.factions || []).filter((d: any) => d.xws !== "unknown"),
+    );
+
     let barData = $derived(
-        meta?.factions
+        factionRows.length
             ? {
-                  // Chart.js labels are plain strings — keep the raw "?" fallback
-                  // for unknown so Chart.js doesn't try to render an HTML
-                  // element. (The X-Wing font would render "?" as a
-                  // geometric/rocket glyph otherwise.)
-                  labels: meta.factions.map((d: any) =>
-                      d.xws === "unknown" ? "?" : getFactionChar(d.xws),
-                  ),
+                  labels: factionRows.map((d: any) => getFactionChar(d.xws)),
                   datasets: [
                       {
                           label: "Win Rate (%)",
-                          data: meta.factions.map((d: any) =>
+                          data: factionRows.map((d: any) =>
                               d.games_count > 0 ? Number(((d.wins / d.games_count) * 100).toFixed(1)) : 0,
                           ),
-                          backgroundColor: meta.factions.map((d: any) =>
+                          backgroundColor: factionRows.map((d: any) =>
                               getFactionColor(d.xws),
                           ),
                           borderRadius: {
@@ -328,7 +329,7 @@
                 callbacks: {
                     title(tooltipItems: { dataIndex: number; label?: string }[]) {
                         const item = tooltipItems[0];
-                        const faction = item ? meta?.factions?.[item.dataIndex] : null;
+                        const faction = item ? factionRows?.[item.dataIndex] : null;
                         return faction
                             ? getFactionLabel(faction.xws)
                             : item?.label ?? "";
@@ -354,17 +355,17 @@
     };
 
     let pieData = $derived(
-        meta?.factions
+        factionRows.length
             ? {
-                  labels: meta.factions.map(
+                  labels: factionRows.map(
                       (d: any) => getFactionLabel(d.xws),
                   ),
                   datasets: [
                       {
-                          data: meta.factions.map(
+                          data: factionRows.map(
                               (d: any) => d.games_count,
                           ),
-                          backgroundColor: meta.factions.map(
+                          backgroundColor: factionRows.map(
                               (d: any) => getFactionColor(d.xws),
                           ),
                           borderWidth: 0,
@@ -390,7 +391,7 @@
     };
 
     let totalFactionGames = $derived(
-        (meta?.factions || []).reduce(
+        factionRows.reduce(
             (acc: number, f: any) => acc + (f?.games_count || 0),
             0,
         ),
@@ -607,7 +608,7 @@
                     {/if}
                 </div>
                 <div class="flex flex-wrap justify-center w-full mt-2">
-                    {#each meta.factions || [] as dist}
+                    {#each factionRows as dist}
                         {@const pct = totalFactionGames > 0
                             ? (((dist.games_count || 0) / totalFactionGames) * 100).toFixed(1)
                             : "0.0"}
