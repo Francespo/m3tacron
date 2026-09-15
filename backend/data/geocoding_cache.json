@@ -10553,5 +10553,25 @@
     "city": "Mahwah",
     "country": "United States",
     "continent": "North America"
+  },
+  "Fortaleza, Cear\u00e1,\u00a0Brazil": {
+    "city": "Cear\u00e1",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "La Tienda Scum, Catalonia,\u00a0Spain": {
+    "city": "Barcelona",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Complexe Sportif Marcel Joriot, 45800 Saint Jean de Braye, Centre-Val de Loire,\u00a0France": {
+    "city": "Saint-Jean-de-Braye",
+    "country": "France",
+    "continent": "Europe"
+  },
+  "Erfurt, Thuringia,\u00a0Germany": {
+    "city": "Erfurt",
+    "country": "Germany",
+    "continent": "Europe"
   }
 }
