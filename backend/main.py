@@ -492,6 +492,7 @@ def cache_stats_endpoint():
       curl https://162.dev.m3tacron.com/api/cache/stats | jq
     """
     from .cache import cache_stats as _cache_stats, MAX_CACHE_ENTRIES
+    from .cache import _CODE_FINGERPRINT, _SOURCE_COMMIT
     cs = _cache_stats()
     # _warm_state is populated by _prewarm_cache / _start_cache_auto_rewarm
     return {
@@ -501,6 +502,14 @@ def cache_stats_endpoint():
             "warm_endpoints": len(_warm_endpoint_list()),
             "ship_detail_total_urls": 1472,  # 92 ships × 2 DS × 8 keys: info×3 + pilots×3 + lists + squadrons (epic always on)
             "max_cache_entries": MAX_CACHE_ENTRIES,
+            # Git SHA this container was built from (Coolify sets SOURCE_COMMIT).
+            # The deploy-drift workflow compares it against main to detect a
+            # production that silently failed to redeploy.
+            "code_version": _SOURCE_COMMIT or _CODE_FINGERPRINT or "dev",
+            # Hash of the modules that produce cached data. THIS is the cache
+            # key: a frontend-only deploy keeps its fingerprint (and therefore
+            # its warm cache), while an analytics change forces a recompute.
+            "cache_fingerprint": _CODE_FINGERPRINT or "none",
         },
     }
 
