@@ -45,8 +45,8 @@ if [ -z "$SSH_HOST" ] || [ -z "$SSH_USER" ] || [ -z "$DB_CONTAINER" ]; then
     exit 1
 fi
 
-SSH_CMD="ssh -i ${SSH_KEY_PATH} -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST}" 2>/dev/null || \
-SSH_CMD="ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST}"
+SSH_CMD="ssh -i ${SSH_KEY_PATH} -o StrictHostKeyChecking=accept-new ${SSH_USER}@${SSH_HOST}" 2>/dev/null || \
+SSH_CMD="ssh -o StrictHostKeyChecking=accept-new ${SSH_USER}@${SSH_HOST}"
 
 echo "=== Dev DB Refresh ($TIMESTAMP) ==="
 echo "Source: $SSH_HOST container:$DB_CONTAINER"
