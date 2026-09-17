@@ -44,12 +44,13 @@ jobs:
       # Keep the reliable backend suite blocking while that separate test debt is fixed.
       - name: Run stable backend suite
         run: >-
-          pytest -m 'not performance'
+          python -m pytest -m 'not performance'
           --ignore=backend/tests/test_api.py
           --ignore=backend/tests/test_runner.py
           --deselect=backend/tests/test_stats_utils.py::TestShipStatsCountingPostgres::test_duplicate_ship_and_shared_match_counting
         env:
           DATABASE_URL: postgresql://m3tacron:m3tacron@localhost:5432/m3tacron
+          PYTHONPATH: .
 
   frontend-checks:
     name: Frontend checks
