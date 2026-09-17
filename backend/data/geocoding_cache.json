@@ -10553,5 +10553,10 @@
     "city": "Mahwah",
     "country": "United States",
     "continent": "North America"
+  },
+  "Roma, Italy": {
+    "city": "Roma Capitale",
+    "country": "Italy",
+    "continent": "Europe"
   }
 }
