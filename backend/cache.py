@@ -1,14 +1,17 @@
 """
-In-memory cache with scrape- and deploy-triggered invalidation.
+In-memory cache with scrape- and code-change-triggered invalidation.
 
 Cache entries are invalidated when EITHER changes:
   - the ``data_version`` in ``scrape_meta`` (after each scraper run), or
-  - the code version (git commit the container was built from).
+  - the fingerprint of the source code that computes cached results.
 
-The code version matters because entries are pickled to disk and restored on
-startup. Keyed on ``data_version`` alone, a deploy would restore results
-computed by the PREVIOUS code and serve them until the next scrape — so a
-deployed fix appeared to have no effect. See :func:`_code_version`.
+Why a code fingerprint instead of the deployed git SHA: entries are pickled to
+disk and restored on startup, so a deploy must not restore results computed by
+older logic (that bug made a deployed fix silently ineffective). Keying on the
+commit alone would over-invalidate, though — a frontend or docs change would
+discard a cache whose rebuild costs tens of minutes. The fingerprint covers
+only the modules that actually produce cached data, so frontend-only deploys
+keep the warm cache while analytics changes correctly force a recompute.
 
 Usage:
     from backend.cache import get_cached_or_compute
@@ -18,6 +21,7 @@ Usage:
         lambda: aggregate_list_stats(filters)
     )
 """
+import hashlib
 import os
 from pathlib import Path
 import pickle
@@ -32,27 +36,71 @@ CACHE_CHECK_INTERVAL = 5.0  # seconds between version checks
 MAX_CACHE_ENTRIES = 10000
 CACHE_DIR = Path(__file__).parent / "data"
 
+# Source paths whose contents can change a cached value. Deliberately narrow:
+# anything not listed here (frontend, workflows, docs, scrapers, scripts) can
+# be deployed without paying for a cache rebuild. Backend modules that serve
+# requests but never feed the cache are excluded on purpose.
+_CACHE_CODE_PATHS = (
+    "analytics",       # all aggregations behind the cached endpoints
+    "api",             # formatters + detail snapshots stored in the cache
+    "utils",           # xwing_data, list_keys, stats used during aggregation
+    "data_structures",  # Faction/Format/Source vocabularies used in results
+    "cache.py",        # key semantics
+    "main.py",         # endpoint definitions and cache keys
+)
 
-def _code_version() -> str:
-    """Identify the code that computed a cache entry.
 
-    Coolify injects ``SOURCE_COMMIT`` into every container it manages, so the
-    deployed git SHA is the natural key. Falls back to ``CACHE_CODE_VERSION``
-    (override for local/dev runs) and finally to ``"dev"``.
+def _source_commit() -> str:
+    """The git SHA this container was built from, for drift detection only.
 
-    Included in both the in-memory identity and the disk-cache filename, so a
-    deploy can never restore pickle entries produced by older code.
+    Coolify injects ``SOURCE_COMMIT``. This is reported via /api/cache/stats so
+    the deploy-drift check can compare production against ``main``. It is NOT
+    used as a cache key — see :func:`_code_fingerprint`.
     """
     for var in ("SOURCE_COMMIT", "CACHE_CODE_VERSION", "GIT_COMMIT"):
         value = (os.getenv(var) or "").strip().strip('"')
         if value:
             return value
-    return "dev"
+    return ""
 
 
-# Bumped into the cache identity. Read once at import: the code version cannot
-# change while the process is alive.
-_CODE_VERSION = _code_version()
+def _code_fingerprint() -> str:
+    """Content hash of the modules that can change a cached value.
+
+    Returns a short hex digest, stable across machines and environments for
+    identical source. Returns ``""`` if the tree cannot be read (e.g. an
+    unusual packaging layout), in which case callers fall back to the commit.
+    """
+    base = Path(__file__).parent
+    files: list[Path] = []
+    for rel in _CACHE_CODE_PATHS:
+        target = base / rel
+        if target.is_dir():
+            files.extend(
+                p for p in target.rglob("*.py") if "__pycache__" not in p.parts
+            )
+        elif target.is_file():
+            files.append(target)
+
+    if not files:
+        return ""
+
+    digest = hashlib.sha256()
+    for path in sorted(files):
+        try:
+            digest.update(path.relative_to(base).as_posix().encode())
+            digest.update(path.read_bytes())
+        except OSError:
+            continue
+    return digest.hexdigest()[:16]
+
+
+# Cache identity. Computed once at import: source cannot change while the
+# process is alive. Falls back to the commit when the tree is unreadable, and
+# to "dev" for local runs so the cache still works in a bare checkout.
+_CODE_FINGERPRINT = _code_fingerprint()
+_SOURCE_COMMIT = _source_commit()
+_CODE_VERSION = _CODE_FINGERPRINT or _SOURCE_COMMIT or "dev"
 
 # Internal state
 _lock = threading.RLock()
