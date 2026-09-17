@@ -1,8 +1,14 @@
 """
-In-memory cache with scrape-triggered invalidation.
+In-memory cache with scrape- and deploy-triggered invalidation.
 
-Cache entries are invalidated when the data_version in scrape_meta changes
-(after each scraper run). Between scrapes, all cache hits return instantly.
+Cache entries are invalidated when EITHER changes:
+  - the ``data_version`` in ``scrape_meta`` (after each scraper run), or
+  - the code version (git commit the container was built from).
+
+The code version matters because entries are pickled to disk and restored on
+startup. Keyed on ``data_version`` alone, a deploy would restore results
+computed by the PREVIOUS code and serve them until the next scrape — so a
+deployed fix appeared to have no effect. See :func:`_code_version`.
 
 Usage:
     from backend.cache import get_cached_or_compute
@@ -26,6 +32,28 @@ CACHE_CHECK_INTERVAL = 5.0  # seconds between version checks
 MAX_CACHE_ENTRIES = 10000
 CACHE_DIR = Path(__file__).parent / "data"
 
+
+def _code_version() -> str:
+    """Identify the code that computed a cache entry.
+
+    Coolify injects ``SOURCE_COMMIT`` into every container it manages, so the
+    deployed git SHA is the natural key. Falls back to ``CACHE_CODE_VERSION``
+    (override for local/dev runs) and finally to ``"dev"``.
+
+    Included in both the in-memory identity and the disk-cache filename, so a
+    deploy can never restore pickle entries produced by older code.
+    """
+    for var in ("SOURCE_COMMIT", "CACHE_CODE_VERSION", "GIT_COMMIT"):
+        value = (os.getenv(var) or "").strip().strip('"')
+        if value:
+            return value
+    return "dev"
+
+
+# Bumped into the cache identity. Read once at import: the code version cannot
+# change while the process is alive.
+_CODE_VERSION = _code_version()
+
 # Internal state
 _lock = threading.RLock()
 _cache: dict[str, object] = {}
@@ -41,7 +69,10 @@ def _get_cache_file_path(version: str | None) -> Path | None:
         return None
     try:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        clean_v = "".join(c for c in str(version) if c.isalnum() or c in ("-", "_"))
+        # Include the code version so a new deploy never picks up a pickle
+        # written by older code (see module docstring).
+        combined = f"{version}_{_CODE_VERSION}"
+        clean_v = "".join(c for c in combined if c.isalnum() or c in ("-", "_"))
         return CACHE_DIR / f"api_cache_{clean_v}.pkl"
     except Exception:
         return None

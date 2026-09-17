@@ -33,3 +33,46 @@ def test_cache_redeploy_persistence_and_version_invalidation():
 
     # Clean up test files
     c.invalidate_cache()
+
+
+def test_disk_cache_is_keyed_by_code_version():
+    """A deploy must never restore pickles written by older code.
+
+    Regression test for the "fix deployed but has no effect" incident: the
+    disk cache was keyed on data_version alone, so restarting the container
+    after a deploy restored results computed by the PREVIOUS code and served
+    them until the next scrape.
+    """
+    import importlib
+    import os
+    import pickle
+    import tempfile
+    from pathlib import Path
+
+    original = os.environ.get("SOURCE_COMMIT")
+    try:
+        tmpdir = Path(tempfile.mkdtemp())
+
+        os.environ["SOURCE_COMMIT"] = "oldcode111"
+        mod = importlib.reload(c)
+        mod.CACHE_DIR = tmpdir
+        old_path = mod._get_cache_file_path("79")
+        old_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(old_path, "wb") as f:
+            pickle.dump({"meta_snapshot|xwa|True": {"stale": True}}, f)
+
+        # Simulate deploying new code against the same data_version.
+        os.environ["SOURCE_COMMIT"] = "newcode222"
+        mod = importlib.reload(c)
+        mod.CACHE_DIR = tmpdir
+
+        assert mod._get_cache_file_path("79").name != old_path.name
+        assert mod._load_disk_cache("79") is False
+        assert not mod._cache
+    finally:
+        if original is None:
+            os.environ.pop("SOURCE_COMMIT", None)
+        else:
+            os.environ["SOURCE_COMMIT"] = original
+        # Restore module state for other tests.
+        importlib.reload(c)
