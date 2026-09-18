@@ -16,6 +16,7 @@ import yaml
 PROFILE_NAME = "coding"
 MODEL = "auto-coding"
 PROVIDER = "custom:manifest"
+PLUGIN_NAME = "software-maintainer"
 
 
 def run(command: list[str]) -> None:
@@ -44,6 +45,18 @@ def remove_inherited_gateway_credentials(home: Path) -> None:
     env_path.write_text("\n".join(filtered).rstrip() + "\n", encoding="utf-8")
 
 
+def install_plugin(repository: Path, home: Path) -> None:
+    source = repository / "automation" / "maintainer" / "hermes_plugin"
+    destination = home / "plugins" / PLUGIN_NAME
+    if destination.exists() or destination.is_symlink():
+        if destination.is_symlink() or destination.is_file():
+            destination.unlink()
+        else:
+            shutil.rmtree(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, destination)
+
+
 def configure_profile(repository: Path) -> Path:
     home = profile_home()
     if not home.exists():
@@ -56,7 +69,7 @@ def configure_profile(repository: Path) -> Path:
                 "--clone-from",
                 "default",
                 "--description",
-                "General software product and engineering interface backed by Paseo and Pi",
+                "General software product and engineering interface backed by direct Pi automation",
             ]
         )
     config_path = home / "config.yaml"
@@ -64,6 +77,14 @@ def configure_profile(repository: Path) -> Path:
     config["model"] = {"default": MODEL, "provider": PROVIDER}
     # The coding route owns failover. Do not inherit the everyday Hermes chain.
     config["fallback_providers"] = []
+    plugins = config.setdefault("plugins", {})
+    enabled_plugins = plugins.setdefault("enabled", [])
+    if PLUGIN_NAME not in enabled_plugins:
+        enabled_plugins.append(PLUGIN_NAME)
+    platform_toolsets = config.setdefault("platform_toolsets", {})
+    # Keep the Telegram coding surface narrow: conversation clarification plus
+    # structured maintainer operations. Pi owns repository and terminal work.
+    platform_toolsets["telegram"] = ["clarify", "kanban", "maintainer"]
     auxiliary = config.setdefault("auxiliary", {})
     for key in ("triage_specifier", "kanban_decomposer"):
         auxiliary.setdefault(key, {})
@@ -112,6 +133,7 @@ def main() -> int:
         shutil.copy2(default_config, backup_root / f"config-before-coding-{stamp}.yaml")
 
     home = configure_profile(repository)
+    install_plugin(repository, home)
     if args.chat_id:
         configure_route(args.chat_id)
         if args.restart_gateway:
