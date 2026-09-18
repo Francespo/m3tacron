@@ -57,6 +57,8 @@ class PiRuntime:
             "--prompt",
             prompt,
         ]
+        if task.get("session_key"):
+            command.extend(["--session-key", task["session_key"]])
         if dry_run:
             return {"command": command, "worktree": str(worktree), "session_id": task["id"]}
 
@@ -112,6 +114,8 @@ class PiRuntime:
             "--prompt",
             prompt,
         ]
+        if task.get("session_key"):
+            command.extend(["--session-key", task["session_key"]])
         if dry_run:
             return {"command": command, "task": task}
         log = (self.task_dir(task["id"]) / "worker.log").open("ab", buffering=0)
