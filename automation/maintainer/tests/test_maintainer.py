@@ -167,6 +167,22 @@ class CommandTests(unittest.TestCase):
         self.assertIn("manifest/auto-coding", command)
         self.assertNotIn("sh -c", command)
 
+    def test_hermes_plugin_wraps_list_payloads(self) -> None:
+        from automation.maintainer import hermes_plugin
+
+        assert hermes_plugin._invoke.__globals__["STATE"]
+        task = self.store.create_task("demo", "Probe it")
+        tasks = self.store.list_tasks("demo")
+        self.assertTrue(any(item["id"] == task["id"] for item in tasks))
+
+    def test_worker_resolves_pi_binary_minimally(self) -> None:
+        import inspect
+
+        from automation.maintainer import worker
+
+        source = inspect.getsource(worker.main)
+        self.assertIn("/root/.bun/bin/pi", source)
+
     def test_feedback_requires_session_and_idle(self) -> None:
         controller = self._controller()
         task = self.store.create_task("demo", "Add a feature")
