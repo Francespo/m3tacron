@@ -90,6 +90,7 @@ class Store:
                     head_sha TEXT,
                     worktree_head_sha TEXT,
                     approved_sha TEXT,
+                    session_key TEXT,
                     last_error TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
@@ -104,6 +105,20 @@ class Store:
                     created_at TEXT NOT NULL,
                     FOREIGN KEY(task_id) REFERENCES tasks(id)
                 );
+                CREATE TABLE IF NOT EXISTS notifications (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    task_id TEXT NOT NULL,
+                    dedupe_key TEXT NOT NULL,
+                    session_key TEXT,
+                    payload_json TEXT NOT NULL DEFAULT '{}',
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    delivered_at TEXT
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS notifications_dedupe
+                    ON notifications(dedupe_key);
+                CREATE INDEX IF NOT EXISTS notifications_pending
+                    ON notifications(delivered_at, id);
                 """
             )
             columns = {
@@ -118,6 +133,7 @@ class Store:
                 "runtime_status",
                 "worktree_path",
                 "worktree_head_sha",
+                "session_key",
             ):
                 if column not in columns:
                     conn.execute(f"ALTER TABLE tasks ADD COLUMN {column} TEXT")
@@ -132,6 +148,7 @@ class Store:
         intent: str,
         decisions: dict[str, Any] | None = None,
         request_id: str | None = None,
+        session_key: str | None = None,
     ) -> dict[str, Any]:
         intent = intent.strip()
         if not intent:
@@ -153,8 +170,8 @@ class Store:
                 """
                 INSERT INTO tasks (
                     id, project_id, request_id, intent, decisions_json, state, branch,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?)
+                    session_key, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?)
                 """,
                 (
                     task_id,
@@ -163,6 +180,7 @@ class Store:
                     intent,
                     json.dumps(decisions or {}, ensure_ascii=False, sort_keys=True),
                     branch,
+                    session_key,
                     now,
                     now,
                 ),
@@ -228,6 +246,7 @@ class Store:
             "preview_url",
             "head_sha",
             "approved_sha",
+            "session_key",
             "last_error",
         }
         unknown = set(fields) - allowed
@@ -247,6 +266,65 @@ class Store:
                 raise StateError(f"Unknown task: {task_id}")
             self._audit(conn, task_id, "task.updated", {"fields": sorted(fields)})
         return self.get_task(task_id)
+
+    def enqueue_notification(
+        self,
+        task_id: str,
+        dedupe_key: str,
+        payload: dict[str, Any] | None = None,
+        session_key: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Record one durable wake-up for the Hermes session that started the task.
+
+        Idempotent on ``dedupe_key`` so a retried worker turn cannot queue the same
+        completion twice. Returns the new row, or ``None`` when it already existed.
+        """
+        with self.connect() as conn:
+            exists = conn.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            if exists is None:
+                raise StateError(f"Unknown task: {task_id}")
+            cursor = conn.execute(
+                "INSERT OR IGNORE INTO notifications "
+                "(task_id, dedupe_key, session_key, payload_json, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    task_id,
+                    dedupe_key,
+                    session_key,
+                    json.dumps(payload or {}, ensure_ascii=False, sort_keys=True),
+                    utc_now(),
+                ),
+            )
+            if cursor.rowcount != 1:
+                return None
+            row = conn.execute(
+                "SELECT * FROM notifications WHERE id = ?", (cursor.lastrowid,)
+            ).fetchone()
+        return self._decode_notification(row)
+
+    def pending_notifications(self) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM notifications WHERE delivered_at IS NULL ORDER BY id"
+            ).fetchall()
+        return [self._decode_notification(row) for row in rows]
+
+    def mark_notification_delivered(self, notification_id: int) -> bool:
+        with self.connect() as conn:
+            cursor = conn.execute(
+                "UPDATE notifications SET delivered_at = ? "
+                "WHERE id = ? AND delivered_at IS NULL",
+                (utc_now(), notification_id),
+            )
+        return cursor.rowcount == 1
+
+    def note_notification_attempt(self, notification_id: int) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE notifications SET attempts = attempts + 1 "
+                "WHERE id = ? AND delivered_at IS NULL",
+                (notification_id,),
+            )
 
     def audit(
         self, task_id: str, event: str, payload: dict[str, Any] | None = None
@@ -292,4 +370,10 @@ class Store:
     def _decode(row: sqlite3.Row) -> dict[str, Any]:
         result = dict(row)
         result["decisions"] = json.loads(result.pop("decisions_json"))
+        return result
+
+    @staticmethod
+    def _decode_notification(row: sqlite3.Row) -> dict[str, Any]:
+        result = dict(row)
+        result["payload"] = json.loads(result.pop("payload_json"))
         return result

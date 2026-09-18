@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 from unittest.mock import patch
 
@@ -176,12 +179,139 @@ class CommandTests(unittest.TestCase):
         self.assertTrue(any(item["id"] == task["id"] for item in tasks))
 
     def test_worker_resolves_pi_binary_minimally(self) -> None:
+        from automation.maintainer import worker
+
+        # The gateway sanitizes PATH before spawning plugins, so the binary must be absolute.
+        self.assertTrue(worker.PI_BINARY.startswith("/"))
+        self.assertTrue(worker.PI_BINARY.endswith("pi"))
+
+    def test_worker_notifies_the_owning_session(self) -> None:
         import inspect
 
         from automation.maintainer import worker
 
         source = inspect.getsource(worker.main)
-        self.assertIn("/root/.bun/bin/pi", source)
+        self.assertIn('notify(store, args, "pi.idle"', source)
+        self.assertIn('notify(store, args, "pi.failed"', source)
+
+    def test_notification_outbox_is_idempotent_and_acknowledged(self) -> None:
+        task = self.store.create_task("demo", "Add a feature", session_key="agent:coding:telegram:group:-1:2")
+
+        first = self.store.enqueue_notification(
+            task["id"], dedupe_key="turn-1", payload={"reason": "pi.idle"}, session_key=task["session_key"]
+        )
+        self.assertIsNotNone(first)
+        self.assertIsNone(
+            self.store.enqueue_notification(task["id"], dedupe_key="turn-1", payload={"reason": "pi.idle"})
+        )
+
+        second = self.store.enqueue_notification(task["id"], dedupe_key="turn-2", payload={"reason": "pi.idle"})
+        self.assertIsNotNone(second)
+        self.assertEqual([item["id"] for item in self.store.pending_notifications()], [first["id"], second["id"]])
+
+        self.store.note_notification_attempt(first["id"])
+        self.assertTrue(self.store.mark_notification_delivered(first["id"]))
+        self.assertFalse(self.store.mark_notification_delivered(first["id"]))
+        self.assertEqual([item["id"] for item in self.store.pending_notifications()], [second["id"]])
+        self.assertEqual(self.store.pending_notifications()[0]["payload"], {"reason": "pi.idle"})
+
+    def test_plugin_wakeup_payload_carries_the_task_outcome(self) -> None:
+        from automation.maintainer import hermes_plugin
+
+        task = self.store.create_task("demo", "Add a min/max point-cost filter")
+        reconciled = {
+            "ok": True,
+            "task": {
+                **task,
+                "state": "review",
+                "pull_request_url": "https://github.com/o/r/pull/7",
+                "preview_url": "https://7.dev.example.com",
+                "worktree_head_sha": "deadbeef",
+            },
+        }
+        row = {
+            "id": 1,
+            "task_id": task["id"],
+            "session_key": "agent:coding:telegram:group:-100:2",
+            "payload": {"reason": "pi.idle"},
+            "created_at": task["created_at"],
+        }
+        with patch.object(hermes_plugin, "_invoke", return_value=reconciled):
+            payload = hermes_plugin.build_wakeup_payload(row)
+        self.assertEqual(payload["task_id"], task["id"])
+        self.assertEqual(payload["state"], "review")
+        self.assertEqual(payload["pull_request_url"], "https://github.com/o/r/pull/7")
+        self.assertEqual(payload["preview_url"], "https://7.dev.example.com")
+        self.assertEqual(payload["error"], "none")
+
+    def test_plugin_wakeup_payload_reports_failures(self) -> None:
+        from automation.maintainer import hermes_plugin
+
+        task = self.store.create_task("demo", "Add a feature")
+        reconciled = {"ok": True, "task": {**task, "state": "failed", "last_error": "Pi exited with status 1"}}
+        row = {"id": 2, "task_id": task["id"], "payload": {"reason": "pi.failed"}}
+        with patch.object(hermes_plugin, "_invoke", return_value=reconciled):
+            payload = hermes_plugin.build_wakeup_payload(row)
+        self.assertEqual(payload["error"], "Pi exited with status 1")
+
+    def test_plugin_skips_unreconcilable_tasks(self) -> None:
+        from automation.maintainer import hermes_plugin
+
+        row = {"id": 3, "task_id": "missing", "payload": {"reason": "pi.idle"}}
+        with patch.object(hermes_plugin, "_invoke", return_value={"ok": False}):
+            self.assertIsNone(hermes_plugin.build_wakeup_payload(row))
+
+    def test_plugin_wakeup_is_signed_and_needs_config(self) -> None:
+        from automation.maintainer import hermes_plugin
+
+        # No webhook route configured -> nothing is posted, the outbox row stays pending.
+        with patch.object(hermes_plugin, "webhook_settings", return_value=None):
+            self.assertFalse(hermes_plugin.post_wakeup({"task_id": "abc"}))
+
+        settings = {"url": "http://127.0.0.1:9/webhooks/x", "secret": "s3cret"}
+        captured = {}
+
+        class _Response:
+            status = 202
+
+            def __enter__(self_inner):
+                return self_inner
+
+            def __exit__(self_inner, *exc):
+                return False
+
+        def fake_urlopen(request, timeout=None):
+            captured["request"] = request
+            return _Response()
+
+        with patch.object(hermes_plugin, "webhook_settings", return_value=settings), patch.object(
+            hermes_plugin.urllib.request, "urlopen", fake_urlopen
+        ):
+            self.assertTrue(hermes_plugin.post_wakeup({"task_id": "abc"}))
+
+        request = captured["request"]
+        timestamp = request.get_header("X-webhook-timestamp")
+        signature = request.get_header("X-webhook-signature-v2")
+        expected = hmac.new(
+            b"s3cret", timestamp.encode() + b"." + request.data, hashlib.sha256
+        ).hexdigest()
+        self.assertEqual(signature, expected)
+        self.assertEqual(json.loads(request.data.decode())["task_id"], "abc")
+
+    def test_plugin_rejects_non_2xx_wakeup(self) -> None:
+        from automation.maintainer import hermes_plugin
+
+        settings = {"url": "http://127.0.0.1:9/webhooks/x", "secret": "s3cret"}
+
+        def failing_urlopen(request, timeout=None):
+            error = urllib.error.HTTPError(settings["url"], 403, "Forbidden", None, None)
+            error.close()
+            raise error
+
+        with patch.object(hermes_plugin, "webhook_settings", return_value=settings), patch.object(
+            hermes_plugin.urllib.request, "urlopen", failing_urlopen
+        ):
+            self.assertFalse(hermes_plugin.post_wakeup({"task_id": "abc"}))
 
     def test_feedback_requires_session_and_idle(self) -> None:
         controller = self._controller()
