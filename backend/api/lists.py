@@ -1,11 +1,39 @@
+import json
+from functools import lru_cache
+
 from fastapi import APIRouter, Query
+from sqlalchemy import text
+from sqlmodel import Session
+
 from ..analytics.lists import aggregate_list_stats, fetch_list_pilots
 from ..cache import get_cached_or_compute
-from ..data_structures.data_source import DataSource
+from ..data_structures.data_source import DataSource, parse_data_source
 from ..data_structures.factions import Faction
+from ..database import engine
+from ..utils.xwing_data.pilots import load_all_pilots
 from .schemas import PaginatedListsResponse
 
 router = APIRouter(prefix="/api/lists", tags=["Lists"])
+
+# Pack/variant suffixes stripped by both the frontend `xwingData.getPilot()`
+# and the backend `get_pilot_info()`. The point-cost filter mirrors that
+# lookup so the value it filters on is exactly the value the list row shows.
+_PACK_SUFFIXES = (
+    "-armedanddangerous",
+    "-evacuationofdqar",
+    "-battleoverendor",
+    "-battleofyavin",
+    "-siegeofcoruscant",
+    "-alphastrike",
+    "-lsl",
+)
+
+
+def _num(v):
+    try:
+        return float(v)
+    except Exception:
+        return None
 
 # Helper to match faction filter
 def _match_faction(f_enum: Faction, allowed_list: list[str]) -> bool:
@@ -48,11 +76,6 @@ def _build_cache_key(
 
 def _apply_stat_ranges(rows: list[dict], filters: dict) -> list[dict]:
     """Post-aggregation filter on stat ranges (AND between different stats)."""
-    def _num(v):
-        try:
-            return float(v)
-        except Exception:
-            return None
     lists_min = _num(filters.get("lists_min"))
     lists_max = _num(filters.get("lists_max"))
     entries_min = _num(filters.get("entries_min"))
@@ -84,6 +107,98 @@ def _apply_stat_ranges(rows: list[dict], filters: dict) -> list[dict]:
         if wr_min is not None and wr_v < wr_min:
             continue
         if wr_max is not None and wr_v > wr_max:
+            continue
+        out.append(r)
+    return out
+
+
+@lru_cache(maxsize=4)
+def _pilot_costs_json(data_source: DataSource) -> str:
+    """JSON object mapping pilot XWS -> current point cost for one source.
+
+    Includes pack/variant-suffixed aliases (`pilot-lsl`, ...) so one JSONB
+    lookup in SQL reproduces the frontend's suffix-stripping pilot lookup.
+    Cached per data source: the manifest only changes on deploy.
+    """
+    pilots = load_all_pilots(data_source)
+    costs: dict[str, int] = {}
+    for xws, info in pilots.items():
+        try:
+            cost = int((info or {}).get("cost") or 0)
+        except (TypeError, ValueError):
+            cost = 0
+        costs[xws] = cost
+        for suffix in _PACK_SUFFIXES:
+            costs.setdefault(f"{xws}{suffix}", cost)
+    return json.dumps(costs)
+
+
+def _fetch_current_points(signatures: list[str], data_source: DataSource) -> dict[str, int]:
+    """Current point cost per list: sum of its pilots' manifest costs.
+
+    Computed in SQL from `list_json` so the full JSON never enters Python
+    (the aggregation deliberately avoids that). Mirrors `ListRowCard`'s
+    `computedCurrentPoints`; a zero total means no pilot resolved and the
+    caller falls back to the stored points.
+    """
+    sigs = [s for s in set(signatures) if s]
+    if not sigs:
+        return {}
+    sql = text(
+        """
+        SELECT l.canonical_signature,
+               COALESCE((
+                   SELECT SUM(COALESCE(NULLIF(
+                       CAST(:costs AS jsonb) ->> (COALESCE(p->>'id', p->>'name')), ''
+                   )::numeric, 0))
+                   FROM jsonb_array_elements(l.list_json::jsonb -> 'pilots') AS p
+               ), 0)::int
+        FROM list l
+        WHERE l.canonical_signature = ANY(:sigs)
+        """
+    )
+    with Session(engine) as session:
+        rows = session.execute(
+            sql, {"costs": _pilot_costs_json(data_source), "sigs": sigs}
+        ).fetchall()
+    return {sig: int(points or 0) for sig, points in rows}
+
+
+def _apply_current_points_range(
+    rows: list[dict],
+    filters: dict,
+    data_source: str,
+    points_lookup=_fetch_current_points,
+) -> list[dict]:
+    """Inclusive min/max filter on each row's *current* point cost.
+
+    "Current" is the value the list card displays, not the stored
+    `list.points` column: for XWA that is the sum of the pilots' manifest
+    costs, falling back to stored points when no pilot resolves. Legacy
+    lists always display stored points, so they filter on it directly. An
+    empty bound is unbounded; different bounds are ANDed. `points_lookup`
+    is injectable so the logic is testable without a database.
+    """
+    cost_min = _num(filters.get("cost_min"))
+    cost_max = _num(filters.get("cost_max"))
+    if cost_min is None and cost_max is None:
+        return rows
+
+    ds = parse_data_source(data_source)
+    current_points: dict[str, int] = {}
+    if ds != DataSource.LEGACY:
+        current_points = points_lookup([r.get("signature") or "" for r in rows], ds)
+
+    out: list[dict] = []
+    for r in rows:
+        if ds == DataSource.LEGACY:
+            value = _num(r.get("points")) or 0.0
+        else:
+            computed = current_points.get(r.get("signature") or "", 0)
+            value = float(computed) if computed > 0 else (_num(r.get("points")) or 0.0)
+        if cost_min is not None and value < cost_min:
+            continue
+        if cost_max is not None and value > cost_max:
             continue
         out.append(r)
     return out
@@ -193,6 +308,8 @@ def get_lists(
     games_max: str | None = Query(None),
     win_rate_min: str | None = Query(None),
     win_rate_max: str | None = Query(None),
+    cost_min: str | None = Query(None, description="Inclusive min current point cost (empty = unbounded)"),
+    cost_max: str | None = Query(None, description="Inclusive max current point cost (empty = unbounded)"),
 ):
     # pilots + mode + stat ranges are post-aggregation but part of cache key
     # ship_mode controls whether the SQL ships filter is ANY vs ALL
@@ -223,6 +340,8 @@ def get_lists(
         "games_max": games_max,
         "win_rate_min": win_rate_min,
         "win_rate_max": win_rate_max,
+        "cost_min": cost_min,
+        "cost_max": cost_max,
     }
     if formats:
         filters["allowed_formats"] = formats
@@ -244,6 +363,9 @@ def get_lists(
 
     filtered_data = get_cached_or_compute(cache_key, compute)
     filtered_data = _apply_stat_ranges(filtered_data, filters)
+    # Current point cost is manifest-derived and independent of the cached
+    # aggregation, so it is applied post-cache (and stays out of the cache key).
+    filtered_data = _apply_current_points_range(filtered_data, filters, data_source)
     # Sort AFTER the cache lookup — the heavy aggregation is sort-independent.
     filtered_data = _sort_list_stats(filtered_data, sort_metric, sort_direction)
     total = len(filtered_data)
