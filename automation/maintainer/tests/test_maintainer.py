@@ -10,6 +10,8 @@ from automation.maintainer.config import ProjectConfig, ProjectRegistry
 from automation.maintainer.controller import Controller, validate_english_artifact
 from automation.maintainer.policy import shadow_merge_decision
 from automation.maintainer.prompts import implementation_prompt
+from automation.maintainer.runtime import PiRuntime
+from automation.maintainer.runtime import PiRuntime
 from automation.maintainer.store import StateError, Store
 
 
@@ -66,7 +68,73 @@ class PromptTests(unittest.TestCase):
 
 
 class CommandTests(unittest.TestCase):
-    def test_paseo_command_uses_arguments_not_shell(self) -> None:
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.store = Store(Path(self.temp.name) / "state.db")
+        self.runtime = PiRuntime(store=self.store, state_root=Path(self.temp.name))
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    def _controller(self) -> Controller:
+        registry_path = Path(self.temp.name) / "projects.json"
+        registry_path.write_text(
+            json.dumps(
+                {
+                    "projects": {
+                        "demo": {
+                            "display_name": "Demo",
+                            "path": self.temp.name,
+                            "repository": "owner/demo",
+                            "base_branch": "main",
+                            "provider": "pi/manifest/auto-coding",
+                        }
+                    }
+                }
+            )
+        )
+        return Controller(ProjectRegistry.load(registry_path), self.store, self.runtime)
+
+    def test_start_is_idempotent_for_same_request_id(self) -> None:
+        controller = self._controller()
+        first = controller.start(
+            project_id="demo",
+            intent="Add a feature",
+            request_id="turn-1",
+            dry_run=True,
+        )
+        second = controller.start(
+            project_id="demo",
+            intent="Different intent",
+            request_id="turn-1",
+            dry_run=True,
+        )
+        self.assertEqual(first["task"]["id"], second["task"]["id"])
+        self.assertFalse(second.get("reused"))
+
+    def test_start_after_real_runtime_is_reused(self) -> None:
+        controller = self._controller()
+
+        def mark_started(_project, task, _prompt):
+            return self.store.update(
+                task["id"],
+                runtime_pid=4242,
+                runtime_status="running",
+            )
+
+        with patch.object(PiRuntime, "start", side_effect=mark_started):
+            first = controller.start(
+                project_id="demo", intent="Add a feature", request_id="turn-1"
+            )
+            second = controller.start(
+                project_id="demo", intent="Again", request_id="turn-1"
+            )
+        self.assertNotIn("reused", first)
+        self.assertTrue(second["reused"])
+        self.assertEqual(first["task"]["state"], "running")
+        self.assertEqual(second["task"]["id"], first["task"]["id"])
+
+    def test_worktree_path_is_isolated_per_task(self) -> None:
         project = ProjectConfig.from_dict(
             "demo",
             {
@@ -77,12 +145,52 @@ class CommandTests(unittest.TestCase):
                 "provider": "pi/manifest/auto-coding",
             },
         )
-        task = {"id": "abc123", "branch": "agent/abc123", "intent": "Add a feature"}
-        command = Controller._paseo_start_command(project, task, "prompt; rm -rf /")
-        self.assertEqual(command[0:2], ["paseo", "run"])
-        self.assertIn("pi/manifest/auto-coding", command)
-        self.assertEqual(command[-1], "prompt; rm -rf /")
-        self.assertNotIn("sh", command)
+        first = self.runtime.worktree_path(project, "abc123")
+        second = self.runtime.worktree_path(project, "def456")
+        self.assertNotEqual(first, second)
+        self.assertTrue(str(first).endswith("demo/abc123"))
+
+    def test_pi_command_uses_arguments_not_shell(self) -> None:
+        project = ProjectConfig.from_dict(
+            "demo",
+            {
+                "display_name": "Demo",
+                "path": "/tmp/demo",
+                "repository": "owner/demo",
+                "base_branch": "main",
+                "provider": "pi/manifest/auto-coding",
+            },
+        )
+        task = {"id": "abc123", "branch": "agent/abc123"}
+        command = self.runtime.start(project, task, "prompt; rm -rf /", dry_run=True)["command"]
+        self.assertIn("automation.maintainer.worker", " ".join(command))
+        self.assertIn("manifest/auto-coding", command)
+        self.assertNotIn("sh -c", command)
+
+    def test_feedback_requires_session_and_idle(self) -> None:
+        controller = self._controller()
+        task = self.store.create_task("demo", "Add a feature")
+        with self.assertRaises(StateError):
+            controller.feedback(task["id"], "Change it")
+        self.store.update(
+            task["id"],
+            runtime_session_id=task["id"],
+            worktree_path="/tmp/wt",
+            runtime_status="idle",
+            runtime_pid=None,
+        )
+        self.store.transition(task["id"], "running", event="test.started", force=True)
+        with patch.object(PiRuntime, "send") as send_mock:
+            send_mock.return_value = self.store.get_task(task["id"])
+            result = controller.feedback(task["id"], "Change it")
+        self.assertEqual(result["state"], "running")
+
+    def test_stop_marks_stopped_without_pid(self) -> None:
+        controller = self._controller()
+        task = self.store.create_task("demo", "Add a feature")
+        self.store.update(task["id"], runtime_status="idle", runtime_pid=None)
+        result = controller.stop(task["id"])
+        self.assertEqual(result["state"], "stopped")
 
     def test_preview_command_is_scoped_to_registered_app_and_pr(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -103,9 +211,10 @@ class CommandTests(unittest.TestCase):
                 )
             )
             store = Store(Path(directory) / "state.db")
+            runtime = PiRuntime(store=store, state_root=Path(directory))
             task = store.create_task("demo", "Preview it")
             store.update(task["id"], pull_request_number=42)
-            controller = Controller(ProjectRegistry.load(registry_path), store)
+            controller = Controller(ProjectRegistry.load(registry_path), store, runtime)
             with patch.object(
                 controller,
                 "sync",
