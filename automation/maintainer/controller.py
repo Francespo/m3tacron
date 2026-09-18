@@ -59,11 +59,18 @@ class Controller:
         intent: str,
         decisions: dict[str, Any] | None = None,
         request_id: str | None = None,
+        session_key: str | None = None,
         dry_run: bool = False,
     ) -> dict[str, Any]:
         project = self.registry.get(project_id)
-        task = self.store.create_task(project_id, intent, decisions, request_id=request_id)
+        task = self.store.create_task(
+            project_id, intent, decisions, request_id=request_id, session_key=session_key
+        )
         if task.get("runtime_pid") or task["state"] != "draft":
+            # A later turn may be the first one able to supply routing metadata; keep the
+            # retained task reachable by the session that owns it.
+            if session_key and not task.get("session_key"):
+                task = self.store.update(task["id"], session_key=session_key)
             return {"task": task, "reused": True}
 
         prompt = implementation_prompt(

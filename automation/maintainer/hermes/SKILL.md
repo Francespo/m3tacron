@@ -1,10 +1,10 @@
 ---
 name: software-maintainer
 description: "Use the dedicated software maintainer controller to explore, implement, track, review, revise, approve, or stop work across registered software projects."
-version: 0.1.0
+version: 0.2.0
 metadata:
   hermes:
-    tags: [software, product, coding, paseo, pull-requests]
+    tags: [software, product, coding, pi, pull-requests]
 ---
 
 # Software Maintainer
@@ -59,7 +59,21 @@ Use only the structured tools exposed by the `software-maintainer` Hermes plugin
 - `maintainer_approve`
 - `maintainer_stop`
 
-Do not use the terminal to invoke the controller, Pi, Paseo, GitHub, SSH, a database, or Coolify. The direct-Pi controller operates asynchronously in isolated git worktrees. Never use shell `sleep`, polling loops, or long-running foreground commands. Later user messages or explicit `maintainer_status` calls resume coordination. No structured tool exposes merge or production deployment.
+Do not use the terminal to invoke the controller, Pi, Paseo, GitHub, SSH, a database, or Coolify. The direct-Pi controller operates asynchronously in isolated git worktrees. No structured tool exposes merge or production deployment.
+
+## Completion events
+
+Implementation runs asynchronously. When the worker finishes, the controller emits a completion event and it arrives on its own as a new turn in this conversation. Treat such a turn as authoritative: it carries the task id, the pull request URL, the preview URL, and the failure reason when the run failed.
+
+This means:
+
+- after `maintainer_start`, reply immediately with the task id and end the turn;
+- never call `maintainer_status` repeatedly to wait for completion;
+- never use shell `sleep`, waiting loops, or long-running foreground commands;
+- call `maintainer_status` only when the user explicitly asks for an update;
+- when a completion turn arrives, report the outcome to the user in their language.
+
+Waiting for a task, or spinning on status checks, burns the turn budget without learning anything new. The event will arrive.
 
 ## Starting work
 
@@ -72,7 +86,7 @@ Before calling `maintainer_start`:
 3. translate the outcome and decisions into English;
 4. briefly tell the user what will be implemented;
 5. call `maintainer_start` exactly once with a stable request ID derived from the Telegram chat, topic, and message;
-6. immediately report the task ID and that implementation is asynchronous.
+6. immediately report the task ID and that implementation is asynchronous, then end the turn.
 
 Do not require an issue or work-order template. Never retry with a different request ID; use `maintainer_status` for the retained task.
 

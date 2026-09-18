@@ -46,6 +46,10 @@ def parser() -> argparse.ArgumentParser:
         "--request-id",
         help="Stable idempotency key supplied by the conversational client",
     )
+    start.add_argument(
+        "--session-key",
+        help="Hermes routing key to wake when the task finishes",
+    )
     start.add_argument("--dry-run", action="store_true")
 
     status = sub.add_parser("status", help="Show and reconcile a task")
@@ -73,6 +77,27 @@ def parser() -> argparse.ArgumentParser:
 
     audit = sub.add_parser("audit", help="Show a task audit trail")
     audit.add_argument("--task", required=True)
+
+    notifications = sub.add_parser(
+        "notifications", help="Read or acknowledge pending completion wake-ups"
+    )
+    notifications.add_argument(
+        "--pending", action="store_true", help="List wake-ups not yet delivered"
+    )
+    notifications.add_argument(
+        "--ack",
+        type=int,
+        action="append",
+        default=[],
+        help="Mark a wake-up delivered",
+    )
+    notifications.add_argument(
+        "--attempt",
+        type=int,
+        action="append",
+        default=[],
+        help="Record a delivery attempt without acknowledging",
+    )
     return result
 
 
@@ -101,6 +126,7 @@ def main(argv: list[str] | None = None) -> int:
                 intent=args.intent,
                 decisions=args.decisions,
                 request_id=args.request_id,
+                session_key=args.session_key,
                 dry_run=args.dry_run,
             )
         elif args.command == "status":
@@ -122,6 +148,18 @@ def main(argv: list[str] | None = None) -> int:
             output = controller.stop(args.task, dry_run=args.dry_run)
         elif args.command == "audit":
             output = store.audit_events(args.task)
+        elif args.command == "notifications":
+            for notification_id in args.attempt:
+                store.note_notification_attempt(notification_id)
+            acknowledged = [
+                notification_id
+                for notification_id in args.ack
+                if store.mark_notification_delivered(notification_id)
+            ]
+            output = {
+                "acknowledged": acknowledged,
+                "pending": store.pending_notifications(),
+            }
         else:  # pragma: no cover
             raise AssertionError(args.command)
         print(json.dumps(output, ensure_ascii=False, indent=2, sort_keys=True))

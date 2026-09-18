@@ -176,12 +176,93 @@ class CommandTests(unittest.TestCase):
         self.assertTrue(any(item["id"] == task["id"] for item in tasks))
 
     def test_worker_resolves_pi_binary_minimally(self) -> None:
+        from automation.maintainer import worker
+
+        # The gateway sanitizes PATH before spawning plugins, so the binary must be absolute.
+        self.assertTrue(worker.PI_BINARY.startswith("/"))
+        self.assertTrue(worker.PI_BINARY.endswith("pi"))
+
+    def test_worker_notifies_the_owning_session(self) -> None:
         import inspect
 
         from automation.maintainer import worker
 
         source = inspect.getsource(worker.main)
-        self.assertIn("/root/.bun/bin/pi", source)
+        self.assertIn('notify(store, args, "pi.idle"', source)
+        self.assertIn('notify(store, args, "pi.failed"', source)
+
+    def test_notification_outbox_is_idempotent_and_acknowledged(self) -> None:
+        task = self.store.create_task("demo", "Add a feature", session_key="agent:coding:telegram:group:-1:2")
+
+        first = self.store.enqueue_notification(
+            task["id"], dedupe_key="turn-1", payload={"reason": "pi.idle"}, session_key=task["session_key"]
+        )
+        self.assertIsNotNone(first)
+        self.assertIsNone(
+            self.store.enqueue_notification(task["id"], dedupe_key="turn-1", payload={"reason": "pi.idle"})
+        )
+
+        second = self.store.enqueue_notification(task["id"], dedupe_key="turn-2", payload={"reason": "pi.idle"})
+        self.assertIsNotNone(second)
+        self.assertEqual([item["id"] for item in self.store.pending_notifications()], [first["id"], second["id"]])
+
+        self.store.note_notification_attempt(first["id"])
+        self.assertTrue(self.store.mark_notification_delivered(first["id"]))
+        self.assertFalse(self.store.mark_notification_delivered(first["id"]))
+        self.assertEqual([item["id"] for item in self.store.pending_notifications()], [second["id"]])
+        self.assertEqual(self.store.pending_notifications()[0]["payload"], {"reason": "pi.idle"})
+
+    def test_plugin_completion_event_routes_to_the_owning_session(self) -> None:
+        from automation.maintainer import hermes_plugin
+
+        task = self.store.create_task(
+            "demo",
+            "Add a min/max point-cost filter",
+            session_key="agent:coding:telegram:group:-100:2",
+        )
+        self.store.enqueue_notification(
+            task["id"], dedupe_key="turn-1", payload={"reason": "pi.idle"}, session_key=task["session_key"]
+        )
+        reconciled = {
+            "ok": True,
+            "task": {
+                **task,
+                "state": "review",
+                "pull_request_url": "https://github.com/o/r/pull/7",
+                "preview_url": "https://7.dev.example.com",
+                "worktree_head_sha": "deadbeef",
+            },
+        }
+        row = {
+            "id": 1,
+            "task_id": task["id"],
+            "session_key": task["session_key"],
+            "payload": {"reason": "pi.idle"},
+            "created_at": task["created_at"],
+        }
+        with patch.object(hermes_plugin, "_invoke", return_value=reconciled):
+            event = hermes_plugin.build_completion_event(row)
+        self.assertEqual(event["type"], "async_delegation")
+        self.assertEqual(event["session_key"], "agent:coding:telegram:group:-100:2")
+        self.assertEqual(event["status"], "completed")
+        self.assertIn("pull/7", event["summary"])
+        self.assertIn("7.dev.example.com", event["summary"])
+        self.assertIn("Do not merge", event["summary"])
+
+    def test_plugin_skips_events_without_a_routing_key(self) -> None:
+        from automation.maintainer import hermes_plugin
+
+        self.assertIsNone(
+            hermes_plugin.build_completion_event(
+                {"id": 1, "task_id": "abc", "session_key": None, "payload": {}, "created_at": None}
+            )
+        )
+        with patch.object(hermes_plugin, "_invoke", return_value={"ok": True, "task": {}}):
+            self.assertIsNone(
+                hermes_plugin.build_completion_event(
+                    {"id": 1, "task_id": "abc", "session_key": "2026_session", "payload": {}, "created_at": None}
+                )
+            )
 
     def test_feedback_requires_session_and_idle(self) -> None:
         controller = self._controller()
