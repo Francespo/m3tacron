@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import secrets
 import shutil
 import subprocess
 import sys
@@ -17,6 +18,27 @@ PROFILE_NAME = "coding"
 MODEL = "auto-coding"
 PROVIDER = "custom:manifest"
 PLUGIN_NAME = "software-maintainer"
+WEBHOOK_ROUTE = "maintainer-completion"
+WEBHOOK_HOST = "127.0.0.1"
+WEBHOOK_PORT = 8644
+
+# Rendered by the gateway into the agent prompt. Everything the completion turn needs is
+# in the payload, so the agent never has to guess what finished.
+WEBHOOK_PROMPT = (
+    "A software-maintainer task finished.\n\n"
+    "Task: {task_id}\n"
+    "Project: {project}\n"
+    "State: {state}\n"
+    "Pull request: {pull_request_url}\n"
+    "Preview: {preview_url}\n"
+    "Branch: {branch}\n"
+    "Head: {head_sha}\n"
+    "Runtime error: {error}\n\n"
+    "Report this outcome to the user in the language they are using. When a pull request "
+    "exists, call maintainer_review with the argument task = {task_id} so the review card "
+    "(required checks, preview reachability, shadow merge classification) is included. "
+    "Never merge and never deploy to production."
+)
 
 
 def run(command: list[str]) -> None:
@@ -100,7 +122,7 @@ def configure_profile(repository: Path) -> Path:
     return home
 
 
-def configure_route(chat_id: str) -> None:
+def configure_route(chat_id: str, thread_id: str | None = None) -> None:
     default_config_path = Path.home() / ".hermes" / "config.yaml"
     config = yaml.safe_load(default_config_path.read_text(encoding="utf-8")) or {}
     gateway = config.setdefault("gateway", {})
@@ -116,11 +138,45 @@ def configure_route(chat_id: str) -> None:
     routes[:] = [item for item in routes if item.get("name") != "coding-channel"]
     routes.append(route)
     default_config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    configure_completion_webhook(str(chat_id), thread_id)
+
+
+def configure_completion_webhook(chat_id: str, thread_id: str | None) -> None:
+    """Provision the loopback webhook route that wakes the agent on task completion.
+
+    The route binds to the coding profile and delivers the agent's reply into the Telegram
+    conversation. The HMAC secret is generated once and preserved on re-runs, and the file
+    stays 0600 because it holds that secret.
+    """
+    config_path = Path.home() / ".hermes" / "config.yaml"
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    platform = config.setdefault("platforms", {}).setdefault("webhook", {})
+    platform["enabled"] = True
+    extra = platform.setdefault("extra", {})
+    extra["host"] = WEBHOOK_HOST
+    extra["port"] = WEBHOOK_PORT
+    secret = extra.get("secret") or secrets.token_urlsafe(32)
+    extra["secret"] = secret
+    deliver_extra = {"chat_id": str(chat_id)}
+    if thread_id:
+        deliver_extra["message_thread_id"] = str(thread_id)
+    extra.setdefault("routes", {})[WEBHOOK_ROUTE] = {
+        "profile": PROFILE_NAME,
+        "description": "Wake the coding profile when a maintainer task finishes",
+        "secret": secret,
+        "skills": ["software-maintainer"],
+        "deliver": "telegram",
+        "deliver_extra": deliver_extra,
+        "prompt": WEBHOOK_PROMPT,
+    }
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    config_path.chmod(0o600)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--chat-id", help="Private Telegram group chat ID")
+    parser.add_argument("--thread-id", help="Telegram forum topic ID for completion notices")
     parser.add_argument("--restart-gateway", action="store_true")
     args = parser.parse_args()
     repository = Path(__file__).resolve().parent.parent
@@ -135,7 +191,7 @@ def main() -> int:
     home = configure_profile(repository)
     install_plugin(repository, home)
     if args.chat_id:
-        configure_route(args.chat_id)
+        configure_route(args.chat_id, args.thread_id)
         if args.restart_gateway:
             run(["hermes", "gateway", "restart"])
 
@@ -143,6 +199,7 @@ def main() -> int:
     print(f"Primary model: {PROVIDER}/{MODEL}")
     if args.chat_id:
         print(f"Telegram route configured for chat {args.chat_id}")
+        print(f"Completion webhook: http://{WEBHOOK_HOST}:{WEBHOOK_PORT}/p/{PROFILE_NAME}/webhooks/{WEBHOOK_ROUTE}")
     else:
         print("Telegram route pending. Re-run with --chat-id after creating the private group.")
     return 0
