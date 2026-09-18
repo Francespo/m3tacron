@@ -1,4 +1,4 @@
-"""Paseo and GitHub orchestration for maintainer tasks."""
+"""Direct Pi and GitHub orchestration for maintainer tasks."""
 
 from __future__ import annotations
 
@@ -9,11 +9,13 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from fnmatch import fnmatch
+from pathlib import Path
 from typing import Any
 
 from .config import ProjectConfig, ProjectRegistry
 from .policy import shadow_merge_decision
 from .prompts import feedback_prompt, implementation_prompt
+from .runtime import PiRuntime
 from .store import StateError, Store
 
 
@@ -45,9 +47,10 @@ def run_command(command: list[str], *, cwd: str | None = None) -> CommandResult:
 
 
 class Controller:
-    def __init__(self, registry: ProjectRegistry, store: Store):
+    def __init__(self, registry: ProjectRegistry, store: Store, runtime: PiRuntime):
         self.registry = registry
         self.store = store
+        self.runtime = runtime
 
     def start(
         self,
@@ -60,8 +63,9 @@ class Controller:
     ) -> dict[str, Any]:
         project = self.registry.get(project_id)
         task = self.store.create_task(project_id, intent, decisions, request_id=request_id)
-        if task.get("paseo_agent_id") or task["state"] != "draft":
+        if task.get("runtime_pid") or task["state"] != "draft":
             return {"task": task, "reused": True}
+
         prompt = implementation_prompt(
             task_id=task["id"],
             project_name=project.display_name,
@@ -70,63 +74,24 @@ class Controller:
             repository=project.repository,
             base_branch=project.base_branch,
         )
-        command = self._paseo_start_command(project, task, prompt)
         if dry_run:
-            return {"task": task, "command": command, "prompt": prompt, "dry_run": True}
+            command = self.runtime.start(project, task, prompt, dry_run=True)
+            return {"task": task, "command": command["command"], "prompt": prompt, "dry_run": True}
         try:
-            result = run_command(command, cwd=str(project.path))
-            payload = json.loads(result.stdout)
-            agent_id = payload.get("id") or payload.get("agentId")
-            workspace_id = payload.get("workspaceId")
-            if not agent_id:
-                raise ControllerError("Paseo did not return an agent ID")
-            self.store.update(
-                task["id"],
-                paseo_agent_id=str(agent_id),
-                paseo_workspace_id=str(workspace_id) if workspace_id else None,
-            )
-            return self.store.transition(
+            task = self.runtime.start(project, task, prompt)
+            task = self.store.transition(
                 task["id"],
                 "running",
-                event="paseo.started",
-                payload={"agent_id": agent_id},
+                event="pi.started",
+                payload={"pid": task.get("runtime_pid")},
             )
+            return {"task": task}
         except Exception as exc:
             self.store.update(task["id"], last_error=str(exc))
             self.store.transition(
-                task["id"], "failed", event="paseo.start_failed", payload={"error": str(exc)}
+                task["id"], "failed", event="pi.start_failed", payload={"error": str(exc)}
             )
             raise
-
-    @staticmethod
-    def _paseo_start_command(
-        project: ProjectConfig, task: dict[str, Any], prompt: str
-    ) -> list[str]:
-        return [
-            "paseo",
-            "run",
-            "--background",
-            "--provider",
-            project.provider,
-            "--new-workspace",
-            "worktree",
-            "--worktree-mode",
-            "branch-off",
-            "--worktree-slug",
-            f"maintainer-{task['id']}",
-            "--new-branch",
-            task["branch"],
-            "--base",
-            f"origin/{project.base_branch}",
-            "--label",
-            f"maintainer_task={task['id']}",
-            "--label",
-            f"project={project.project_id}",
-            "--title",
-            f"{project.display_name}: {task['intent'][:72]}",
-            "--json",
-            prompt,
-        ]
 
     def feedback(
         self,
@@ -139,13 +104,14 @@ class Controller:
         task = self.store.get_task(task_id)
         if task["state"] not in {"running", "review", "blocked", "failed"}:
             raise StateError(f"Feedback is not valid while task is {task['state']}")
-        if not task.get("paseo_agent_id"):
-            raise StateError("Task has no Paseo agent")
+        if not task.get("worktree_path") or not task.get("runtime_session_id"):
+            raise StateError("Task has no direct Pi session")
         prompt = feedback_prompt(task_id, feedback, attachments or [])
-        command = ["paseo", "send", task["paseo_agent_id"], prompt]
+        project = self.registry.get(task["project_id"])
         if dry_run:
-            return {"task": task, "command": command, "prompt": prompt, "dry_run": True}
-        run_command(command)
+            command = self.runtime.send(project, task, prompt, dry_run=True)
+            return {"task": task, "command": command["command"], "prompt": prompt, "dry_run": True}
+        self.runtime.send(project, task, prompt)
         self.store.transition(
             task_id,
             "running",
@@ -157,28 +123,20 @@ class Controller:
 
     def stop(self, task_id: str, *, dry_run: bool = False) -> dict[str, Any]:
         task = self.store.get_task(task_id)
-        command = ["paseo", "stop", task["paseo_agent_id"]] if task.get("paseo_agent_id") else []
         if dry_run:
-            return {"task": task, "command": command, "dry_run": True}
-        if command:
-            run_command(command)
+            return {"task": task, "pid": task.get("runtime_pid"), "dry_run": True}
+        if task.get("runtime_pid") or task.get("runtime_status") == "running":
+            self.runtime.stop(task)
         return self.store.transition(task_id, "stopped", event="task.stopped", force=True)
 
     def sync(self, task_id: str) -> dict[str, Any]:
         task = self.store.get_task(task_id)
         project = self.registry.get(task["project_id"])
         updates: dict[str, Any] = {}
-        agent_status = None
-        if task.get("paseo_agent_id"):
-            try:
-                raw = run_command(
-                    ["paseo", "inspect", task["paseo_agent_id"], "--json"]
-                ).stdout
-                details = json.loads(raw)
-                agent_status = details.get("status") or details.get("Status")
-            except (ControllerError, json.JSONDecodeError):
-                agent_status = "unknown"
-
+        agent_status = self.runtime.status(task)["status"]
+        worktree = task.get("worktree_path")
+        if worktree:
+            updates["worktree_head_sha"] = self._worktree_head(worktree)
         pr = self._find_pull_request(project, task["branch"])
         if pr:
             updates.update(
@@ -308,6 +266,15 @@ class Controller:
             ]
         )
         return rows[0] if rows else None
+
+    @staticmethod
+    def _worktree_head(worktree: str) -> str | None:
+        completed = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=worktree, capture_output=True, text=True, check=False
+        )
+        if completed.returncode:
+            return None
+        return completed.stdout.strip() or None
 
     @staticmethod
     def _preview_url(project: ProjectConfig, pr_number: int) -> str | None:

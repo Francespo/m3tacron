@@ -48,33 +48,33 @@ Distinguish these modes:
 
 ## Controller interface
 
-The executable is `scripts/maintainer` in a registered repository checkout. Use only these narrow operations:
+Use only the structured tools exposed by the `software-maintainer` Hermes plugin:
 
-```bash
-scripts/maintainer project-list
-scripts/maintainer start --project <id> --intent <english-outcome> --decisions <json> --request-id <stable-id>
-scripts/maintainer status --task <id>
-scripts/maintainer review --task <id>
-scripts/maintainer preview-deploy --task <id>
-scripts/maintainer feedback --task <id> --message <english-feedback> [--attachment <path>]
-scripts/maintainer approve --task <id>
-scripts/maintainer stop --task <id>
-scripts/maintainer audit --task <id>
-```
+- `maintainer_project_list`
+- `maintainer_task_list`
+- `maintainer_start`
+- `maintainer_status`
+- `maintainer_review`
+- `maintainer_feedback`
+- `maintainer_approve`
+- `maintainer_stop`
 
-Do not invoke raw Paseo, GitHub, SSH, database, or Coolify mutation commands when a controller action exists. Do not expose arbitrary shell execution as a user-facing maintainer action. `preview-deploy` is restricted to the task's discovered pull request and the project's registered Coolify application; it cannot deploy production.
+Do not use the terminal to invoke the controller, Pi, Paseo, GitHub, SSH, a database, or Coolify. The direct-Pi controller operates asynchronously in isolated git worktrees. Never use shell `sleep`, polling loops, or long-running foreground commands. Later user messages or explicit `maintainer_status` calls resume coordination. No structured tool exposes merge or production deployment.
 
 ## Starting work
 
-Before calling `start`:
+When implementation is clearly authorized, Hermes coordinates and Pi implements. Do not inspect implementation files or design the technical solution in depth before delegation.
+
+Before calling `maintainer_start`:
 
 1. identify the expected outcome;
-2. capture only confirmed product decisions;
+2. capture only explicit product decisions; do not invent detailed technical semantics;
 3. translate the outcome and decisions into English;
 4. briefly tell the user what will be implemented;
-5. call `start` with a stable request ID derived from the conversation turn and retain the returned task ID.
+5. call `maintainer_start` exactly once with a stable request ID derived from the Telegram chat, topic, and message;
+6. immediately report the task ID and that implementation is asynchronous.
 
-Do not require an issue or work-order template from the user.
+Do not require an issue or work-order template. Never retry with a different request ID; use `maintainer_status` for the retained task.
 
 ## Reviewing work
 

@@ -1,0 +1,32 @@
+name: software-maintainer
+label: Software Maintainer
+kind: backend
+version: 1.0.0
+description: >
+  Structured maintainer tools for Hermes: start, track, review, feed back,
+  approve, and stop autonomous software tasks across registered projects.
+  Each task runs in an isolated git worktree with a detached direct-Pi
+  session, a dedicated branch, and controller-enforced gates for GitHub
+  pull requests, Coolify previews, and product approval. No generic shell,
+  no merge, and no production deploy are exposed through these tools.
+author: Francespo
+provides_tools:
+  - maintainer_project_list
+  - maintainer_task_list
+  - maintainer_start
+  - maintainer_status
+  - maintainer_review
+  - maintainer_feedback
+  - maintainer_approve
+  - maintainer_stop
+requires_env:
+  - name: MAINTAINER_REPOSITORY
+    description: "Checkout that owns scripts/maintainer and automation/maintainer (e.g. /root/projects/m3tacron)"
+    password: false
+optional_env:
+  - name: MAINTAINER_STATE
+    description: "SQLite state path (default ~/.local/state/software-maintainer/state.db)"
+    password: false
+  - name: MAINTAINER_WORKTREE_ROOT
+    description: "Root for isolated task worktrees (default ~/.local/state/software-maintainer/worktrees)"
+    password: false

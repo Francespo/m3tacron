@@ -11,6 +11,7 @@ from typing import Any
 
 from .config import ConfigError, ProjectRegistry
 from .controller import Controller, ControllerError
+from .runtime import PiRuntime, PiRuntimeError
 from .store import StateError, Store
 
 DEFAULT_REGISTRY = Path(__file__).with_name("projects.json")
@@ -28,7 +29,7 @@ def json_value(value: str) -> dict[str, Any]:
 
 
 def parser() -> argparse.ArgumentParser:
-    result = argparse.ArgumentParser(description="Reusable Paseo software maintainer")
+    result = argparse.ArgumentParser(description="Reusable software maintainer with direct Pi runtime")
     result.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
     result.add_argument("--state", type=Path, default=DEFAULT_STATE)
     sub = result.add_subparsers(dest="command", required=True)
@@ -37,7 +38,7 @@ def parser() -> argparse.ArgumentParser:
     task_list = sub.add_parser("task-list", help="List tasks")
     task_list.add_argument("--project")
 
-    start = sub.add_parser("start", help="Start implementation in a Paseo worktree")
+    start = sub.add_parser("start", help="Start implementation in an isolated Git worktree with direct Pi")
     start.add_argument("--project", required=True)
     start.add_argument("--intent", required=True)
     start.add_argument("--decisions", type=json_value, default={})
@@ -80,7 +81,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         registry = ProjectRegistry.load(args.registry)
         store = Store(args.state)
-        controller = Controller(registry, store)
+        runtime = PiRuntime(store=store, state_root=args.state.parent)
+        controller = Controller(registry, store, runtime)
         if args.command == "project-list":
             output = [
                 {
@@ -124,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
             raise AssertionError(args.command)
         print(json.dumps(output, ensure_ascii=False, indent=2, sort_keys=True))
         return 0
-    except (ConfigError, StateError, ControllerError) as exc:
+    except (ConfigError, StateError, ControllerError, PiRuntimeError) as exc:
         print(json.dumps({"error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 2
 
