@@ -61,6 +61,8 @@ def _invoke(command: str, arguments: dict[str, Any]) -> dict[str, Any]:
         parsed = json.loads(stdout) if stdout else {}
     except json.JSONDecodeError:
         parsed = {"raw": stdout}
+    if isinstance(parsed, list):
+        parsed = {"items": parsed}
     if process.returncode:
         detail = process.stderr.strip() or stdout
         return {"ok": False, "error": detail, "exit_code": process.returncode, **parsed}

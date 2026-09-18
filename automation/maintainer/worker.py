@@ -28,7 +28,7 @@ def main() -> int:
     events_path = args.state.parent / "tasks" / args.task / "events.jsonl"
     events_path.parent.mkdir(parents=True, exist_ok=True)
     command = [
-        "pi",
+        str(Path("/root/.bun/bin/pi")),
         "--mode",
         "json",
         "--model",
