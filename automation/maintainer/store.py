@@ -79,10 +79,16 @@ class Store:
                     branch TEXT NOT NULL,
                     paseo_agent_id TEXT,
                     paseo_workspace_id TEXT,
+                    runtime_kind TEXT,
+                    runtime_session_id TEXT,
+                    runtime_pid INTEGER,
+                    runtime_status TEXT,
+                    worktree_path TEXT,
                     pull_request_number INTEGER,
                     pull_request_url TEXT,
                     preview_url TEXT,
                     head_sha TEXT,
+                    worktree_head_sha TEXT,
                     approved_sha TEXT,
                     last_error TEXT,
                     created_at TEXT NOT NULL,
@@ -105,6 +111,16 @@ class Store:
             }
             if "request_id" not in columns:
                 conn.execute("ALTER TABLE tasks ADD COLUMN request_id TEXT")
+            for column in (
+                "runtime_kind",
+                "runtime_session_id",
+                "runtime_pid",
+                "runtime_status",
+                "worktree_path",
+                "worktree_head_sha",
+            ):
+                if column not in columns:
+                    conn.execute(f"ALTER TABLE tasks ADD COLUMN {column} TEXT")
             conn.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS tasks_request_id "
                 "ON tasks(project_id, request_id) WHERE request_id IS NOT NULL"
@@ -201,6 +217,12 @@ class Store:
         allowed = {
             "paseo_agent_id",
             "paseo_workspace_id",
+            "runtime_kind",
+            "runtime_session_id",
+            "runtime_pid",
+            "runtime_status",
+            "worktree_path",
+            "worktree_head_sha",
             "pull_request_number",
             "pull_request_url",
             "preview_url",
