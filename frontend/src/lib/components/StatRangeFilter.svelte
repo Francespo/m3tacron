@@ -5,15 +5,24 @@
     type Props = {
         label?: string;
         hideLists?: boolean;
+        /** Show the current point-cost range row (lists page only). */
+        showPointsCost?: boolean;
     };
-    let { label = "Stat ranges", hideLists = false }: Props = $props();
+    let { label = "Stat ranges", hideLists = false, showPointsCost = false }: Props = $props();
     const baseRows = [
         { key: 'Lists', min: 'listsMin' as const, max: 'listsMax' as const },
         { key: 'Entries', min: 'entriesMin' as const, max: 'entriesMax' as const },
         { key: 'Games', min: 'gamesMin' as const, max: 'gamesMax' as const },
         { key: 'Win rate %', min: 'winRateMin' as const, max: 'winRateMax' as const },
     ];
-    let rows = $derived(hideLists ? baseRows.filter(r => r.key !== 'Lists') : baseRows);
+    // `costMin`/`costMax` filter the point cost shown on each list row
+    // (manifest-derived for XWA), so the row is labelled to match the row
+    // badge rather than the generic stat rows.
+    const costRow = { key: 'Point cost', min: 'costMin' as const, max: 'costMax' as const };
+    let rows = $derived([
+        ...(showPointsCost ? [costRow] : []),
+        ...(hideLists ? baseRows.filter(r => r.key !== 'Lists') : baseRows),
+    ]);
 </script>
 
 <div class="relative rounded-xl border border-white/5 bg-black/20 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] w-full self-start h-fit">
@@ -25,12 +34,13 @@
     {#if open}<div class="px-3.5 pb-3.5 pt-1 grid grid-cols-1 gap-2.5">
         {#each rows as row}
             <label class="flex items-center gap-1.5 flex-wrap">
-                <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary/80 w-[5.2rem] shrink-0">{row.key}</span>
+                <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary/80 w-[5.2rem] shrink-0" title={row.key === 'Point cost' ? 'Current point cost shown on each list row' : undefined}>{row.key}</span>
                 <span class="text-[11px] font-mono text-secondary shrink-0">from</span>
                 <input
                     type="number"
                     inputmode="numeric"
                     placeholder="—"
+                    aria-label={`${row.key} minimum`}
                     class="w-[58px] sm:w-[64px] bg-black border border-border-dark rounded px-2 py-1 text-xs font-mono text-primary placeholder:text-secondary/40 focus:border-primary focus:outline-none"
                     value={(filters as any)[row.min]}
                     oninput={(e) => ((filters as any)[row.min] = (e.currentTarget as HTMLInputElement).value)}
@@ -40,6 +50,7 @@
                     type="number"
                     inputmode="numeric"
                     placeholder="—"
+                    aria-label={`${row.key} maximum`}
                     class="w-[58px] sm:w-[64px] bg-black border border-border-dark rounded px-2 py-1 text-xs font-mono text-primary placeholder:text-secondary/40 focus:border-primary focus:outline-none"
                     value={(filters as any)[row.max]}
                     oninput={(e) => ((filters as any)[row.max] = (e.currentTarget as HTMLInputElement).value)}
