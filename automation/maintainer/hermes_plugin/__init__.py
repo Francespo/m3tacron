@@ -5,19 +5,24 @@ the controller CLI with argument arrays only — the model never receives a
 generic terminal for maintainer work.
 
 It also owns completion wake-ups. A detached Pi worker records its outcome in the
-controller's SQLite outbox; the notifier thread started here pushes that outcome
-onto Hermes' own completion queue, so the agent learns a task finished as a new
-turn instead of polling for it.
+controller's SQLite outbox; the notifier thread started here posts that outcome to
+the local Hermes webhook route, which turns it into a real agent turn delivered to
+the conversation. Nothing polls the model, and a wake-up is acknowledged only after
+the gateway accepts it.
 """
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
 import sqlite3
 import subprocess
 import threading
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -32,8 +37,9 @@ WORKTREE_ROOT = Path(
 # Cadence of the completion poll. This runs on a daemon thread inside Hermes, costs no
 # model tokens, and only reads a local SQLite file.
 NOTIFIER_INTERVAL_SECONDS = 5.0
-# A gateway rewrites its heartbeat every 30s; anything older than this is not serving turns.
-GATEWAY_HEARTBEAT_FRESH_SECONDS = 120.0
+WEBHOOK_ROUTE = "maintainer-completion"
+WEBHOOK_PROFILE = "coding"
+WEBHOOK_TIMEOUT_SECONDS = 20.0
 _notifier_lock = threading.Lock()
 _notifier_thread: threading.Thread | None = None
 
@@ -125,25 +131,69 @@ def resolve_session_key(session_id: str | None) -> str | None:
     return row[0] if row and row[0] else None
 
 
-# ── Completion notifier ─────────────────────────────────────────────────────
+# ── Webhook wake-ups ────────────────────────────────────────────────────────
 
 
-def gateway_is_live() -> bool:
-    """True when a gateway owns this Hermes home and is still serving turns.
+def webhook_settings() -> dict[str, Any] | None:
+    """Read the maintainer webhook route from the Hermes configuration.
 
-    Only a live gateway drains the completion queue; without this guard a short-lived
-    CLI process could acknowledge a wake-up that nothing will ever deliver.
+    One source of truth: the same file the gateway loads, so the HMAC secret and the
+    route can never drift apart.
     """
-    heartbeat = _hermes_home() / "state" / "gateway.heartbeat"
     try:
-        if time.time() - heartbeat.stat().st_mtime > GATEWAY_HEARTBEAT_FRESH_SECONDS:
-            return False
-        payload = json.loads(heartbeat.read_text() or "{}")
-        pid = int(payload.get("pid") or 0)
-        if pid <= 0:
-            return False
-        os.kill(pid, 0)
-        return True
+        import yaml
+
+        config = yaml.safe_load((_hermes_home() / "config.yaml").read_text(encoding="utf-8")) or {}
+    except Exception:
+        return None
+    platform = ((config.get("platforms") or {}).get("webhook") or {})
+    if not platform.get("enabled"):
+        return None
+    extra = platform.get("extra") or {}
+    route = (extra.get("routes") or {}).get(WEBHOOK_ROUTE) or {}
+    secret = route.get("secret") or extra.get("secret")
+    if not secret:
+        return None
+    host = extra.get("host") or "127.0.0.1"
+    port = extra.get("port") or 8644
+    return {
+        "url": f"http://{host}:{port}/p/{WEBHOOK_PROFILE}/webhooks/{WEBHOOK_ROUTE}",
+        "secret": str(secret),
+    }
+
+
+def post_wakeup(payload: dict[str, Any]) -> bool:
+    """POST one signed wake-up to the local Hermes webhook route.
+
+    True only on a 2xx response: the gateway accepted the event and will run the turn,
+    which is what makes acknowledging the outbox row safe. The signature is HMAC-SHA256
+    over ``<timestamp>.<body>`` (Hermes' replay-resistant V2 scheme).
+    """
+    settings = webhook_settings()
+    if settings is None:
+        return False
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    timestamp = str(int(time.time()))
+    signature = hmac.new(
+        settings["secret"].encode("utf-8"),
+        timestamp.encode("ascii") + b"." + body,
+        hashlib.sha256,
+    ).hexdigest()
+    request = urllib.request.Request(
+        settings["url"],
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "X-Webhook-Timestamp": timestamp,
+            "X-Webhook-Signature-V2": signature,
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=WEBHOOK_TIMEOUT_SECONDS) as response:
+            return 200 <= response.status < 300
+    except urllib.error.HTTPError:
+        return False
     except Exception:
         return False
 
@@ -175,82 +225,42 @@ def pending_notifications() -> list[dict[str, Any]]:
     return result
 
 
-def build_completion_event(notification: dict[str, Any]) -> dict[str, Any] | None:
-    """Turn one outbox row into a Hermes background-completion event.
-
-    ``async_delegation`` is the only event type the gateway turns into a fresh turn.
-    ``delegation_id`` is deliberately outside Hermes' durable ledger: the controller
-    already guarantees exactly-once delivery through its own outbox, and Hermes treats
-    an unknown id as a legacy event (no ledger claim, no dropped delivery).
-    """
-    session_key = str(notification.get("session_key") or "").strip()
-    if not session_key.startswith("agent:"):
-        return None
+def build_wakeup_payload(notification: dict[str, Any]) -> dict[str, Any] | None:
+    """Reconcile one outbox row into the flat payload the webhook prompt renders."""
     task_id = str(notification.get("task_id") or "")
     reconciled = _invoke("status", {"task": task_id})
     if not reconciled.get("ok", False):
         return None
     task = reconciled.get("task") or {}
-    payload = notification.get("payload") or {}
-    failed = payload.get("reason") == "pi.failed"
-
-    lines: list[str] = []
-    pull_request = task.get("pull_request_url")
-    preview = task.get("preview_url")
-    if pull_request:
-        lines.append(f"Pull request: {pull_request}")
-    if preview:
-        lines.append(f"Preview: {preview}")
-    if failed:
-        lines.append(f"Runtime error: {task.get('last_error') or payload.get('error') or 'unknown'}")
-    lines.append(f"Task state: {task.get('state')}")
-    lines.append(f"Branch: {task.get('branch')}")
-    lines.append(f"Worktree head: {task.get('worktree_head_sha')}")
-    lines.append(
-        "Report this outcome to the user in their language, using maintainer_review for the "
-        "review card when a pull request exists. Do not merge and do not deploy."
-    )
-    completed_at = _epoch(notification.get("created_at")) or time.time()
+    reason = (notification.get("payload") or {}).get("reason")
+    error = ""
+    if reason == "pi.failed":
+        error = str(
+            task.get("last_error") or (notification.get("payload") or {}).get("error") or "unknown"
+        )
     return {
-        "type": "async_delegation",
-        "delegation_id": f"maintainer-{task_id}-{notification.get('id')}",
-        "session_key": session_key,
-        "dispatched_at": _epoch(task.get("created_at")),
-        "completed_at": completed_at,
-        "status": "failed" if failed else "completed",
-        "summary": "\n".join(lines),
-        "goal": task.get("intent") or "",
-        "role": "maintainer",
-        "model": "maintainer/direct-pi",
+        "task_id": task_id,
+        "project": str(task.get("project_id") or ""),
+        "state": str(task.get("state") or ""),
+        "pull_request_url": str(task.get("pull_request_url") or "none"),
+        "preview_url": str(task.get("preview_url") or "none"),
+        "branch": str(task.get("branch") or ""),
+        "head_sha": str(task.get("worktree_head_sha") or ""),
+        "error": error or "none",
+        "intent": str(task.get("intent") or ""),
     }
 
 
-def _epoch(value: Any) -> float | None:
-    if not value:
-        return None
-    try:
-        from datetime import datetime
-
-        return datetime.fromisoformat(str(value)).timestamp()
-    except ValueError:
-        return None
-
-
-def _notifier_loop() -> None:  # pragma: no cover - requires a live gateway
-    from tools.process_registry import process_registry
-
+def _notifier_loop() -> None:  # pragma: no cover - needs a running gateway
     while True:
         time.sleep(NOTIFIER_INTERVAL_SECONDS)
-        if not gateway_is_live():
-            continue
         try:
             for notification in pending_notifications():
-                event = build_completion_event(notification)
-                if event is None:
+                payload = build_wakeup_payload(notification)
+                if payload is not None and post_wakeup(payload):
+                    _invoke("notifications", {"ack": [notification["id"]]})
+                else:
                     _invoke("notifications", {"attempt": [notification["id"]]})
-                    continue
-                process_registry.completion_queue.put(event)
-                _invoke("notifications", {"ack": [notification["id"]]})
         except Exception:
             continue
 
