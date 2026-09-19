@@ -99,9 +99,22 @@ PACK_SUFFIXES = [
     "-lsl",
 ]
 
-def get_pilot_info(xws_pilot: str, source: DataSource = DataSource.XWA) -> dict | None:
-    """Get full pilot info from XWS ID."""
+def get_pilot_info(
+    xws_pilot: str,
+    source: DataSource = DataSource.XWA,
+    upgrades: list[str] | None = None,
+) -> dict | None:
+    """Get full pilot info from XWS ID.
+
+    When ``upgrades`` is provided, a pre-split pilot reference paired with an
+    absorbed upgrade resolves to the same card on the integrated variant
+    chassis. See ``xwing_data.aliases``.
+    """
     pilots = load_all_pilots(source)
+    if upgrades is not None:
+        from .aliases import resolve_pilot_reference
+
+        xws_pilot = resolve_pilot_reference(xws_pilot, upgrades, source).pilot_xws
     if xws_pilot in pilots:
         return pilots[xws_pilot]
 
