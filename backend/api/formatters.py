@@ -1,4 +1,6 @@
 from .schemas import ListData, PilotData, UpgradeData
+from ..utils.list_keys import iter_upgrade_ids
+from ..utils.xwing_data.aliases import resolve_pilot_reference
 from ..utils.xwing_data.pilots import get_pilot_info
 from ..utils.xwing_data.ships import get_ship_icon_name
 from ..utils.xwing_data.upgrades import get_upgrade_info, get_upgrade_slot
@@ -58,10 +60,17 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
     
     for p in pilots:
         pid = p.get("id") or p.get("xws") or p.get("name")
-        pilot_info = get_pilot_info(pid, source=source) or {}
+
+        # Read-time resolution: a pre-split reference carrying an absorbed
+        # upgrade is displayed as the integrated variant it represents, and
+        # that upgrade is no longer listed as its own card.
+        upgrades_data = p.get("upgrades", {})
+        resolution = resolve_pilot_reference(pid, iter_upgrade_ids(upgrades_data), source)
+        absorbed_upgrades = resolution.absorbed_upgrades
+        pilot_info = get_pilot_info(resolution.pilot_xws or pid, source=source) or {}
 
         pilot_name = pilot_info.get("name") or p.get("name") or pid
-        ship_xws = pilot_info.get("ship_xws") or p.get("ship", "")
+        ship_xws = resolution.ship_xws or pilot_info.get("ship_xws") or p.get("ship", "")
         ship_name = pilot_info.get("ship", "Unknown Ship")
         ship_icon_name = get_ship_icon_name(ship_xws)
         pilot_image = pilot_info.get("image", "")
@@ -82,7 +91,6 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
         calculated_points += pilot_points
         
         rich_upgrades = []
-        upgrades_data = p.get("upgrades", {})
         
         # The raw list_json may store upgrades either as a dict of slot -> ids,
         # a flat list of id strings, or a flat list of {"xws": id} entries
@@ -98,7 +106,7 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
                 if not isinstance(items, list): continue
                 for raw_item in items:
                     item_id = _norm_upgrade_id(raw_item)
-                    if not item_id:
+                    if not item_id or item_id in absorbed_upgrades:
                         continue
                     upg_info = get_upgrade_info(item_id, source=source) or {}
                     norm_slot = slot.lower()
@@ -122,7 +130,7 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
         elif isinstance(upgrades_data, list):
             for raw_item in upgrades_data:
                 item_id = _norm_upgrade_id(raw_item)
-                if not item_id:
+                if not item_id or item_id in absorbed_upgrades:
                     continue
                 upg_info = get_upgrade_info(item_id, source=source) or {}
                 slot = get_upgrade_slot(item_id)
@@ -146,7 +154,7 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
                 ))
         
         rich_pilots.append(PilotData(
-            xws=pid,
+            xws=resolution.pilot_xws or pid,
             ship_xws=ship_xws or p.get("ship", ""),  # fall back to original list_json ship field
             faction_xws=pilot_info.get("faction") or p.get("faction", ""),  # also fall back
             cost=pilot_points,  # already computed with fallbacks above
