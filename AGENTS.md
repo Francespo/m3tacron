@@ -15,7 +15,7 @@ For deep work on a specific folder, also read that folder's `codemap.md`.
 
 - Commit in verified logical increments as work progresses, not as one large commit at the end.
 - Push the branch immediately after each commit. No work may exist only in the local worktree.
-- A partial but pushed artifact is strictly better than a complete but lost one, because the runtime can be interrupted. A maintainer task on this repository once ran for about 1h45m and lost all of its work when the runtime crashed, because nothing had been committed or pushed.
+- A partial but pushed artifact is strictly better than a complete but lost one, because agent runtimes can be interrupted and uncommitted work is unrecoverable.
 - Keep the branch buildable at every commit.
 
 ## Issue Creation
