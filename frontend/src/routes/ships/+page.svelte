@@ -18,6 +18,7 @@
     import { filters } from "$lib/stores/filters.svelte";
     import { scheduleSync } from "$lib/sync/urlSync.svelte";
     import { xwingData, type XWingSource } from "$lib/stores/xwingData.svelte";
+    import { shipDisplayName } from "$lib/data/shipLabels";
     import { page as appPage } from "$app/state";
 
     let { data } = $props();
@@ -116,7 +117,7 @@
                 const apiData = apiMap.get(xws);
                 merged.push({
                     xws,
-                    name: ship.name,
+                    name: shipDisplayName(xws, ship.name),
                     factions: ship.factions ?? [],
                     games_count: apiData?.games_count ?? 0,
                     wins: apiData?.wins ?? 0,
