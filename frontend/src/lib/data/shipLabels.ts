@@ -13,13 +13,14 @@
  * Naming evidence (2026-09-19): YASB 2's XWA ship table spells the split pair
  * `BTA-NR2 Y-wing` / `BTA-NR2-W Y-wing` (the variant entry carries
  * `icon:"btanr2ywing"`, `shields:5`, `chassis:"Devastating Barrage"`), and
- * the XWA points document 50P2.1 prints `BTA-NR2-W Y-Wing`. The variant label
- * follows YASB 2 including its casing; the plain chassis keeps the vendored
- * spelling. See `backend/utils/xwing_data/labels.py` for the full quotes.
+ * the XWA points document 50P2.1 prints `BTA-NR2-W Y-Wing`. Both sources
+ * agree on the `-W` marker and differ only on the case of `wing`; the label
+ * follows the XWA document and the app's own plain label so the family reads
+ * consistently. See `backend/utils/xwing_data/labels.py` for the full quotes.
  */
 export const SHIP_DISPLAY_LABELS: Record<string, string> = {
     btanr2ywing: "BTA-NR2 Y-Wing",
-    btanr2wywing: "BTA-NR2-W Y-wing",
+    btanr2wywing: "BTA-NR2-W Y-Wing",
 };
 
 export function shipDisplayName(xws: string, fallback?: string | null): string {
