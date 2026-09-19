@@ -1,5 +1,8 @@
 from .schemas import ListData, PilotData, UpgradeData
+from ..utils.list_keys import iter_upgrade_ids
+from ..utils.xwing_data.aliases import resolve_pilot_reference
 from ..utils.xwing_data.pilots import get_pilot_info
+from ..utils.xwing_data.labels import get_ship_display_name
 from ..utils.xwing_data.ships import get_ship_icon_name
 from ..utils.xwing_data.upgrades import get_upgrade_info, get_upgrade_slot
 from ..data_structures.factions import Faction, get_faction_char
@@ -58,11 +61,20 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
     
     for p in pilots:
         pid = p.get("id") or p.get("xws") or p.get("name")
-        pilot_info = get_pilot_info(pid, source=source) or {}
+        # Contextual, read-time resolution of deprecated pre-split references:
+        # a legacy pilot + trigger upgrade becomes the integrated variant pilot
+        # and the absorbed upgrade is not listed as a separate card.
+        resolution = resolve_pilot_reference(
+            pid or "", iter_upgrade_ids(p.get("upgrades", {})), source
+        )
+        lookup_pid = resolution.pilot_xws or pid
+        pilot_info = get_pilot_info(lookup_pid, source=source) or {}
 
         pilot_name = pilot_info.get("name") or p.get("name") or pid
         ship_xws = pilot_info.get("ship_xws") or p.get("ship", "")
-        ship_name = pilot_info.get("ship", "Unknown Ship")
+        ship_name = get_ship_display_name(
+            ship_xws, pilot_info.get("ship", "Unknown Ship")
+        )
         ship_icon_name = get_ship_icon_name(ship_xws)
         pilot_image = pilot_info.get("image", "")
 
@@ -100,6 +112,8 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
                     item_id = _norm_upgrade_id(raw_item)
                     if not item_id:
                         continue
+                    if item_id in resolution.absorbed_upgrades:
+                        continue
                     upg_info = get_upgrade_info(item_id, source=source) or {}
                     norm_slot = slot.lower()
                     if norm_slot == "configuration": norm_slot = "config"
@@ -124,6 +138,8 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
                 item_id = _norm_upgrade_id(raw_item)
                 if not item_id:
                     continue
+                if item_id in resolution.absorbed_upgrades:
+                    continue
                 upg_info = get_upgrade_info(item_id, source=source) or {}
                 slot = get_upgrade_slot(item_id)
                 norm_slot = slot.lower()
@@ -146,7 +162,7 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
                 ))
         
         rich_pilots.append(PilotData(
-            xws=pid,
+            xws=lookup_pid or pid,
             ship_xws=ship_xws or p.get("ship", ""),  # fall back to original list_json ship field
             faction_xws=pilot_info.get("faction") or p.get("faction", ""),  # also fall back
             cost=pilot_points,  # already computed with fallbacks above

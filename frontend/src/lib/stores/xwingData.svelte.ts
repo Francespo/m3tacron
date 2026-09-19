@@ -4,6 +4,8 @@
  * Loads the pre-generated monolithic manifest (xwing-data.json).
  */
 
+import { SHIP_DISPLAY_LABELS } from '$lib/data/shipLabels';
+
 export type XWingSource = 'xwa' | 'legacy';
 
 export interface XWingStat {
@@ -56,6 +58,12 @@ export interface XWingShip {
     /** Some manifests keep pilots inside ship, but our unified manifest separates them. Optional here. */
     pilots?: any[]; 
     icon?: string;
+    /** Chassis ability. The manifest keeps it per pilot; the backend ship
+     *  info exposes it as `ship_ability`. */
+    shipAbility?: {
+        name: string;
+        text: string;
+    };
     factions: string[];
     /** Epic-only ships (no standard-legal pilots). Used by the ships page
      *  epic toggle: only shown when "Include Epic" is on. */
@@ -195,7 +203,13 @@ class XwingDataStore {
     getShip(xws: string): XWingShip | null {
         const d = this.getData();
         if (!d || !d.ships) return null;
-        return d.ships[xws] ?? null;
+        const ship = d.ships[xws] ?? null;
+        if (!ship) return null;
+        // Display-only label overlay (see $lib/data/shipLabels). Ships without
+        // a label keep the original object, so nothing else changes identity.
+        const label = SHIP_DISPLAY_LABELS[xws];
+        if (!label || label === ship.name) return ship;
+        return { ...ship, name: label };
     }
 
     /**

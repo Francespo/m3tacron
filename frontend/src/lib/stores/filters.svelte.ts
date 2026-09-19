@@ -15,6 +15,7 @@
  */
 
 import { getFormatFullLabel } from "$lib/data/formats";
+import { getShipDisplayName } from "$lib/data/shipLabels";
 import { isPendingSync, resolvePendingSync, markHydrated } from "$lib/sync/urlSync.svelte";
 
 // ---------------------------------------------------------------------------
@@ -168,7 +169,7 @@ function buildActiveChips(): FilterChip[] {
     for (const c of selectedCountries) chips.push({ key: `country:${c}`, label: c });
     for (const c of selectedCities) chips.push({ key: `city:${c}`, label: c });
     for (const p of selectedSources) chips.push({ key: `source:${p}`, label: p });
-    for (const s of selectedShips) chips.push({ key: `ship:${s}`, label: `Ship: ${s}` });
+    for (const s of selectedShips) chips.push({ key: `ship:${s}`, label: `Ship: ${getShipDisplayName(s)}` });
     const seenPilotBases = new Set<string>();
     const uniquePilots: string[] = [];
     for (const p of selectedPilots) {

@@ -1,8 +1,9 @@
 from ...data_structures.factions import Faction
+from .aliases import resolve_pilot_reference
 from .core import get_faction_name
 from .pilots import get_pilot_info
 from .upgrades import get_upgrade_name
-from ...utils.list_keys import coerce_list_json
+from ...utils.list_keys import coerce_list_json, iter_upgrade_ids
 
 def normalize_faction(faction_str: str) -> str:
     return Faction.from_xws(faction_str).value
@@ -45,8 +46,13 @@ def parse_xws(xws: dict) -> dict:
     for p in pilots_data:
         p_xws = p.get("id") or p.get("name")
         if not p_xws: continue
-        
-        pilot_info = get_pilot_info(p_xws)
+
+        upgrades_raw = p.get("upgrades", {})
+        upgrade_ids = iter_upgrade_ids(upgrades_raw)
+        resolution = resolve_pilot_reference(p_xws, upgrade_ids)
+        resolved_pilot_xws = resolution.pilot_xws or p_xws
+
+        pilot_info = get_pilot_info(resolved_pilot_xws)
         pilot_name = pilot_info["name"] if pilot_info else p_xws
         ship_name = pilot_info.get("ship", "Unknown Ship") if pilot_info else "Unknown Ship"
         
@@ -56,19 +62,23 @@ def parse_xws(xws: dict) -> dict:
              pst_points = pilot_info.get("cost", 0)
 
         processed_upgrades = []
-        upgrades_raw = p.get("upgrades", {})
-        for u_type, u_list in upgrades_raw.items():
-            for u_xws in u_list:
-                u_name = get_upgrade_name(u_xws)
-                processed_upgrades.append({
-                    "type": u_type.capitalize(),
-                    "name": u_name,
-                    "xws": u_xws
-                })
+        if isinstance(upgrades_raw, dict):
+            for u_type, u_list in upgrades_raw.items():
+                if not isinstance(u_list, list):
+                    u_list = [u_list]
+                for u_xws in u_list:
+                    if u_xws in resolution.absorbed_upgrades:
+                        continue  # baked into the resolved variant chassis
+                    u_name = get_upgrade_name(u_xws)
+                    processed_upgrades.append({
+                        "type": u_type.capitalize(),
+                        "name": u_name,
+                        "xws": u_xws
+                    })
         
         output["pilots"].append({
             "name": pilot_name,
-            "xws": p_xws,  # Include XWS ID for image lookups
+            "xws": resolved_pilot_xws,  # canonical id after read-time resolution
             "ship": ship_name,
             "points": pst_points,
             "upgrades": processed_upgrades

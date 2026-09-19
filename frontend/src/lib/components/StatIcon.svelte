@@ -173,6 +173,7 @@
         xiclasslightshuttle: "Q",
         tiewiwhispermodifiedinterceptor: "#",
         btanr2ywing: "{",
+        btanr2wywing: "{", // integrated-loadout Y-Wing variant shares the chassis glyph
         clonez95headhunter: "}",
         rogueclassstarfighter: "|",
         st70assaultship: "'",
