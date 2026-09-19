@@ -2,6 +2,8 @@ import json
 from functools import lru_cache
 from ...data_structures.data_source import DataSource
 from .core import get_data_dir
+from .labels import ship_display_name
+from .assets import apply_card_art_fallbacks
 
 @lru_cache(maxsize=4)
 def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
@@ -24,6 +26,10 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                     ship_data = json.load(f)
                 
                 ship_name = ship_data.get("name", "Unknown Ship")
+                ship_xws = ship_data.get("xws", "")
+                # Split chassis share the vendored `name`, so the pilot's ship
+                # label goes through the same display layer as the ship list.
+                ship_name = ship_display_name(ship_xws, ship_name)
                 ship_icon = ship_data.get("icon", "")
                 faction = ship_data.get("faction", "")
                 ship_size = ship_data.get("size", "Small")
@@ -56,7 +62,7 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                             "name": pilot.get("name", xws_id),
                             "caption": pilot.get("caption", ""),
                             "ship": ship_name,
-                            "ship_xws": ship_data.get("xws", ""),
+                            "ship_xws": ship_xws,
                             "ship_icon": ship_icon,
                             "faction": faction,
                             "image": pilot.get("image", ""),
@@ -87,7 +93,9 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                         }
             except Exception:
                 continue
-    return all_pilots
+    # Split chassis whose upstream card PNGs do not exist borrow the donor
+    # chassis' card (read-time only; see xwing_data.assets for the inventory).
+    return apply_card_art_fallbacks(all_pilots)
 
 PACK_SUFFIXES = [
     "-armedanddangerous",
@@ -99,9 +107,22 @@ PACK_SUFFIXES = [
     "-lsl",
 ]
 
-def get_pilot_info(xws_pilot: str, source: DataSource = DataSource.XWA) -> dict | None:
-    """Get full pilot info from XWS ID."""
+def get_pilot_info(
+    xws_pilot: str,
+    source: DataSource = DataSource.XWA,
+    upgrades: list[str] | None = None,
+) -> dict | None:
+    """Get full pilot info from XWS ID.
+
+    When ``upgrades`` is provided, a pre-split pilot reference paired with an
+    absorbed upgrade resolves to the same card on the integrated variant
+    chassis. See ``xwing_data.aliases``.
+    """
     pilots = load_all_pilots(source)
+    if upgrades is not None:
+        from .aliases import resolve_pilot_reference
+
+        xws_pilot = resolve_pilot_reference(xws_pilot, upgrades, source).pilot_xws
     if xws_pilot in pilots:
         return pilots[xws_pilot]
 
