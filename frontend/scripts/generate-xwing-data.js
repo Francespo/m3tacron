@@ -35,6 +35,13 @@ function resolveExternalDataRoot() {
 const EXTERNAL_DATA_ROOT = resolveExternalDataRoot();
 const FRONTEND_STATIC_ROOT = path.join(FRONTEND_ROOT, 'static');
 
+// Human-facing ship labels for XWA upgrade-to-chassis splits. Mirrors
+// SHIP_SPLIT_ALIASES in backend/utils/xwing_data/aliases.py (kept in the shared
+// JSON so the frontend label layer and this generator cannot drift).
+const SHIP_DISPLAY_LABELS = JSON.parse(
+    fs.readFileSync(path.join(FRONTEND_ROOT, 'src/lib/data/shipLabels.json'), 'utf-8')
+);
+
 console.log(`Resolved external data root: ${EXTERNAL_DATA_ROOT}`);
 console.log(`Resolved frontend static root: ${FRONTEND_STATIC_ROOT}`);
 
@@ -102,7 +109,7 @@ function processSource(source) {
                     // Store Ship Info
                     if (!output.ships[shipXws]) {
                         output.ships[shipXws] = {
-                            name: shipData.name,
+                            name: SHIP_DISPLAY_LABELS[shipXws] ?? shipData.name,
                             xws: shipData.xws,
                             size: shipData.size,
                             icon: shipData.icon,

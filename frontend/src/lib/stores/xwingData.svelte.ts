@@ -4,6 +4,8 @@
  * Loads the pre-generated monolithic manifest (xwing-data.json).
  */
 
+import { getShipDisplayName } from '$lib/data/shipLabels';
+
 export type XWingSource = 'xwa' | 'legacy';
 
 export interface XWingStat {
@@ -191,11 +193,34 @@ class XwingDataStore {
 
     /**
      * Get ship details by XWS.
+     *
+     * The display `name` is passed through the ship-label layer so split
+     * chassis (which share one vendored name) read distinctly; the `xws` id is
+     * returned unchanged.
      */
     getShip(xws: string): XWingShip | null {
         const d = this.getData();
         if (!d || !d.ships) return null;
-        return d.ships[xws] ?? null;
+        const ship = d.ships[xws] ?? null;
+        if (!ship) return null;
+        const name = getShipDisplayName(xws, ship.name);
+        return name === ship.name ? ship : { ...ship, name };
+    }
+
+    /**
+     * Get the chassis ability shared by a ship's pilots (e.g. "Devastating
+     * Barrage" for the integrated-loadout Y-Wing). Returns null when the
+     * manifest has no ability for the chassis. The ability lives on the
+     * pilots in xwing-data2, not on the ship entry.
+     */
+    getShipAbility(shipXws: string): { name: string; text: string } | null {
+        const d = this.getData();
+        if (!d?.pilots || !shipXws) return null;
+        for (const pilot of Object.values(d.pilots) as XWingPilot[]) {
+            if (pilot.ship !== shipXws) continue;
+            if (pilot.shipAbility?.name) return pilot.shipAbility;
+        }
+        return null;
     }
 
     /**
