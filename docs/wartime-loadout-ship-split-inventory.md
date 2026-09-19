@@ -266,3 +266,12 @@ Repository checks run for this pass: none needed, because no code changed. A `gi
 ## 12. Non-destructive confirmation
 
 This pass changed one file only: this report. No source, schema, seed, migration, data or database row was modified; no PR was merged; nothing was deployed to production. The live checks above were read-only GETs/browser reads against production; the SQL was read-only.
+
+## 13. Decisions (phase-1 implementation)
+
+Recorded during the phase-1 implementation that landed on the same branch/PR as this report.
+
+1. **History is resolved at read time; no rows are rewritten.** The deprecated-ship alias resolver (`backend/utils/xwing_data/aliases.py`) maps a pre-split reference contextually at lookup time. No `UPDATE`, no backfill, no migration, no schema or vendored-data change was made. Old XWS codes and old links keep resolving to the variant they represent, and the old form and new form of one squad collapse to one `canonical_signature` / `ship_list`.
+2. **`pilot_ship_mapping` is kept but becomes a derived, regenerable cache.** For the later analytics phase, the table should be treated as a projection produced by the resolver (pilot id -> resolved `ship_xws`), not as a source of truth. It can be rebuilt from the manifest + alias map at any time, so analytics can rejoin on the resolved identity without a historical data migration.
+3. **Open question for the product owner — Legacy-source resolution.** `btanr2ywing` + `wartimeloadout` resolves to `btanr2wywing` only in the XWA source; the Legacy dataset has no integrated variant, so the resolver deliberately leaves Legacy references untouched (`btanr2ywing`, pilot `zoriibliss`). This may be correct if the Legacy source represents the pre-split points system, but it is not fixed speculatively. Product decision needed: should Legacy references also advertise the integrated identity, or stay pre-split?
+4. **Still deferred (unchanged from §9):** the `pilot_ship_mapping` refresh/analytics rejoin, any materialisation or migration of historical rows, and the residual `wartimeloadout` upgrade row beyond what read-time absorption already achieves.
