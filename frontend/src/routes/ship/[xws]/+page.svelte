@@ -19,11 +19,8 @@
      */
     import { xwingData } from "$lib/stores/xwingData.svelte";
     import { filters } from "$lib/stores/filters.svelte";
-    import {
-        getFactionColor,
-        getFactionLabel,
-        getWinRateColor,
-    } from "$lib/data/factions";
+    import { getFactionColor, getFactionLabel, getWinRateColor } from "$lib/data/factions";
+    import { getShipDisplayName } from "$lib/data/shipLabels";
     import ListRowCard from "$lib/components/ListRowCard.svelte";
     import BackLink from "$lib/components/BackLink.svelte";
     import SortBy from "$lib/components/SortBy.svelte";
@@ -204,8 +201,9 @@
     }
 
     // Pulls the best-known display name for the ship. The +page.ts already
-    // returns info.name (from xwingData2), so this is just a safety net.
-    let shipName = $derived(info.name || data.shipXws);
+    // returns info.name (from xwingData2), so this is just a safety net — and
+    // the split-label overlay that separates the two Y-Wing chassis.
+    let shipName = $derived(getShipDisplayName(data.shipXws, info.name || data.shipXws));
     let shipIconUrl = $derived(
         info.icon || xwingData.getShip(data.shipXws)?.icon || null,
     );
@@ -531,6 +529,29 @@
                                 </div>
                             {/if}
                         {/each}
+                    </div>
+                {/if}
+
+                <!-- Chassis ability. Every chassis that declares one (the
+                     integrated Y-Wing shows "Devastating Barrage", the plain
+                     one "Intuitive Interface", the Delta-7B "Fine-tuned
+                     Controls") renders through this same block. -->
+                {#if info.ship_ability?.name}
+                    <div
+                        class="mt-4 max-w-2xl rounded-lg border border-border-dark bg-black/40 px-3 py-2.5"
+                        title="Ship ability"
+                    >
+                        <div class="mb-1 flex items-center gap-2">
+                            <span class="text-[10px] font-mono uppercase tracking-widest text-secondary"
+                                >Ship Ability</span
+                            >
+                            <span class="text-xs font-sans font-bold text-primary"
+                                >{info.ship_ability.name}</span
+                            >
+                        </div>
+                        <p class="text-xs font-sans leading-relaxed text-secondary">
+                            {info.ship_ability.text}
+                        </p>
                     </div>
                 {/if}
             </div>
