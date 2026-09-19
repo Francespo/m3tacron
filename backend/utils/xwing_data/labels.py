@@ -28,16 +28,16 @@ Naming evidence, checked against the real sources on 2026-09-19:
 * The vendored ``xwing-data2`` files keep ``"name": "BTA-NR2 Y-Wing"`` in
   both, which is why the split is illegible without this layer.
 
-The variant label follows YASB 2, the source named in the requirement, down to
-its casing (``BTA-NR2-W Y-wing``). The plain chassis keeps the vendored and
-XWA-document spelling (``BTA-NR2 Y-Wing``), so the pair differs in the case of
-``wing``. If the product owner prefers one spelling for both, that is a
-one-line change here and in the frontend mirror.
+The two sources agree on the ``-W`` marker and disagree only on the case of
+``wing`` (YASB 2 lowercases it, the XWA document does not). The label follows the
+XWA document and the app's own plain label, so the family reads consistently:
+``BTA-NR2 Y-Wing`` / ``BTA-NR2-W Y-Wing``. Switching to YASB 2's lowercase
+``BTA-NR2-W Y-wing`` is a one-line change here and in the frontend mirror.
 """
 
 SHIP_DISPLAY_LABELS: dict[str, str] = {
     "btanr2ywing": "BTA-NR2 Y-Wing",
-    "btanr2wywing": "BTA-NR2-W Y-wing",
+    "btanr2wywing": "BTA-NR2-W Y-Wing",
 }
 
 

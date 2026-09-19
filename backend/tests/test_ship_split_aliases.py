@@ -20,6 +20,8 @@ from backend.utils.xwing_data.aliases import (
     resolve_pilot_reference,
     resolve_ship_id,
 )
+from backend.utils.xwing_data.assets import CARD_ART_FALLBACKS
+from backend.utils.xwing_data.core import get_data_dir
 from backend.utils.xwing_data.labels import SHIP_DISPLAY_LABELS, ship_display_name
 from backend.utils.xwing_data.parser import parse_xws
 from backend.utils.xwing_data.pilots import get_pilot_info, load_all_pilots
@@ -220,18 +222,19 @@ def test_iter_upgrade_ids_handles_every_stored_shape():
 # --- (e) display labels, and ids that must never move -----------------------
 
 
-def test_display_labels_follow_the_yasb2_spelling_for_each_chassis():
-    # YASB 2's XWA ship table spells the pair "BTA-NR2 Y-wing" /
-    # "BTA-NR2-W Y-wing" (see labels.py for the quoted entries). The variant
-    # label follows that source; the plain chassis keeps the vendored spelling.
+def test_display_labels_use_the_w_marker_for_the_integrated_chassis():
+    # YASB 2 spells the pair "BTA-NR2 Y-wing" / "BTA-NR2-W Y-wing"; the XWA
+    # points document prints "BTA-NR2-W Y-Wing". Both carry the -W marker and
+    # differ only on the case of "wing" (see labels.py for the quotes). The
+    # label follows the XWA document and the app's own plain label.
     assert ship_display_name(PLAIN) == "BTA-NR2 Y-Wing"
-    assert ship_display_name(INTEGRATED) == "BTA-NR2-W Y-wing"
+    assert ship_display_name(INTEGRATED) == "BTA-NR2-W Y-Wing"
     assert ship_display_name("t65xwing", "X-wing") == "X-wing"
     assert set(SHIP_DISPLAY_LABELS) == {PLAIN, INTEGRATED}
 
     ships = load_all_ships(DataSource.XWA)
     assert ships[PLAIN]["name"] == "BTA-NR2 Y-Wing"
-    assert ships[INTEGRATED]["name"] == "BTA-NR2-W Y-wing"
+    assert ships[INTEGRATED]["name"] == "BTA-NR2-W Y-Wing"
 
 
 def test_display_labels_do_not_touch_xws_or_pilot_ids():
@@ -246,7 +249,7 @@ def test_display_labels_do_not_touch_xws_or_pilot_ids():
     # A pilot's ship label goes through the same display layer. Without it the
     # variant pilot would read "BTA-NR2 Y-Wing" on its detail page.
     assert pilots[PILOT_PLAIN]["ship"] == "BTA-NR2 Y-Wing"
-    assert pilots[PILOT_INTEGRATED]["ship"] == "BTA-NR2-W Y-wing"
+    assert pilots[PILOT_INTEGRATED]["ship"] == "BTA-NR2-W Y-Wing"
 
 
 def test_frontend_label_mirror_matches_the_backend_map():
@@ -296,6 +299,81 @@ def test_each_split_chassis_keeps_its_own_statline():
     assert ships[PLAIN]["icon"] == ships[INTEGRATED]["icon"]
 
 
+def test_variant_pilots_borrow_the_donor_chassis_card_art():
+    """Every variant pilot card URL returns 404 upstream; borrow the donor's.
+
+    The ten ``pilots/<pilot>-wartime.png`` URLs declared by the vendored
+    integrated chassis all return HTTP 404 (checked 2026-09-19), so the
+    read-time resolver points them at the same-named pilot on the plain
+    chassis instead. The donor URL is the one the vendored data already
+    carries; nothing is invented.
+    """
+    pilots = load_all_pilots(DataSource.XWA)
+    donor_by_name = {
+        info["name"]: info["image"]
+        for info in pilots.values()
+        if info["ship_xws"] == PLAIN
+    }
+
+    variant_pilots = {
+        xws: info for xws, info in pilots.items() if info["ship_xws"] == INTEGRATED
+    }
+    assert len(variant_pilots) == 10
+    for xws, info in variant_pilots.items():
+        assert info["image"] == donor_by_name[info["name"]], xws
+        assert "-wartime.png" not in info["image"], xws
+
+    # The donor lookup is by pilot name, not by stripping the suffix: the
+    # plain-named card of C'ai Threnalli carries the chassis suffix itself.
+    assert (
+        pilots["zoriibliss-wartime"]["image"]
+        == "https://infinitearenas.com/xw2/images/pilots/zoriibliss.png"
+    )
+    assert (
+        pilots["caithrenalli-wartime"]["image"]
+        == "https://infinitearenas.com/xw2/images/pilots/caithrenalli-btanr2ywing.png"
+    )
+
+    # Chassis without a declared fallback keep their vendored image untouched.
+    assert (
+        pilots[PILOT_PLAIN]["image"]
+        == "https://infinitearenas.com/xw2/images/pilots/zoriibliss.png"
+    )
+    assert [f.donor_id for f in CARD_ART_FALLBACKS] == [PLAIN]
+
+
+def test_card_art_fallback_leaves_the_vendored_and_generated_data_alone():
+    """The fallback lives at read time only: upstream URLs stay as shipped."""
+    raw = json.loads(
+        (
+            get_data_dir(DataSource.XWA)
+            / "pilots" / "resistance" / "bta-nr2-w-y-wing.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert raw["pilots"]
+    assert all(p["image"].endswith("-wartime.png") for p in raw["pilots"])
+
+    manifest_path = (
+        Path(__file__).resolve().parents[2]
+        / "frontend" / "static" / "data-xwa" / "xwing-data.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["pilots"]["zoriibliss-wartime"]["image"].endswith(
+        "zoriibliss-wartime.png"
+    )
+
+
+def test_frontend_card_art_mirror_matches_the_backend_map():
+    ts_path = (
+        Path(__file__).resolve().parents[2]
+        / "frontend" / "src" / "lib" / "data" / "shipArt.ts"
+    )
+    body = ts_path.read_text(encoding="utf-8")
+    for fallback in CARD_ART_FALLBACKS:
+        assert f"{fallback.variant_id}: {{" in body
+        assert f'donorId: "{fallback.donor_id}"' in body
+
+
 def test_wartime_pilot_ids_keep_their_suffix_and_are_the_only_variant_ids():
     pilots = load_all_pilots(DataSource.XWA)
     wartime = {
@@ -313,7 +391,7 @@ def test_parse_xws_import_resolves_and_drops_the_absorbed_upgrade():
     assert len(parsed["pilots"]) == 1
     pilot = parsed["pilots"][0]
     assert pilot["xws"] == PILOT_INTEGRATED
-    assert pilot["ship"] == "BTA-NR2-W Y-wing"
+    assert pilot["ship"] == "BTA-NR2-W Y-Wing"
     assert [u["xws"] for u in pilot["upgrades"]] == ["deadeyeshot"]
 
 
