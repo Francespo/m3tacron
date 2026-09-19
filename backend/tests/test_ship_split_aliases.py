@@ -238,8 +238,10 @@ def test_display_labels_do_not_touch_xws_or_pilot_ids():
     pilots = load_all_pilots(DataSource.XWA)
     assert PILOT_PLAIN in pilots and PILOT_INTEGRATED in pilots
     assert pilots[PILOT_INTEGRATED]["ship_xws"] == INTEGRATED
-    # The vendored source still carries the same two chassis names.
-    assert pilots[PILOT_PLAIN]["ship"] == pilots[PILOT_INTEGRATED]["ship"]
+    # A pilot's ship label goes through the same display layer. Without it the
+    # variant pilot would read "BTA-NR2 Y-Wing" on its detail page.
+    assert pilots[PILOT_PLAIN]["ship"] == "BTA-NR2 Y-Wing"
+    assert pilots[PILOT_INTEGRATED]["ship"] == "BTA-NR2 Y-Wing (Wartime Loadout)"
 
 
 def test_wartime_pilot_ids_keep_their_suffix_and_are_the_only_variant_ids():
