@@ -1,6 +1,7 @@
 import json
 from functools import lru_cache
 from ...data_structures.data_source import DataSource
+from .aliases import ship_display_name
 from .core import get_data_dir
 
 @lru_cache(maxsize=4)
@@ -27,9 +28,13 @@ def load_all_ships(source: DataSource = DataSource.XWA) -> dict:
                 if xws_id:
                     faction_val = ship_data.get("faction", "")
                     if xws_id not in all_ships:
-                        # Basic ship info
+                        # Basic ship info. The display name goes through the
+                        # split-label map: the vendored data gives a split's
+                        # two chassis one shared name.
                         all_ships[xws_id] = {
-                            "name": ship_data.get("name", "Unknown Ship"),
+                            "name": ship_display_name(
+                                xws_id, ship_data.get("name", "Unknown Ship")
+                            ),
                             "xws": xws_id,
                             "faction": faction_val,
                             "factions": [faction_val] if faction_val else [],

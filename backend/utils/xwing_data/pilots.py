@@ -1,6 +1,7 @@
 import json
 from functools import lru_cache
 from ...data_structures.data_source import DataSource
+from .aliases import ship_display_name
 from .core import get_data_dir
 
 @lru_cache(maxsize=4)
@@ -23,7 +24,9 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                 with open(ship_file, "r", encoding="utf-8") as f:
                     ship_data = json.load(f)
                 
-                ship_name = ship_data.get("name", "Unknown Ship")
+                ship_name = ship_display_name(
+                    ship_data.get("xws", ""), ship_data.get("name", "Unknown Ship")
+                )
                 ship_icon = ship_data.get("icon", "")
                 faction = ship_data.get("faction", "")
                 ship_size = ship_data.get("size", "Small")

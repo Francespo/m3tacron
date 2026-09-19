@@ -12,10 +12,12 @@ from backend.utils.xwing_data.aliases import (
     SHIP_SPLIT_ALIASES,
     resolve_pilot_reference,
     resolve_ship_id,
+    ship_display_name,
+    ship_label_overrides,
 )
 from backend.utils.xwing_data.parser import parse_xws
 from backend.utils.xwing_data.pilots import get_pilot_info
-from backend.utils.xwing_data.ships import get_ship_info
+from backend.utils.xwing_data.ships import get_ship_info, load_all_ships
 
 PLAIN = "btanr2ywing"
 INTEGRATED = "btanr2wywing"
@@ -177,7 +179,7 @@ def test_parse_xws_import_normalises_legacy_code():
     assert len(parsed["pilots"]) == 1
     pilot = parsed["pilots"][0]
     assert pilot["xws"] == PILOT_INTEGRATED
-    assert pilot["ship"] == "BTA-NR2 Y-Wing"
+    assert pilot["ship"] == "Y-wing (Wartime Loadout)"
     assert TRIGGER not in [u["xws"] for u in pilot["upgrades"]]
 
 
@@ -206,6 +208,35 @@ def test_enrich_list_data_resolves_legacy_reference_and_drops_absorbed_upgrade()
     assert out.pilots[0].xws == PILOT_INTEGRATED
     assert out.pilots[0].ship_xws == INTEGRATED
     assert [u.xws for u in out.pilots[0].upgrades] == ["deadeyeshot"]
+
+
+# --- display labels (ids are unchanged, only the human name differs) ------
+
+
+def test_split_chassis_have_distinct_display_labels():
+    ships = load_all_ships()
+    assert ships[PLAIN]["name"] == "Y-wing"
+    assert ships[INTEGRATED]["name"] == "Y-wing (Wartime Loadout)"
+    # The shared vendored data name is only the fallback for one label.
+    assert ship_display_name(PLAIN, "BTA-NR2 Y-Wing") == "Y-wing"
+    assert ship_display_name(INTEGRATED, "BTA-NR2 Y-Wing") == "Y-wing (Wartime Loadout)"
+    # Unrelated ships keep the vendored name.
+    assert ship_display_name("t65xwing", "X-wing") == "X-wing"
+
+
+def test_pilot_ship_label_follows_the_chassis():
+    assert get_pilot_info(PILOT_PLAIN)["ship"] == "Y-wing"
+    assert get_pilot_info(PILOT_INTEGRATED)["ship"] == "Y-wing (Wartime Loadout)"
+
+
+def test_labels_never_change_ids():
+    assert set(ship_label_overrides()) == {PLAIN, INTEGRATED}
+    ships = load_all_ships()
+    # The ids stay the xws ids; only `name` is overridden.
+    assert ships[PLAIN]["xws"] == PLAIN
+    assert ships[INTEGRATED]["xws"] == INTEGRATED
+    assert get_pilot_info(PILOT_INTEGRATED)["ship_xws"] == INTEGRATED
+    assert get_pilot_info(PILOT_PLAIN)["ship_xws"] == PLAIN
 
 
 # --- Legacy source: documented open question, not a fix ---------------------
