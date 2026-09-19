@@ -5,6 +5,8 @@ Covers the BTA-NR2 Y-Wing split: pre-split ``btanr2ywing`` carrying the
 pilots carry the ``-wartime`` suffix. Resolution is read-time only.
 """
 
+import json
+
 from backend.api.formatters import enrich_list_data
 from backend.data_structures.data_source import DataSource
 from backend.utils.list_keys import get_list_key, get_ship_list, iter_upgrade_ids
@@ -237,6 +239,21 @@ def test_labels_never_change_ids():
     assert ships[INTEGRATED]["xws"] == INTEGRATED
     assert get_pilot_info(PILOT_INTEGRATED)["ship_xws"] == INTEGRATED
     assert get_pilot_info(PILOT_PLAIN)["ship_xws"] == PLAIN
+
+
+# --- export path is unaffected (raw XWS is never rewritten) ---------------
+
+
+def test_xws_export_is_raw_passthrough_not_resolved():
+    """Resolution is read-time only: exporting/storing XWS keeps the raw ids."""
+    from backend.utils.yasb import get_xws_string
+
+    payload = _legacy_list(with_trigger=True)
+    exported = json.loads(get_xws_string(payload))
+    assert exported == payload
+    assert exported["pilots"][0]["id"] == PILOT_PLAIN
+    assert exported["pilots"][0]["ship"] == PLAIN
+    assert TRIGGER in exported["pilots"][0]["upgrades"]["configuration"]
 
 
 # --- Legacy source: documented open question, not a fix ---------------------
