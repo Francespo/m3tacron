@@ -47,9 +47,18 @@ def load_all_ships(source: DataSource = DataSource.XWA) -> dict:
             
     return all_ships
 
-def get_ship_info(xws_ship: str, source: DataSource = DataSource.XWA) -> dict | None:
-    """Get full ship info from XWS ID."""
+def get_ship_info(xws_ship: str, source: DataSource = DataSource.XWA, upgrades: list[str] | None = None) -> dict | None:
+    """Get full ship info from XWS ID.
+
+    When ``upgrades`` is provided, a deprecated chassis paired with a trigger
+    upgrade resolves to the integrated variant chassis. See
+    ``xwing_data.aliases``.
+    """
     ships = load_all_ships(source)
+    if upgrades is not None:
+        from .aliases import resolve_ship_id
+
+        xws_ship = resolve_ship_id(xws_ship, upgrades, source)
     return ships.get(xws_ship)
 
 def get_ship_icon_name(ship_xws: str) -> str:
