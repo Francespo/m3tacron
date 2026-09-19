@@ -145,3 +145,13 @@ i.xwing-miniatures-font,
     vertical-align: middle;
     line-height: 1;
 }
+
+/*
+ * Ship-split variant glyphs (read-time alias variants).
+ * The vendored xwing-miniatures.css predates XWA splitting the BTA-NR2 Y-Wing
+ * into a dedicated "Wartime" chassis (btanr2wywing). The variant reuses the
+ * chassis glyph so its ship-page header renders a real, non-zero icon.
+ */
+.xwing-miniatures-ship-btanr2wywing:before {
+    content: "{";
+}
