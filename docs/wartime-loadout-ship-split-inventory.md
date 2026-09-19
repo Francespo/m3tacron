@@ -275,3 +275,72 @@ Recorded during the phase-1 implementation that landed on the same branch/PR as 
 2. **`pilot_ship_mapping` is kept but becomes a derived, regenerable cache.** For the later analytics phase, the table should be treated as a projection produced by the resolver (pilot id -> resolved `ship_xws`), not as a source of truth. It can be rebuilt from the manifest + alias map at any time, so analytics can rejoin on the resolved identity without a historical data migration.
 3. **Open question for the product owner — Legacy-source resolution.** `btanr2ywing` + `wartimeloadout` resolves to `btanr2wywing` only in the XWA source; the Legacy dataset has no integrated variant, so the resolver deliberately leaves Legacy references untouched (`btanr2ywing`, pilot `zoriibliss`). This may be correct if the Legacy source represents the pre-split points system, but it is not fixed speculatively. Product decision needed: should Legacy references also advertise the integrated identity, or stay pre-split?
 4. **Still deferred (unchanged from §9):** the `pilot_ship_mapping` refresh/analytics rejoin, any materialisation or migration of historical rows, and the residual `wartimeloadout` upgrade row beyond what read-time absorption already achieves.
+
+## 14. Display labels (phase-1 addition)
+
+Both halves of the split carry the **same** `name` in the vendored source, which is why the site used to print two identical "BTA-NR2 Y-Wing" entries:
+
+- `external_data/xwing-data2/data/pilots/resistance/bta-nr2-y-wing.json` -> `"name": "BTA-NR2 Y-Wing"`, `"xws": "btanr2ywing"`
+- `external_data/xwing-data2/data/pilots/resistance/bta-nr2-w-y-wing.json` -> `"name": "BTA-NR2 Y-Wing"`, `"xws": "btanr2wywing"`
+
+The labels are therefore implemented in the **display layer**, not in the vendored data:
+
+| ship xws | display label |
+| --- | --- |
+| `btanr2ywing` | `Y-wing` |
+| `btanr2wywing` | `Y-wing (Wartime Loadout)` |
+
+They are defined once per runtime in two mirrored, display-only maps:
+
+- `backend/utils/xwing_data/labels.py` — `SHIP_DISPLAY_LABELS` + `get_ship_display_name()`.
+- `frontend/src/lib/data/shipLabels.ts` — the same map + `getShipDisplayName()`.
+
+Applied at every place a human-readable ship name surfaces:
+
+- **Backend:** `load_all_ships` (feeds `/api/ship/{xws}` `info.name`, `/api/ships/all` filter options, `/api/squadrons` `ship_name`), `backend/api/formatters.py` (`ship_name` in list payloads), `backend/api/upgrade_detail.py` (compatible-pilot and upgrade ship names).
+- **Frontend:** `xwingData.getShip` (covers list rows, squad contents, pilot cards, squadron/dashboard ship chips), the ships grid card name, the ship detail title/hero, and the active-filter chip labels in `filters.svelte.ts`.
+
+Deliberately **not** changed:
+
+- the internal ids `btanr2ywing` / `btanr2wywing`, the XWS codes, and the pilot `-wartime` suffix;
+- `backend/utils/xwing_data/pilots.py` `pilot["ship"]`, which keeps the raw `"BTA-NR2 Y-Wing"`: `backend/analytics/core.py` matches free-text pilot search against that field (`text_filter in p_ship_name`), so relabelling it would break searches for "BTA-NR2". Display sites derive the label from `ship_xws` instead.
+
+## 15. Does the wartime variant have a full card? (Delta-7B reference)
+
+### 15.1 Reference pattern — Delta-7 vs Delta-7B
+
+Two separate pilot files, mirroring exactly what we have for the Y-Wing:
+
+| | `delta-7-aethersprite.json` | `delta-7b-aethersprite.json` |
+| --- | --- | --- |
+| `name` | Delta-7 Aethersprite | Delta-7B Aethersprite |
+| `xws` | `delta7aethersprite` | `delta7baethersprite` |
+| stats | attack 2, agility 3, hull 3, shields 1 | attack 3, agility 2, hull 3, shields 3 |
+| actions | Focus(W), Evade(P), Lock(W), Barrel Roll(W), Boost(W) | identical |
+| `shipAbility` (per pilot) | `Fine-tuned Controls` — "After you fully execute a maneuver, you may spend 1 [Force] to perform a [Boost] or [Barrel Roll] action." | identical text |
+| pilots | 10 (`jediknight` … `adigallia`) | the same 10 names, xws suffixed `-delta7baethersprite` |
+
+Consuming code: `load_all_ships` / `load_all_pilots` read both files; `/api/ship/{xws}` (`backend/api/ship_detail.py`) returns `info` from `load_all_ships`; `frontend/src/routes/ship/[xws]/+page.svelte` renders the statline from `stats`. Note that the Delta-7 pair carries **different names in the data itself**, which is why the site already shows them apart without a label overlay; the Delta-7B does *not* get a different chassis ability.
+
+### 15.2 Target — the integrated Y-Wing
+
+| | `bta-nr2-y-wing.json` | `bta-nr2-w-y-wing.json` |
+| --- | --- | --- |
+| `name` | BTA-NR2 Y-Wing | BTA-NR2 Y-Wing |
+| `xws` | `btanr2ywing` | `btanr2wywing` |
+| stats | attack 2, agility 1, hull 4, **shields 3** | attack 2, agility 1, hull 4, **shields 5** |
+| actions | Focus(W), Lock(**Red**), Barrel Roll(R), Boost(R) | Focus(W), Lock(**White**), Barrel Roll(R), Boost(R), **Reload(White)** |
+| `shipAbility` (per pilot) | `Intuitive Interface` — "After you perform an action added to your action bar by a [Talent], [Illicit], or [Modification] upgrade, you may perform a [Calculate] action." | `Devastating Barrage` — "While you perform a [Torpedo] or [Missile] attack, if the defender is in your [Bullseye Arc], your [Critical Hit] results cannot be cancelled by [Evade] results." |
+| pilots | 10 (`zoriibliss` … `kijimispicerunner`) | the same 10 names, xws suffixed `-wartime` |
+
+The Legacy source contains **only** `external_data/xwing-data2-legacy/data/pilots/resistance/bta-nr2-y-wing.json` (name "BTA-NR2 Y-Wing", shields 3, `Intuitive Interface`); there is no `bta-nr2-w-y-wing.json` there.
+
+The `wartimeloadout` configuration upgrade exists in **both** sources and describes the same card the integrated file represents: `sides[0].ability` = "Gain 1 [Torpedo] slot and 1 [Missile] slot. Replace your ship ability with the following:", its own `shipAbility` = `Devastating Barrage`, and `grants` = Lock(White), Reload(White), `stat shields +2`. That is exactly `btanr2wywing` minus `btanr2ywing` (shields 3 + 2 = 5, Lock red -> white, Reload added).
+
+### 15.3 Conclusion
+
+**The sources DO contain a full entry for the wartime variant**: its own statline (shields 5, white Lock, white Reload) and its own chassis ability (`Devastating Barrage`), in the same file shape as the Delta-7B entry — XWA only; Legacy carries the equivalent information inside the `wartimeloadout` upgrade instead of a second ship file.
+
+Rendering: the statline was already served and displayed for `btanr2wywing` through the same path as the Delta-7B (separate manifest/ship-info entry -> separate page -> own stats). No ship chassis ability text was rendered anywhere in the UI before this change — for the Delta-7B as well — so there was no existing "Delta-7B-style" ability surface to copy. To make the wartime chassis visibly its own card rather than a relabelled copy, a general chassis-ability block was added to the ship detail hero, driven by the `ship_ability` now exposed by `load_all_ships`. Every chassis with an ability renders through it, so the wartime variant shows `Devastating Barrage`, the plain one `Intuitive Interface`, and the Delta-7B `Fine-tuned Controls`.
+
+**Open question for the product owner:** the sources model the same thing twice (a standalone integrated ship file in XWA + a configuration upgrade in both sources). Nothing here was invented, merged or extrapolated; the decision whether to keep both representations, or which one to treat as canonical for the wartime card, is left to the product owner.
