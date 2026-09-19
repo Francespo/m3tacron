@@ -11,7 +11,7 @@ from backend.utils.xwing_data.labels import (
     SHIP_DISPLAY_LABELS,
     get_ship_display_name,
 )
-from backend.utils.xwing_data.pilots import load_all_pilots
+from backend.utils.xwing_data.pilots import get_pilot_info, load_all_pilots
 from backend.utils.xwing_data.ships import get_ship_info, load_all_ships
 
 PLAIN = "btanr2ywing"
@@ -67,10 +67,14 @@ class TestIdsAreUntouched:
         assert "zoriibliss-wartime" in pilots
         # The pre-split pilot id still exists and is a different entry.
         assert "zoriibliss" in pilots
-        assert (
-            pilots["zoriibliss"]["ship_xws"]
-            != pilots["zoriibliss-wartime"]["ship_xws"]
-        )
+        assert pilots["zoriibliss"]["ship_xws"] == PLAIN
+        assert pilots["zoriibliss-wartime"]["ship_xws"] == INTEGRATED
+
+    def test_pilot_ship_xws_links_are_unchanged(self):
+        # The ids a stored squad keys off are exactly what they were before the
+        # label layer existed.
+        assert get_pilot_info("zoriibliss")["ship_xws"] == PLAIN
+        assert get_pilot_info("zoriibliss-wartime")["ship_xws"] == INTEGRATED
 
     def test_internal_pilot_ship_field_stays_raw_for_search(self):
         # Free-text pilot search matches on this field, so it keeps the vendored

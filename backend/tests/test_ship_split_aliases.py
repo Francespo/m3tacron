@@ -5,6 +5,9 @@ Covers the BTA-NR2 Y-Wing split: pre-split ``btanr2ywing`` carrying the
 pilots carry the ``-wartime`` suffix. Resolution is read-time only.
 """
 
+import copy
+import json
+
 from backend.api.formatters import enrich_list_data
 from backend.data_structures.data_source import DataSource
 from backend.utils.list_keys import get_list_key, get_ship_list, iter_upgrade_ids
@@ -206,6 +209,41 @@ def test_enrich_list_data_resolves_legacy_reference_and_drops_absorbed_upgrade()
     assert out.pilots[0].xws == PILOT_INTEGRATED
     assert out.pilots[0].ship_xws == INTEGRATED
     assert [u.xws for u in out.pilots[0].upgrades] == ["deadeyeshot"]
+
+
+# --- export path: raw passthrough, stored XWS is never rewritten -----------
+
+
+def test_xws_export_is_raw_passthrough_not_resolved():
+    """Exporting/storing XWS keeps the raw pre-split ids.
+
+    Resolution happens when reading; the payload that gets emitted back
+    (and therefore anything persisted from it) is byte-identical to the input.
+    """
+    from backend.utils.yasb import get_xws_string
+
+    payload = _legacy_list(with_trigger=True)
+    exported = json.loads(get_xws_string(payload))
+
+    assert exported == payload
+    assert exported["pilots"][0]["id"] == PILOT_PLAIN
+    assert exported["pilots"][0]["ship"] == PLAIN
+    assert TRIGGER in exported["pilots"][0]["upgrades"]["configuration"]
+
+
+def test_resolution_does_not_mutate_the_stored_payload():
+    """`parse_xws` / `get_list_key` / `get_ship_list` must not rewrite input."""
+    payload = _legacy_list(with_trigger=True)
+    before = copy.deepcopy(payload)
+
+    parse_xws(payload)
+    get_list_key(payload)
+    get_ship_list(payload)
+
+    assert payload == before
+    assert payload["pilots"][0]["id"] == PILOT_PLAIN
+    assert payload["pilots"][0]["ship"] == PLAIN
+    assert payload["pilots"][0]["upgrades"]["configuration"] == [TRIGGER]
 
 
 # --- Legacy source: documented open question, not a fix ---------------------
