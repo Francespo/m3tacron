@@ -144,6 +144,8 @@ class MetaSnapshotResponse(BaseModel):
     upgrades: list[UpgradeStats] = []
     last_sync: str = "Never"
     date_range: str = "Unknown"
+    date_start: str | None = None
+    date_end: str | None = None
     total_tournaments: int = 0
     total_players: int = 0
     total_lists: int = 0
