@@ -8,6 +8,8 @@ wild and must resolve to one identity at read time; nothing is rewritten.
 
 import copy
 import json
+import re
+from pathlib import Path
 
 from backend.api.formatters import enrich_list_data
 from backend.data_structures.data_source import DataSource
@@ -218,15 +220,18 @@ def test_iter_upgrade_ids_handles_every_stored_shape():
 # --- (e) display labels, and ids that must never move -----------------------
 
 
-def test_display_labels_differ_and_preserve_the_full_plain_name():
+def test_display_labels_follow_the_yasb2_spelling_for_each_chassis():
+    # YASB 2's XWA ship table spells the pair "BTA-NR2 Y-wing" /
+    # "BTA-NR2-W Y-wing" (see labels.py for the quoted entries). The variant
+    # label follows that source; the plain chassis keeps the vendored spelling.
     assert ship_display_name(PLAIN) == "BTA-NR2 Y-Wing"
-    assert ship_display_name(INTEGRATED) == "BTA-NR2 Y-Wing (Wartime Loadout)"
+    assert ship_display_name(INTEGRATED) == "BTA-NR2-W Y-wing"
     assert ship_display_name("t65xwing", "X-wing") == "X-wing"
     assert set(SHIP_DISPLAY_LABELS) == {PLAIN, INTEGRATED}
 
     ships = load_all_ships(DataSource.XWA)
     assert ships[PLAIN]["name"] == "BTA-NR2 Y-Wing"
-    assert ships[INTEGRATED]["name"] == "BTA-NR2 Y-Wing (Wartime Loadout)"
+    assert ships[INTEGRATED]["name"] == "BTA-NR2-W Y-wing"
 
 
 def test_display_labels_do_not_touch_xws_or_pilot_ids():
@@ -241,7 +246,54 @@ def test_display_labels_do_not_touch_xws_or_pilot_ids():
     # A pilot's ship label goes through the same display layer. Without it the
     # variant pilot would read "BTA-NR2 Y-Wing" on its detail page.
     assert pilots[PILOT_PLAIN]["ship"] == "BTA-NR2 Y-Wing"
-    assert pilots[PILOT_INTEGRATED]["ship"] == "BTA-NR2 Y-Wing (Wartime Loadout)"
+    assert pilots[PILOT_INTEGRATED]["ship"] == "BTA-NR2-W Y-wing"
+
+
+def test_frontend_label_mirror_matches_the_backend_map():
+    """The TS mirror is what the frontend renders from; it must not drift."""
+    ts_path = (
+        Path(__file__).resolve().parents[2]
+        / "frontend" / "src" / "lib" / "data" / "shipLabels.ts"
+    )
+    body = ts_path.read_text(encoding="utf-8")
+    block = body.split("SHIP_DISPLAY_LABELS: Record<string, string> = {", 1)[1]
+    block = block.split("};", 1)[0]
+    pairs = dict(re.findall(r'([a-z0-9]+)\s*:\s*"([^"]+)"', block))
+    assert pairs == SHIP_DISPLAY_LABELS
+
+
+def _statline(ship: dict) -> dict[str, int]:
+    return {
+        s["type"]: s["value"]
+        for s in ship["stats"]
+        if s.get("type") in ("attack", "agility", "hull", "shields")
+    }
+
+
+def test_each_split_chassis_keeps_its_own_statline():
+    """Stat capsules are per chassis: plain 2/1/4/3, integrated 2/1/4/5.
+
+    The reported symptom was the plain chassis' HULL/SHIELDS reading as the
+    integrated statline. The chassis records are independent, and a reference
+    only moves to the integrated entry when it carries the absorbed upgrade.
+    """
+    ships = load_all_ships(DataSource.XWA)
+
+    assert _statline(ships[PLAIN]) == {"attack": 2, "agility": 1, "hull": 4, "shields": 3}
+    assert _statline(ships[INTEGRATED]) == {"attack": 2, "agility": 1, "hull": 4, "shields": 5}
+
+    # The label layer never touches stats, and neither does a plain reference.
+    assert _statline(ships[PLAIN]) != _statline(ships[INTEGRATED])
+
+    # Only a reference carrying the absorbed upgrade resolves to the variant.
+    with_trigger = get_ship_info(PLAIN, upgrades=[TRIGGER])
+    assert _statline(with_trigger) == _statline(ships[INTEGRATED])
+    assert get_ship_info(PLAIN, upgrades=[]) == ships[PLAIN]
+    assert get_ship_info(INTEGRATED) == ships[INTEGRATED]
+
+    # Both chassis ship the same ship icon upstream (and YASB 2 reuses the
+    # plain glyph for the variant), so the icon is deliberately shared.
+    assert ships[PLAIN]["icon"] == ships[INTEGRATED]["icon"]
 
 
 def test_wartime_pilot_ids_keep_their_suffix_and_are_the_only_variant_ids():
@@ -261,7 +313,7 @@ def test_parse_xws_import_resolves_and_drops_the_absorbed_upgrade():
     assert len(parsed["pilots"]) == 1
     pilot = parsed["pilots"][0]
     assert pilot["xws"] == PILOT_INTEGRATED
-    assert pilot["ship"] == "BTA-NR2 Y-Wing (Wartime Loadout)"
+    assert pilot["ship"] == "BTA-NR2-W Y-wing"
     assert [u["xws"] for u in pilot["upgrades"]] == ["deadeyeshot"]
 
 
