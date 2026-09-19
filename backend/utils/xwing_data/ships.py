@@ -2,6 +2,7 @@ import json
 from functools import lru_cache
 from ...data_structures.data_source import DataSource
 from .core import get_data_dir
+from .labels import get_ship_display_name
 
 @lru_cache(maxsize=4)
 def load_all_ships(source: DataSource = DataSource.XWA) -> dict:
@@ -27,9 +28,20 @@ def load_all_ships(source: DataSource = DataSource.XWA) -> dict:
                 if xws_id:
                     faction_val = ship_data.get("faction", "")
                     if xws_id not in all_ships:
+                        # Chassis ability is stored per pilot in the sources;
+                        # it is constant per chassis, so the first one wins.
+                        ship_ability = None
+                        for pilot in ship_data.get("pilots", []):
+                            if pilot.get("shipAbility"):
+                                ship_ability = pilot["shipAbility"]
+                                break
+
                         # Basic ship info
                         all_ships[xws_id] = {
-                            "name": ship_data.get("name", "Unknown Ship"),
+                            "name": get_ship_display_name(
+                                xws_id, ship_data.get("name", "Unknown Ship")
+                            ),
+                            "ship_ability": ship_ability,
                             "xws": xws_id,
                             "faction": faction_val,
                             "factions": [faction_val] if faction_val else [],

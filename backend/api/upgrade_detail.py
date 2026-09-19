@@ -13,6 +13,7 @@ from ..analytics.precompute import get_snapshot
 from ..cache import get_cached_or_compute
 from ..data_structures.data_source import DataSource
 from ..utils.xwing_data.pilots import load_all_pilots
+from ..utils.xwing_data.labels import get_ship_display_name
 from ..utils.xwing_data.upgrades import load_all_upgrades, get_upgrade_info
 from ..database import engine
 
@@ -65,7 +66,9 @@ def _pilots_from_snapshot(upgrade_xws, ds, formats):
         results.append({
             "xws": p_xws,
             "name": p_info.get("name", p_xws),
-            "ship": p_info.get("ship", "Unknown Ship"),
+            "ship": get_ship_display_name(
+                p_info.get("ship_xws", ""), p_info.get("ship", "Unknown Ship")
+            ),
             "ship_xws": p_info.get("ship_xws", ""),
             "faction_xws": p_info.get("faction", "").lower().replace(" ", "").replace("-", ""),
             "image": p_info.get("image", ""),
@@ -142,7 +145,9 @@ def _pilots_from_snapshot(upgrade_xws, ds, formats):
         results.append({
             "xws": p_xws,
             "name": p_info.get("name", p_xws),
-            "ship": p_info.get("ship", "Unknown Ship"),
+            "ship": get_ship_display_name(
+                p_info.get("ship_xws", ""), p_info.get("ship", "Unknown Ship")
+            ),
             "ship_xws": p_info.get("ship_xws", ""),
             "faction_xws": p_info.get("faction", "").lower().replace(" ", "").replace("-", ""),
             "image": p_info.get("image", ""),

@@ -2,6 +2,7 @@ from .schemas import ListData, PilotData, UpgradeData
 from ..utils.list_keys import iter_upgrade_ids
 from ..utils.xwing_data.aliases import resolve_pilot_reference
 from ..utils.xwing_data.pilots import get_pilot_info
+from ..utils.xwing_data.labels import get_ship_display_name
 from ..utils.xwing_data.ships import get_ship_icon_name
 from ..utils.xwing_data.upgrades import get_upgrade_info, get_upgrade_slot
 from ..data_structures.factions import Faction, get_faction_char
@@ -71,7 +72,9 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
 
         pilot_name = pilot_info.get("name") or p.get("name") or pid
         ship_xws = pilot_info.get("ship_xws") or p.get("ship", "")
-        ship_name = pilot_info.get("ship", "Unknown Ship")
+        ship_name = get_ship_display_name(
+            ship_xws, pilot_info.get("ship", "Unknown Ship")
+        )
         ship_icon_name = get_ship_icon_name(ship_xws)
         pilot_image = pilot_info.get("image", "")
 
