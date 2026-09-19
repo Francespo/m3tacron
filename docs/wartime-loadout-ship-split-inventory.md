@@ -303,7 +303,10 @@ Applied at every place a human-readable ship name surfaces:
 Deliberately **not** changed:
 
 - the internal ids `btanr2ywing` / `btanr2wywing`, the XWS codes, and the pilot `-wartime` suffix;
-- `backend/utils/xwing_data/pilots.py` `pilot["ship"]`, which keeps the raw `"BTA-NR2 Y-Wing"`: `backend/analytics/core.py` matches free-text pilot search against that field (`text_filter in p_ship_name`), so relabelling it would break searches for "BTA-NR2". Display sites derive the label from `ship_xws` instead.
+- `backend/utils/xwing_data/pilots.py` `pilot["ship"]`, which keeps the raw `"BTA-NR2 Y-Wing"`: `backend/analytics/core.py` matches free-text pilot search against that field (`text_filter in p_ship_name`), so relabelling it would break searches for "BTA-NR2". Display sites derive the label from `ship_xws` instead. **Confirmed still true after this pass:** `get_pilot_info("zoriibliss")["ship"]` and `get_pilot_info("zoriibliss-wartime")["ship"]` both return `"BTA-NR2 Y-Wing"`, and `backend/tests/test_ship_display_labels.py::test_internal_pilot_ship_field_stays_raw_for_search` pins it. The labels remain display-only: nothing on disk, in the database or in the generated manifests contains them.
+- the generated manifests (`frontend/static/data-xwa/xwing-data.json`, `frontend/static/data-legacy/xwing-data.json`) and their generator — see §16.2 for why that mechanism was rejected.
+
+Committed screenshots for these surfaces (desktop 1440x900 and mobile 390x844) live in [`docs/wartime-loadout-ship-split-evidence/`](wartime-loadout-ship-split-evidence/README.md).
 
 ## 15. Does the wartime variant have a full card? (Delta-7B reference)
 
@@ -321,6 +324,8 @@ Two separate pilot files, mirroring exactly what we have for the Y-Wing:
 | pilots | 10 (`jediknight` … `adigallia`) | the same 10 names, xws suffixed `-delta7baethersprite` |
 
 Consuming code: `load_all_ships` / `load_all_pilots` read both files; `/api/ship/{xws}` (`backend/api/ship_detail.py`) returns `info` from `load_all_ships`; `frontend/src/routes/ship/[xws]/+page.svelte` renders the statline from `stats`. Note that the Delta-7 pair carries **different names in the data itself**, which is why the site already shows them apart without a label overlay; the Delta-7B does *not* get a different chassis ability.
+
+Source coverage, same check as for the Y-Wing: the Legacy source contains **only** `external_data/xwing-data2-legacy/data/pilots/galactic-republic/delta-7-aethersprite.json`. `delta7baethersprite` does not appear anywhere under `external_data/xwing-data2-legacy` (`find … -iname '*delta7b*'` → no hits; `grep -r delta7baethersprite` → no hits), so the Delta-7B is XWA-only — exactly like the integrated Y-Wing.
 
 ### 15.2 Target — the integrated Y-Wing
 
@@ -343,4 +348,28 @@ The `wartimeloadout` configuration upgrade exists in **both** sources and descri
 
 Rendering: the statline was already served and displayed for `btanr2wywing` through the same path as the Delta-7B (separate manifest/ship-info entry -> separate page -> own stats). No ship chassis ability text was rendered anywhere in the UI before this change — for the Delta-7B as well — so there was no existing "Delta-7B-style" ability surface to copy. To make the wartime chassis visibly its own card rather than a relabelled copy, a general chassis-ability block was added to the ship detail hero, driven by the `ship_ability` now exposed by `load_all_ships`. Every chassis with an ability renders through it, so the wartime variant shows `Devastating Barrage`, the plain one `Intuitive Interface`, and the Delta-7B `Fine-tuned Controls`.
 
-**Open question for the product owner:** the sources model the same thing twice (a standalone integrated ship file in XWA + a configuration upgrade in both sources). Nothing here was invented, merged or extrapolated; the decision whether to keep both representations, or which one to treat as canonical for the wartime card, is left to the product owner.
+**Open questions for the product owner:**
+
+1. The sources model the same thing twice (a standalone integrated ship file in XWA + a configuration upgrade in both sources). Nothing here was invented, merged or extrapolated; the decision whether to keep both representations, or which one to treat as canonical for the wartime card, is left to the product owner.
+2. **The Legacy toggle has no integrated Y-Wing card at all** — not a lowercase/different one, none. If the Legacy view is expected to show `Y-wing (Wartime Loadout)` as a distinct card, that data does not exist upstream and must not be synthesised here (see §13.3 for the related resolution question).
+3. **Pilot names repeat across the split**: both chassis' pilots keep the same card name (`Zorii Bliss`, `Teza Nasz`, …); only the ship label and the pilot xws ids differ. Confirm that is the intended presentation, or whether the variant pilots should be marked on the card too.
+
+## 16. Union with the parallel phase-1 branch (task 98a0b2b9e635)
+
+Two branches implemented the same phase-1 scope. This one (`agent/8c9aa3209522`, PR #202) is the survivor; the other (`agent/98a0b2b9e635`, head `2b5ee61f`, PR #203) is closed. This section records exactly what moved across, so a reviewer can see the two differ only by the deliberate rejections below.
+
+### 16.1 Absorbed
+
+- **Committed visual evidence.** The other branch committed its screenshots; they are now in [`docs/wartime-loadout-ship-split-evidence/`](wartime-loadout-ship-split-evidence/README.md) as this branch's own captures (desktop 1440x900 + mobile 390x844: ships grid with both labels, filter options and chips, both chassis detail pages), palette-optimised to ~200 KB, with a README carrying the exact commands and observed values.
+- **Two regression tests** in `backend/tests/test_ship_split_aliases.py`: the export guard (`get_xws_string` emits the raw pre-split ids, nothing is resolved on the way out) and a no-mutation guard (`parse_xws` / `get_list_key` / `get_ship_list` leave the payload they are handed untouched, deep-copy comparison).
+- **One id-stability assertion group** in `backend/tests/test_ship_display_labels.py`: the pilot -> ship_xws links (`zoriibliss` -> `btanr2ywing`, `zoriibliss-wartime` -> `btanr2wywing`) are pinned, so the label layer can never leak into identity.
+- **Two factual findings** folded into §15.1/§15.3: the Delta-7B is XWA-only (Legacy has only `delta-7-aethersprite.json`), and the open questions about the missing Legacy card and the repeated pilot names.
+
+### 16.2 Rejected, with reasons
+
+1. **Labels baked into the regenerated manifests** (`frontend/static/data-xwa/xwing-data.json`, `frontend/static/data-legacy/xwing-data.json`), the generator (`frontend/scripts/generate-xwing-data.js`) and a new `frontend/src/lib/data/shipLabels.json` that the generator reads. **Rejected.** Those two JSON manifests are *derived artifacts* of the vendored submodule: their content is supposed to be reproducible from `external_data/` alone. Putting the label delta in them makes them diverge from the source they are generated from, so any future regeneration from the vendored data — a rebuild in another environment, a re-run without the extra JSON, or a regeneration after an upstream data update — **silently reverts both labels** back to the shared "BTA-NR2 Y-Wing". It also duplicates one fact into three places (Python map, JSON, two generated manifests). This branch keeps labels in the display layer only: `backend/utils/xwing_data/labels.py` + `frontend/src/lib/data/shipLabels.ts`; `frontend/static/data-*/xwing-data.json`, the generator and the vendored submodule are untouched by this branch.
+2. **Relabelling `pilot["ship"]` inside `load_all_pilots`.** **Rejected.** That field is also the free-text search haystack (`backend/analytics/core.py` matches `text_filter in p_ship_name`), so relabelling it would silently break searches for "BTA-NR2". The label is derived from `ship_xws` at the display sites instead, and §14 documents this. Confirmed still true: `get_pilot_info("zoriibliss")["ship"] == "BTA-NR2 Y-Wing"` and the same for `zoriibliss-wartime`; the labels remain display-only.
+3. **Labels carried on `ShipSplitAlias` as `deprecated_label` / `variant_label`.** **Rejected** as architecture: resolution and presentation are different concerns, and coupling them would make every future split entry carry UI copy. The resolver stays about identity; the label overlay stays a separate, tiny module.
+4. **Client-side chassis-ability derivation (`xwingData.getShipAbility`).** **Not adopted.** The requirement is already implemented here from one source of truth: `load_all_ships` exposes `ship_ability` from the ship's own pilots and the ship detail hero renders it server-side, so the block is present in the first paint. Adding a second, client-only lookup for the same fact would introduce a second source of truth for no user-visible gain.
+
+Everything else in the two branches is equivalent (the resolver, its hooks, the icon fix, the label overlay and the ability block exist on both, with the same behaviour).
