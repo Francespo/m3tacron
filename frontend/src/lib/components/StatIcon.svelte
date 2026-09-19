@@ -173,6 +173,9 @@
         xiclasslightshuttle: "Q",
         tiewiwhispermodifiedinterceptor: "#",
         btanr2ywing: "{",
+        // Integrated-loadout Y-Wing variant (XWA ship-split alias target):
+        // the vendored font predates the split and ships no glyph for it.
+        btanr2wywing: "{",
         clonez95headhunter: "}",
         rogueclassstarfighter: "|",
         st70assaultship: "'",

@@ -4,6 +4,8 @@
  * Loads the pre-generated monolithic manifest (xwing-data.json).
  */
 
+import { SHIP_DISPLAY_LABELS } from '$lib/data/shipLabels';
+
 export type XWingSource = 'xwa' | 'legacy';
 
 export interface XWingStat {
@@ -191,11 +193,19 @@ class XwingDataStore {
 
     /**
      * Get ship details by XWS.
+     *
+     * The generated manifest carries the vendored upstream `name`, which is
+     * identical for split chassis (both BTA-NR2 Y-Wing entries). The split
+     * label is applied here, at the display lookup, so the manifest stays
+     * reproducible from the vendored data.
      */
     getShip(xws: string): XWingShip | null {
         const d = this.getData();
         if (!d || !d.ships) return null;
-        return d.ships[xws] ?? null;
+        const ship = d.ships[xws] ?? null;
+        if (!ship) return null;
+        const label = SHIP_DISPLAY_LABELS[xws];
+        return label ? { ...ship, name: label } : ship;
     }
 
     /**

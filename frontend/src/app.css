@@ -145,3 +145,15 @@ i.xwing-miniatures-font,
     vertical-align: middle;
     line-height: 1;
 }
+
+/*
+ * Ship-split variant glyph.
+ * The vendored xwing-miniatures.css (external_data/xwing-miniatures-font)
+ * predates XWA splitting the BTA-NR2 Y-Wing, so it has no glyph class for the
+ * integrated-loadout variant (btanr2wywing) and the ship-page header glyph
+ * renders 0x0. The variant reuses its parent chassis glyph. This lives in the
+ * frontend-owned stylesheet because the vendored one is not ours to edit.
+ */
+i.xwing-miniatures-ship-btanr2wywing:before {
+    content: "{";
+}
