@@ -244,6 +244,13 @@
         return s?.stats ?? info.stats ?? [];
     });
 
+    // Chassis ability for this ship. In xwing-data2 the ability sits on each
+    // pilot (`shipAbility`), so the variant ships it belongs to resolve their
+    // own text from their own pilots (e.g. the integrated-loadout Y-Wing
+    // pilots carry "Devastating Barrage", the plain chassis "Intuitive
+    // Interface"). Nothing is invented here: null when the data has none.
+    let shipAbility = $derived(xwingData.getShipAbility(data.shipXws));
+
     // ------------------------------------------------------------------------
     // Pilot breakdown — client-side sorting
     // ------------------------------------------------------------------------
@@ -531,6 +538,17 @@
                                 </div>
                             {/if}
                         {/each}
+                    </div>
+                {/if}
+
+                <!-- Chassis ability (from the ship's pilots in xwing-data2) -->
+                {#if shipAbility}
+                    <div class="mt-4 rounded-md border border-border-dark bg-black/30 px-3 py-2 max-w-3xl">
+                        <span class="text-[10px] font-mono font-bold uppercase tracking-widest text-secondary">Ship Ability</span>
+                        <p class="mt-1 text-sm leading-snug">
+                            <span class="font-bold text-primary">{shipAbility.name}:</span>
+                            <span class="text-secondary"> {shipAbility.text}</span>
+                        </p>
                     </div>
                 {/if}
             </div>

@@ -1,6 +1,7 @@
 import json
 from functools import lru_cache
 from ...data_structures.data_source import DataSource
+from .aliases import ship_display_name
 from .core import get_data_dir
 
 @lru_cache(maxsize=4)
@@ -23,7 +24,9 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                 with open(ship_file, "r", encoding="utf-8") as f:
                     ship_data = json.load(f)
                 
-                ship_name = ship_data.get("name", "Unknown Ship")
+                ship_name = ship_display_name(
+                    ship_data.get("xws", ""), ship_data.get("name", "Unknown Ship")
+                )
                 ship_icon = ship_data.get("icon", "")
                 faction = ship_data.get("faction", "")
                 ship_size = ship_data.get("size", "Small")
@@ -99,9 +102,18 @@ PACK_SUFFIXES = [
     "-lsl",
 ]
 
-def get_pilot_info(xws_pilot: str, source: DataSource = DataSource.XWA) -> dict | None:
-    """Get full pilot info from XWS ID."""
+def get_pilot_info(xws_pilot: str, source: DataSource = DataSource.XWA, upgrades: list[str] | None = None) -> dict | None:
+    """Get full pilot info from XWS ID.
+
+    When ``upgrades`` is provided, a pre-split pilot reference (deprecated
+    chassis + trigger upgrade) resolves to the equivalent pilot on the
+    integrated variant chassis. See ``xwing_data.aliases``.
+    """
     pilots = load_all_pilots(source)
+    if upgrades is not None:
+        from .aliases import resolve_pilot_reference
+
+        xws_pilot = resolve_pilot_reference(xws_pilot, upgrades, source).pilot_xws
     if xws_pilot in pilots:
         return pilots[xws_pilot]
 
