@@ -5,6 +5,7 @@
  */
 
 import { SHIP_DISPLAY_LABELS } from '$lib/data/shipLabels';
+import { cardArtFallback, cardArtDonorIds } from '$lib/data/shipArt';
 
 export type XWingSource = 'xwa' | 'legacy';
 
@@ -131,6 +132,16 @@ class XwingDataStore {
         legacy: null,
     });
 
+    /**
+     * Pilot display name -> card image for the chassis that donate art to a
+     * split variant (see `$lib/data/shipArt`). Built once per source during
+     * init so `getPilot()` stays a pure lookup.
+     */
+    cardArtDonorImages = $state<Record<XWingSource, Record<string, string> | null>>({
+        xwa: null,
+        legacy: null,
+    });
+
     loading = $state(false);
     error = $state<string | null>(null);
 
@@ -178,6 +189,17 @@ class XwingDataStore {
                 counts[ship] = (counts[ship] ?? 0) + 1;
             }
             this.pilotCountByShip[source] = counts;
+
+            // Card-art donors for split variants (e.g. the integrated-loadout
+            // Y-Wing, whose own card PNGs 404 upstream).
+            const donorIds = cardArtDonorIds();
+            const donors: Record<string, string> = {};
+            for (const pilot of Object.values(pilots) as XWingPilot[]) {
+                if (!pilot?.ship || !pilot.name) continue;
+                if (!donorIds.has(pilot.ship)) continue;
+                donors[pilot.name] = pilot.image ?? '';
+            }
+            this.cardArtDonorImages[source] = donors;
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : String(e);
             this.error = message;
@@ -220,7 +242,8 @@ class XwingDataStore {
 
         if (d.pilots[xws]) {
             const p = d.pilots[xws];
-            return pack && !(p as any).pack ? { ...p, pack } : p;
+            const resolved = pack && !(p as any).pack ? { ...p, pack } : p;
+            return this.withCardArt(resolved);
         }
 
         const suffixes = [
@@ -242,14 +265,28 @@ class XwingDataStore {
 
         if (d.pilots[cleanId]) {
             const basePilot = d.pilots[cleanId];
-            return {
+            return this.withCardArt({
                 ...basePilot,
                 xws,
                 pack: pack ?? undefined
-            };
+            });
         }
 
         return null;
+    }
+
+    /**
+     * Apply the declared card-art fallback for a split variant, at lookup
+     * time. The manifest itself keeps the upstream (404) URLs.
+     */
+    private withCardArt<T extends { ship?: string; name?: string; image?: string }>(
+        pilot: T,
+    ): T {
+        const fallback = pilot?.ship ? cardArtFallback(pilot.ship) : null;
+        if (!fallback || !pilot.name) return pilot;
+        const donorImage = this.cardArtDonorImages[this.currentSource]?.[pilot.name];
+        if (!donorImage) return pilot;
+        return { ...pilot, image: donorImage };
     }
 
     /**

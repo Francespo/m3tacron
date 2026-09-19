@@ -3,6 +3,7 @@ from functools import lru_cache
 from ...data_structures.data_source import DataSource
 from .core import get_data_dir
 from .labels import ship_display_name
+from .assets import apply_card_art_fallbacks
 
 @lru_cache(maxsize=4)
 def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
@@ -92,7 +93,9 @@ def load_all_pilots(source: DataSource = DataSource.XWA) -> dict:
                         }
             except Exception:
                 continue
-    return all_pilots
+    # Split chassis whose upstream card PNGs do not exist borrow the donor
+    # chassis' card (read-time only; see xwing_data.assets for the inventory).
+    return apply_card_art_fallbacks(all_pilots)
 
 PACK_SUFFIXES = [
     "-armedanddangerous",
