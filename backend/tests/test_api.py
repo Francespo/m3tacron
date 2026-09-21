@@ -80,7 +80,7 @@ def test_tournaments():
         t = data["items"][0]
         assert "name" in t
         assert "date" in t
-        assert "format_label" in t
+        assert "format" in t
 
 def test_tournaments_with_search():
     response = client.get("/api/tournaments?search=Test")
@@ -109,8 +109,8 @@ def test_pilots():
 
     if len(data["items"]) > 0:
         p = data["items"][0]
-        assert "name" in p
-        assert "popularity" in p
+        assert "xws" in p
+        assert "list_count" in p
 
 def test_upgrades():
     response = client.get("/api/cards/upgrades?size=10")
@@ -121,8 +121,7 @@ def test_upgrades():
 
     if len(data["items"]) > 0:
         u = data["items"][0]
-        assert "name" in u
-        assert "type" in u
+        assert "xws" in u
 
 def test_ships():
     response = client.get("/api/ships?size=10")
@@ -133,7 +132,7 @@ def test_ships():
 
     if len(data["items"]) > 0:
         s = data["items"][0]
-        assert "ship_name" in s
+        assert "xws" in s
         assert "faction_xws" in s
 
 from unittest.mock import patch
