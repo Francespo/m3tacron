@@ -42,11 +42,12 @@ jobs:
           echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
           echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
           rm -f /tmp/m3tacron_deploy_key
+          ssh-keyscan -H -t ed25519 84.8.253.2 >> ~/.ssh/known_hosts
 
       - name: Start database tunnel
         run: |
           ssh -f -N -L 5432:localhost:3000 \
-            -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes \
+            -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes \
             audit-bot@84.8.253.2
           for i in $(seq 1 15); do
             if pg_isready -h localhost -p 5432 2>/dev/null | grep -q "accepting"; then
@@ -65,16 +66,14 @@ jobs:
           echo "::add-mask::$PASS"
           echo "pass=$PASS" >> "$GITHUB_OUTPUT"
 
-      - name: Match PostgreSQL client to server version
+      - name: Export DB password for pg client match
         run: |
           PASS="${{ steps.dbpass.outputs.pass }}"
-          export PGPASSWORD="$PASS"
-          SERVER_MAJOR=$(psql -h localhost -p 5432 -U postgres -d postgres -t -A -c "SHOW server_version;" 2>/dev/null | cut -d. -f1 | tr -d '[:space:]')
-          if [ -n "$SERVER_MAJOR" ]; then
-            echo "Detected server PostgreSQL version: $SERVER_MAJOR"
-            sudo apt-get install -y "postgresql-client-$SERVER_MAJOR" || true
-          fi
-          echo "pg_dump version in use: $(pg_dump --version)"
+          echo "::add-mask::$PASS"
+          echo "PGPASSWORD=$PASS" >> "$GITHUB_ENV"
+
+      - name: Match PostgreSQL client to server version
+        uses: ./.github/actions/pg-client-match
 
       - name: Snapshot before promote
         run: |

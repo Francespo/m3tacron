@@ -1,0 +1,38 @@
+{
+  "projects": {
+    "m3tacron": {
+      "display_name": "M3tacron",
+      "path": "/root/projects/m3tacron",
+      "repository": "Francespo/m3tacron",
+      "base_branch": "main",
+      "provider": "pi/manifest/auto-coding",
+      "preview_url_template": "https://{pr}.dev.m3tacron.com",
+      "preview_application_uuid": "d1237bghfe3rxgm7ahj00z8l",
+      "required_checks": [
+        "Backend tests",
+        "Frontend checks",
+        "Maintainer policy tests"
+      ],
+      "policy": {
+        "sensitive_paths": [
+          ".github/**",
+          "automation/**",
+          "backend/database.py",
+          "backend/models.py",
+          "docker-compose.prod.yml",
+          "scripts/**",
+          "**/*secret*",
+          "**/*migration*"
+        ],
+        "low_risk_paths": [
+          "docs/**",
+          "README.md",
+          "CONTRIBUTING.md",
+          "**/*.md"
+        ],
+        "max_low_risk_files": 5,
+        "max_low_risk_lines": 150
+      }
+    }
+  }
+}

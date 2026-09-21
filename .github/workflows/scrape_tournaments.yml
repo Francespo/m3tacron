@@ -5,8 +5,11 @@ permissions:
 
 on:
   schedule:
-    # Run at 08:00 UTC every day — writes to prod (direct live update)
-    - cron: "0 8 * * *"
+    # Main scrape: 05:00 UTC every day — writes to prod (direct live update).
+    # 05:00 UTC = 07:00 CEST (Europe early-morning) / 01:00 EDT / 22:00 PDT-1.
+    # Low-traffic window for both continents; avoids scraping tournaments
+    # still in-progress in the US daytime.
+    - cron: "0 5 * * *"
   workflow_dispatch:
     inputs:
       platform:
@@ -96,13 +99,13 @@ jobs:
           ssh-add /tmp/m3tacron_deploy_key
           echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
           echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
-          rm -f /tmp/m3tacron_deploy_key
+          ssh-keyscan -H -t ed25519 84.8.253.2 >> ~/.ssh/known_hosts
 
       - name: Start database tunnel
         if: env.NEEDS_DB == 'true'
         run: |
           ssh -f -N -L 5432:localhost:3000 \
-            -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes \
+            -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes \
             audit-bot@84.8.253.2
           echo "Waiting for tunnel..."
           for i in $(seq 1 15); do
@@ -113,6 +116,27 @@ jobs:
             sleep 1
           done
           pg_isready -h localhost -p 5432 || (echo "ERROR: DB tunnel failed" && exit 1)
+
+      # Pin pg_dump/psql to the live server major *before* any pg_dump runs.
+      # (Runner default is pg 16; prod is 18 today; stays correct on 19/20/…)
+      # Must run AFTER 'Start database tunnel' — it queries SHOW server_version_num.
+      - name: Derive DB password for pg client match
+        if: env.NEEDS_DB == 'true'
+        run: |
+          # PROD_DATABASE_URL may be a full URL or a bare password; each step
+          # gets a fresh shell so re-derive it here (same pattern as below).
+          RAW="${{ secrets.PROD_DATABASE_URL }}"
+          if echo "$RAW" | grep -q "://"; then
+            PASS=$(python3 -c "from urllib.parse import urlparse; import sys; u=urlparse(sys.argv[1]); print(u.password or '')" "$RAW")
+          else
+            PASS="$RAW"
+          fi
+          echo "::add-mask::$PASS"
+          echo "PGPASSWORD=$PASS" >> "$GITHUB_ENV"
+
+      - name: Match PostgreSQL client to server version
+        if: env.NEEDS_DB == 'true'
+        uses: ./.github/actions/pg-client-match
 
       - name: Run Scraper
         env:
@@ -125,6 +149,21 @@ jobs:
           if [ -z "$PLATFORM" ]; then PLATFORM="longshanks+rollbetter"; fi
           if [ -z "$TIME_RANGE" ]; then TIME_RANGE="last week"; fi
           if [ -z "$DB_ENV" ]; then DB_ENV="prod"; fi
+
+          # Scheduled daily run must not include today: scraping a tournament
+          # at 05:00 UTC while it is still Started (e.g. US afternoon events
+          # like 2849/2864 on 2026-08-29) saves 0 players and the dedup then
+          # blocks it forever. Use a 14-day window ending yesterday to also
+          # catch late-closed events (e.g. a 23/08 tournament still open on
+          # 01/09). 14 vs 7 days roughly doubles Rollbetter candidates (2→8
+          # for XWA) but existing_urls dedup skips seen URLs without
+          # Playwright — observed +30-60s on a 4-5 min job.
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            YESTERDAY=$(date -u -d "yesterday" +%Y-%m-%d)
+            FOURTEEN_DAYS_AGO=$(date -u -d "14 days ago" +%Y-%m-%d)
+            TIME_RANGE="${FOURTEEN_DAYS_AGO}:${YESTERDAY}"
+            echo "Schedule mode: overriding TIME_RANGE to $TIME_RANGE (14d ending yesterday, excludes today)"
+          fi
 
           # Build DATABASE_URL from secrets via SSH tunnel.
           # Secrets may be a full URL (postgres://user:pass@host/db) or just a password.
@@ -197,13 +236,18 @@ jobs:
 
           # Backup is taken AFTER the scraper has committed (and bumped data_version).
           # Retention target: 3 daily + 1 weekly (prev. week) + 1 two-weeks ago + 1 monthly (max 6).
+          # Non-blocking: if pg_dump ever fails again (e.g. a brand-new server major
+          # not yet on PGDG), warn but keep the run green — the scrape already succeeded.
           STAMP=$(date -u +%Y%m%d_%H%M%S)
           BACKUP_FILE="/tmp/${BACKUP_DB}_${STAMP}.dump"
-          echo "Backing up ${BACKUP_DB} -> ${BACKUP_FILE}..."
-          pg_dump -h localhost -p 5432 -U postgres -Fc -f "$BACKUP_FILE" "$BACKUP_DB"
-          ls -lh "$BACKUP_FILE"
-
-          echo "BACKUP_FILE=$BACKUP_FILE" >> "$GITHUB_ENV"
+          echo "Backing up ${BACKUP_DB} -> ${BACKUP_FILE} (client: $(pg_dump --version 2>/dev/null || echo missing))..."
+          if pg_dump -h localhost -p 5432 -U postgres -Fc -f "$BACKUP_FILE" "$BACKUP_DB"; then
+            ls -lh "$BACKUP_FILE"
+            echo "BACKUP_FILE=$BACKUP_FILE" >> "$GITHUB_ENV"
+          else
+            echo "::warning::pg_dump failed (likely client/server version drift on a new major); skipping backup, scrape data is unaffected."
+            rm -f "$BACKUP_FILE"
+          fi
           echo "BACKUP_DB_NAME=$BACKUP_DB" >> "$GITHUB_ENV"
           # shellcheck disable=SC2129
           echo "PGPASSWORD=$PASS" >> "$GITHUB_ENV"
@@ -225,10 +269,10 @@ jobs:
           if [ -z "${BACKUP_FILE:-}" ] || [ ! -f "$BACKUP_FILE" ]; then
             echo "No backup file to rotate on server, skipping scp."
           else
-            scp -o StrictHostKeyChecking=no -i /tmp/m3tacron_deploy_key \
+            scp -o StrictHostKeyChecking=accept-new -i /tmp/m3tacron_deploy_key \
               "$BACKUP_FILE" audit-bot@84.8.253.2:~/dumps/ || echo "scp to server failed (non-fatal)"
           fi
-          ssh -o StrictHostKeyChecking=no -i /tmp/m3tacron_deploy_key audit-bot@84.8.253.2 "bash -s" << 'EOSSH' || echo "server rotation failed (non-fatal)"
+          ssh -o StrictHostKeyChecking=accept-new -i /tmp/m3tacron_deploy_key audit-bot@84.8.253.2 "bash -s" << 'EOSSH' || echo "server rotation failed (non-fatal)"
           set -e
           PREFIX="${BACKUP_DB_NAME:-postgres}"
           if [ -f ~/m3tacron-catchup/scripts/db_backup.py ]; then
@@ -278,8 +322,8 @@ jobs:
               curl -sf --max-time 30 "$base/api/$path" > /dev/null 2>&1 && echo "Warmed $base/api/$path" || true
             done
           done || true
+          rm -f /tmp/m3tacron_deploy_key
 
-      - name: Upload Scraped Tournaments Artifact
       - name: Upload Scraped Tournaments Artifact
         if: always() && hashFiles('scraped_tournaments.db') != '' && github.event.inputs.upload_sqlite_artifact != 'false'
         uses: actions/upload-artifact@v4

@@ -412,3 +412,27 @@ def test_pilot_filter_clause_invalid_mode():
     with pytest.raises(ValueError):
         pilot_filter_clause(["lukeskywalker"], {}, mode="invalid")
 
+
+
+# ---------------------------------------------------------------------------
+# Faction canonicalization (dashboard must never show an "unknown" bar)
+# ---------------------------------------------------------------------------
+
+def test_faction_from_xws_handles_aliases_and_url_encoding():
+    from backend.data_structures.factions import Faction
+    # Aliases seen in production list data
+    assert Faction.from_xws("imperial") == Faction.EMPIRE
+    assert Faction.from_xws("rebel") == Faction.REBEL
+    assert Faction.from_xws("scum") == Faction.SCUM
+    # YASB share links URL-encode the faction
+    assert Faction.from_xws("scum%20and%20villainy") == Faction.SCUM
+    assert Faction.from_xws("Scum%20and%20Villainy") == Faction.SCUM
+    assert Faction.from_xws("galactic%20empire") == Faction.EMPIRE
+    # Canonical values and labels still map
+    assert Faction.from_xws("rebelalliance") == Faction.REBEL
+    assert Faction.from_xws("Rebel Alliance") == Faction.REBEL
+    assert Faction.from_xws("First Order") == Faction.FIRST_ORDER
+    # Genuinely unmappable values stay UNKNOWN (excluded from dashboard)
+    assert Faction.from_xws("all") == Faction.UNKNOWN
+    assert Faction.from_xws("unknown") == Faction.UNKNOWN
+    assert Faction.from_xws("") == Faction.UNKNOWN
