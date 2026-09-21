@@ -113,33 +113,71 @@ def _record_warm_history(entry: dict) -> None:
 def _warm_endpoint_list() -> list[str]:
     """Canonical list of API paths to warm. Used by startup and auto-rewarm.
 
-    Epic is always included site-wide (no epic param). Covers: dashboard
-    (2 combos xwa/legacy), ships (2 combos, all pages via single aggregation
-    page/size excluded), lists/squadrons page 0 (2 combos each), cards
-    (4 combos), tournaments page 0 (1 entry). Total ~11 keys. Per-ship detail
+    Epic is always included site-wide (no epic param). Prewarms default query
+    results for BOTH:
+      1. All-time (date_start=None)
+      2. Since latest points change (date_start=<latest_points_date>)
+    Covers: dashboard meta-snapshot, ships, lists, squadrons, cards (pilots + upgrades),
+    and tournaments for both XWA and Legacy. Total ~24 keys. Per-ship detail
     is warmed separately via _warm_ship_details() in-process.
     """
+    from .data.points_history import get_latest_points_date
+
+    pts_dates = {
+        "xwa": get_latest_points_date("xwa"),
+        "legacy": get_latest_points_date("legacy"),
+    }
+
     endpoints: list[str] = [
-        # Dashboard meta-snapshot (xwa + legacy, epic always on)
+        # Dashboard meta-snapshot (all-time)
         "meta-snapshot?data_source=xwa",
         "meta-snapshot?data_source=legacy",
+        "meta-snapshot?data_source=xwa&days=0",
+        "meta-snapshot?data_source=legacy&days=0",
     ]
-    # Lists page 0 — 2 combos (epic always on).
+
+    # Dashboard meta-snapshot (since latest points update)
+    for ds, pts_date in pts_dates.items():
+        if pts_date:
+            endpoints.append(f"meta-snapshot?data_source={ds}&time_range=points_update")
+            endpoints.append(f"meta-snapshot?data_source={ds}&date_start={pts_date}")
+
+    # Ships (all-time + latest points update)
+    for ds in ("xwa", "legacy"):
+        endpoints.append(f"ships?page=0&size=21&sort_metric=Lists&sort_direction=desc&data_source={ds}")
+        pts_date = pts_dates.get(ds)
+        if pts_date:
+            endpoints.append(f"ships?page=0&size=21&sort_metric=Lists&sort_direction=desc&data_source={ds}&date_start={pts_date}")
+
+    # Lists page 0 (all-time + latest points update)
     for ds in ("xwa", "legacy"):
         endpoints.append(f"lists?page=0&size=20&sort_metric=Games&sort_direction=desc&min_games=3&data_source={ds}")
-    # Squadrons page 0 — 2 combos (epic always on).
+        pts_date = pts_dates.get(ds)
+        if pts_date:
+            endpoints.append(f"lists?page=0&size=20&sort_metric=Games&sort_direction=desc&min_games=3&data_source={ds}&date_start={pts_date}")
+
+    # Squadrons page 0 (all-time + latest points update)
     for ds in ("xwa", "legacy"):
         endpoints.append(f"squadrons?page=0&size=20&sort_metric=Games&sort_direction=desc&data_source={ds}")
-    # Tournaments page 0 — 1 entry.
+        pts_date = pts_dates.get(ds)
+        if pts_date:
+            endpoints.append(f"squadrons?page=0&size=20&sort_metric=Games&sort_direction=desc&data_source={ds}&date_start={pts_date}")
+
+    # Tournaments page 0 (all-time + latest points update)
     endpoints.append("tournaments?page=0&size=20&sort_metric=Date&sort_direction=desc")
-    endpoints.extend([
-        # Cards/Pilots - 2 combos (epic always on)
-        "cards/pilots?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=xwa",
-        "cards/pilots?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=legacy",
-        # Cards/Upgrades - 2 combos (epic always on)
-        "cards/upgrades?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=xwa",
-        "cards/upgrades?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source=legacy",
-    ])
+    for ds, pts_date in pts_dates.items():
+        if pts_date:
+            endpoints.append(f"tournaments?page=0&size=20&sort_metric=Date&sort_direction=desc&date_start={pts_date}")
+
+    # Cards/Pilots & Cards/Upgrades (all-time + latest points update)
+    for ds in ("xwa", "legacy"):
+        endpoints.append(f"cards/pilots?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source={ds}")
+        endpoints.append(f"cards/upgrades?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source={ds}")
+        pts_date = pts_dates.get(ds)
+        if pts_date:
+            endpoints.append(f"cards/pilots?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source={ds}&date_start={pts_date}")
+            endpoints.append(f"cards/upgrades?page=0&size=20&sort_metric=Lists&sort_direction=desc&data_source={ds}&date_start={pts_date}")
+
     return endpoints
 
 
@@ -238,8 +276,13 @@ def _warm_ship_details() -> None:
     # The detail page is reached from /ships which appends ?formats=xwa (or
     # legacy). That produces a different cache suffix than the bare
     # `formats=None` key. To make the first click fast regardless of format
-    # filtering, fan-out into 3 suffixes per ship/DS: no-format + xwa + legacy.
+    # filtering, fan-out into suffixes per ship/DS:
+    # 1. All-time (base + format-filtered)
+    # 2. Since latest points update (base + format-filtered with date_start=pts_date)
     def _suffixes_for_ds(ds: DataSource) -> list[tuple[str, dict]]:
+        from .data.points_history import get_latest_points_date
+        pts_date = get_latest_points_date(ds.value)
+
         base = _ship_filter_cache_suffix(
             formats=None, factions=None, ships=None, continent=None, country=None, city=None,
             platforms=None, sources=None, date_start=None, date_end=None,
@@ -255,7 +298,31 @@ def _warm_ship_details() -> None:
             platforms=None, sources=None, date_start=None, date_end=None,
             player_count_min=None, player_count_max=None, search=None, epic=False, faction=None,
         )
-        return [(base, {"epic": True, "include_epic": True}), (xwa, {"epic": True, "include_epic": True, "allowed_formats": ["xwa"]}), (legacy, {"epic": True, "include_epic": True, "allowed_formats": ["legacy_x2po"]})]
+        suffixes = [
+            (base, {"epic": True, "include_epic": True}),
+            (xwa, {"epic": True, "include_epic": True, "allowed_formats": ["xwa"]}),
+            (legacy, {"epic": True, "include_epic": True, "allowed_formats": ["legacy_x2po"]}),
+        ]
+        if pts_date:
+            base_pts = _ship_filter_cache_suffix(
+                formats=None, factions=None, ships=None, continent=None, country=None, city=None,
+                platforms=None, sources=None, date_start=pts_date, date_end=None,
+                player_count_min=None, player_count_max=None, search=None, epic=False, faction=None,
+            )
+            fmt_pts = _ship_filter_cache_suffix(
+                formats=["xwa"] if ds == DataSource.XWA else ["legacy_x2po"],
+                factions=None, ships=None, continent=None, country=None, city=None,
+                platforms=None, sources=None, date_start=pts_date, date_end=None,
+                player_count_min=None, player_count_max=None, search=None, epic=False, faction=None,
+            )
+            suffixes.append((base_pts, {"epic": True, "include_epic": True, "date_start": pts_date}))
+            suffixes.append((fmt_pts, {
+                "epic": True,
+                "include_epic": True,
+                "allowed_formats": ["xwa"] if ds == DataSource.XWA else ["legacy_x2po"],
+                "date_start": pts_date,
+            }))
+        return suffixes
 
     for ds in combos:
         # Phase 1: ship_info and ship_pilots per suffix
@@ -329,8 +396,8 @@ def _warm_ship_details() -> None:
                 fail += len(all_xws)
 
     elapsed = _t.time() - t0
-    total_keys = len(all_xws) * len(combos) * 3 * 4
-    print(f"[prewarm] ship details bulk: {ok} ok, {fail} fail in {elapsed:.1f}s ({len(all_xws)} ships × 2 DS × 3 suffixes × 4 sections = {total_keys} keys) ✓")
+    total_keys = ok + fail
+    print(f"[prewarm] ship details bulk: {ok} ok, {fail} fail in {elapsed:.1f}s ({len(all_xws)} ships × 2 DS, all-time + latest points) ✓")
     _warm_state["ship_details"] = {
         "ok": ok, "fail": fail, "elapsed_s": round(elapsed, 1),
         "total_urls": total_keys, "ships": len(all_xws), "workers": 1,
