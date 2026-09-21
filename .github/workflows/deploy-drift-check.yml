@@ -1,0 +1,124 @@
+name: Deploy Drift Check
+
+# Detects a production backend that is running older code than `main`.
+#
+# Why this exists: Coolify is configured to auto-deploy on merge to main, but
+# it can silently skip a push (observed for the merge of #194 — the merge was
+# built only as a PR preview, never promoted to production). Nothing alerted
+# anyone; the only symptom was a fix that visibly "did not work" for days.
+#
+# This workflow compares the git SHA the production container reports against
+# the current head of main. On drift it opens (or updates) a single tracking
+# issue so the failure is loud instead of silent.
+
+permissions:
+  contents: read
+  issues: write
+
+on:
+  schedule:
+    # 06:30 UTC daily — after the 05:00 scrape, so a redeploy triggered by
+    # that same window has had time to finish before we check.
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve main SHA
+        id: main
+        run: |
+          SHA="$(git rev-parse HEAD)"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "main is at $SHA"
+
+      - name: Read deployed SHA from production
+        id: deployed
+        env:
+          API_URL: ${{ vars.PROD_API_URL || 'https://api.m3tacron.com' }}
+        run: |
+          set -uo pipefail
+          RESP="$(curl -sf --max-time 60 "$API_URL/api/cache/stats" || true)"
+          if [ -z "$RESP" ]; then
+            echo "could not reach $API_URL/api/cache/stats"
+            echo "reachable=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # `code_version` is the git SHA the container was built from; it is
+          # absent on backends built before the field existed, which is itself
+          # proof that production predates this workflow.
+          DEPLOYED="$(printf '%s' "$RESP" | jq -r '.config.code_version // ""')"
+          echo "deployed=$DEPLOYED" >> "$GITHUB_OUTPUT"
+          echo "reachable=true" >> "$GITHUB_OUTPUT"
+          echo "production reports code_version='$DEPLOYED'"
+
+      - name: Compare and report
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          MAIN_SHA: ${{ steps.main.outputs.sha }}
+          DEPLOYED: ${{ steps.deployed.outputs.deployed }}
+          REACHABLE: ${{ steps.deployed.outputs.reachable }}
+          API_URL: ${{ vars.PROD_API_URL || 'https://api.m3tacron.com' }}
+        run: |
+          set -uo pipefail
+          TITLE="Deploy drift: production is behind main"
+
+          if [ "$REACHABLE" != "true" ]; then
+            echo "Production API unreachable — skipping comparison."
+            exit 0
+          fi
+
+          if [ -n "$DEPLOYED" ] && [ "$DEPLOYED" = "$MAIN_SHA" ]; then
+            echo "In sync: production runs $MAIN_SHA"
+            # Close a stale tracking issue if the drift has been resolved.
+            EXISTING="$(gh issue list --repo "$REPO" --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty')"
+            if [ -n "$EXISTING" ]; then
+              gh issue close "$EXISTING" --repo "$REPO" \
+                --comment "Resolved: production now runs \`$MAIN_SHA\`."
+              echo "Closed stale issue #$EXISTING"
+            fi
+            exit 0
+          fi
+
+          echo "DRIFT: main=$MAIN_SHA deployed='$DEPLOYED'"
+
+          {
+            echo "Production is **not** running the current \`main\`."
+            echo
+            echo "| | commit |"
+            echo "|---|---|"
+            echo "| \`main\` | \`$MAIN_SHA\` |"
+            if [ -n "$DEPLOYED" ]; then
+              echo "| production | \`$DEPLOYED\` |"
+            else
+              echo "| production | *(none reported — backend predates this field)* |"
+            fi
+            echo
+            echo "Source: \`$API_URL/api/cache/stats\` → \`config.code_version\`."
+            echo
+            echo "## What to do"
+            echo
+            echo "1. Open Coolify and check the deployment for \`francespo/m3tacron:main\`."
+            echo "2. Redeploy it manually, or push any commit to \`main\` to re-trigger."
+            echo "3. Re-run this workflow to confirm it goes green."
+            echo
+            echo "> Auto-deploy is enabled for this application, so a merge **should** deploy."
+            echo "> A silent miss has happened before: the merge of #194 was built only as a"
+            echo "> PR preview and never promoted to production."
+            echo
+            echo "<sub>Opened automatically by \`.github/workflows/deploy-drift-check.yml\`.</sub>"
+          } > /tmp/drift_body.md
+
+          EXISTING="$(gh issue list --repo "$REPO" --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty')"
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --repo "$REPO" --body-file /tmp/drift_body.md
+            echo "Updated existing issue #$EXISTING"
+          else
+            gh issue create --repo "$REPO" --title "$TITLE" --body-file /tmp/drift_body.md
+            echo "Opened drift issue"
+          fi

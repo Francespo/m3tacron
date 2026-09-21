@@ -43,7 +43,7 @@ echo "[team-staging] fetching team tournament URLs from staging (m3tacron_stagin
 URLS_FILE="$(mktemp)"
 trap 'rm -f "$URLS_FILE"' EXIT
 
-ssh -i "$KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=12 "$HOST" \
+ssh -i "$KEY" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=12 "$HOST" \
   "docker exec rdvq2p6xwxho16pbcyd40w0d psql -U postgres -d m3tacron_staging -t -A -c \"SELECT url FROM tournament WHERE is_team_event = true AND source = 'longshanks' ORDER BY date;\"" \
   2>&1 | tr -d ' \r' | grep -E '^https://' > "$URLS_FILE" || true
 

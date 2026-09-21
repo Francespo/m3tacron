@@ -29,15 +29,15 @@ REMOTE_DUMP="/tmp/local_seed_${TS}.dump"
 REMOTE_HOST_DUMP="/tmp/local_seed_${TS}.dump"
 
 echo "==> Dumping dev DB ($DB_CONTAINER) on $SSH_USER@$SSH_HOST ..."
-ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" \
+ssh -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new "$SSH_USER@$SSH_HOST" \
   "docker exec $DB_CONTAINER pg_dump -U postgres -Fc -f $REMOTE_HOST_DUMP postgres && docker cp $DB_CONTAINER:$REMOTE_HOST_DUMP $REMOTE_HOST_DUMP"
 
 echo "==> Copying dump to local-data/dumps/ ..."
 mkdir -p "$DUMPS_DIR"
-scp -i "$SSH_KEY" -o StrictHostKeyChecking=no \
+scp -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new \
   "$SSH_USER@$SSH_HOST:$REMOTE_HOST_DUMP" "$DUMPS_DIR/dev_latest.dump"
 
-ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" \
+ssh -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new "$SSH_USER@$SSH_HOST" \
   "rm -f $REMOTE_HOST_DUMP" || true
 
 DUMP_SIZE=$(du -h "$DUMPS_DIR/dev_latest.dump" | cut -f1)

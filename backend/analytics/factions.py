@@ -99,38 +99,45 @@ def aggregate_faction_stats(
     with Session(engine) as session:
         rows = session.execute(sql, params).fetchall()
 
-    # Map normalized faction -> aggregated row. Multiple raw factions can map to same normalized.
-    agg_by_norm: dict[str, dict] = {}
+    # Map raw normalized values to canonical factions via Faction.from_xws,
+    # so aliases ("imperial", "scum", "rebel", URL-encoded
+    # "scum%20and%20villainy") land in the right faction. Rows that still
+    # don't map — genuine multi-faction "all" lists, empty factions — are
+    # excluded: the dashboard shows only the 7 playable factions, never an
+    # "unknown" bar. (Totals in main.py sum over this list, so they stay
+    # consistent automatically.)
+    agg_by_faction: dict[Faction, dict] = {}
     for faction_norm, faction_raw, list_count, wins, games, different_lists in rows:
-        norm = (faction_norm or "").lower().replace(" ", "").replace("-", "")
-        if not norm:
-            # Fallback: normalize raw
-            norm = (faction_raw or "unknown").lower().replace(" ", "").replace("-", "")
-        if norm not in agg_by_norm:
-            agg_by_norm[norm] = {
-                "faction_norm": norm,
-                "faction_raw": faction_raw,
+        raw = faction_norm or faction_raw or ""
+        try:
+            faction_enum = Faction.from_xws(raw)
+        except (ValueError, AttributeError):
+            faction_enum = Faction.UNKNOWN
+        if faction_enum == Faction.UNKNOWN:
+            continue
+        if faction_enum not in agg_by_faction:
+            agg_by_faction[faction_enum] = {
                 "list_count": 0,
                 "wins": 0,
                 "games": 0,
                 "different_lists": 0,
             }
-        agg_by_norm[norm]["list_count"] += int(list_count or 0)
-        agg_by_norm[norm]["wins"] += int(wins or 0)
-        agg_by_norm[norm]["games"] += int(games or 0)
+        entry = agg_by_faction[faction_enum]
+        entry["list_count"] += int(list_count or 0)
+        entry["wins"] += int(wins or 0)
+        entry["games"] += int(games or 0)
         # different_lists per normalized group should be distinct list ids; summing groups is approx.
-        # For factions, raw factions within same normalized are same faction, so distinct count can be summed.
-        # If raw grouping split a faction, we sum (slight overcount if same list id appears with different raw case,
-        # which shouldn't happen because list.faction is canonical).
-        agg_by_norm[norm]["different_lists"] += int(different_lists or 0)
+        # For factions, raw factions within same canonical faction are the same faction, so distinct
+        # count can be summed. (Slight overcount only if the same list id appears with different raw
+        # case, which shouldn't happen because list.faction is canonical.)
+        entry["different_lists"] += int(different_lists or 0)
 
-    # Build results with zero-fill for factions with no data, matching previous Python init.
+    # Build results with zero-fill for factions with no data.
     results: list[dict] = []
     for f in Faction:
         if f == Faction.UNKNOWN:
             continue
-        norm = f.value.lower().replace(" ", "").replace("-", "")
-        agg = agg_by_norm.get(norm)
+        agg = agg_by_faction.get(f)
         if agg:
             results.append({
                 "xws": f,
@@ -147,26 +154,6 @@ def aggregate_faction_stats(
                 "wins": 0,
                 "different_lists_count": 0,
             })
-
-    # Unknown bucket: include only if there are rows that didn't map to a known faction
-    known_norms = {f.value.lower().replace(" ", "").replace("-", "") for f in Faction if f != Faction.UNKNOWN}
-    unknown_list = unknown_wins = unknown_games = unknown_diff = 0
-    unknown_found = False
-    for norm, agg in agg_by_norm.items():
-        if norm not in known_norms:
-            unknown_found = True
-            unknown_list += agg["list_count"]
-            unknown_wins += agg["wins"]
-            unknown_games += agg["games"]
-            unknown_diff += agg["different_lists"]
-    if unknown_found:
-        results.append({
-            "xws": Faction.UNKNOWN,
-            "games_count": unknown_games,
-            "list_count": unknown_list,
-            "wins": unknown_wins,
-            "different_lists_count": unknown_diff,
-        })
 
     results.sort(key=lambda x: x["games_count"], reverse=True)
     return results

@@ -44,11 +44,19 @@ class Faction(StrEnum):
     def from_xws(cls, value: str):
         """
         Convert raw XWS faction string to Faction enum.
-        Handles labels, XWS IDs, and common aliases.
+        Handles labels, XWS IDs, URL-encoded values, and common aliases.
         """
         if not value:
             return cls.UNKNOWN
-            
+
+        # YASB share links URL-encode the faction ("Scum%20and%20Villainy").
+        # Decode first so they canonicalize instead of landing in UNKNOWN.
+        try:
+            from urllib.parse import unquote_plus
+            value = unquote_plus(value)
+        except Exception:
+            pass
+
         # Normalize: lowercase and remove spaces/dashes
         normalized = value.lower().replace(" ", "").replace("-", "")
         
@@ -60,6 +68,7 @@ class Faction(StrEnum):
         # Check common aliases/partial matches
         alias_map = {
             "rebel": cls.REBEL,
+            "imperial": cls.EMPIRE,  # FFG 1.0 XWS short name
             "empire": cls.EMPIRE,
             "scum": cls.SCUM,
             "separatist": cls.SEPARATIST,

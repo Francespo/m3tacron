@@ -1,0 +1,94 @@
+name: "Match PostgreSQL client to server version"
+description: >
+  Detect the live server major version over the (tunnelled) connection and
+  pin every PostgreSQL client binary (pg_dump/pg_restore/psql) to it.
+
+  Why: pg_dump aborts with "server version mismatch" whenever the runner's
+  default client (e.g. 16) is older than the server (e.g. 18), or whenever a
+  future Postgres upgrade (19, 20, ...) ships. Querying
+  `SHOW server_version_num` at runtime keeps this working forever without
+  touching the workflow.
+
+inputs:
+  host:
+    description: "Postgres host (e.g. localhost via SSH tunnel)"
+    required: false
+    default: "localhost"
+  port:
+    description: "Postgres port"
+    required: false
+    default: "5432"
+  user:
+    description: "Postgres user"
+    required: false
+    default: "postgres"
+  database:
+    description: "Database to query the version from"
+    required: false
+    default: "postgres"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Match pg client to server
+      shell: bash
+      env:
+        PGCLIENT_HOST: ${{ inputs.host }}
+        PGCLIENT_PORT: ${{ inputs.port }}
+        PGCLIENT_USER: ${{ inputs.user }}
+        PGCLIENT_DB: ${{ inputs.database }}
+      run: |
+        set -e
+        # Requires PGPASSWORD in the environment (caller exports it from secrets).
+        if [ -z "${PGPASSWORD:-}" ]; then
+          echo "::error::Match pg client: PGPASSWORD is not set." >&2
+          exit 1
+        fi
+
+        SERVER_NUM=$(psql -h "$PGCLIENT_HOST" -p "$PGCLIENT_PORT" \
+          -U "$PGCLIENT_USER" -d "$PGCLIENT_DB" -t -A \
+          -c "SHOW server_version_num;" 2>/dev/null | tr -d '[:space:]') || true
+        if [ -z "$SERVER_NUM" ]; then
+          echo "::warning::Match pg client: could not query server version; leaving runner default client."
+          echo "pg_dump in PATH: $(pg_dump --version 2>/dev/null || echo missing)"
+          exit 0
+        fi
+        # server_version_num is e.g. 180004 for 18.4 → major 18.
+        # Pre-10 it was e.g. 90624 for 9.6 → major "9.6".
+        if [ "$SERVER_NUM" -ge 100000 ]; then
+          SERVER_MAJOR=$((SERVER_NUM / 10000))
+        else
+          SERVER_MAJOR="$((SERVER_NUM / 10000)).$(( (SERVER_NUM / 100) % 100 ))"
+        fi
+        echo "PostgreSQL server major: $SERVER_MAJOR (num $SERVER_NUM)"
+
+        # Install the matching client from PGDG if the versioned binary is missing.
+        if [ ! -x "/usr/lib/postgresql/${SERVER_MAJOR}/bin/pg_dump" ]; then
+          echo "Installing postgresql-client-${SERVER_MAJOR} from PGDG…"
+          sudo install -d /etc/apt/keyrings
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y "postgresql-client-${SERVER_MAJOR}" || {
+            echo "::warning::Match pg client: install of postgresql-client-${SERVER_MAJOR} failed; falling back to runner default."
+          }
+        fi
+
+        BIN_DIR="/usr/lib/postgresql/${SERVER_MAJOR}/bin"
+        if [ -x "${BIN_DIR}/pg_dump" ]; then
+          # Point PATH at the matched binaries so plain `pg_dump`/`psql` hit them.
+          echo "${BIN_DIR}" >> "$GITHUB_PATH"
+          export PATH="${BIN_DIR}:$PATH"
+          echo "pg_dump now: $(pg_dump --version)"
+          # Double-check major alignment; fail loudly instead of dumping with a mismatch.
+          CLIENT_MAJOR=$(pg_dump --version | grep -oE '[0-9]+' | head -1)
+          if [ "$CLIENT_MAJOR" != "$SERVER_MAJOR" ]; then
+            echo "::error::Match pg client: client major ${CLIENT_MAJOR} still differs from server ${SERVER_MAJOR}." >&2
+            exit 1
+          fi
+          echo "pg client/server version match OK: ${CLIENT_MAJOR}"
+        else
+          echo "::warning::Match pg client: ${BIN_DIR}/pg_dump still missing after install; PATH default kept ($(pg_dump --version 2>/dev/null || echo missing))."
+        fi
