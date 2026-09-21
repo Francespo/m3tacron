@@ -201,3 +201,22 @@ function processSource(source) {
 }
 
 SOURCES.forEach(source => processSource(source));
+
+// 3. Process Points History from external_data/points_history
+const pointsHistoryDir = path.join(EXTERNAL_DATA_ROOT, 'points_history');
+if (fs.existsSync(pointsHistoryDir)) {
+    const history = {};
+    for (const sys of ['legacy', 'xwa', 'amg', 'ffg']) {
+        const p = path.join(pointsHistoryDir, `${sys}.json`);
+        if (fs.existsSync(p)) {
+            try {
+                history[sys] = JSON.parse(fs.readFileSync(p, 'utf-8'));
+            } catch (e) {
+                console.warn(`Error reading ${p}:`, e);
+            }
+        }
+    }
+    const targetPath = path.join(FRONTEND_ROOT, 'src', 'lib', 'data', 'points-history.json');
+    fs.writeFileSync(targetPath, JSON.stringify(history, null, 2));
+    console.log(`Synced points history to ${targetPath}`);
+}
