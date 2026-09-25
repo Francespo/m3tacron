@@ -10553,5 +10553,10 @@
     "city": "Mahwah",
     "country": "United States",
     "continent": "North America"
+  },
+  "ARCHIVO ARCANO, Catalonia,\u00a0Spain": {
+    "city": "Barcelona",
+    "country": "Spain",
+    "continent": "Europe"
   }
 }
