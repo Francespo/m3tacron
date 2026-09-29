@@ -24,7 +24,9 @@ or filter values, account data (there are no accounts).
 
 The endpoint only accepts requests whose `Origin`/`Referer` host is in
 `ANALYTICS_ALLOWED_HOSTS` (default `m3tacron.com,www.m3tacron.com`), so other
-sites or scanners cannot inflate the counters.
+sites or scanners cannot inflate the counters. When the browser reaches the API
+through the SvelteKit same-origin proxy, the tracker also sends the page host in
+the payload because the proxy does not forward `Origin`.
 
 ## Privacy
 
@@ -70,7 +72,8 @@ Backend environment variables:
 | `ANALYTICS_ALLOWED_HOSTS` | `m3tacron.com,www.m3tacron.com` | hosts allowed to post events |
 | `ANALYTICS_ADMIN_TOKEN` | unset | enables `GET /api/analytics/summary` |
 
-Frontend build-time variables (SvelteKit `PUBLIC_*`):
+Frontend environment variables (read at runtime through `$env/dynamic/public`, so
+no rebuild is needed):
 
 | Variable | Default | Purpose |
 |---|---|---|

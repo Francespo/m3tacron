@@ -12,6 +12,7 @@
  * See docs/ANALYTICS.md.
  */
 import { browser } from '$app/environment';
+import { env as publicEnv } from '$env/dynamic/public';
 import { API_BASE } from '$lib/api';
 
 const DEFAULT_HOSTS = 'm3tacron.com,www.m3tacron.com';
@@ -31,7 +32,7 @@ function randomId(): string {
 }
 
 function allowedHosts(): string[] {
-	const raw = (import.meta.env.PUBLIC_ANALYTICS_HOSTS as string | undefined) ?? DEFAULT_HOSTS;
+	const raw = publicEnv.PUBLIC_ANALYTICS_HOSTS ?? DEFAULT_HOSTS;
 	return raw
 		.split(',')
 		.map((host) => host.trim().toLowerCase())
@@ -39,7 +40,7 @@ function allowedHosts(): string[] {
 }
 
 function enabledByEnv(): boolean {
-	const raw = String(import.meta.env.PUBLIC_ANALYTICS_ENABLED ?? 'true').trim().toLowerCase();
+	const raw = String(publicEnv.PUBLIC_ANALYTICS_ENABLED ?? 'true').trim().toLowerCase();
 	return !['false', '0', 'off', 'no'].includes(raw);
 }
 
@@ -118,6 +119,7 @@ export function trackPageView(path: string): void {
 
 	const body = JSON.stringify({
 		path,
+		host: window.location.hostname,
 		visitor_id: visitorId(),
 		session_id: sessionId(),
 		referrer_host: externalReferrerHost(),

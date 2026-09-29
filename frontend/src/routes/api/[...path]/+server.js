@@ -66,6 +66,9 @@ async function proxyToBackend({ params, url, request }, method) {
 	if (contentType) headers['content-type'] = contentType;
 	const accept = request.headers.get('accept');
 	if (accept) headers['accept'] = accept;
+	// Keep the page origin visible to the API (used to attribute analytics events).
+	const originHeader = request.headers.get('origin');
+	if (originHeader) headers['origin'] = originHeader;
 
 	/** @type {RequestInit & { duplex?: string }} */
 	const init = { method, headers };
