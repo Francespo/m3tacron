@@ -128,3 +128,12 @@ def test_pilot_configurations_winrate():
         assert cfg["win_rate"] == 80.0
 
 
+
+
+def test_robots_txt_blocks_api_crawling():
+    response = client.get("/robots.txt")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain")
+    body = response.text
+    assert "User-agent: *" in body
+    assert "Disallow: /" in body

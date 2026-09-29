@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 from sqlmodel import Session, select, func
 from datetime import datetime, timedelta
 import os
@@ -517,6 +518,18 @@ def cache_stats_endpoint():
 @app.get("/")
 def read_root():
     return {"status": "Backend is running"}
+
+
+@app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
+def robots_txt():
+    """Keep crawlers out of the JSON API.
+
+    The frontend serves its own ``/robots.txt`` (pages allowed, ``/api/``
+    disallowed); this one answers on the API host (``api.m3tacron.com``) where
+    the SvelteKit file does not apply. Automated crawlers walking every detail
+    endpoint burn server capacity without bringing visitors.
+    """
+    return "User-agent: *\nDisallow: /\n"
 
 
 @app.get("/api/meta-snapshot", response_model=MetaSnapshotResponse)

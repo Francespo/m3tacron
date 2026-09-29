@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+# The JSON API and the SvelteKit proxy are not pages: crawling them wastes
+# server capacity and pollutes traffic statistics.
+Disallow: /api/
