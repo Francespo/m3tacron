@@ -3,7 +3,7 @@ from sqlalchemy import event
 from sqlmodel import create_engine, SQLModel
 
 # Explicitly import models to ensure they are registered with SQLModel.metadata
-from .models import Tournament, PlayerStanding, TeamStanding, Match, TeamMatch, ScrapeMeta, Supporter, Contribution, PilotShipMapping
+from .models import Tournament, PlayerStanding, TeamStanding, Match, TeamMatch, ScrapeMeta, Supporter, Contribution, PilotShipMapping, PageView
 
 from dotenv import load_dotenv
 load_dotenv()

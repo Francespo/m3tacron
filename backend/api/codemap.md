@@ -40,5 +40,6 @@ This directory is the FastAPI service layer. It exposes versioned REST routers t
   - `squadron_detail.get_squadron_stats` / `get_squadron_pilots` / `get_squadron_lists`
   - `tournaments.get_tournaments` / `get_tournament_detail` / `get_locations`
   - `support.get_fund_status` / `get_supporters` / `support.kofi_webhook` (Ko-fi donation ingest)
+  - `analytics.collect_page_view` (`POST /api/analytics/collect`) / `analytics.analytics_summary` (`GET /api/analytics/summary`, token-gated) — first-party page-view collection and DAU/WAU/MAU reporting; see `docs/ANALYTICS.md`
   - `formatters.enrich_list_data` — shared enrichment helper
   - `schemas.*` — Pydantic response/request models
