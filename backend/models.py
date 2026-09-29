@@ -9,8 +9,8 @@ Defines:
 """
 import logging
 from sqlmodel import Field, Relationship, SQLModel
-from datetime import date as date_type, datetime
-from sqlalchemy import JSON, Boolean, Column, Computed, String
+from datetime import date as date_type, datetime, timezone
+from sqlalchemy import JSON, Boolean, Column, Computed, DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB
 
 # JSONB is Postgres-only; fall back to generic JSON on other backends
@@ -285,3 +285,25 @@ class Contribution(SQLModel, table=True):
     tier_name: str | None = Field(default=None)
 
     supporter: Supporter | None = Relationship(back_populates="contributions")
+
+
+class PageView(SQLModel, table=True):
+    """One anonymous page-view event for first-party traffic analytics.
+
+    Privacy: no IP address, no user agent and no cookie is stored. ``visitor_id``
+    and ``session_id`` are random identifiers generated in the browser, and
+    ``referrer_host`` keeps only the external host, never the full URL.
+
+    Requests from automated clients are still recorded but flagged through
+    ``is_bot`` so reports can separate crawl traffic from real usage.
+    """
+    id: int | None = Field(default=None, primary_key=True)
+    ts: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), index=True, nullable=False),
+    )
+    path: str = Field(max_length=512, index=True)
+    visitor_id: str | None = Field(default=None, max_length=64, index=True)
+    session_id: str | None = Field(default=None, max_length=64, index=True)
+    referrer_host: str | None = Field(default=None, max_length=255)
+    is_bot: bool = Field(default=False, index=True)
