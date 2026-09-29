@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 from sqlmodel import Session, select, func
 from datetime import datetime, timedelta
 import os
@@ -22,6 +23,7 @@ from .api.ship_detail import router as ship_detail_router
 from .api.squadron_detail import router as squadron_detail_router
 from .api.list_detail import router as list_detail_router
 from .api.support import router as support_router
+from .api.analytics import router as analytics_router
 
 app = FastAPI(title="M3taCron Backend", version="1.0.0")
 
@@ -37,6 +39,7 @@ app.include_router(ship_detail_router)
 app.include_router(squadron_detail_router)
 app.include_router(list_detail_router)
 app.include_router(support_router)
+app.include_router(analytics_router)
 
 # Configure CORS for frontend access
 allowed_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "*").split(",") if o.strip()]
@@ -517,6 +520,18 @@ def cache_stats_endpoint():
 @app.get("/")
 def read_root():
     return {"status": "Backend is running"}
+
+
+@app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
+def robots_txt():
+    """Keep crawlers out of the JSON API.
+
+    The frontend serves its own ``/robots.txt`` (pages allowed, ``/api/``
+    disallowed); this one answers on the API host (``api.m3tacron.com``) where
+    the SvelteKit file does not apply. Automated crawlers walking every detail
+    endpoint burn server capacity without bringing visitors.
+    """
+    return "User-agent: *\nDisallow: /\n"
 
 
 @app.get("/api/meta-snapshot", response_model=MetaSnapshotResponse)

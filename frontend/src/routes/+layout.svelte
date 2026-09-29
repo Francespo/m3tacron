@@ -14,6 +14,7 @@
 	import { filters } from "$lib/stores/filters.svelte";
 	import { sidebarStore } from "$lib/stores/sidebar.svelte";
 	import { clearPendingSync } from "$lib/sync/urlSync.svelte";
+	import { trackPageView } from "$lib/analytics";
 
 	let { children }: { children: Snippet } = $props();
 
@@ -94,6 +95,9 @@
 			navSafetyTimer = null;
 		}
 		navActive = false;
+
+		// First-party page-view tracking (cookie-less, honours DNT/GPC).
+		trackPageView(page.url.pathname, navigation.type);
 
 		const isPopState = navigation.type === "popstate";
 		const isSamePageQuery =

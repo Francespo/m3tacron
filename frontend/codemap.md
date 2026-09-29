@@ -10,6 +10,7 @@ SvelteKit single-page application for browsing X-Wing Miniatures tournament data
   - `src/lib/stores/filters.svelte.ts` exposes the `filters` object — global filter state (data source, dates, continents/countries/cities, formats, sources, ships, search, advanced ranges) with `activeChips`, `removeChip`, and `resetAll`.
   - `src/lib/stores/xwingData.svelte.ts` exposes the `xwingData` class instance — lazy-loaded manifest for `'xwa'` and `'legacy'` sources with `getShip`, `getPilot`, `getUpgrade`, `getPilotCountByShip`, and per-source caching.
 - **API client**: `src/lib/api.ts` resolves `API_BASE` (same-origin `/api` fallback, honors `VITE_API_BASE` for absolute URLs, blocks internal hosts when browser is on a public host). Per-domain helpers in `src/lib/api/ships.ts` (`fetchAllShips`).
+- **Traffic analytics**: `src/lib/analytics.ts` exposes `trackPageView(path)` / `trackingEnabled()` — cookie-less first-party page views posted to `POST /api/analytics/collect`. Called from the layout's `afterNavigate`; disabled outside `PUBLIC_ANALYTICS_HOSTS` and when DNT/GPC is set. See `docs/ANALYTICS.md`.
 - **Styling**: Tailwind v4 via `@tailwindcss/vite` plus a `layout.css`; "terminal" theme classes (`bg-terminal-bg`, `bg-terminal-panel`, `border-border-dark`, `text-secondary`, `font-mono`). X-Wing Miniatures Font (icon classes like `xwing-miniatures-ship-*`, `xwing-miniatures-font-*`) and Chart.js (`chartAction` Svelte action on the dashboard).
 - **Static game data**: Built by `scripts/generate-xwing-data.js` into `static/data-xwa/xwing-data.json` and `static/data-legacy/xwing-data.json`, then fetched at runtime by `xwingData` store.
 - **Server routes** (SvelteKit endpoints, not pages): `src/routes/api/[...path]/+server.js` is a generic GET proxy to the backend (`http://backend:8888/api`), and `src/routes/api/meta-snapshot/+server.ts` proxies the dashboard snapshot.
@@ -38,4 +39,5 @@ SvelteKit single-page application for browsing X-Wing Miniatures tournament data
 - `src/lib/api/` — backend clients: `api.ts` (resolves `API_BASE` / `VITE_API_BASE`) and `api/ships.ts` (`fetchAllShips`).
 - `src/lib/data/` — static lookup tables and helpers: `factions.ts` (colors/chars/labels), `formats.ts` (AMG/XWA/FFG/Legacy labels/colors), `slots.ts` (X-Wing slot icon glyphs), `source.ts` (ListFortress/Longshanks/Rollbetter).
 - `src/lib/index.ts`, `src/lib/index.js` — `$lib` alias entry stubs.
+- `src/lib/analytics.ts` — first-party page-view tracker (cookie-less, DNT-aware), wired in `src/routes/+layout.svelte`.
 - `src/app.css`, `src/app.html`, `src/app.d.ts` — global Tailwind entry, HTML shell, and ambient TypeScript types.
