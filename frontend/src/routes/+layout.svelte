@@ -97,7 +97,7 @@
 		navActive = false;
 
 		// First-party page-view tracking (cookie-less, honours DNT/GPC).
-		trackPageView(page.url.pathname);
+		trackPageView(page.url.pathname, navigation.type);
 
 		const isPopState = navigation.type === "popstate";
 		const isSamePageQuery =

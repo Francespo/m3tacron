@@ -107,8 +107,12 @@ function externalReferrerHost(): string | null {
 }
 
 /** Record one page view. Never throws and never blocks the page. */
-export function trackPageView(path: string): void {
+export function trackPageView(path: string, navigationType?: string): void {
 	if (!trackingEnabled()) return;
+
+	// Same-route query updates (filters, sorting) navigate with `goto()` and
+	// only change the query string: they are not page views.
+	if (navigationType === 'goto' && path === lastPath) return;
 
 	// `afterNavigate` runs on mount and on every client-side navigation; the
 	// dedupe guard keeps a remount of the same route from double-counting.
