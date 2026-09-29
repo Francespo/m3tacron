@@ -100,6 +100,27 @@ def test_collect_rejects_unknown_origin():
     assert _rows() == []
 
 
+def test_collect_accepts_proxied_request_through_payload_host():
+    """The SvelteKit same-origin proxy drops Origin/Referer headers."""
+    _delete_test_rows()
+    response = client.post(
+        "/api/analytics/collect",
+        json={"path": "/ships", "host": "m3tacron.com", "visitor_id": TEST_VISITOR},
+        headers={"User-Agent": HUMAN_UA},
+    )
+    assert response.status_code == 202
+    assert len(_rows()) == 1
+
+
+def test_collect_rejects_request_without_any_host():
+    response = client.post(
+        "/api/analytics/collect",
+        json={"path": "/", "visitor_id": TEST_VISITOR},
+        headers={"User-Agent": HUMAN_UA},
+    )
+    assert response.status_code == 403
+
+
 def test_collect_rejects_relative_path():
     response = client.post(
         "/api/analytics/collect",

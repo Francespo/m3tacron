@@ -60,6 +60,9 @@ class PageViewEvent(BaseModel):
     visitor_id: str | None = Field(default=None, max_length=64)
     session_id: str | None = Field(default=None, max_length=64)
     referrer_host: str | None = Field(default=None, max_length=255)
+    # Page host, used to validate the event when the request travelled through
+    # the SvelteKit same-origin proxy, which does not forward Origin/Referer.
+    host: str | None = Field(default=None, max_length=255)
 
 
 def _allowed_hosts() -> set[str]:
@@ -67,8 +70,13 @@ def _allowed_hosts() -> set[str]:
     return {host.strip().lower() for host in raw.split(",") if host.strip()}
 
 
-def _request_host(request: Request) -> str | None:
-    """Return the host that issued the request, from Origin or Referer."""
+def _request_host(request: Request, fallback: str | None = None) -> str | None:
+    """Return the site that issued the request.
+
+    ``Origin``/``Referer`` are used when present (direct API calls); the
+    ``host`` field of the payload covers requests proxied by SvelteKit, which
+    drops those headers.
+    """
     for header in ("origin", "referer"):
         value = request.headers.get(header)
         if not value:
@@ -79,6 +87,11 @@ def _request_host(request: Request) -> str | None:
             continue
         if host:
             return host.lower()
+
+    if fallback:
+        host = fallback.strip().lower()
+        if host and "/" not in host and ":" not in host:
+            return host
     return None
 
 
@@ -100,7 +113,7 @@ def _clean_referrer(value: str | None) -> str | None:
 @router.post("/collect", status_code=status.HTTP_202_ACCEPTED)
 def collect_page_view(event: PageViewEvent, request: Request) -> dict[str, bool]:
     """Record one anonymous page view. Never fails the caller's page."""
-    host = _request_host(request)
+    host = _request_host(request, event.host)
     if host is None or host not in _allowed_hosts():
         raise HTTPException(status_code=403, detail="origin not allowed")
 
