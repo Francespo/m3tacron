@@ -23,6 +23,7 @@ from .api.ship_detail import router as ship_detail_router
 from .api.squadron_detail import router as squadron_detail_router
 from .api.list_detail import router as list_detail_router
 from .api.support import router as support_router
+from .api.analytics import router as analytics_router
 
 app = FastAPI(title="M3taCron Backend", version="1.0.0")
 
@@ -38,6 +39,7 @@ app.include_router(ship_detail_router)
 app.include_router(squadron_detail_router)
 app.include_router(list_detail_router)
 app.include_router(support_router)
+app.include_router(analytics_router)
 
 # Configure CORS for frontend access
 allowed_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "*").split(",") if o.strip()]
