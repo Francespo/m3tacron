@@ -10553,5 +10553,45 @@
     "city": "Mahwah",
     "country": "United States",
     "continent": "North America"
+  },
+  "Netherlands": {
+    "city": "Unknown",
+    "country": "Netherlands",
+    "continent": "Europe"
+  },
+  "alicante, Valencia,\u00a0Spain": {
+    "city": "l'Alacant\u00ed",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Campinas, S\u00e3o Paulo, Brazil": {
+    "city": "S\u00e3o Paulo",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Muito Colecion\u00e1veis, Campinas, S\u00e3o Paulo,\u00a0Brazil": {
+    "city": "S\u00e3o Paulo",
+    "country": "Brazil",
+    "continent": "South America"
+  },
+  "Poland": {
+    "city": "Unknown",
+    "country": "Poland",
+    "continent": "Europe"
+  },
+  "Hungary": {
+    "city": "Unknown",
+    "country": "Hungary",
+    "continent": "Europe"
+  },
+  "1062 Budapest, Andr\u00e1ssy \u00fat 86.; Tuan Kiad\u00f3 K\u00f6nyvesboltja, Hungary": {
+    "city": "Unknown",
+    "country": "Hungary",
+    "continent": "Europe"
+  },
+  "Centre-Val de Loire,\u00a0France": {
+    "city": "Unknown",
+    "country": "France",
+    "continent": "Europe"
   }
 }
