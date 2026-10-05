@@ -10553,5 +10553,15 @@
     "city": "Mahwah",
     "country": "United States",
     "continent": "North America"
+  },
+  "Kingdom Wargames Madrid, Madrid,\u00a0Spain": {
+    "city": "Madrid",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Virandeville, Normandy,\u00a0France": {
+    "city": "Virandeville",
+    "country": "France",
+    "continent": "Europe"
   }
 }
