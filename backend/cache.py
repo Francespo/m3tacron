@@ -20,6 +20,12 @@ Usage:
         "lists|xwa|rebel|0",
         lambda: aggregate_list_stats(filters)
     )
+
+Persistence: entries are pickled to ``data/`` so a restart keeps the warm
+cache. The dump is throttled (``CACHE_SAVE_MIN_INTERVAL_SECONDS``) because
+rewriting hundreds of MB on every few keys dominates warm-up I/O, and each
+worker watches the file so the ones that did not run the warm-up adopt the
+same snapshot instead of staying cold.
 """
 import hashlib
 import os
@@ -35,6 +41,20 @@ T = TypeVar("T")
 CACHE_CHECK_INTERVAL = 5.0  # seconds between version checks
 MAX_CACHE_ENTRIES = 10000
 CACHE_DIR = Path(__file__).parent / "data"
+
+# Writing the whole cache to disk is expensive (tens to hundreds of MB), so
+# the per-write dump used to dominate warm-up I/O. Persist at most once per
+# interval; the warm-up always calls save_cache() explicitly at the end.
+SAVE_MIN_INTERVAL = float(os.getenv("CACHE_SAVE_MIN_INTERVAL_SECONDS", "60"))
+
+# Every uvicorn worker keeps its own in-memory copy. This watcher lets a
+# worker that did not run the warm-up adopt the snapshot another worker wrote,
+# instead of staying cold and recomputing every page on first hit.
+DISK_RELOAD_INTERVAL = float(os.getenv("CACHE_DISK_RELOAD_INTERVAL_SECONDS", "20"))
+
+# Never delete a cache file younger than this: a rolling deploy may still be
+# reading/writing it.
+STALE_CACHE_MIN_AGE = 900.0
 
 # Source paths whose contents can change a cached value. Deliberately narrow:
 # anything not listed here (frontend, workflows, docs, scrapers, scripts) can
@@ -109,7 +129,9 @@ _cached_version: str | None = None
 _last_version_check: float = 0.0
 _in_flight: dict[str, threading.Event] = {}
 _in_flight_errors: dict[str, BaseException] = {}
-_writes_since_save: int = 0
+_last_save_at: float = time.monotonic()
+_disk_mtime: float = 0.0  # mtime of the snapshot we last loaded or wrote
+_watcher: threading.Thread | None = None
 
 
 def _get_cache_file_path(version: str | None) -> Path | None:
@@ -127,7 +149,9 @@ def _get_cache_file_path(version: str | None) -> Path | None:
 
 
 def _load_disk_cache(version: str | None) -> bool:
+    global _disk_mtime
     path = _get_cache_file_path(version)
+    _purge_old_disk_caches(version)
     if not path or not path.exists():
         return False
     try:
@@ -136,6 +160,7 @@ def _load_disk_cache(version: str | None) -> bool:
         if isinstance(data, dict) and data:
             with _lock:
                 _cache.update(data)
+                _disk_mtime = path.stat().st_mtime
             print(f"[cache] restored {len(data)} warm entries from disk cache for data_version {version}")
             return True
     except Exception as exc:
@@ -143,38 +168,115 @@ def _load_disk_cache(version: str | None) -> bool:
     return False
 
 
+def _reload_disk_cache_if_newer() -> int:
+    """Adopt a snapshot written by another worker, if it is newer than ours.
+
+    Returns the number of entries added. Used by the watcher thread and before
+    every save, so a worker with a partial cache never overwrites a fuller one.
+    """
+    global _disk_mtime
+    with _lock:
+        path = _get_cache_file_path(_cached_version)
+    if not path:
+        return 0
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return 0
+    with _lock:
+        if mtime <= _disk_mtime:
+            return 0
+    try:
+        with open(path, "rb") as f:
+            data = pickle.load(f)
+    except Exception as exc:
+        print(f"[cache] disk cache reload skipped: {exc}")
+        return 0
+    if not isinstance(data, dict) or not data:
+        return 0
+    with _lock:
+        if mtime <= _disk_mtime:
+            return 0
+        before = len(_cache)
+        _cache.update(data)
+        _disk_mtime = mtime
+        added = len(_cache) - before
+    print(f"[cache] adopted {len(data)} entries from disk cache ({added} new in this worker)")
+    return added
+
+
 def _save_disk_cache(version: str | None):
+    global _disk_mtime
     path = _get_cache_file_path(version)
     if not path:
         return
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
+        # Merge a newer snapshot from another worker before writing, otherwise
+        # a worker that warmed less would shrink the shared disk cache.
+        _reload_disk_cache_if_newer()
         with _lock:
             snapshot = dict(_cache)
         if not snapshot:
             return
-        tmp_path = path.with_suffix(".tmp")
+        # Per-process temp name: two workers saving at once must not interleave
+        # writes into the same file.
+        tmp_path = path.with_name(f"{path.name}.{os.getpid()}.tmp")
         with open(tmp_path, "wb") as f:
             pickle.dump(snapshot, f, protocol=pickle.HIGHEST_PROTOCOL)
         tmp_path.replace(path)
+        with _lock:
+            _disk_mtime = path.stat().st_mtime
+        _purge_old_disk_caches(version)
     except Exception as exc:
         print(f"[cache] disk cache save skipped: {exc}")
 
 
 def _purge_old_disk_caches(keep_version: str | None):
+    """Delete pickles left by older data versions or code fingerprints.
+
+    Left unattended they pile up (hundreds of MB per deploy on production).
+    Files touched recently are kept so a rolling deploy can finish with them.
+    """
     try:
         if not CACHE_DIR.exists():
             return
         keep_path = _get_cache_file_path(keep_version)
-        for p in CACHE_DIR.glob("api_cache_*.pkl*"):
+        now = time.time()
+        for p in CACHE_DIR.glob("api_cache_*"):
             if keep_path and p == keep_path:
                 continue
             try:
+                if now - p.stat().st_mtime < STALE_CACHE_MIN_AGE:
+                    continue
                 p.unlink()
             except Exception:
                 pass
     except Exception:
         pass
+
+
+def start_disk_cache_watcher() -> None:
+    """Keep every worker on the same warm snapshot.
+
+    Only one process wins the warm advisory lock, so the others start empty
+    and used to recompute every page on first hit. Polling the snapshot file
+    (a cheap stat) closes that gap without a shared cache server.
+    """
+    global _watcher
+    if _watcher is not None and _watcher.is_alive():
+        return
+
+    def _loop():
+        while True:
+            time.sleep(DISK_RELOAD_INTERVAL)
+            try:
+                _reload_disk_cache_if_newer()
+            except Exception as exc:
+                print(f"[cache] disk cache watcher error: {exc}")
+
+    _watcher = threading.Thread(target=_loop, daemon=True, name="cache-disk-watcher")
+    _watcher.start()
 
 
 def get_db_version() -> str | None:
@@ -211,7 +313,7 @@ def _check_version() -> bool:
     Check if the database version changed since last check.
     Invalidates cache ONLY when data_version changes (after a successful scrape).
     """
-    global _cached_version, _last_version_check
+    global _cached_version, _last_version_check, _disk_mtime
 
     now = time.monotonic()
     if now - _last_version_check < CACHE_CHECK_INTERVAL:
@@ -234,6 +336,7 @@ def _check_version() -> bool:
         _cache.clear()
         _in_flight.clear()
         _in_flight_errors.clear()
+        _disk_mtime = 0.0
         _purge_old_disk_caches(db_version)
         print(f"[cache] data_version {old} -> {db_version}: invalidated cache after scrape")
         return True
@@ -246,7 +349,7 @@ def get_cached_or_compute(key: str, compute_fn: Callable[[], T], force: bool = F
     Get a value from cache, or compute and cache it.
     Thread-safe. Checks for data version changes every 5 seconds.
     """
-    global _writes_since_save
+    global _last_save_at
     if not force:
         with _lock:
             _check_version()
@@ -292,22 +395,24 @@ def get_cached_or_compute(key: str, compute_fn: Callable[[], T], force: bool = F
             event.set()
         raise
     else:
-        save_needed = False
+        save_version: str | None = None
         with _lock:
             if len(_cache) >= MAX_CACHE_ENTRIES and key not in _cache:
                 oldest_key = next(iter(_cache))
                 del _cache[oldest_key]
             _cache[key] = result
-            _writes_since_save += 1
-            if _writes_since_save >= 10:
-                _writes_since_save = 0
-                save_needed = True
+            # Persist at most once per SAVE_MIN_INTERVAL: rewriting the whole
+            # pickle on every few keys hammered the disk during warm-up.
+            now = time.monotonic()
+            if now - _last_save_at >= SAVE_MIN_INTERVAL:
+                _last_save_at = now
+                save_version = _cached_version
             event.set()
             _in_flight.pop(key, None)
             _in_flight_errors.pop(key, None)
 
-        if save_needed:
-            _save_disk_cache(_cached_version)
+        if save_version:
+            _save_disk_cache(save_version)
 
         return result
 
@@ -337,6 +442,8 @@ def set_cached_version(version: str | None) -> None:
 
 def save_cache():
     """Explicitly save in-memory cache to disk."""
+    global _last_save_at
+    _last_save_at = time.monotonic()
     _save_disk_cache(_cached_version)
 
 
@@ -344,10 +451,12 @@ def invalidate_cache():
     """
     Manually invalidate the entire cache.
     """
+    global _disk_mtime
     with _lock:
         _cache.clear()
         _in_flight.clear()
         _in_flight_errors.clear()
+        _disk_mtime = 0.0
         _purge_old_disk_caches(None)
 
 
@@ -358,4 +467,7 @@ def cache_stats() -> dict:
             "entries": len(_cache),
             "version": _cached_version,
             "last_check": _last_version_check,
+            "seconds_since_save": round(time.monotonic() - _last_save_at, 1),
+            "disk_mtime": _disk_mtime,
+            "save_min_interval_s": SAVE_MIN_INTERVAL,
         }

@@ -1,4 +1,17 @@
+import os
+import pickle
+import time
+
 import backend.cache as c
+
+
+def _isolate(monkeypatch, tmp_path, version, entries=None):
+    """Point the cache at a temp dir with a fixed version and no version check."""
+    monkeypatch.setattr(c, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(c, "_cached_version", version)
+    monkeypatch.setattr(c, "_cache", dict(entries or {}))
+    monkeypatch.setattr(c, "_disk_mtime", 0.0)
+    monkeypatch.setattr(c, "_last_version_check", time.monotonic())
 
 
 def test_cache_redeploy_persistence_and_version_invalidation():
@@ -119,3 +132,82 @@ def test_has_cached_reflects_cache_state():
     assert c.has_cached("warm|present") is False
 
     c.invalidate_cache()
+
+
+def test_disk_save_is_throttled(monkeypatch, tmp_path):
+    """A write must not dump the whole pickle every few keys.
+
+    Re-dumping on every 10th key wrote hundreds of MB per minute during
+    warm-up on production. Only one save per interval is allowed.
+    """
+    _isolate(monkeypatch, tmp_path, "900")
+    monkeypatch.setattr(c, "_last_save_at", time.monotonic())
+
+    c.get_cached_or_compute("k1", lambda: 1)
+    assert list(tmp_path.glob("api_cache_*.pkl")) == []
+
+    # Pretend the interval elapsed: the next write persists everything.
+    monkeypatch.setattr(c, "_last_save_at", time.monotonic() - c.SAVE_MIN_INTERVAL - 1)
+    c.get_cached_or_compute("k2", lambda: 2)
+
+    files = list(tmp_path.glob("api_cache_*.pkl"))
+    assert len(files) == 1
+    with open(files[0], "rb") as f:
+        data = pickle.load(f)
+    assert data["k1"] == 1 and data["k2"] == 2
+
+
+def test_worker_adopts_snapshot_written_by_another_worker(monkeypatch, tmp_path):
+    """Only one worker warms; the others must load its snapshot, not stay cold."""
+    _isolate(monkeypatch, tmp_path, "901")
+
+    path = c._get_cache_file_path("901")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "wb") as f:
+        pickle.dump({"warm|key": {"value": 42}}, f)
+
+    assert c._cache == {}
+    assert c._reload_disk_cache_if_newer() == 1
+    assert c._cache["warm|key"] == {"value": 42}
+
+    # Nothing new: a second poll is a no-op.
+    assert c._reload_disk_cache_if_newer() == 0
+
+
+def test_save_merges_newer_snapshot_instead_of_shrinking_it(monkeypatch, tmp_path):
+    """A worker with a partial cache must not overwrite the full snapshot."""
+    _isolate(monkeypatch, tmp_path, "902", {"local": 1})
+
+    path = c._get_cache_file_path("902")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "wb") as f:
+        pickle.dump({"local": 99, "from_other_worker": 2}, f)
+
+    c._save_disk_cache("902")
+
+    with open(path, "rb") as f:
+        data = pickle.load(f)
+    assert data["from_other_worker"] == 2
+    assert data["local"] == 99
+    assert "abc" not in data
+
+
+def test_purge_removes_stale_pickles_only(monkeypatch, tmp_path):
+    """Files from old fingerprints pile up (hundreds of MB); stale ones go."""
+    _isolate(monkeypatch, tmp_path, "903")
+    current = c._get_cache_file_path("903")
+    current.write_bytes(b"current")
+    stale = tmp_path / "api_cache_1_oldfingerprint.pkl"
+    stale.write_bytes(b"stale")
+    recent = tmp_path / "api_cache_1_otherfingerprint.pkl"
+    recent.write_bytes(b"recent")
+
+    old = time.time() - c.STALE_CACHE_MIN_AGE - 60
+    os.utime(stale, (old, old))
+    os.utime(current, (old, old))
+
+    c._purge_old_disk_caches("903")
+
+    assert not stale.exists()
+    assert current.exists()
+    assert recent.exists()
