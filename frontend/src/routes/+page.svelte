@@ -501,7 +501,7 @@
 
 <div class="min-h-screen p-6 font-sans">
     <header class="mb-5 flex flex-col gap-3">
-        <div class="flex flex-col lg:flex-row lg:flex-wrap lg:items-center justify-between gap-3">
+        <div class="flex flex-col lg:flex-row lg:flex-wrap lg:items-center justify-between gap-3 lg:gap-x-8">
             <h1 class="text-3xl font-sans font-bold text-primary leading-none shrink-0">Meta Dashboard</h1>
 
             <div class="flex items-center gap-3 lg:shrink-0">
