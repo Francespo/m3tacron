@@ -28,7 +28,7 @@ ship's total.
 """
 from sqlmodel import Session
 from sqlalchemy import text
-from ..cache import get_cached_or_compute
+from ..cache import current_version, get_cached_or_compute
 from ..database import engine
 from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
@@ -60,7 +60,7 @@ def _non_single_faction_list_ids(source: str) -> list[int]:
         with Session(engine) as session:
             return [int(row[0]) for row in session.execute(sql, {"source": source}).fetchall()]
 
-    return get_cached_or_compute(f"non_single_faction_list_ids|{source}", compute)
+    return get_cached_or_compute(f"non_single_faction_list_ids|{source}|{current_version()}", compute)
 
 
 def aggregate_ship_stats(

@@ -14,6 +14,7 @@ from .analytics.factions import get_meta_snapshot
 from .data_structures.data_source import DataSource
 from .cache import get_cached_or_compute
 from .bot_guard import BotGuardMiddleware
+from .http_cache import CacheRefreshMiddleware, HttpCacheMiddleware
 from .api.schemas import MetaSnapshotResponse
 from .api.tournaments import router as tournaments_router
 from .api.lists import router as lists_router
@@ -57,6 +58,13 @@ app.add_middleware(
 # Reject crawlers and rate-limit scripted clients on the expensive analytics
 # endpoints. Added after CORS so it runs first; preflights are exempt inside.
 app.add_middleware(BotGuardMiddleware)
+
+# ETag/Cache-Control on JSON GETs. Inside the refresh middleware so a forced
+# warm request still gets a cacheable response.
+app.add_middleware(HttpCacheMiddleware)
+# Outermost: lets the warm-up bypass the stale generation. Only internal peers
+# are honoured (see backend/http_cache.py).
+app.add_middleware(CacheRefreshMiddleware)
 
 @app.on_event("startup")
 def on_startup():
@@ -477,8 +485,12 @@ def _warm_ship_details() -> None:
     }
 
 
-def _probe_warm_endpoints(base: str, endpoints: list[str]) -> None:
-    """Sequentially GET each endpoint; logs timing or failure and records warm state."""
+def _probe_warm_endpoints(base: str, endpoints: list[str], refresh: bool = False) -> None:
+    """Sequentially GET each endpoint; logs timing or failure and records warm state.
+
+    ``refresh`` sends ``x-cache-refresh`` so a stale generation is bypassed
+    instead of being served and re-cached unchanged.
+    """
     import urllib.request
     import json
     from datetime import datetime, timezone
@@ -491,7 +503,10 @@ def _probe_warm_endpoints(base: str, endpoints: list[str]) -> None:
         name = path.split("?")[0].split("/")[-1] or "root"
         try:
             t0 = time.time()
-            req = urllib.request.Request(f"{base}/api/{path}")
+            req = urllib.request.Request(
+                f"{base}/api/{path}",
+                headers={"x-cache-refresh": "1"} if refresh else {},
+            )
             resp = urllib.request.urlopen(req, timeout=30)
             data = json.loads(resp.read())
             count = data.get("total", len(data.get("items", [])))
@@ -525,6 +540,17 @@ def _persist_warm_cache() -> None:
         print(f"[prewarm] interim save_cache failed: {exc}")
 
 
+def _analyze_tables() -> None:
+    """Refresh planner statistics after a data_version bump."""
+    try:
+        from .database import analyze_tables
+        t0 = time.time()
+        analyze_tables()
+        print(f"[auto-rewarm] ANALYZE done in {time.time() - t0:.1f}s")
+    except Exception as exc:
+        print(f"[auto-rewarm] ANALYZE failed: {exc}")
+
+
 def _prewarm_cache(trigger: str = "startup"):
     """Hit the API endpoints via HTTP so cache keys exactly match what users request.
 
@@ -541,8 +567,22 @@ def _prewarm_cache(trigger: str = "startup"):
 
     def _run():
         import datetime as _dt
+        from .cache import (
+            cache_is_stale,
+            check_version_now,
+            reset_force_refresh,
+            set_force_refresh,
+        )
         t0 = time.time()
         time.sleep(1.5)  # wait for uvicorn to finish binding
+        # Refresh only when a scrape left the previous generation in place.
+        # A plain restart restores a valid disk cache and must not recompute.
+        try:
+            check_version_now()
+        except Exception:
+            pass
+        refresh = cache_is_stale()
+        force_token = set_force_refresh(refresh)
         try:
             with _warm_lock() as acquired:
                 if not acquired:
@@ -551,7 +591,7 @@ def _prewarm_cache(trigger: str = "startup"):
                     return
                 # Main pages first: they are what a visitor hits, and they take
                 # seconds. The detail fan-out below can take many minutes.
-                _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
+                _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list(), refresh=refresh)
                 _persist_warm_cache()
                 _warm_detail_snapshots()
                 _persist_warm_cache()
@@ -577,6 +617,7 @@ def _prewarm_cache(trigger: str = "startup"):
                     print(f"[prewarm] set_cached_version / save_cache failed: {exc}")
                 print(f"[prewarm] done in {elapsed:.1f}s")
         finally:
+            reset_force_refresh(force_token)
             _warm_running.release()
 
     thread = threading.Thread(target=_run, daemon=True, name="cache-prewarm")
@@ -651,6 +692,7 @@ def _start_cache_auto_rewarm():
 
     def _loop():
         from backend.cache import get_db_version  # local import avoids cycle; available after engine init
+        from backend.cache import reset_force_refresh, set_force_refresh
         import datetime as _dt
 
         # Seed last_seen so we don't rewarm immediately on startup (startup
@@ -674,11 +716,16 @@ def _start_cache_auto_rewarm():
                             last_seen = cur
                             continue
                         t0 = time.time()
-                        _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
-                        _persist_warm_cache()
-                        _warm_detail_snapshots()
-                        _persist_warm_cache()
-                        _warm_ship_details()
+                        force_token = set_force_refresh(True)
+                        try:
+                            _analyze_tables()
+                            _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list(), refresh=True)
+                            _persist_warm_cache()
+                            _warm_detail_snapshots()
+                            _persist_warm_cache()
+                            _warm_ship_details()
+                        finally:
+                            reset_force_refresh(force_token)
                         elapsed = time.time() - t0
                         now = _dt.datetime.now(_dt.timezone.utc).isoformat()
                         _warm_state["last_warm_at"] = now

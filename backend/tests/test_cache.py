@@ -211,3 +211,48 @@ def test_purge_removes_stale_pickles_only(monkeypatch, tmp_path):
     assert not stale.exists()
     assert current.exists()
     assert recent.exists()
+
+
+def test_version_change_keeps_serving_stale_until_refreshed(monkeypatch, tmp_path):
+    """A scrape must not turn every page cold while the warm rebuilds."""
+    _isolate(monkeypatch, tmp_path, "910", {"k": "old"})
+    monkeypatch.setattr(c, "_last_version_check", 0)
+    monkeypatch.setattr(c, "_get_db_version", lambda: "911")
+    assert c.cache_is_stale() is False
+
+    # Version bumped: the previous generation is still served.
+    assert c.get_cached_or_compute("k", lambda: "new") == "old"
+    assert c.cache_is_stale() is True
+    # ...but the warm must not think the key is already fresh.
+    assert c.has_cached("k") is False
+
+    token = c.set_force_refresh(True)
+    try:
+        assert c.get_cached_or_compute("k", lambda: "new") == "new"
+    finally:
+        c.reset_force_refresh(token)
+    assert c.has_cached("k") is True
+
+
+def test_stale_generation_expires(monkeypatch, tmp_path):
+    """Old data is served only for a bounded window, then recomputed."""
+    _isolate(monkeypatch, tmp_path, "920", {"k": "old"})
+    monkeypatch.setattr(c, "_last_version_check", 0)
+    monkeypatch.setattr(c, "_get_db_version", lambda: "921")
+    assert c.get_cached_or_compute("k", lambda: "new") == "old"
+
+    monkeypatch.setattr(c, "_stale_until", time.monotonic() - 1)
+    assert c.get_cached_or_compute("k", lambda: "new") == "new"
+
+
+def test_force_refresh_does_not_force_nested_helpers(monkeypatch, tmp_path):
+    """Only the outermost lookup recomputes; helper caches stay warm."""
+    _isolate(monkeypatch, tmp_path, "930", {"inner": "cached"})
+    token = c.set_force_refresh(True)
+    try:
+        result = c.get_cached_or_compute(
+            "outer", lambda: ("recomputed", c.get_cached_or_compute("inner", lambda: "computed"))
+        )
+    finally:
+        c.reset_force_refresh(token)
+    assert result == ("recomputed", "cached")

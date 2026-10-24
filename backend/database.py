@@ -157,7 +157,9 @@ def _ensure_performance_indexes(conn) -> None:
         ("ix_tournament_format", "tournament", "format"),
         ("ix_playerstanding_faction_xws_normalized", "playerstanding", "faction_xws_normalized"),
         ("ix_list_faction_xws_normalized", "list", "faction_xws_normalized"),
-        ("ix_pilot_ship_mapping_ship_xws", "pilot_ship_mapping", "ship_xws"),
+        # Composite covers the ship filter (ship_xws + source) and makes the
+        # single-column duplicate unnecessary.
+        ("idx_psm_ship_source", "pilot_ship_mapping", "ship_xws, source"),
     ]
     for name, table, col in indexes:
         if _has_index(conn, name):
@@ -221,6 +223,32 @@ def _ensure_team_event_columns(conn) -> None:
                 conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_team_member_teamstanding ON team_member(teamstanding_id)"))
         except Exception as e:
             print(f"[startup] index ix_team_member_teamstanding skipped: {e}")
+
+
+# Tables whose statistics matter most for the analytics queries. ANALYZE is
+# cheap (a sample, not a full scan) and keeps the planner honest after a bulk
+# scrape; stale stats have produced 240M-row nested loops before.
+_ANALYZE_TABLES = (
+    "playerstanding",
+    "list",
+    "tournament",
+    "match",
+    "pilot_ship_mapping",
+)
+
+
+def analyze_tables(tables: tuple[str, ...] = _ANALYZE_TABLES) -> None:
+    """Refresh planner statistics after a scrape (Postgres only).
+
+    Table names are constants defined above, never user input.
+    """
+    if engine.dialect.name != "postgresql":
+        return
+    from sqlalchemy import text as _text
+
+    with engine.begin() as conn:
+        for table in tables:
+            conn.execute(_text(f"ANALYZE {table}"))
 
 
 def create_db_and_tables():
