@@ -501,10 +501,10 @@
 
 <div class="min-h-screen p-6 font-sans">
     <header class="mb-5 flex flex-col gap-3">
-        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div class="flex flex-col lg:flex-row lg:flex-wrap lg:items-center justify-between gap-3">
             <h1 class="text-3xl font-sans font-bold text-primary leading-none shrink-0">Meta Dashboard</h1>
 
-            <div class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center gap-3 lg:shrink-0">
                 <!-- Time Range Dropdown Selector -->
                 <div class="flex items-center gap-2">
                     <label for="time-range-select" class="text-xs text-secondary font-mono uppercase tracking-wider whitespace-nowrap">
@@ -522,7 +522,7 @@
                 </div>
 
                 {#if !loading && !error && meta}
-                    <div class="hidden md:flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs font-mono text-secondary">
+                    <div class="hidden md:flex items-center gap-x-3 text-xs font-mono text-secondary">
                         <span class="tracking-widest {filters.dataSource === 'legacy' ? 'text-violet-400' : 'text-amber-400'}">
                             {filters.dataSource === 'legacy' ? 'Legacy' : 'XWA'}
                         </span>
