@@ -79,8 +79,11 @@ def on_startup():
     # Pre-warm the analytics cache so the first user request is instant.
     # Runs in a background thread so the server accepts traffic immediately.
     try:
-        from .cache import get_db_version, set_cached_version
+        from .cache import get_db_version, set_cached_version, start_disk_cache_watcher
         set_cached_version(get_db_version())
+        # Only one worker wins the warm-up lock; the others adopt its snapshot
+        # from disk instead of serving every page cold on first hit.
+        start_disk_cache_watcher()
     except Exception as exc:
         print(f"[startup] initial set_cached_version failed: {exc}")
 
@@ -489,7 +492,7 @@ def _probe_warm_endpoints(base: str, endpoints: list[str]) -> None:
         try:
             t0 = time.time()
             req = urllib.request.Request(f"{base}/api/{path}")
-            resp = urllib.request.urlopen(req, timeout=15)
+            resp = urllib.request.urlopen(req, timeout=30)
             data = json.loads(resp.read())
             count = data.get("total", len(data.get("items", [])))
             elapsed = time.time() - t0
@@ -506,6 +509,20 @@ def _probe_warm_endpoints(base: str, endpoints: list[str]) -> None:
         "total": len(endpoints), "items": items,
         "at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+def _persist_warm_cache() -> None:
+    """Write the warm cache now so other workers can adopt it.
+
+    Each worker has its own in-memory cache and only one wins the warm-up
+    lock. Saving between phases lets the others pick up the hot pages right
+    away instead of waiting for the next throttled periodic save.
+    """
+    try:
+        from .cache import save_cache
+        save_cache()
+    except Exception as exc:
+        print(f"[prewarm] interim save_cache failed: {exc}")
 
 
 def _prewarm_cache(trigger: str = "startup"):
@@ -535,7 +552,9 @@ def _prewarm_cache(trigger: str = "startup"):
                 # Main pages first: they are what a visitor hits, and they take
                 # seconds. The detail fan-out below can take many minutes.
                 _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
+                _persist_warm_cache()
                 _warm_detail_snapshots()
+                _persist_warm_cache()
                 _warm_ship_details()
                 elapsed = time.time() - t0
                 now = _dt.datetime.now(_dt.timezone.utc).isoformat()
@@ -646,29 +665,39 @@ def _start_cache_auto_rewarm():
                     print(f"[auto-rewarm] data_version {last_seen} -> {cur}, rewarming cache…")
                     if debounce_s > 0:
                         time.sleep(debounce_s)
-                    t0 = time.time()
-                    _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
-                    _warm_detail_snapshots()
-                    _warm_ship_details()
-                    elapsed = time.time() - t0
-                    now = _dt.datetime.now(_dt.timezone.utc).isoformat()
-                    _warm_state["last_warm_at"] = now
-                    _warm_state["last_warm_duration_s"] = round(elapsed, 1)
-                    _record_warm_history({
-                        "at": now, "elapsed_s": round(elapsed, 1),
-                        "endpoints": dict(_warm_state["endpoints"]),
-                        "ship_details": dict(_warm_state["ship_details"]),
-                        "detail_snapshots": dict(_warm_state["detail_snapshots"]),
-                        "trigger": f"auto-rewarm {last_seen}->{cur}",
-                    })
-                    # Seal the new version and persist to disk
-                    try:
-                        from .cache import set_cached_version, save_cache
-                        set_cached_version(cur)
-                        save_cache()
-                    except Exception as exc:
-                        print(f"[auto-rewarm] set_cached_version / save_cache failed: {exc}")
-                    print(f"[auto-rewarm] done in {elapsed:.1f}s")
+                    # Every worker polls the version, but only one should run
+                    # the aggregations; the others adopt the snapshot it writes
+                    # (see start_disk_cache_watcher).
+                    with _warm_lock() as acquired:
+                        if not acquired:
+                            print("[auto-rewarm] another process is already rewarming; adopting its snapshot")
+                            last_seen = cur
+                            continue
+                        t0 = time.time()
+                        _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
+                        _persist_warm_cache()
+                        _warm_detail_snapshots()
+                        _persist_warm_cache()
+                        _warm_ship_details()
+                        elapsed = time.time() - t0
+                        now = _dt.datetime.now(_dt.timezone.utc).isoformat()
+                        _warm_state["last_warm_at"] = now
+                        _warm_state["last_warm_duration_s"] = round(elapsed, 1)
+                        _record_warm_history({
+                            "at": now, "elapsed_s": round(elapsed, 1),
+                            "endpoints": dict(_warm_state["endpoints"]),
+                            "ship_details": dict(_warm_state["ship_details"]),
+                            "detail_snapshots": dict(_warm_state["detail_snapshots"]),
+                            "trigger": f"auto-rewarm {last_seen}->{cur}",
+                        })
+                        # Seal the new version and persist to disk
+                        try:
+                            from .cache import set_cached_version, save_cache
+                            set_cached_version(cur)
+                            save_cache()
+                        except Exception as exc:
+                            print(f"[auto-rewarm] set_cached_version / save_cache failed: {exc}")
+                        print(f"[auto-rewarm] done in {elapsed:.1f}s")
                     last_seen = cur
                 elif cur is not None:
                     last_seen = cur

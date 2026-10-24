@@ -28,11 +28,39 @@ ship's total.
 """
 from sqlmodel import Session
 from sqlalchemy import text
+from ..cache import get_cached_or_compute
 from ..database import engine
 from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
 from ..utils.stats import merge_ship_faction_rows
+
+
+def _non_single_faction_list_ids(source: str) -> list[int]:
+    """Ids of lists whose pilots do not all share one faction (0 or >1).
+
+    These lists are excluded from the ships overview (see the WHERE clause in
+    ``aggregate_ship_stats``). The set depends only on the data version, so it
+    is cached: it is ~148 ids out of 55.7k lists, while recomputing it inline
+    for every request used to cost most of the query's runtime.
+    """
+    def compute() -> list[int]:
+        sql = text(
+            """
+            SELECT l.id
+            FROM list l
+            JOIN jsonb_array_elements(l.list_json::jsonb->'pilots') p ON true
+            JOIN pilot_ship_mapping psm
+              ON psm.pilot_xws = (p->>'id') AND psm.source = :source
+            GROUP BY l.id
+            HAVING COUNT(DISTINCT lower(replace(replace(
+                COALESCE(NULLIF(psm.faction, ''), 'unknown'), ' ', ''), '-', ''))) <> 1
+            """
+        )
+        with Session(engine) as session:
+            return [int(row[0]) for row in session.execute(sql, {"source": source}).fetchall()]
+
+    return get_cached_or_compute(f"non_single_faction_list_ids|{source}", compute)
 
 
 def aggregate_ship_stats(
@@ -105,13 +133,15 @@ def aggregate_ship_stats(
     where_clauses.append(_unknown % ("ps.faction_xws_normalized", "ps.faction_xws_normalized"))
     where_clauses.append(_unknown % ("psm.faction", "psm.faction"))
     where_clauses.append(_unknown % ("l.faction_xws_normalized", "l.faction_xws_normalized"))
-    # Multi-faction (mixed) squad: pilots in the list span >1 distinct pilot faction
-    where_clauses.append(
-        "(SELECT COUNT(DISTINCT lower(replace(replace(COALESCE(NULLIF(mpsm2.faction, ''), 'unknown'), ' ', ''), '-', '')))"
-        " FROM jsonb_array_elements(l.list_json::jsonb->'pilots') mp2"
-        " JOIN pilot_ship_mapping mpsm2 ON mpsm2.pilot_xws = (mp2->>'id') AND mpsm2.source = :source"
-        ") = 1"
-    )
+    # Multi-faction (mixed) squad: pilots in the list span >1 distinct pilot
+    # faction. The old form was a correlated subquery evaluated for every list
+    # on every request; it re-scanned pilot_ship_mapping ~54k times and took
+    # ~33s cold. The set is tiny (~148 of 55.7k lists) and only changes with
+    # the data version, so it is computed once and passed as an array.
+    excluded_list_ids = _non_single_faction_list_ids(source_str)
+    if excluded_list_ids:
+        where_clauses.append("l.id <> ALL(:non_single_faction_list_ids)")
+        params["non_single_faction_list_ids"] = excluded_list_ids
 
     where_clauses.append("(NOT t.is_team_event OR ps.is_team_member)")
 
