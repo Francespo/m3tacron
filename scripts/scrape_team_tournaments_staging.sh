@@ -137,4 +137,4 @@ done
 
 echo ""
 echo "[team-staging] all $TOTAL_BATCHES team batch(es) done at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-echo "[team-staging] promote when ready: gh workflow run promote_staging.yml -f confirm=YES -f backup=true"
+echo "[team-staging] staging data updated; the promote_staging workflow has been retired."

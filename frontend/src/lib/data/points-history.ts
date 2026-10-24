@@ -42,14 +42,14 @@ export function normalizeSystem(systemOrFormat: string | null | undefined): stri
 
 /**
  * Get the latest points change date for the given system or dataSource.
- * Legacy -> 2026-03-31
+ * Legacy -> 2026-09-26
  * XWA -> 2026-10-11
  * AMG -> 2024-09-06
  * FFG -> 2020-11-24
  */
 export function getLatestPointsDate(systemOrFormat: string | null | undefined): string {
     const sys = normalizeSystem(systemOrFormat);
-    return POINTS_HISTORY[sys]?.latest_date ?? (sys === 'legacy' ? '2026-03-31' : '2026-10-11');
+    return POINTS_HISTORY[sys]?.latest_date ?? (sys === 'legacy' ? '2026-09-26' : '2026-10-11');
 }
 
 /**

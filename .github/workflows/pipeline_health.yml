@@ -1,0 +1,149 @@
+name: Pipeline Health
+
+# Catches the failure modes that are easy to miss:
+# - points data upstream ahead of m3tacron (stale submodule / stuck sync PR)
+# - deployed API running an older commit than main
+# - deployed points window behind the repo
+# - API down while the frontend still returns 200
+# - the daily sync workflows failing silently
+
+on:
+  schedule:
+    # After the 05:00/06:00 UTC sync + deploy window; four times a day.
+    - cron: "15 1,7,13,19 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      UNIFIED_REPO: Francespo/xwing-unified-data
+      API: https://api.m3tacron.com
+      UNIFIED_RAW: https://raw.githubusercontent.com/Francespo/xwing-unified-data/main
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check points freshness, deploy drift and sync PRs
+        run: |
+          set -uo pipefail
+
+          PROBLEMS="$(mktemp)"
+          add() { printf -- '- %s\n' "$1" >> "$PROBLEMS"; }
+
+          # --- upstream (xwing-unified-data main) ---
+          U_LEG="$(curl -fsSL --max-time 30 "$UNIFIED_RAW/points_history/legacy.json" | jq -r '.latest_date')" \
+            || add "cannot read unified legacy points_history"
+          U_XWA="$(curl -fsSL --max-time 30 "$UNIFIED_RAW/points_history/xwa.json" | jq -r '.latest_date')" \
+            || add "cannot read unified xwa points_history"
+
+          # --- m3tacron repo ---
+          M_LEG="$(jq -r '.legacy.latest_date' frontend/src/lib/data/points-history.json)"
+          M_XWA="$(jq -r '.xwa.latest_date' frontend/src/lib/data/points-history.json)"
+
+          # --- main / deployed ---
+          MAIN_SHA="$(gh api "repos/$REPO/commits/main" --jq '.sha')"
+          if STATS="$(curl -fsSL --max-time 45 "$API/api/cache/stats")"; then
+            CODE="$(printf '%s' "$STATS" | jq -r '.config.code_version // empty')"
+            if [ -z "$CODE" ] || [ "$CODE" != "$MAIN_SHA" ]; then
+              add "deploy drift: API code_version=${CODE:-unknown} main=$MAIN_SHA"
+            fi
+          else
+            add "API unreachable: $API/api/cache/stats (frontend may still be 200)"
+          fi
+
+          # --- deployed points windows ---
+          for DS in legacy xwa; do
+            if RANGE="$(curl -fsSL --max-time 120 "$API/api/meta-snapshot?data_source=$DS&time_range=points_update" | jq -r '.date_range')"; then
+              DEPLOYED_DATE="$(printf '%s' "$RANGE" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)"
+              if [ "$DS" = legacy ] && [ -n "$DEPLOYED_DATE" ] && [ "$DEPLOYED_DATE" != "$M_LEG" ]; then
+                add "deployed legacy points=$DEPLOYED_DATE repo=$M_LEG (range: $RANGE)"
+              fi
+              if [ "$DS" = xwa ] && [ -n "$DEPLOYED_DATE" ] && [ "$DEPLOYED_DATE" != "$M_XWA" ]; then
+                add "deployed xwa points=$DEPLOYED_DATE repo=$M_XWA (range: $RANGE)"
+              fi
+            else
+              add "cannot read $DS points window from the API"
+            fi
+          done
+
+          # --- repo data lag / sync PR ---
+          if [ -n "${U_LEG:-}" ] && [ "$U_LEG" != "$M_LEG" ]; then
+            add "unified legacy=$U_LEG but m3tacron=$M_LEG (run Sync Game Data / merge its PR)"
+          fi
+          if [ -n "${U_XWA:-}" ] && [ "$U_XWA" != "$M_XWA" ]; then
+            add "unified xwa=$U_XWA but m3tacron=$M_XWA (run Sync Game Data / merge its PR)"
+          fi
+
+          PR_JSON="$(gh pr list --head chore/game-data-sync --state open --json number,createdAt --jq '.[0] // empty')"
+          if [ -n "$PR_JSON" ]; then
+            PR_NUMBER="$(printf '%s' "$PR_JSON" | jq -r '.number')"
+            PR_CREATED="$(printf '%s' "$PR_JSON" | jq -r '.createdAt')"
+            PR_AGE=$(( ( $(date -u +%s) - $(date -u -d "$PR_CREATED" +%s) ) / 3600 ))
+            if [ "$PR_AGE" -gt 24 ]; then
+              add "data sync PR #$PR_NUMBER open for ${PR_AGE}h (review/merge, check SYNC_APP_* and Protect main approvals)"
+            fi
+          fi
+
+          # --- workflow failures ---
+          U_RUN="$(gh run list -R "$UNIFIED_REPO" --workflow "Sync Game Data & Auto-detect Points" --limit 1 --json conclusion,createdAt --jq '.[0] // empty')"
+          if [ -n "$U_RUN" ] && [ "$(printf '%s' "$U_RUN" | jq -r '.conclusion')" = "failure" ]; then
+            add "xwing-unified-data sync workflow last run failed ($(printf '%s' "$U_RUN" | jq -r '.createdAt'))"
+          fi
+          M_RUN="$(gh run list --workflow "Sync Game Data" --limit 1 --json conclusion,createdAt --jq '.[0] // empty')"
+          if [ -n "$M_RUN" ] && [ "$(printf '%s' "$M_RUN" | jq -r '.conclusion')" = "failure" ]; then
+            add "m3tacron Sync Game Data workflow last run failed ($(printf '%s' "$M_RUN" | jq -r '.createdAt'))"
+          fi
+
+          TITLE="Pipeline health: points/data drift"
+          BODY="$(mktemp)"
+          {
+            echo "Automated pipeline health check."
+            echo
+            if [ -s "$PROBLEMS" ]; then
+              echo "## Problems"
+              cat "$PROBLEMS"
+            else
+              echo "All checks passed."
+            fi
+            echo
+            echo "## Snapshot"
+            echo "| | value |"
+            echo "|---|---|"
+            echo "| unified legacy | ${U_LEG:-?} |"
+            echo "| unified xwa | ${U_XWA:-?} |"
+            echo "| m3tacron legacy | ${M_LEG:-?} |"
+            echo "| m3tacron xwa | ${M_XWA:-?} |"
+            echo "| API code_version | ${CODE:-unreachable} |"
+            echo "| main SHA | ${MAIN_SHA:-?} |"
+            echo
+            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } > "$BODY"
+
+          EXISTING="$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty')"
+          if [ -s "$PROBLEMS" ]; then
+            if [ -n "$EXISTING" ]; then
+              gh issue edit "$EXISTING" --body-file "$BODY"
+              echo "Updated pipeline health issue #$EXISTING"
+            else
+              gh issue create --title "$TITLE" --body-file "$BODY"
+              echo "Opened pipeline health issue"
+            fi
+            echo "Problems detected:"
+            cat "$PROBLEMS"
+            exit 1
+          fi
+
+          if [ -n "$EXISTING" ]; then
+            gh issue close "$EXISTING" --comment "Resolved: all pipeline health checks pass."
+            echo "Closed pipeline health issue #$EXISTING"
+          fi
+          echo "Pipeline health OK: legacy=$M_LEG xwa=$M_XWA code=$CODE"
