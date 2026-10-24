@@ -94,6 +94,13 @@ def _retry_with_backoff(fn, *, attempts: int = 5, base_sleep: float = 0.7):
         raise last_exc
 
 
+def _is_sqlite(conn) -> bool:
+    try:
+        return conn.dialect.name == "sqlite"
+    except Exception:
+        return False
+
+
 def _has_column(conn, table: str, column: str) -> bool:
     try:
         from sqlalchemy import text as _text
@@ -103,6 +110,10 @@ def _has_column(conn, table: str, column: str) -> bool:
         ).fetchone()
         if res is not None:
             return True
+        if not _is_sqlite(conn):
+            return False
+        # SQLite has no information_schema. Only run this fallback there: on
+        # Postgres a failing statement aborts the surrounding transaction.
         cols = [r[1] for r in conn.execute(_text(f"PRAGMA table_info({table})")).fetchall()]
         return column.lower() in [c.lower() for c in cols]
     except Exception:
@@ -118,6 +129,8 @@ def _has_table(conn, table: str) -> bool:
         ).fetchone()
         if res is not None:
             return True
+        if not _is_sqlite(conn):
+            return False
         tables = [r[0] for r in conn.execute(_text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()]
         return table.lower() in [t.lower() for t in tables]
     except Exception:
@@ -133,6 +146,8 @@ def _has_index(conn, index_name: str) -> bool:
         ).fetchone()
         if res is not None:
             return True
+        if not _is_sqlite(conn):
+            return False
         indexes = [r[0] for r in conn.execute(_text("SELECT name FROM sqlite_master WHERE type='index'")).fetchall()]
         return index_name.lower() in [i.lower() for i in indexes]
     except Exception:
@@ -179,6 +194,46 @@ def _ensure_performance_indexes(conn) -> None:
                     continue
                 print(f"[startup] index {name} skipped: {exc}")
                 break
+
+
+def _ensure_list_index_tables(conn) -> None:
+    """Create the derived pilot/upgrade tables (see backend/list_index.py).
+
+    Idempotent and catalog-checked: CREATE TABLE only runs on a database that
+    does not have them yet, so startup does not take locks on every boot.
+    """
+    from sqlalchemy import text as _text
+
+    tables = {
+        "list_pilot": "list_id INTEGER NOT NULL, entry_idx INTEGER NOT NULL, pilot_xws TEXT NOT NULL",
+        "list_pilot_upgrade": "list_id INTEGER NOT NULL, entry_idx INTEGER NOT NULL, pilot_xws TEXT NOT NULL, upgrade_xws TEXT NOT NULL",
+        "list_index_meta": "id SMALLINT PRIMARY KEY, data_version TEXT, rebuilt_at TIMESTAMPTZ",
+    }
+    for name, columns in tables.items():
+        if _has_table(conn, name):
+            continue
+        try:
+            with conn.begin_nested():
+                conn.execute(_text(f"CREATE TABLE IF NOT EXISTS {name} ({columns})"))
+        except Exception as exc:
+            print(f"[startup] table {name} skipped: {exc}")
+
+    indexes = [
+        ("idx_list_pilot_list", "list_pilot", "list_id"),
+        ("idx_list_pilot_pilot", "list_pilot", "pilot_xws"),
+        ("idx_list_pilot_upgrade_list", "list_pilot_upgrade", "list_id"),
+        ("idx_list_pilot_upgrade_upgrade", "list_pilot_upgrade", "upgrade_xws"),
+    ]
+    for name, table, column in indexes:
+        if _has_index(conn, name):
+            continue
+        try:
+            with conn.begin_nested():
+                conn.execute(
+                    _text(f"CREATE INDEX IF NOT EXISTS {name} ON {table} ({column})")
+                )
+        except Exception as exc:
+            print(f"[startup] index {name} skipped: {exc}")
 
 
 def _ensure_team_event_columns(conn) -> None:
@@ -264,6 +319,19 @@ def create_db_and_tables():
             _ensure_performance_indexes(conn)
     except Exception as exc:
         print(f"[startup] index/team-event ensure skipped: {exc}")
+
+    # Own transaction: the derived pilot/upgrade tables must be created even if
+    # an unrelated self-heal statement above failed.
+    try:
+        from sqlalchemy import text as _text
+        with engine.begin() as conn:
+            try:
+                conn.execute(_text("SET LOCAL lock_timeout = '2s'"))
+            except Exception:
+                pass
+            _ensure_list_index_tables(conn)
+    except Exception as exc:
+        print(f"[startup] list-index tables skipped: {exc}")
 
     try:
         from sqlalchemy import text as _text
