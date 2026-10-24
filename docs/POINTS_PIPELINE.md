@@ -33,14 +33,27 @@ production                    api.m3tacron.com / m3tacron.com
 Pipeline Health (4×/day) + external uptime monitor
 ```
 
-## Required secret
+## Required settings
 
-`SYNC_BOT_TOKEN` — a classic PAT for a write-capable bot account (for example
-`Franc3s-bot`), stored as a repository secret in `Francespo/m3tacron`.
+### GitHub Actions PR creation
 
-- The PR is authored by `github-actions[bot]`; the bot account supplies the
-  required review, then auto-merge waits for CI.
-- The bot needs `repo` scope and write access to the repository.
+Repo → **Settings → Actions → General → Workflow permissions** → enable
+**Allow GitHub Actions to create and approve pull requests** → Save.
+
+Without it `GITHUB_TOKEN` cannot call `createPullRequest`. The workflow then
+falls back to `SYNC_BOT_TOKEN`, but that makes the bot the PR author, so the
+bot cannot approve it and a human must merge. With the setting enabled the PR
+author is `github-actions[bot]`, the bot supplies the review, and auto-merge is
+fully hands-off.
+
+### `SYNC_BOT_TOKEN`
+
+A classic PAT for a write-capable bot account (for example `Franc3s-bot`),
+stored as a repository secret in `Francespo/m3tacron`.
+
+- The bot must have `repo` scope and write access to the repository.
+- The PR is authored by `github-actions[bot]`; the bot supplies the required
+  review, then auto-merge waits for CI.
 - Without the secret the workflow still opens the PR and prints a warning; the
   health check flags a PR left open for more than 24 hours.
 - Do not use the repository `GITHUB_TOKEN` for the approval: a workflow cannot

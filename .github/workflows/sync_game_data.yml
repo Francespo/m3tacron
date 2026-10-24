@@ -86,12 +86,6 @@ jobs:
           git push --force origin "$SYNC_BRANCH"
 
           EXISTING="$(gh pr list --head "$SYNC_BRANCH" --state open --json number --jq '.[0].number // empty')"
-          if [ -n "$EXISTING" ]; then
-            echo "PR_NUMBER=$EXISTING" >> "$GITHUB_ENV"
-            echo "Updated existing PR #$EXISTING"
-            exit 0
-          fi
-
           SUB_SHA="$(git ls-tree HEAD external_data | awk '{print $3}')"
           {
             echo "Automated sync of \`external_data\` to \`$SUB_SHA\` and regeneration of the frontend manifests."
@@ -100,22 +94,48 @@ jobs:
             echo "Review the points-history diff before merging."
           } > /tmp/data_sync_body.md
 
-          gh pr create \
-            --base main \
-            --head "$SYNC_BRANCH" \
-            --title "chore(data): sync game data and rebuild manifests" \
-            --body-file /tmp/data_sync_body.md
+          if [ -n "$EXISTING" ]; then
+            PR_NUMBER="$EXISTING"
+            echo "Updated existing PR #$PR_NUMBER"
+          else
+            create_pr() {
+              gh pr create \
+                --base main \
+                --head "$SYNC_BRANCH" \
+                --title "chore(data): sync game data and rebuild manifests" \
+                --body-file /tmp/data_sync_body.md
+            }
 
-          PR_NUMBER="$(gh pr list --head "$SYNC_BRANCH" --state open --json number --jq '.[0].number // empty')"
-          if [ -z "$PR_NUMBER" ]; then
-            echo "::error::Could not resolve the data sync PR number"
-            exit 1
+            if create_pr; then
+              echo "Opened PR with GITHUB_TOKEN"
+            else
+              echo "::warning::GITHUB_TOKEN cannot create PRs. Enable Settings → Actions → General → Allow GitHub Actions to create and approve pull requests for full auto-merge. Falling back to SYNC_BOT_TOKEN (manual approval)."
+              if [ -z "${SYNC_BOT_TOKEN:-}" ]; then
+                echo "::error::SYNC_BOT_TOKEN is also missing; cannot create the data PR."
+                exit 1
+              fi
+              ( export GH_TOKEN="$SYNC_BOT_TOKEN"; create_pr )
+            fi
+
+            PR_NUMBER="$(gh pr list --head "$SYNC_BRANCH" --state open --json number --jq '.[0].number // empty')"
+            if [ -z "$PR_NUMBER" ]; then
+              echo "::error::Could not resolve the data sync PR number"
+              exit 1
+            fi
+            echo "Opened PR #$PR_NUMBER"
           fi
+
+          AUTHOR="$(gh pr view "$PR_NUMBER" --json author --jq '.author.login')"
           echo "PR_NUMBER=$PR_NUMBER" >> "$GITHUB_ENV"
-          echo "Opened PR #$PR_NUMBER"
+          if [ "$AUTHOR" = "github-actions" ] || [ "$AUTHOR" = "github-actions[bot]" ]; then
+            echo "PR_AUTHOR_KIND=actions" >> "$GITHUB_ENV"
+          else
+            echo "PR_AUTHOR_KIND=bot" >> "$GITHUB_ENV"
+            echo "::warning::PR #$PR_NUMBER was created by $AUTHOR; the bot cannot approve its own PR, manual approval required."
+          fi
 
       - name: Approve and enable auto-merge
-        if: env.PR_NUMBER != '' && env.SYNC_BOT_TOKEN != ''
+        if: env.PR_NUMBER != '' && env.SYNC_BOT_TOKEN != '' && env.PR_AUTHOR_KIND == 'actions'
         env:
           GH_TOKEN: ${{ secrets.SYNC_BOT_TOKEN }}
         run: |
@@ -125,5 +145,7 @@ jobs:
           gh pr merge "$PR_NUMBER" --squash --auto --delete-branch
 
       - name: Warn when manual merge is required
-        if: env.PR_NUMBER != '' && env.SYNC_BOT_TOKEN == ''
-        run: echo "::warning::SYNC_BOT_TOKEN is not set; merge the data PR manually."
+        if: env.PR_NUMBER != '' && (env.SYNC_BOT_TOKEN == '' || env.PR_AUTHOR_KIND != 'actions')
+        run: |
+          echo "::warning::Manual merge required for PR #$PR_NUMBER."
+          echo "For full auto-merge, set SYNC_BOT_TOKEN and enable 'Allow GitHub Actions to create and approve pull requests'."
