@@ -280,14 +280,15 @@ jobs:
           fi
           ssh -o StrictHostKeyChecking=accept-new audit-bot@100.109.76.51 "bash -s" << 'EOSSH' || echo "server rotation failed (non-fatal)"
           set -e
-          PREFIX="${BACKUP_DB_NAME:-postgres}"
+          export PREFIX="${BACKUP_DB_NAME:-postgres}"
           if [ -f ~/m3tacron-catchup/scripts/db_backup.py ]; then
             python3 ~/m3tacron-catchup/scripts/db_backup.py --dir ~/dumps --prefix "$PREFIX" --no-dump 2>&1 || true
           elif [ -f ~/m3tacron/scripts/db_backup.py ]; then
             python3 ~/m3tacron/scripts/db_backup.py --dir ~/dumps --prefix "$PREFIX" --no-dump 2>&1 || true
           else
             python3 << 'PYEOF'
-          import pathlib, datetime as dt, re, collections
+          import os, pathlib, datetime as dt, re, collections
+          PREFIX = os.environ.get('PREFIX', 'postgres')
           p = pathlib.Path.home() / 'dumps'
           today = dt.date.today()
           keep_daily = 3
