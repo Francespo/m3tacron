@@ -29,6 +29,7 @@ same snapshot instead of staying cold.
 """
 import hashlib
 import os
+from contextvars import ContextVar
 from pathlib import Path
 import pickle
 import threading
@@ -36,6 +37,32 @@ import time
 from typing import Callable, TypeVar
 
 T = TypeVar("T")
+
+# Set while the warm-up runs: cache reads must recompute instead of returning
+# the previous generation's value. The warm sends ``x-cache-refresh: 1`` on its
+# HTTP probes; the in-process builders set it directly. Only the outermost
+# lookup is forced: helpers called while computing a value keep using their own
+# cache (and are version-keyed where freshness matters).
+_force_refresh: ContextVar[bool] = ContextVar("cache_force_refresh", default=False)
+_inside_compute: ContextVar[bool] = ContextVar("cache_inside_compute", default=False)
+
+
+def set_force_refresh(value: bool):
+    """Mark the current context as a cache refresh (warm-up)."""
+    return _force_refresh.set(value)
+
+
+def reset_force_refresh(token) -> None:
+    _force_refresh.reset(token)
+
+
+def force_refresh_active() -> bool:
+    return _force_refresh.get()
+
+
+def current_version() -> str | None:
+    """The data_version this process is serving (for version-keyed helpers)."""
+    return _cached_version
 
 # Configuration
 CACHE_CHECK_INTERVAL = 5.0  # seconds between version checks
@@ -55,6 +82,11 @@ DISK_RELOAD_INTERVAL = float(os.getenv("CACHE_DISK_RELOAD_INTERVAL_SECONDS", "20
 # Never delete a cache file younger than this: a rolling deploy may still be
 # reading/writing it.
 STALE_CACHE_MIN_AGE = 900.0
+
+# After a scrape the cache is rebuilt in the background. Until the new values
+# are ready, keep serving the previous ones (bounded, so a broken/scrape-less
+# warm cannot serve old data forever).
+STALE_MAX_SECONDS = float(os.getenv("CACHE_STALE_MAX_SECONDS", "1800"))
 
 # Source paths whose contents can change a cached value. Deliberately narrow:
 # anything not listed here (frontend, workflows, docs, scrapers, scripts) can
@@ -133,6 +165,12 @@ _last_save_at: float = time.monotonic()
 _disk_mtime: float = 0.0  # mtime of the snapshot we last loaded or wrote
 _watcher: threading.Thread | None = None
 
+# Previous generation, served while the current one is being rebuilt after a
+# scrape. Moved (not copied) on version change, cleared once the warm is done
+# or the window expires.
+_stale_cache: dict[str, object] = {}
+_stale_until: float = 0.0
+
 
 def _get_cache_file_path(version: str | None) -> Path | None:
     if not version:
@@ -174,7 +212,7 @@ def _reload_disk_cache_if_newer() -> int:
     Returns the number of entries added. Used by the watcher thread and before
     every save, so a worker with a partial cache never overwrites a fuller one.
     """
-    global _disk_mtime
+    global _disk_mtime, _stale_cache
     with _lock:
         path = _get_cache_file_path(_cached_version)
     if not path:
@@ -201,6 +239,9 @@ def _reload_disk_cache_if_newer() -> int:
         _cache.update(data)
         _disk_mtime = mtime
         added = len(_cache) - before
+        # The adopted snapshot is the new generation: the previous one is no
+        # longer needed.
+        _stale_cache.clear()
     print(f"[cache] adopted {len(data)} entries from disk cache ({added} new in this worker)")
     return added
 
@@ -314,6 +355,12 @@ def _check_version() -> bool:
     Invalidates cache ONLY when data_version changes (after a successful scrape).
     """
     global _cached_version, _last_version_check, _disk_mtime
+    global _cache, _stale_cache, _stale_until
+
+    # Free the previous generation once its window is over.
+    if _stale_cache and time.monotonic() > _stale_until:
+        with _lock:
+            _stale_cache.clear()
 
     now = time.monotonic()
     if now - _last_version_check < CACHE_CHECK_INTERVAL:
@@ -333,28 +380,60 @@ def _check_version() -> bool:
     if db_version != _cached_version:
         old = _cached_version
         _cached_version = db_version
-        _cache.clear()
+        # Keep the previous generation for reads until the warm fills the new
+        # one: a scrape must not turn every page cold. Moved, not copied, so
+        # memory only grows while both generations are alive (minutes).
+        _stale_cache = _cache
+        _cache = {}
+        _stale_until = time.monotonic() + STALE_MAX_SECONDS
         _in_flight.clear()
         _in_flight_errors.clear()
         _disk_mtime = 0.0
         _purge_old_disk_caches(db_version)
-        print(f"[cache] data_version {old} -> {db_version}: invalidated cache after scrape")
+        print(
+            f"[cache] data_version {old} -> {db_version}: rebuilding cache, "
+            f"serving stale entries for up to {STALE_MAX_SECONDS:.0f}s"
+        )
         return True
 
     return False
+
+
+def cache_is_stale() -> bool:
+    """True while the previous generation is being served after a version change."""
+    with _lock:
+        return bool(_stale_cache) and time.monotonic() < _stale_until
+
+
+def check_version_now() -> bool:
+    """Force a data_version check now (bypasses the 5s interval)."""
+    global _last_version_check
+    with _lock:
+        _last_version_check = 0.0
+        return _check_version()
 
 
 def get_cached_or_compute(key: str, compute_fn: Callable[[], T], force: bool = False) -> T:
     """
     Get a value from cache, or compute and cache it.
     Thread-safe. Checks for data version changes every 5 seconds.
+
+    After a scrape (data_version change) the previous generation is returned
+    until the warm-up recomputes the key, bounded by ``STALE_MAX_SECONDS``.
+    ``force`` (or the warm-up refresh context) bypasses both generations.
     """
     global _last_save_at
+    force = force or (force_refresh_active() and not _inside_compute.get())
     if not force:
         with _lock:
             _check_version()
             if key in _cache:
                 return _cache[key]  # type: ignore
+        # Stale-while-revalidate: serve the previous generation while the warm
+        # rebuilds, instead of making this request pay the cold cost.
+        with _lock:
+            if _stale_cache and time.monotonic() < _stale_until and key in _stale_cache:
+                return _stale_cache[key]  # type: ignore
 
     event: threading.Event | None = None
     is_leader = False
@@ -386,6 +465,7 @@ def get_cached_or_compute(key: str, compute_fn: Callable[[], T], force: bool = F
             continue
 
     assert event is not None
+    inside_token = _inside_compute.set(True)
     try:
         result = compute_fn()
     except BaseException as e:
@@ -394,27 +474,29 @@ def get_cached_or_compute(key: str, compute_fn: Callable[[], T], force: bool = F
             _in_flight.pop(key, None)
             event.set()
         raise
-    else:
-        save_version: str | None = None
-        with _lock:
-            if len(_cache) >= MAX_CACHE_ENTRIES and key not in _cache:
-                oldest_key = next(iter(_cache))
-                del _cache[oldest_key]
-            _cache[key] = result
-            # Persist at most once per SAVE_MIN_INTERVAL: rewriting the whole
-            # pickle on every few keys hammered the disk during warm-up.
-            now = time.monotonic()
-            if now - _last_save_at >= SAVE_MIN_INTERVAL:
-                _last_save_at = now
-                save_version = _cached_version
-            event.set()
-            _in_flight.pop(key, None)
-            _in_flight_errors.pop(key, None)
+    finally:
+        _inside_compute.reset(inside_token)
 
-        if save_version:
-            _save_disk_cache(save_version)
+    save_version: str | None = None
+    with _lock:
+        if len(_cache) >= MAX_CACHE_ENTRIES and key not in _cache:
+            oldest_key = next(iter(_cache))
+            del _cache[oldest_key]
+        _cache[key] = result
+        # Persist at most once per SAVE_MIN_INTERVAL: rewriting the whole
+        # pickle on every few keys hammered the disk during warm-up.
+        now = time.monotonic()
+        if now - _last_save_at >= SAVE_MIN_INTERVAL:
+            _last_save_at = now
+            save_version = _cached_version
+        event.set()
+        _in_flight.pop(key, None)
+        _in_flight_errors.pop(key, None)
 
-        return result
+    if save_version:
+        _save_disk_cache(save_version)
+
+    return result
 
 
 def has_cached(key: str) -> bool:
@@ -438,6 +520,8 @@ def set_cached_version(version: str | None) -> None:
         _last_version_check = time.monotonic()
         if not _cache and _cached_version:
             _load_disk_cache(_cached_version)
+        # The warm-up has finished: the previous generation can go.
+        _stale_cache.clear()
 
 
 def save_cache():
@@ -454,6 +538,7 @@ def invalidate_cache():
     global _disk_mtime
     with _lock:
         _cache.clear()
+        _stale_cache.clear()
         _in_flight.clear()
         _in_flight_errors.clear()
         _disk_mtime = 0.0
@@ -470,4 +555,6 @@ def cache_stats() -> dict:
             "seconds_since_save": round(time.monotonic() - _last_save_at, 1),
             "disk_mtime": _disk_mtime,
             "save_min_interval_s": SAVE_MIN_INTERVAL,
+            "stale_entries": len(_stale_cache),
+            "stale_until_s": max(0.0, round(_stale_until - time.monotonic(), 1)) if _stale_cache else 0.0,
         }

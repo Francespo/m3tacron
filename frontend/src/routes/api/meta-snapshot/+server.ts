@@ -45,7 +45,7 @@ function resolveBackendApiBase(url: URL): string {
     return 'http://backend:8888/api';
 }
 
-export async function GET({ url, fetch }) {
+export async function GET({ url, fetch, request }) {
     const source = url.searchParams.get('data_source') || 'xwa';
     const epic = url.searchParams.get('epic') === 'true';
     const days = url.searchParams.get('days');
@@ -53,6 +53,7 @@ export async function GET({ url, fetch }) {
     const dateEnd = url.searchParams.get('date_end');
     const timeRange = url.searchParams.get('time_range');
     const backendApiBase = resolveBackendApiBase(url);
+    const CACHE_HEADERS = ['etag', 'cache-control', 'last-modified', 'vary'];
 
     try {
         const params = new URLSearchParams();
@@ -63,12 +64,31 @@ export async function GET({ url, fetch }) {
         if (dateEnd) params.set('date_end', dateEnd);
         if (timeRange) params.set('time_range', timeRange);
 
-        const res = await fetch(`${backendApiBase}/meta-snapshot?${params.toString()}`);
+        const upstreamHeaders: Record<string, string> = {};
+        const ifNoneMatch = request.headers.get('if-none-match');
+        if (ifNoneMatch) upstreamHeaders['if-none-match'] = ifNoneMatch;
+        const ifModifiedSince = request.headers.get('if-modified-since');
+        if (ifModifiedSince) upstreamHeaders['if-modified-since'] = ifModifiedSince;
+
+        const res = await fetch(`${backendApiBase}/meta-snapshot?${params.toString()}`, {
+            headers: upstreamHeaders
+        });
+
+        const passthrough = new Headers();
+        for (const name of CACHE_HEADERS) {
+            const value = res.headers.get(name);
+            if (value) passthrough.set(name, value);
+        }
+
+        // Revalidated: keep the headers so the browser can reuse the response.
+        if (res.status === 304) {
+            return new Response(null, { status: 304, headers: passthrough });
+        }
         if (!res.ok) {
             throw new Error(`Backend error: ${res.status}`);
         }
         const data = await res.json();
-        return json(data);
+        return json(data, { headers: passthrough });
     } catch (e) {
         return json({ error: String(e) }, { status: 500 });
     }
