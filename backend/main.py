@@ -367,76 +367,101 @@ def _warm_ship_details() -> None:
             }))
         return suffixes
 
+    from .cache import get_cached_or_compute, has_cached
+
+    def _all_cached(keys: list[str]) -> bool:
+        return all(has_cached(k) for k in keys)
+
     for ds in combos:
         # Phase 1: ship_info and ship_pilots per suffix
         for suffix, flt in _suffixes_for_ds(ds):
-            try:
-                bulk_ships = aggregate_ship_stats(flt, SortingCriteria.GAMES, SortDirection.DESCENDING, ds)
-                by_xws = {s["xws"]: s for s in bulk_ships}
-                for xws in sorted(all_xws):
-                    cache_key = f"ship_info|{xws}|{ds.value}{suffix}"
-                    val = by_xws.get(xws, {})
-                    get_cached_or_compute(cache_key, lambda v=val: v, force=True)
-                    ok += 1
-            except Exception as e:
-                print(f"[prewarm] ship info bulk {ds.value}{suffix}: FAILED ({e})")
-                fail += len(all_xws)
+            keys_info = [f"ship_info|{xws}|{ds.value}{suffix}" for xws in sorted(all_xws)]
+            keys_pilots = [f"ship_pilots|{xws}|{ds.value}|Lists|desc{suffix}" for xws in sorted(all_xws)]
+            keys_lists = [f"ship_lists|{xws}|{ds.value}|10{suffix}" for xws in sorted(all_xws)]
+            keys_sq = [f"ship_squadrons|{xws}|{ds.value}|10{suffix}" for xws in sorted(all_xws)]
 
-            try:
-                bulk_pilots = aggregate_card_stats(flt, SortingCriteria.LISTS, SortDirection.DESCENDING, "pilots", ds)
-                pilots_map = load_all_pilots(ds)
-                by_ship: dict[str, list[dict]] = {}
-                for p in bulk_pilots:
-                    p_xws = p.get("xws")
-                    ship = pilots_map.get(p_xws, {}).get("ship_xws", "") if p_xws else ""
-                    if not ship:
-                        continue
-                    by_ship.setdefault(ship, []).append(p)
-                for xws in sorted(all_xws):
-                    cache_key = f"ship_pilots|{xws}|{ds.value}|Lists|desc{suffix}"
-                    val = by_ship.get(xws, [])
-                    get_cached_or_compute(cache_key, lambda v=val: list(v), force=True)
-                    ok += 1
-            except Exception as e:
-                print(f"[prewarm] ship pilots bulk {ds.value}{suffix}: FAILED ({e})")
-                fail += len(all_xws)
+            # When the disk cache was restored at startup every key is already
+            # there, and recomputing the bulk aggregation is the expensive half
+            # of the warm-up. Skip the round instead of forcing a recompute.
+            if _all_cached(keys_info):
+                ok += len(keys_info)
+            else:
+                try:
+                    bulk_ships = aggregate_ship_stats(flt, SortingCriteria.GAMES, SortDirection.DESCENDING, ds)
+                    by_xws = {s["xws"]: s for s in bulk_ships}
+                    for xws in sorted(all_xws):
+                        cache_key = f"ship_info|{xws}|{ds.value}{suffix}"
+                        val = by_xws.get(xws, {})
+                        get_cached_or_compute(cache_key, lambda v=val: v)
+                        ok += 1
+                except Exception as e:
+                    print(f"[prewarm] ship info bulk {ds.value}{suffix}: FAILED ({e})")
+                    fail += len(all_xws)
+
+            if _all_cached(keys_pilots):
+                ok += len(keys_pilots)
+            else:
+                try:
+                    bulk_pilots = aggregate_card_stats(flt, SortingCriteria.LISTS, SortDirection.DESCENDING, "pilots", ds)
+                    pilots_map = load_all_pilots(ds)
+                    by_ship: dict[str, list[dict]] = {}
+                    for p in bulk_pilots:
+                        p_xws = p.get("xws")
+                        ship = pilots_map.get(p_xws, {}).get("ship_xws", "") if p_xws else ""
+                        if not ship:
+                            continue
+                        by_ship.setdefault(ship, []).append(p)
+                    for xws in sorted(all_xws):
+                        cache_key = f"ship_pilots|{xws}|{ds.value}|Lists|desc{suffix}"
+                        val = by_ship.get(xws, [])
+                        get_cached_or_compute(cache_key, lambda v=val: list(v))
+                        ok += 1
+                except Exception as e:
+                    print(f"[prewarm] ship pilots bulk {ds.value}{suffix}: FAILED ({e})")
+                    fail += len(all_xws)
 
             # Phase 2: lists and squadrons bulk partition per suffix
-            try:
-                bulk_lists = aggregate_list_stats(flt, data_source=ds)
-                lists_by_ship: dict[str, list[dict]] = {}
-                for item in bulk_lists:
-                    sl = item.get("ship_list", "")
-                    ships_in_list = sl.split(",") if isinstance(sl, str) else (sl if isinstance(sl, list) else [])
-                    for s in set(ships_in_list):
-                        if s:
-                            lists_by_ship.setdefault(s, []).append(item)
-                for xws in sorted(all_xws):
-                    cache_key = f"ship_lists|{xws}|{ds.value}|10{suffix}"
-                    val = lists_by_ship.get(xws, [])
-                    get_cached_or_compute(cache_key, lambda v=val: list(v), force=True)
-                    ok += 1
-            except Exception as e:
-                print(f"[prewarm] ship lists bulk {ds.value}{suffix}: FAILED ({e})")
-                fail += len(all_xws)
+            if _all_cached(keys_lists):
+                ok += len(keys_lists)
+            else:
+                try:
+                    bulk_lists = aggregate_list_stats(flt, data_source=ds)
+                    lists_by_ship: dict[str, list[dict]] = {}
+                    for item in bulk_lists:
+                        sl = item.get("ship_list", "")
+                        ships_in_list = sl.split(",") if isinstance(sl, str) else (sl if isinstance(sl, list) else [])
+                        for s in set(ships_in_list):
+                            if s:
+                                lists_by_ship.setdefault(s, []).append(item)
+                    for xws in sorted(all_xws):
+                        cache_key = f"ship_lists|{xws}|{ds.value}|10{suffix}"
+                        val = lists_by_ship.get(xws, [])
+                        get_cached_or_compute(cache_key, lambda v=val: list(v))
+                        ok += 1
+                except Exception as e:
+                    print(f"[prewarm] ship lists bulk {ds.value}{suffix}: FAILED ({e})")
+                    fail += len(all_xws)
 
-            try:
-                bulk_sq = aggregate_squadron_stats(flt, SortingCriteria.WINRATE, SortDirection.DESCENDING, ds)
-                sq_by_ship: dict[str, list[dict]] = {}
-                for item in bulk_sq:
-                    sl = item.get("ship_list", "")
-                    ships_in_sq = sl.split(",") if isinstance(sl, str) else (sl if isinstance(sl, list) else [])
-                    for s in set(ships_in_sq):
-                        if s:
-                            sq_by_ship.setdefault(s, []).append(item)
-                for xws in sorted(all_xws):
-                    cache_key = f"ship_squadrons|{xws}|{ds.value}|10{suffix}"
-                    val = sq_by_ship.get(xws, [])
-                    get_cached_or_compute(cache_key, lambda v=val: list(v), force=True)
-                    ok += 1
-            except Exception as e:
-                print(f"[prewarm] ship squadrons bulk {ds.value}{suffix}: FAILED ({e})")
-                fail += len(all_xws)
+            if _all_cached(keys_sq):
+                ok += len(keys_sq)
+            else:
+                try:
+                    bulk_sq = aggregate_squadron_stats(flt, SortingCriteria.WINRATE, SortDirection.DESCENDING, ds)
+                    sq_by_ship: dict[str, list[dict]] = {}
+                    for item in bulk_sq:
+                        sl = item.get("ship_list", "")
+                        ships_in_sq = sl.split(",") if isinstance(sl, str) else (sl if isinstance(sl, list) else [])
+                        for s in set(ships_in_sq):
+                            if s:
+                                sq_by_ship.setdefault(s, []).append(item)
+                    for xws in sorted(all_xws):
+                        cache_key = f"ship_squadrons|{xws}|{ds.value}|10{suffix}"
+                        val = sq_by_ship.get(xws, [])
+                        get_cached_or_compute(cache_key, lambda v=val: list(v))
+                        ok += 1
+                except Exception as e:
+                    print(f"[prewarm] ship squadrons bulk {ds.value}{suffix}: FAILED ({e})")
+                    fail += len(all_xws)
 
     elapsed = _t.time() - t0
     total_keys = ok + fail
@@ -507,9 +532,11 @@ def _prewarm_cache(trigger: str = "startup"):
                     print("[prewarm] another process holds the warm lock; skipping")
                     _warm_state["last_skip_reason"] = "another process is warming the cache"
                     return
+                # Main pages first: they are what a visitor hits, and they take
+                # seconds. The detail fan-out below can take many minutes.
+                _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
                 _warm_detail_snapshots()
                 _warm_ship_details()
-                _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
                 elapsed = time.time() - t0
                 now = _dt.datetime.now(_dt.timezone.utc).isoformat()
                 _warm_state["last_warm_at"] = now
@@ -620,8 +647,8 @@ def _start_cache_auto_rewarm():
                     if debounce_s > 0:
                         time.sleep(debounce_s)
                     t0 = time.time()
-                    _warm_detail_snapshots()
                     _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
+                    _warm_detail_snapshots()
                     _warm_ship_details()
                     elapsed = time.time() - t0
                     now = _dt.datetime.now(_dt.timezone.utc).isoformat()
