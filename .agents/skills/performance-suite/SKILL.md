@@ -1,6 +1,6 @@
 ---
 name: performance-suite
-description: Run the M3tacron local Docker performance test suite — k6, Lighthouse, Playwright Web Vitals, pytest-benchmark, Docker stats, report generation/validation. Supports local and live targets, DB validation, and CI regression signals.
+description: Run the M3tacron local Docker performance test suite — k6, Lighthouse, Playwright Web Vitals, pytest-benchmark, Docker stats, report generation/validation. Supports local and live targets, DB validation, and report generation.
 ---
 
 > **Note:** Moved from `PERFORMANCE_PROTOCOL.md` at the repository root for repo cleanliness — content unchanged, now discoverable as a skill.
@@ -11,7 +11,7 @@ description: Run the M3tacron local Docker performance test suite — k6, Lighth
 
 This document describes how to run, interpret, and maintain the M3tacron performance suite. The suite measures backend API latency, frontend Core Web Vitals, database query performance, and container resource usage using a local Docker topology with a raw copy of the dev PostgreSQL database.
 
-**Important**: Scheduled CI results are regression signals, not production-grade load claims. The local Docker environment does not replicate production hardware or network conditions.
+**Important**: Results are regression signals, not production-grade load claims. The local Docker environment does not replicate production hardware or network conditions.
 
 ## Prerequisites
 
@@ -181,22 +181,16 @@ Validation runs the same checks as local mode (8 tables, critical columns, smoke
 - The CORS policy on the live API only allows requests from `m3tacron.com` / `www.m3tacron.com`. k6 and Lighthouse send requests without an `Origin` header (or with a non-browser origin), so CORS preflight does not block them. Playwright sets `Origin: https://m3tacron.com` via `PLAYWRIGHT_BASE_URL`, so it is also allowed.
 - Reports under `reports/live-*/` are local-only evidence. Do not commit them or upload them to CI artifacts unless you have scrubbed the contents.
 
-## CI Usage
+## Running and interpreting results
 
-The GitHub Actions workflow runs on:
-- **Schedule**: Weekly on Monday at 06:00 UTC
-- **Manual dispatch**: Via the Actions tab with selectable mode (smoke/baseline/all)
+The suite is local-only. The GitHub Actions performance workflow was removed
+because it never produced a valid report: the k6/Lighthouse/benchmark steps ran
+with `continue-on-error`, the `reports/` directory was missing, and the job went
+green with zero requests measured. Keeping a green-but-empty CI signal was
+worse than having none.
 
-CI runs smoke checks by default. Full stress/soak remains manual-only to avoid excessive CI cost.
-
-### Setting Up CI Secrets
-
-In your repository settings, add:
-- `LOCAL_DB_PASSWORD`: PostgreSQL password for the local perf stack
-
-### Interpreting CI Results
-
-- Performance artifacts are retained for 30 days
+Run it from the Quick Start above or with `scripts/perf/run_local.sh`. The
+smoke profile is the default; full stress/soak remains manual-only.
 - Results are regression signals, not production benchmarks
 - Threshold failures indicate potential regressions that warrant investigation
 - Compare runs over time for trend analysis
@@ -207,7 +201,7 @@ In your repository settings, add:
 - **Never run load tests against production**
 - **Raw dev DB contains real player data**: treat as sensitive/local-only
 - **Log redaction**: `scripts/perf/redact_logs.sh` masks DB URLs, passwords, SSH keys, and API tokens in output
-- **CI secrets**: Use GitHub Actions repository secrets, never workflow text
+- **Local secrets**: Keep DB credentials in `.env` or the environment, never in tracked files
 
 ## Troubleshooting
 
