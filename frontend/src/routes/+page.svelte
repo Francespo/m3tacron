@@ -504,7 +504,7 @@
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <h1 class="text-3xl font-sans font-bold text-primary leading-none shrink-0">Meta Dashboard</h1>
 
-            <div class="flex flex-wrap items-center gap-3 sm:justify-end">
+            <div class="flex flex-wrap items-center gap-3">
                 <!-- Time Range Dropdown Selector -->
                 <div class="flex items-center gap-2">
                     <label for="time-range-select" class="text-xs text-secondary font-mono uppercase tracking-wider whitespace-nowrap">
