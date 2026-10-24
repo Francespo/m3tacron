@@ -59,6 +59,9 @@ k6-*-summary.json
 local-data/
 .local/
 
+# Runtime pickle cache written by backend/cache.py
+backend/data/api_cache_*
+
 # --- Agentic Workflows ---
 # Project-level skills are committed, except the m3tacron runbook: it encodes
 # internal infrastructure (host addresses, container ids, ops commands) and the
