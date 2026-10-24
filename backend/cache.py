@@ -312,6 +312,18 @@ def get_cached_or_compute(key: str, compute_fn: Callable[[], T], force: bool = F
         return result
 
 
+def has_cached(key: str) -> bool:
+    """True when the key is already warm in this process.
+
+    Used by the pre-warmer to skip whole aggregation rounds when the disk cache
+    was restored at startup: recomputing a key that is already there is pure
+    waste, and the ship-detail fan-out is the expensive half of the warm-up.
+    """
+    with _lock:
+        _check_version()
+        return key in _cache
+
+
 def set_cached_version(version: str | None) -> None:
     """Sync the in-memory version after startup / warm."""
     global _cached_version, _last_version_check

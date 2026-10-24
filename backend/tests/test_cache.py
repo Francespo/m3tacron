@@ -99,3 +99,23 @@ def test_fingerprint_ignores_frontend_changes():
         assert importlib.reload(c)._CODE_FINGERPRINT == fp
     finally:
         importlib.reload(c)
+
+
+def test_has_cached_reflects_cache_state():
+    """The pre-warmer uses has_cached to skip work that is already done."""
+    c._cache.clear()
+    c._cached_version = "300"
+    c._last_version_check = 0
+    c._get_db_version = lambda: "300"
+
+    assert c.has_cached("warm|missing") is False
+
+    c.get_cached_or_compute("warm|present", lambda: {"ok": True})
+    assert c.has_cached("warm|present") is True
+
+    # A data_version bump clears the cache, so nothing is "cached" any more.
+    c._last_version_check = 0
+    c._get_db_version = lambda: "301"
+    assert c.has_cached("warm|present") is False
+
+    c.invalidate_cache()
