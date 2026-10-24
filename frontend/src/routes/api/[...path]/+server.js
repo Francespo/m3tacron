@@ -75,6 +75,9 @@ async function proxyToBackend({ params, url, request }, method) {
 	if (forwardedFor) headers['x-forwarded-for'] = forwardedFor;
 	const realIp = request.headers.get('x-real-ip');
 	if (realIp && !forwardedFor) headers['x-real-ip'] = realIp;
+	// Token for the on-demand cache warm-up endpoint (PR previews).
+	const warmToken = request.headers.get('x-cache-warm-token');
+	if (warmToken) headers['x-cache-warm-token'] = warmToken;
 
 	/** @type {RequestInit & { duplex?: string }} */
 	const init = { method, headers };
