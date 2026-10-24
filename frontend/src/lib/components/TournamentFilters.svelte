@@ -174,7 +174,13 @@
             <span class="text-[11px] font-mono font-bold tracking-widest uppercase text-secondary">Date Range</span>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary transition-transform {dateOpen ? 'rotate-180' : ''}"><path d="m6 9 6 6 6-6"/></svg>
         </button>
-        {#if dateOpen}<div class="px-3.5 pb-3.5 pt-1"><DateRangeField hideLabel={true} /></div>{/if}
+        <!-- The dataset date range MUST stay bound to the global store:
+             DateRangeField declares `startDate`/`endDate` as $bindable, so
+             without these bindings every edit (era preset, manual date)
+             stays local to the component and never reaches the URL or the
+             API query. TournamentPageFilters does the same for the
+             tournaments page. -->
+        {#if dateOpen}<div class="px-3.5 pb-3.5 pt-1"><DateRangeField hideLabel={true} bind:startDate={filters.dateStart} bind:endDate={filters.dateEnd} /></div>{/if}
     </div>
 
     <div class="relative rounded-xl border border-white/5 bg-black/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden lg:col-span-2 2xl:col-span-1 2xl:col-start-3 2xl:row-start-1">
