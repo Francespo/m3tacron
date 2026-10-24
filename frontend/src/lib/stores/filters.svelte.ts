@@ -57,6 +57,11 @@ let gamesMin = $state('');
 let gamesMax = $state('');
 let winRateMin = $state('');
 let winRateMax = $state('');
+// Current point cost range — applies to the point cost shown on each list
+// row (manifest-derived for XWA), not the stored `list.points` column.
+// Lists page only. Empty = unbounded.
+let costMin = $state('');
+let costMax = $state('');
 
 // Sort (was route-local; centralized here so the URL can round-trip it).
 // Empty `sortBy` means "use the route's default"; routes should treat that
@@ -180,6 +185,7 @@ function buildActiveChips(): FilterChip[] {
     if (entriesMin || entriesMax) chips.push({ key: 'entriesRange', label: `Entries: ${entriesMin || '0'}–${entriesMax || '∞'}` });
     if (gamesMin || gamesMax) chips.push({ key: 'gamesRange', label: `Games: ${gamesMin || '0'}–${gamesMax || '∞'}` });
     if (winRateMin || winRateMax) chips.push({ key: 'winRateRange', label: `WR: ${winRateMin || '0'}–${winRateMax || '100'}%` });
+    if (costMin || costMax) chips.push({ key: 'costRange', label: `Point cost: ${costMin || '0'}–${costMax || '∞'}` });
 
     const effectiveFormats = selectedFormats.length > 0 ? selectedFormats : defaultFormatsForSource(dataSource);
     for (const f of effectiveFormats) {
@@ -355,6 +361,7 @@ function removeChip(key: string) {
     else if (key === 'entriesRange') { entriesMin = ''; entriesMax = ''; }
     else if (key === 'gamesRange') { gamesMin = ''; gamesMax = ''; }
     else if (key === 'winRateRange') { winRateMin = ''; winRateMax = ''; }
+    else if (key === 'costRange') { costMin = ''; costMax = ''; }
 }
 
 function resetAll() {
@@ -373,6 +380,7 @@ function resetAll() {
     entriesMin = ''; entriesMax = '';
     gamesMin = ''; gamesMax = '';
     winRateMin = ''; winRateMax = '';
+    costMin = ''; costMax = '';
 
     // CRITICAL: Reset All must respect the active Game Content Source
     if (dataSource === 'xwa') {
@@ -457,6 +465,8 @@ type FieldKey =
     | 'gamesMax'
     | 'winRateMin'
     | 'winRateMax'
+    | 'costMin'
+    | 'costMax'
     | 'sortBy'
     | 'sortDirection'
     | 'selectedSlots'
@@ -580,6 +590,8 @@ const ROUTE_FIELDS: Record<RouteId, readonly FieldKey[]> = {
         'gamesMax',
         'winRateMin',
         'winRateMax',
+        'costMin',
+        'costMax',
         'sortBy',
         'sortDirection',
     ],
@@ -703,6 +715,8 @@ const SINGLE_KEY: Record<FieldKey, string> = {
     gamesMax: 'games_max',
     winRateMin: 'win_rate_min',
     winRateMax: 'win_rate_max',
+    costMin: 'cost_min',
+    costMax: 'cost_max',
     // Multi-value fields — these use `params.append` and a fixed URL key:
     selectedFormats: 'formats',
     selectedFactions: 'factions',
@@ -889,6 +903,12 @@ function toSearchParams(routeId: RouteId): URLSearchParams {
                 break;
             case 'winRateMax':
                 if (winRateMax) params.set(SINGLE_KEY.winRateMax, winRateMax);
+                break;
+            case 'costMin':
+                if (costMin) params.set(SINGLE_KEY.costMin, costMin);
+                break;
+            case 'costMax':
+                if (costMax) params.set(SINGLE_KEY.costMax, costMax);
                 break;
             case 'slotCounts':
                 if (slotCounts) params.set(SINGLE_KEY.slotCounts, slotCounts);
@@ -1200,6 +1220,14 @@ function applyFromSearchParams(params: URLSearchParams, routeId?: RouteId): void
         const v = params.get('win_rate_max') ?? '';
         if (v) winRateMax = v;
     }
+    if (params.has('cost_min')) {
+        const v = params.get('cost_min') ?? '';
+        if (v) costMin = v;
+    }
+    if (params.has('cost_max')) {
+        const v = params.get('cost_max') ?? '';
+        if (v) costMax = v;
+    }
     if (params.has('sort_metric')) {
         const v = params.get('sort_metric') ?? '';
         if (v) sortBy = v;
@@ -1356,7 +1384,7 @@ const DATASET_KEYS: Record<string, boolean> = {
 };
 const LOCAL_KEYS_BY_ROUTE: Record<RouteId, string[]> = {
     cards: ['selectedFactions','selectedShips','searchName','pointsMin','pointsMax','loadoutMin','loadoutMax','isUnique','isLimited','isGeneric','selectedBaseSizes','initMin','initMax','hullMin','hullMax','shieldsMin','shieldsMax','agilityMin','agilityMax','attackMin','attackMax','slotCounts','slotCountMode','selectedSlots','slotFilterMode','hasMultipleSlots','selectedKeywords','keywordFilterMode','actionPairs','actionPairMode','selectedActions','actionFilterMode','selectedLinkedActions','linkedActionFilterMode','frontArcMin','frontArcMax','singleTurretMin','singleTurretMax','doubleTurretMin','doubleTurretMax','fullFrontMin','fullFrontMax','rearArcMin','rearArcMax','bullseyeMin','bullseyeMax','chargesMin','chargesMax','isRecurring','isNotRecurring','forceMin','forceMax','selectedUsedSlots','usedSlotFilterMode','selectedUsedDoubleSlots','usedDoubleSlotFilterMode','onlyMultiSlot','listsMin','listsMax','entriesMin','entriesMax','gamesMin','gamesMax','winRateMin','winRateMax','sortBy','sortDirection'],
-    lists: ['selectedFactions','selectedShips','selectedPilots','pilotFilterMode','shipFilterMode','listsMin','listsMax','entriesMin','entriesMax','gamesMin','gamesMax','winRateMin','winRateMax','sortBy','sortDirection'],
+    lists: ['selectedFactions','selectedShips','selectedPilots','pilotFilterMode','shipFilterMode','listsMin','listsMax','entriesMin','entriesMax','gamesMin','gamesMax','winRateMin','winRateMax','costMin','costMax','sortBy','sortDirection'],
     ships: ['selectedFactions','selectedShips','shipFilterMode','listsMin','listsMax','entriesMin','entriesMax','gamesMin','gamesMax','winRateMin','winRateMax','sortBy','sortDirection'],
     squadrons: ['selectedFactions','selectedShips','shipFilterMode','listsMin','listsMax','entriesMin','entriesMax','gamesMin','gamesMax','winRateMin','winRateMax','sortBy','sortDirection'],
     tournaments: [
@@ -1449,6 +1477,8 @@ function snapshotLocal(route: RouteId): Record<string, unknown> {
             case 'gamesMax': out[k] = gamesMax; break;
             case 'winRateMin': out[k] = winRateMin; break;
             case 'winRateMax': out[k] = winRateMax; break;
+            case 'costMin': out[k] = costMin; break;
+            case 'costMax': out[k] = costMax; break;
             case 'sortBy': out[k] = sortBy; break;
             case 'sortDirection': out[k] = sortDirection; break;
             case 'tournamentSearchName': out[k] = tournamentSearchName; break;
@@ -1541,6 +1571,8 @@ function clearLocalKeysForRoutesExcept(activeRoute: RouteId): void {
             case 'gamesMax': gamesMax = ''; break;
             case 'winRateMin': winRateMin = ''; break;
             case 'winRateMax': winRateMax = ''; break;
+            case 'costMin': costMin = ''; break;
+            case 'costMax': costMax = ''; break;
             case 'sortBy': sortBy = ''; break;
             case 'sortDirection': sortDirection = 'desc'; break;
             case 'tournamentSearchName': tournamentSearchName = ''; break;
@@ -1627,6 +1659,8 @@ function applyLocalSnapshot(route: RouteId, snap: Record<string, unknown>): void
     if (has('gamesMax') && typeof snap['gamesMax']==='string') gamesMax = snap['gamesMax'] as string;
     if (has('winRateMin') && typeof snap['winRateMin']==='string') winRateMin = snap['winRateMin'] as string;
     if (has('winRateMax') && typeof snap['winRateMax']==='string') winRateMax = snap['winRateMax'] as string;
+    if (has('costMin') && typeof snap['costMin']==='string') costMin = snap['costMin'] as string;
+    if (has('costMax') && typeof snap['costMax']==='string') costMax = snap['costMax'] as string;
     if (has('sortBy') && typeof snap['sortBy']==='string') sortBy = snap['sortBy'] as string;
     if (has('sortDirection') && (snap['sortDirection']==='asc'||snap['sortDirection']==='desc')) sortDirection = snap['sortDirection'] as 'asc'|'desc';
     if (has('tournamentSearchName') && typeof snap['tournamentSearchName']==='string') tournamentSearchName = snap['tournamentSearchName'] as string;
@@ -1731,6 +1765,10 @@ export const filters = {
     set winRateMin(v: string) { winRateMin = v; },
     get winRateMax() { return winRateMax; },
     set winRateMax(v: string) { winRateMax = v; },
+    get costMin() { return costMin; },
+    set costMin(v: string) { costMin = v; },
+    get costMax() { return costMax; },
+    set costMax(v: string) { costMax = v; },
     get sortBy() { return sortBy; },
     set sortBy(v: string) { sortBy = v; },
     get sortDirection() { return sortDirection; },
