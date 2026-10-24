@@ -360,3 +360,12 @@ jobs:
           else
             git push 2>/dev/null || echo "Cache push failed (non-fatal)"
           fi
+
+      # Keep the shared preview database in step with production right after
+      # the scrape, instead of waiting for the periodic safety-net timer.
+      # The script is a no-op when data_version did not change.
+      - name: Refresh preview database
+        if: env.NEEDS_DB == 'true' && success()
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new audit-bot@100.109.76.51 \
+            "m3tacron-preview-sync" || echo "preview database sync failed (non-fatal)"
