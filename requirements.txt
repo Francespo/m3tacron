@@ -5,5 +5,6 @@ httpx>=0.28.0
 playwright>=1.40.0
 pytest>=7.0.0
 pytest-asyncio>=0.23.0
+psycopg[binary]>=3.2.0
 psycopg2-binary>=2.9.0
 python-multipart>=0.0.12
