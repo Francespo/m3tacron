@@ -17,7 +17,7 @@ REPO_ROOT = POINTS_HISTORY_DIR.parents[1]
 
 # Default fallback dates in case files are missing or unreadable
 DEFAULT_LATEST_DATES: Dict[str, str] = {
-    "legacy": "2026-03-31",
+    "legacy": "2026-09-26",
     "xwa": "2026-10-11",
     "amg": "2024-09-06",
     "ffg": "2020-11-24",

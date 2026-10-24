@@ -65,7 +65,7 @@ def test_meta_snapshot_time_ranges():
     res_pts_leg = client.get("/api/meta-snapshot?time_range=points_update&data_source=legacy")
     assert res_pts_leg.status_code == 200
     d_pts_leg = res_pts_leg.json()
-    assert d_pts_leg["date_start"] == "2026-03-31"
+    assert d_pts_leg["date_start"] == "2026-09-26"
 
 def test_tournaments():
     response = client.get("/api/tournaments?size=10")

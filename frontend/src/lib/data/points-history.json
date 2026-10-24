@@ -6,8 +6,18 @@
     "description": "Community-maintained Second Edition 200-point combined squad/upgrade list-building format.",
     "official_url": "https://x2po.org",
     "points_url": "https://points.x2po.org",
-    "latest_date": "2026-03-31",
+    "latest_date": "2026-09-26",
     "updates": [
+      {
+        "date": "2026-09-26",
+        "version": "September 2026",
+        "name": "September 2026 Points Update",
+        "description": "44 cards updated (pilots and upgrades).",
+        "steward": "X-Wing 2.0 Legacy (X2PO)",
+        "highlights": [
+          "Changelog: 2026-09-points-update.md"
+        ]
+      },
       {
         "date": "2026-03-31",
         "version": "March 2026",

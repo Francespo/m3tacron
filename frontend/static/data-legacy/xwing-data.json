@@ -4712,10 +4712,10 @@
       "artwork": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/Art/pilots/neradantels-wat1.png",
       "caption": "Blue Dagger",
       "ability": "Gain a [Single Turret Arc] indicator. You must treat the [Front Arc] requirement of your equipped [Torpedo] upgrades as [Single Turret Arc]. After you gain a stress token, you may rotate your [Single Turret Arc] indicator.",
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "garvendreis": {
       "name": "Garven Dreis",
@@ -4790,7 +4790,7 @@
       "xws": "zeborrelios",
       "initiative": 2,
       "limited": 1,
-      "cost": 33,
+      "cost": 32,
       "ship": "attackshuttle",
       "faction": "rebelalliance",
       "image": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/En/pilots/zeborrelios.png",
@@ -4930,10 +4930,10 @@
       "artwork": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/Art/pilots/tarfful-wat1.png",
       "caption": "Leader of Kachirho",
       "ability": "Setup: After placing forces, assign the Liberated condition to another friendly Wookiee or non-limited ship. After a friendly ship with the Liberated condition defends, you may acquire a lock on the attacker, ignoring range restrictions.",
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "dutchvander": {
       "name": "“Dutch” Vander",
@@ -6376,7 +6376,7 @@
       "xws": "garvendreis-t65xwing",
       "initiative": 4,
       "limited": 1,
-      "cost": 46,
+      "cost": 45,
       "ship": "t65xwing",
       "faction": "rebelalliance",
       "image": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/En/pilots/garvendreis-t65xwing.png",
@@ -6914,17 +6914,17 @@
       "xws": "antocmerrick-wat1",
       "initiative": 4,
       "limited": 1,
-      "cost": 45,
+      "cost": 47,
       "ship": "t65xwing",
       "faction": "rebelalliance",
       "image": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/En/pilots/antocmerrick-wat1.png",
       "artwork": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/Art/pilots/antocmerrick-wat1.png",
       "caption": "Blue Leader",
       "ability": "After you perform a [Boost] or [Barrel Roll] action, you may choose another friendly ship at range 0-3. If you do, that ship may perform the same action on their action bar.",
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "zeborrelios-tielnfighter": {
       "name": "“Zeb” Orrelios",
@@ -7823,10 +7823,10 @@
       "artwork": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/Art/pilots/riodurant-wat1.png",
       "caption": "Four Armed Bandit",
       "ability": "After you perform an attack, you may rotate your [Single Turret Arc] indicator.",
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "autopilotdrone": {
       "name": "Autopilot Drone",
@@ -8419,10 +8419,10 @@
       "artwork": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/Art/pilots/januskasmir-wat1.png",
       "caption": "Kalleran Scoundrel",
       "ability": "At the start of the Engagement Phase, you may spend 1 green token to perform a [Jam] action, even while stressed.",
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "contractedscout": {
       "name": "Contracted Scout",
@@ -8617,10 +8617,10 @@
       "artwork": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/Art/pilots/blacksunbodyguard-wat1.png",
       "caption": "Vaksai Pilot",
       "ability": "Setup: Lose 2 [Charge]. After you suffer damage, recover 1 [Charge]. Before you engage, you may spend 2 [Charge] to recover 1 [Charge] on 1 of your equipped upgrades.",
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "asajjventress": {
       "name": "Asajj Ventress",
@@ -9350,7 +9350,7 @@
       "xws": "guildbountyhunter",
       "initiative": 3,
       "limited": 2,
-      "cost": 46,
+      "cost": 47,
       "ship": "st70assaultship",
       "faction": "scumandvillainy",
       "image": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/En/pilots/guildbountyhunter.png",
@@ -10064,10 +10064,10 @@
       "artwork": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/Art/pilots/captainyorr-wat1.png",
       "caption": "ST-321 Shuttle Pilot",
       "ability": "Before a friendly ship at range 0-3 would gain a non-lock red or orange token, if you have no tokens of that type, you may spend 2 [Charge] to gain that token instead.",
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "outerrimpatrol": {
       "name": "Outer Rim Patrol",
@@ -10628,7 +10628,7 @@
       "xws": "idenversio-battleofyavin-lsl",
       "initiative": 4,
       "limited": 1,
-      "cost": 64,
+      "cost": 54,
       "ship": "tieininterceptor",
       "faction": "galacticempire",
       "image": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/En/pilots/idenversio-battleofyavin-lsl.png",
@@ -10975,10 +10975,10 @@
         "name": "Autothrusters",
         "text": "After you perform an action, you may perform a red [Barrel Roll] or red [Boost] action."
       },
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "vizier": {
       "name": "“Vizier”",
@@ -11577,7 +11577,7 @@
       "xws": "idenversio",
       "initiative": 4,
       "limited": 1,
-      "cost": 42,
+      "cost": 40,
       "ship": "tielnfighter",
       "faction": "galacticempire",
       "image": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/En/pilots/idenversio.png",
@@ -11961,7 +11961,7 @@
       "xws": "scythe6-battleoverendor-lsl",
       "initiative": 2,
       "limited": 1,
-      "cost": 42,
+      "cost": 34,
       "ship": "tielnfighter",
       "faction": "galacticempire",
       "image": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/En/pilots/scythe6-battleoverendor-lsl.png",
@@ -12115,10 +12115,10 @@
         "name": "Stygium Array",
         "text": "After you decloak, you may perform an [Evade] action. At the start of the End Phase, you may spend 1 evade token to gain 1 cloak token."
       },
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "whisper-pnp": {
       "name": "“Whisper”",
@@ -12141,9 +12141,9 @@
       "epic": false,
       "valid_in_standard": false
     },
-    "whisper-pnp-ls": {
+    "whisper-pnp-lsl": {
       "name": "“Whisper”",
-      "xws": "whisper-pnp-ls",
+      "xws": "whisper-pnp-lsl",
       "initiative": 5,
       "limited": 1,
       "cost": 61,
@@ -13861,10 +13861,10 @@
       "artwork": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/Art/pilots/jannah-wat1.png",
       "caption": "Orbak Rider",
       "ability": "After you perform an action added to your action bar by a [Crew] upgrade, you may perform a [Reinforce] action.",
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "bb8": {
       "name": "BB-8",
@@ -13946,10 +13946,10 @@
       "artwork": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/Art/pilots/dj-wat1.png",
       "caption": "Don't Join",
       "ability": "After you perform a [Jam] action, you may gain 1 cloak token.",
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "colossusstationmechanic": {
       "name": "Colossus Station Mechanic",
@@ -14049,10 +14049,10 @@
         "name": "Explosion with Wings",
         "text": "Setup: You are dealt 1 facedown damage card. After you perform a [SLAM] action, you may expose 1 damage card to remove 1 disarm token."
       },
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "zoriibliss": {
       "name": "Zorii Bliss",
@@ -14617,7 +14617,7 @@
       "xws": "lingaava",
       "initiative": 3,
       "limited": 1,
-      "cost": 30,
+      "cost": 28,
       "ship": "tiefofighter",
       "faction": "firstorder",
       "image": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/En/pilots/lingaava.png",
@@ -14634,17 +14634,17 @@
       "xws": "fn2187-wat1",
       "initiative": 1,
       "limited": 1,
-      "cost": 28,
+      "cost": 29,
       "ship": "tiefofighter",
       "faction": "firstorder",
       "image": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/En/pilots/fn2187-wat1.png",
       "artwork": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/Art/pilots/fn2187-wat1.png",
       "caption": "Eight-Seven",
       "ability": "At the start of the Engagement Phase, you may gain 1 strain token to choose an enemy ship in your [Front Arc]. If you do, that ship gains 1 deplete token.",
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "quickdraw": {
       "name": "“Quickdraw”",
@@ -14773,7 +14773,7 @@
       "xws": "strife-wat1",
       "initiative": 3,
       "limited": 1,
-      "cost": 34,
+      "cost": 35,
       "ship": "tiesffighter",
       "faction": "firstorder",
       "image": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/En/pilots/strife-wat1.png",
@@ -14784,10 +14784,10 @@
         "name": "Heavy Weapon Turret",
         "text": "You can rotate your [Single Turret Arc] indicator only to your [Front Arc] or [Rear Arc]. You must treat the [Front Arc] requirement of your equipped [Missile] upgrades as [Single Turret Arc]."
       },
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "blackout": {
       "name": "“Blackout”",
@@ -15072,10 +15072,10 @@
         "name": "Linked Battery",
         "text": "While you perform a [Cannon] attack, roll 1 additional die."
       },
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "agentterex": {
       "name": "Agent Terex",
@@ -15165,7 +15165,7 @@
       "xws": "breach",
       "initiative": 5,
       "limited": 1,
-      "cost": 37,
+      "cost": 36,
       "ship": "tiesebomber",
       "faction": "firstorder",
       "image": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/En/pilots/breach.png",
@@ -15731,10 +15731,10 @@
         "name": "Networked Calculations",
         "text": "While you defend or perform an attack, you may spend 1 calculate token from a friendly ship at range 0-1 to change 1 [Focus] result to an [Evade] or [Hit] result."
       },
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "dfs420-wat1": {
       "name": "DFS-420",
@@ -15752,10 +15752,10 @@
         "name": "Networked Calculations",
         "text": "While you defend or perform an attack, you may spend 1 calculate token from a friendly ship at range 0-1 to change 1 [Focus] result to an [Evade] or [Hit] result."
       },
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "separatistprivateers": {
       "name": "Separatist Privateers",
@@ -15869,10 +15869,10 @@
       "artwork": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/Art/pilots/halliobas-wat1.png",
       "caption": "Skakoan Guide",
       "ability": "While you defend or perform an attack, before attack dice are rolled, if there are no other friendly ships at range 0-1, you may spend 1 [Charge] to remove 1 red or orange token.",
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "darthmaul": {
       "name": "Darth Maul",
@@ -16370,7 +16370,7 @@
       "xws": "phlacarphoccprototype",
       "initiative": 5,
       "limited": 2,
-      "cost": 38,
+      "cost": 37,
       "ship": "droidtrifighter",
       "faction": "separatistalliance",
       "image": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/En/pilots/phlacarphoccprototype.png",
@@ -16825,7 +16825,7 @@
       "xws": "aurrasing",
       "initiative": 4,
       "limited": 1,
-      "cost": 75,
+      "cost": 74,
       "ship": "firesprayclasspatrolcraft",
       "faction": "separatistalliance",
       "image": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/En/pilots/aurrasing.png",
@@ -17480,10 +17480,10 @@
         "name": "Fine-tuned Controls",
         "text": "After you fully execute a maneuver, you may spend 1 [Force] to perform a [Boost] or [Barrel Roll] action."
       },
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "republicjudiciary": {
       "name": "Republic Judiciary",
@@ -17881,10 +17881,10 @@
         "name": "Full Throttle",
         "text": "After you fully execute a speed 3-5 maneuver, you may perform an [Evade] action."
       },
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "essaratill-wat1": {
       "name": "Essara Till",
@@ -17902,10 +17902,10 @@
         "name": "Full Throttle",
         "text": "After you fully execute a speed 3-5 maneuver, you may perform an [Evade] action."
       },
-      "standard": false,
+      "standard": true,
       "extended": false,
       "epic": true,
-      "valid_in_standard": false
+      "valid_in_standard": true
     },
     "shadowsquadronveteran": {
       "name": "Shadow Squadron Veteran",
@@ -18483,7 +18483,7 @@
       "xws": "wilhufftarkin",
       "initiative": 3,
       "limited": 1,
-      "cost": 29,
+      "cost": 28,
       "ship": "nimbusclassvwing",
       "faction": "galacticrepublic",
       "image": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/En/pilots/wilhufftarkin.png",
@@ -18525,7 +18525,7 @@
       "xws": "contrail",
       "initiative": 5,
       "limited": 1,
-      "cost": 31,
+      "cost": 30,
       "ship": "nimbusclassvwing",
       "faction": "galacticrepublic",
       "image": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/En/pilots/contrail.png",
@@ -18546,7 +18546,7 @@
       "xws": "klick",
       "initiative": 4,
       "limited": 1,
-      "cost": 30,
+      "cost": 29,
       "ship": "nimbusclassvwing",
       "faction": "galacticrepublic",
       "image": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/En/pilots/klick.png",
@@ -18626,7 +18626,7 @@
       "xws": "klick-siegeofcoruscant-lsl",
       "initiative": 4,
       "limited": 1,
-      "cost": 36,
+      "cost": 35,
       "ship": "nimbusclassvwing",
       "faction": "galacticrepublic",
       "image": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/En/pilots/klick-siegeofcoruscant-lsl.png",
@@ -18668,7 +18668,7 @@
       "xws": "contrail-siegeofcoruscant-lsl",
       "initiative": 5,
       "limited": 1,
-      "cost": 32,
+      "cost": 31,
       "ship": "nimbusclassvwing",
       "faction": "galacticrepublic",
       "image": "https://raw.githubusercontent.com/SogeMoge/x-wing2.0-project-goldenrod/2.0-legacy/src/images/En/pilots/contrail-siegeofcoruscant-lsl.png",
@@ -19611,13 +19611,7 @@
       "xws": "r7a7",
       "limited": 1,
       "cost": {
-        "variable": "agility",
-        "values": {
-          "0": 3,
-          "1": 3,
-          "2": 3,
-          "3": 5
-        }
+        "value": 3
       },
       "standard": true,
       "extended": false,
@@ -21491,7 +21485,7 @@
       "xws": "alpha3bbesh",
       "limited": 0,
       "cost": {
-        "value": 0
+        "value": 1
       },
       "standard": true,
       "extended": false,
@@ -25381,7 +25375,7 @@
       "xws": "clustermines",
       "limited": 0,
       "cost": {
-        "value": 6
+        "value": 5
       },
       "standard": true,
       "extended": false,
@@ -25525,7 +25519,7 @@
       "xws": "sense",
       "limited": 0,
       "cost": {
-        "value": 7
+        "value": 5
       },
       "standard": true,
       "extended": false,
@@ -27355,7 +27349,7 @@
       "xws": "falsetranspondercodes",
       "limited": 0,
       "cost": {
-        "value": 3
+        "value": 2
       },
       "standard": true,
       "extended": false,
@@ -28791,13 +28785,7 @@
       "xws": "advancedsensors",
       "limited": 0,
       "cost": {
-        "variable": "size",
-        "values": {
-          "Small": 13,
-          "Medium": 11,
-          "Large": 9,
-          "Huge": 0
-        }
+        "value": 10
       },
       "standard": true,
       "extended": false,
@@ -28901,15 +28889,15 @@
       "cost": {
         "variable": "initiative",
         "values": {
-          "0": 4,
-          "1": 4,
-          "2": 4,
-          "3": 4,
-          "4": 5,
-          "5": 6,
-          "6": 7,
-          "7": 4,
-          "8": 4
+          "0": 3,
+          "1": 3,
+          "2": 3,
+          "3": 3,
+          "4": 4,
+          "5": 5,
+          "6": 5,
+          "7": 3,
+          "8": 3
         }
       },
       "standard": true,
@@ -29134,7 +29122,7 @@
       "xws": "crackshot",
       "limited": 0,
       "cost": {
-        "value": 3
+        "value": 2
       },
       "standard": true,
       "extended": false,
