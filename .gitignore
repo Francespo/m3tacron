@@ -60,7 +60,10 @@ local-data/
 .local/
 
 # --- Agentic Workflows ---
-# Allow project-level skills to be committed; still ignore agent state.
+# Project-level skills are committed, except the m3tacron runbook: it encodes
+# internal infrastructure (host addresses, container ids, ops commands) and the
+# repository is public. Keep it local.
+.agents/skills/m3tacron/
 .agents/agents/
 .agents/state/
 .agents/cache/
