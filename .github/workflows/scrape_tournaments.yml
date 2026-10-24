@@ -2,6 +2,9 @@ name: Scrape Tournaments
 
 permissions:
   contents: write
+  # Workload identity federation: lets the Tailscale action request a GitHub
+  # OIDC token and exchange it for a short-lived tailnet credential.
+  id-token: write
 
 on:
   schedule:
@@ -86,27 +89,30 @@ jobs:
         if: env.NEEDS_DB == 'true'
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
-      - name: Open SSH tunnel to database
+      # Public port 22 on the production host is filtered upstream. Reach it
+      # through the tailnet instead: the ephemeral CI node gets tag:ci and the
+      # Tailscale ACL only allows tag:ci -> tag:server:22.
+      #
+      # Auth uses Tailscale workload identity federation (OIDC): no long-lived
+      # OAuth client secret. The client ID and audience are public identifiers,
+      # not secrets — repo variables override them when present.
+      - name: Join Tailscale network
         if: env.NEEDS_DB == 'true'
-        run: |
-          # Sanitize the secret — copes with CR line endings / stray whitespace
-          # from paste that breaks ssh-add (error: "error in libcrypto").
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s' "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > /tmp/m3tacron_deploy_key
-          tail -c1 /tmp/m3tacron_deploy_key | read -r _ || echo >> /tmp/m3tacron_deploy_key
-          chmod 600 /tmp/m3tacron_deploy_key
-          eval $(ssh-agent -s)
-          ssh-add /tmp/m3tacron_deploy_key
-          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
-          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
-          ssh-keyscan -H -t ed25519 84.8.253.2 >> ~/.ssh/known_hosts
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: "${{ vars.TS_OAUTH_CLIENT_ID || 'TM4Z2oLQBM11CNTRL-kbAksPDhFP11CNTRL' }}"
+          audience: "${{ vars.TS_AUDIENCE || 'api.tailscale.com/TM4Z2oLQBM11CNTRL-kbAksPDhFP11CNTRL' }}"
+          tags: tag:ci
+          ping: 100.109.76.51
 
+      # Tailscale SSH authenticates with the node identity of the runner, so no
+      # SSH key is needed: port 22 on the tailnet is served by tailscaled.
       - name: Start database tunnel
         if: env.NEEDS_DB == 'true'
         run: |
           ssh -f -N -L 5432:localhost:3000 \
             -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes \
-            audit-bot@84.8.253.2
+            audit-bot@100.109.76.51
           echo "Waiting for tunnel..."
           for i in $(seq 1 15); do
             if pg_isready -h localhost -p 5432 2>/dev/null | grep -q "accepting"; then
@@ -269,19 +275,20 @@ jobs:
           if [ -z "${BACKUP_FILE:-}" ] || [ ! -f "$BACKUP_FILE" ]; then
             echo "No backup file to rotate on server, skipping scp."
           else
-            scp -o StrictHostKeyChecking=accept-new -i /tmp/m3tacron_deploy_key \
-              "$BACKUP_FILE" audit-bot@84.8.253.2:~/dumps/ || echo "scp to server failed (non-fatal)"
+            scp -o StrictHostKeyChecking=accept-new \
+              "$BACKUP_FILE" audit-bot@100.109.76.51:~/dumps/ || echo "scp to server failed (non-fatal)"
           fi
-          ssh -o StrictHostKeyChecking=accept-new -i /tmp/m3tacron_deploy_key audit-bot@84.8.253.2 "bash -s" << 'EOSSH' || echo "server rotation failed (non-fatal)"
+          ssh -o StrictHostKeyChecking=accept-new audit-bot@100.109.76.51 "bash -s" << 'EOSSH' || echo "server rotation failed (non-fatal)"
           set -e
-          PREFIX="${BACKUP_DB_NAME:-postgres}"
+          export PREFIX="${BACKUP_DB_NAME:-postgres}"
           if [ -f ~/m3tacron-catchup/scripts/db_backup.py ]; then
             python3 ~/m3tacron-catchup/scripts/db_backup.py --dir ~/dumps --prefix "$PREFIX" --no-dump 2>&1 || true
           elif [ -f ~/m3tacron/scripts/db_backup.py ]; then
             python3 ~/m3tacron/scripts/db_backup.py --dir ~/dumps --prefix "$PREFIX" --no-dump 2>&1 || true
           else
             python3 << 'PYEOF'
-          import pathlib, datetime as dt, re, collections
+          import os, pathlib, datetime as dt, re, collections
+          PREFIX = os.environ.get('PREFIX', 'postgres')
           p = pathlib.Path.home() / 'dumps'
           today = dt.date.today()
           keep_daily = 3
@@ -322,7 +329,6 @@ jobs:
               curl -sf --max-time 30 "$base/api/$path" > /dev/null 2>&1 && echo "Warmed $base/api/$path" || true
             done
           done || true
-          rm -f /tmp/m3tacron_deploy_key
 
       - name: Upload Scraped Tournaments Artifact
         if: always() && hashFiles('scraped_tournaments.db') != '' && github.event.inputs.upload_sqlite_artifact != 'false'
@@ -354,3 +360,12 @@ jobs:
           else
             git push 2>/dev/null || echo "Cache push failed (non-fatal)"
           fi
+
+      # Keep the shared preview database in step with production right after
+      # the scrape, instead of waiting for the periodic safety-net timer.
+      # The script is a no-op when data_version did not change.
+      - name: Refresh preview database
+        if: env.NEEDS_DB == 'true' && success()
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new audit-bot@100.109.76.51 \
+            "m3tacron-preview-sync" || echo "preview database sync failed (non-fatal)"

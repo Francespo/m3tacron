@@ -8021,8 +8021,8 @@
       "xws": "bobafett-armedanddangerous",
       "initiative": 5,
       "limited": 1,
-      "cost": 18,
-      "loadout": 0,
+      "cost": 20,
+      "loadout": 20,
       "ship": "firesprayclasspatrolcraft",
       "faction": "scumandvillainy",
       "image": "https://infinitearenas.com/xw2xwa/images/quickbuilds/bobafett-armedanddangerous.png",
@@ -17013,8 +17013,8 @@
       "xws": "bobafett-firesprayclasspatrolcraft",
       "initiative": 3,
       "limited": 1,
-      "cost": 16,
-      "loadout": 9,
+      "cost": 20,
+      "loadout": 20,
       "ship": "firesprayclasspatrolcraft",
       "faction": "separatistalliance",
       "image": "https://infinitearenas.com/xw2/images/pilots/bobafett-separatistalliance.png",
@@ -33471,7 +33471,7 @@
       "xws": "marauder",
       "limited": 1,
       "cost": {
-        "value": 0
+        "value": 2
       },
       "standard": true,
       "extended": true,

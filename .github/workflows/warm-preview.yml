@@ -1,0 +1,106 @@
+name: Warm Preview Cache
+
+# PR previews deliberately skip the cache warm-up: they share the production
+# database, and warming every PR on every deploy is what saturated Postgres.
+# When a preview needs a warm cache (to test detail pages without the cold
+# 3-8s first hit), trigger this workflow.
+#
+# Two ways in:
+#   - Actions -> "Warm Preview Cache" -> Run workflow -> PR number
+#   - add the `warm-cache` label to a PR
+#
+# It calls POST /api/cache/warm on the preview, then polls /api/cache/stats
+# until the warm completes. Requires the CACHE_WARM_TOKEN repository secret,
+# which must match the CACHE_WARM_TOKEN env var of the preview deployment.
+
+permissions:
+  contents: read
+  pull-requests: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "PR number whose preview should be warmed"
+        required: true
+        type: string
+  pull_request:
+    types: [labeled]
+
+concurrency:
+  group: warm-preview-${{ github.event.pull_request.number || inputs.pr }}
+  cancel-in-progress: false
+
+jobs:
+  warm:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'warm-cache'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Resolve preview URL
+        id: preview
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PR="${{ inputs.pr }}"
+          else
+            PR="${{ github.event.pull_request.number }}"
+          fi
+          if ! printf '%s' "$PR" | grep -Eq '^[0-9]+$'; then
+            echo "::error::not a PR number: $PR"
+            exit 1
+          fi
+          echo "pr=$PR" >> "$GITHUB_OUTPUT"
+          echo "url=https://${PR}.dev.m3tacron.com" >> "$GITHUB_OUTPUT"
+          echo "warming preview for PR #$PR"
+
+      - name: Trigger warm-up
+        id: trigger
+        env:
+          TOKEN: ${{ secrets.CACHE_WARM_TOKEN }}
+          URL: ${{ steps.preview.outputs.url }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::error::CACHE_WARM_TOKEN secret is not configured"
+            exit 1
+          fi
+          before="$(curl -sS --max-time 30 "$URL/api/cache/stats" | jq -r '.warm.last_warm_at // "none"' || echo none)"
+          echo "before=$before" >> "$GITHUB_OUTPUT"
+
+          code="$(curl -sS -o /tmp/warm.json -w '%{http_code}' --max-time 60 \
+            -X POST -H "x-cache-warm-token: $TOKEN" "$URL/api/cache/warm" || true)"
+          cat /tmp/warm.json 2>/dev/null || true
+          case "$code" in
+            202) echo "warm-up started" ;;
+            409) echo "::warning::a warm-up is already running on this preview" ;;
+            403) echo "::error::the preview rejected the token (check CACHE_WARM_TOKEN in Coolify)"; exit 1 ;;
+            000) echo "::error::preview unreachable at $URL (is the deployment finished?)"; exit 1 ;;
+            *)   echo "::error::warm trigger failed with HTTP $code"; exit 1 ;;
+          esac
+
+      - name: Wait for completion
+        env:
+          URL: ${{ steps.preview.outputs.url }}
+          BEFORE: ${{ steps.trigger.outputs.before }}
+        run: |
+          set -euo pipefail
+          echo "last_warm_at before: $BEFORE"
+          for i in $(seq 1 40); do
+            sleep 30
+            body="$(curl -sS --max-time 30 "$URL/api/cache/stats" || echo '{}')"
+            now="$(printf '%s' "$body" | jq -r '.warm.last_warm_at // "none"')"
+            skip="$(printf '%s' "$body" | jq -r '.warm.last_skip_reason // "none"')"
+
+            if [ "$skip" != "none" ] && [ "$skip" != "null" ]; then
+              echo "::warning::warm-up skipped: $skip"
+              exit 0
+            fi
+            if [ "$now" != "$BEFORE" ] && [ "$now" != "none" ]; then
+              printf '%s' "$body" | jq -r '.warm | "warm completed at \(.last_warm_at) in \(.last_warm_duration_s)s (endpoints ok=\(.endpoints.ok) fail=\(.endpoints.fail), ship detail ok=\(.ship_details.ok) fail=\(.ship_details.fail))"'
+              exit 0
+            fi
+            echo "still warming ($i/40)"
+          done
+          echo "::error::warm-up did not finish within 20 minutes"
+          exit 1

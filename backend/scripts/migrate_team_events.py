@@ -35,30 +35,47 @@ log = logging.getLogger(__name__)
 
 
 def _ensure_schema(session: Session) -> None:
-    """Add columns + team_member table if missing (idempotent)."""
+    """Add columns + team_member table if missing (idempotent).
+
+    This runs on every scrape, against production. ``ALTER TABLE`` takes an
+    ACCESS EXCLUSIVE lock even when the column already exists, and a queued
+    ALTER makes every following reader wait behind it. So: look in the catalog
+    first, and set a lock_timeout so a busy table makes us give up instead of
+    freezing the API.
+    """
+    from ..database import _has_column, _has_index, _has_table
+
     log.info("Ensuring schema (is_team_event / is_team_member / team_member)...")
-    session.execute(text("""
-        ALTER TABLE tournament ADD COLUMN IF NOT EXISTS is_team_event boolean NOT NULL DEFAULT false
-    """))
-    session.execute(text("""
-        ALTER TABLE playerstanding ADD COLUMN IF NOT EXISTS is_team_member boolean NOT NULL DEFAULT false
-    """))
-    session.execute(text("""
-        CREATE TABLE IF NOT EXISTS team_member (
-            id SERIAL PRIMARY KEY,
-            teamstanding_id integer NOT NULL REFERENCES teamstanding(id) ON DELETE CASCADE,
-            playerstanding_id integer NOT NULL REFERENCES playerstanding(id) ON DELETE CASCADE,
-            list_id integer REFERENCES list(id),
-            list_json jsonb,
-            CONSTRAINT uq_team_member_team_player UNIQUE (teamstanding_id, playerstanding_id)
-        )
-    """))
-    session.execute(text("""
-        CREATE UNIQUE INDEX IF NOT EXISTS uq_team_member_player ON team_member(playerstanding_id)
-    """))
-    session.execute(text("""
-        CREATE INDEX IF NOT EXISTS ix_team_member_teamstanding ON team_member(teamstanding_id)
-    """))
+    if session.get_bind().dialect.name == "postgresql":
+        session.execute(text("SET LOCAL lock_timeout = '2s'"))
+
+    if not _has_column(session, "tournament", "is_team_event"):
+        session.execute(text("""
+            ALTER TABLE tournament ADD COLUMN is_team_event boolean NOT NULL DEFAULT false
+        """))
+    if not _has_column(session, "playerstanding", "is_team_member"):
+        session.execute(text("""
+            ALTER TABLE playerstanding ADD COLUMN is_team_member boolean NOT NULL DEFAULT false
+        """))
+    if not _has_table(session, "team_member"):
+        session.execute(text("""
+            CREATE TABLE team_member (
+                id SERIAL PRIMARY KEY,
+                teamstanding_id integer NOT NULL REFERENCES teamstanding(id) ON DELETE CASCADE,
+                playerstanding_id integer NOT NULL REFERENCES playerstanding(id) ON DELETE CASCADE,
+                list_id integer REFERENCES list(id),
+                list_json jsonb,
+                CONSTRAINT uq_team_member_team_player UNIQUE (teamstanding_id, playerstanding_id)
+            )
+        """))
+    if not _has_index(session, "uq_team_member_player"):
+        session.execute(text("""
+            CREATE UNIQUE INDEX uq_team_member_player ON team_member(playerstanding_id)
+        """))
+    if not _has_index(session, "ix_team_member_teamstanding"):
+        session.execute(text("""
+            CREATE INDEX ix_team_member_teamstanding ON team_member(teamstanding_id)
+        """))
     # Drop the dead teamstanding standings columns from the pre-team-event
     # schema. Team results live in teammatch; teamstanding is identity-only
     # (id, tournament_id, team_name) in the current model. The old NOT NULL

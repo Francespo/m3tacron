@@ -26,6 +26,8 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      - name: Validate points pipeline data
+        run: python3 scripts/validate_points_pipeline.py
       - run: pip install -r requirements.txt
       - name: Start PostgreSQL test database
         run: |
