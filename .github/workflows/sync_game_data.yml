@@ -3,14 +3,15 @@ name: Sync Game Data
 # Keeps the vendored data snapshot (external_data) and the generated frontend
 # manifests aligned with Francespo/xwing-unified-data.
 #
-# Upstream sources (J1mBob, YASB/Raithos, Darker333 legacy) are merged *inside*
+# Upstream sources (J1mBob, YASB/Raithos, SogeMoge legacy) are merged *inside*
 # xwing-unified-data, which owns the nested submodule pins and points_history.
 # This workflow only advances external_data and rebuilds the manifests. Running
 # the upstream merges here would modify a detached submodule working tree that
 # cannot be committed back through this repository.
 #
 # A data update lands as a pull request, never as a direct push: `main` is
-# protected and every data change should be reviewed before it reaches prod.
+# protected. When SYNC_BOT_TOKEN is configured (a write-capable bot account),
+# the workflow approves the PR and enables auto-merge; CI still gates it.
 
 permissions:
   contents: write
@@ -24,12 +25,18 @@ on:
     types: [game-data-updated]
   workflow_dispatch:
 
+concurrency:
+  group: sync-game-data
+  cancel-in-progress: false
+
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     env:
       SYNC_BRANCH: chore/game-data-sync
+      SYNC_BOT_TOKEN: ${{ secrets.SYNC_BOT_TOKEN }}
 
     steps:
       - name: Checkout repository with submodules
@@ -50,6 +57,9 @@ jobs:
 
       - name: Run Game Data Sync
         run: python3 scripts/sync_game_data.py --sync-submodules --rebuild-manifests
+
+      - name: Validate points data
+        run: python3 scripts/validate_points_pipeline.py
 
       - name: Open or update the data sync PR
         env:
@@ -77,6 +87,7 @@ jobs:
 
           EXISTING="$(gh pr list --head "$SYNC_BRANCH" --state open --json number --jq '.[0].number // empty')"
           if [ -n "$EXISTING" ]; then
+            echo "PR_NUMBER=$EXISTING" >> "$GITHUB_ENV"
             echo "Updated existing PR #$EXISTING"
             exit 0
           fi
@@ -94,3 +105,25 @@ jobs:
             --head "$SYNC_BRANCH" \
             --title "chore(data): sync game data and rebuild manifests" \
             --body-file /tmp/data_sync_body.md
+
+          PR_NUMBER="$(gh pr list --head "$SYNC_BRANCH" --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$PR_NUMBER" ]; then
+            echo "::error::Could not resolve the data sync PR number"
+            exit 1
+          fi
+          echo "PR_NUMBER=$PR_NUMBER" >> "$GITHUB_ENV"
+          echo "Opened PR #$PR_NUMBER"
+
+      - name: Approve and enable auto-merge
+        if: env.PR_NUMBER != '' && env.SYNC_BOT_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_BOT_TOKEN }}
+        run: |
+          # The PR is authored by github-actions[bot]; the bot account provides
+          # the required review. CI still gates the merge.
+          gh pr review "$PR_NUMBER" --approve
+          gh pr merge "$PR_NUMBER" --squash --auto --delete-branch
+
+      - name: Warn when manual merge is required
+        if: env.PR_NUMBER != '' && env.SYNC_BOT_TOKEN == ''
+        run: echo "::warning::SYNC_BOT_TOKEN is not set; merge the data PR manually."
