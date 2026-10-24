@@ -49,6 +49,8 @@ ssh_key.pub
 *.sql.gz
 *.backup
 dumps/
+# ...but committed migrations are versioned.
+!backend/scripts/*.sql
 
 # --- Performance reports and evidence ---
 reports/

@@ -75,6 +75,12 @@ async function proxyToBackend({ params, url, request }, method) {
 	if (forwardedFor) headers['x-forwarded-for'] = forwardedFor;
 	const realIp = request.headers.get('x-real-ip');
 	if (realIp && !forwardedFor) headers['x-real-ip'] = realIp;
+	// Conditional requests: let the backend answer 304 instead of resending
+	// the payload (the dashboard snapshot is ~2 MB).
+	const ifNoneMatch = request.headers.get('if-none-match');
+	if (ifNoneMatch) headers['if-none-match'] = ifNoneMatch;
+	const ifModifiedSince = request.headers.get('if-modified-since');
+	if (ifModifiedSince) headers['if-modified-since'] = ifModifiedSince;
 	// Token for the on-demand cache warm-up endpoint (PR previews).
 	const warmToken = request.headers.get('x-cache-warm-token');
 	if (warmToken) headers['x-cache-warm-token'] = warmToken;
@@ -92,11 +98,18 @@ async function proxyToBackend({ params, url, request }, method) {
 	// the csrf trustedOrigins config (see svelte.config.js).
 	const upstream = await fetch(target.toString(), init);
 
-	const body = await upstream.arrayBuffer();
 	const responseHeaders = new Headers();
-	const upstreamContentType = upstream.headers.get('content-type');
-	if (upstreamContentType) responseHeaders.set('content-type', upstreamContentType);
+	for (const name of ['content-type', 'etag', 'cache-control', 'last-modified', 'vary']) {
+		const value = upstream.headers.get(name);
+		if (value) responseHeaders.set(name, value);
+	}
 
+	// A 304 must not carry a body.
+	if (upstream.status === 304) {
+		return new Response(null, { status: 304, headers: responseHeaders });
+	}
+
+	const body = await upstream.arrayBuffer();
 	return new Response(body, {
 		status: upstream.status,
 		headers: responseHeaders
