@@ -9,6 +9,7 @@ from sqlmodel import Session, select
 from sqlalchemy import text
 import json
 from ..database import engine
+from ..list_index import list_pilot_upgrades_cte, list_pilots_cte
 from ..models import PlayerStanding, Tournament
 from ..utils.xwing_data.pilots import load_all_pilots
 from ..utils.xwing_data.upgrades import load_all_upgrades
@@ -638,7 +639,8 @@ def aggregate_card_stats(
     # This replaces the previous Python loop that loaded every row.
 
     # Build WHERE clauses (pure Python, no DB connection needed).
-    where_clauses: list[str] = ["p->>'id' IS NOT NULL"]
+    base_alias = "lu" if mode == "upgrades" else "lp"
+    where_clauses: list[str] = [f"{base_alias}.pilot_xws IS NOT NULL"]
     params: dict[str, object] = {}
 
     if filters.get("date_start"):
@@ -744,8 +746,9 @@ def aggregate_card_stats(
 
     if mode == "pilots":
         sql = text(f"""
+            WITH {list_pilots_cte()}
             SELECT
-                p->>'id' as card_xws,
+                lp.pilot_xws as card_xws,
                 COUNT(DISTINCT ps.id) as entries_count,
                 SUM(GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0))) as wins,
                 SUM(
@@ -757,62 +760,29 @@ def aggregate_card_stats(
             FROM playerstanding ps
             JOIN tournament t ON t.id = ps.tournament_id
             JOIN list l ON l.id = ps.list_id
-            JOIN jsonb_array_elements(l.list_json::jsonb->'pilots') p ON true
+            JOIN list_pilots lp ON lp.list_id = l.id
             WHERE {where_sql}
-            GROUP BY p->>'id'
+            GROUP BY lp.pilot_xws
         """)
     elif mode == "upgrades":
-        # Flatten upgrades: each pilot's `upgrades` may be an object
-        # (`{"talent": ["predator"], ...}`) or an array. Use a CTE
-        # to first unnest pilots, then flatten upgrades per pilot.
         sql = text(f"""
-            WITH pilot_data AS (
-                SELECT
-                    ps.id as ps_id,
-                    ps.list_id,
-                    l.ship_list,
-                    l.list_json,
-                    ps.swiss_wins, ps.swiss_losses, ps.swiss_draws,
-                    ps.cut_wins, ps.cut_losses, ps.cut_draws,
-                    p
-                FROM playerstanding ps
-                JOIN tournament t ON t.id = ps.tournament_id
-                JOIN list l ON l.id = ps.list_id
-                JOIN jsonb_array_elements(l.list_json::jsonb->'pilots') p ON true
-                WHERE {where_sql}
-            ),
-            upgrade_values AS (
-                SELECT
-                    ps_id, list_id, ship_list,
-                    swiss_wins, swiss_losses, swiss_draws,
-                    cut_wins, cut_losses, cut_draws,
-                    CASE
-                        WHEN jsonb_typeof(p->'upgrades') = 'array' THEN p->'upgrades'
-                        WHEN jsonb_typeof(p->'upgrades') = 'object' THEN
-                            COALESCE(
-                                (SELECT jsonb_agg(v)
-                                 FROM jsonb_each(p->'upgrades') e,
-                                      jsonb_array_elements_text(e.value) v
-                                 WHERE jsonb_typeof(e.value) = 'array'),
-                                '[]'::jsonb
-                            )
-                        ELSE '[]'::jsonb
-                    END as upgrades_json
-                FROM pilot_data
-            )
+            WITH {list_pilot_upgrades_cte()}
             SELECT
-                u_elem as card_xws,
-                COUNT(DISTINCT ps_id) as entries_count,
-                SUM(GREATEST(0, COALESCE(swiss_wins, 0)) + GREATEST(0, COALESCE(cut_wins, 0))) as wins,
+                lu.upgrade_xws as card_xws,
+                COUNT(DISTINCT ps.id) as entries_count,
+                SUM(GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.cut_wins, 0))) as wins,
                 SUM(
-                    GREATEST(0, COALESCE(swiss_wins, 0)) + GREATEST(0, COALESCE(swiss_losses, 0)) + GREATEST(0, COALESCE(swiss_draws, 0))
-                    + GREATEST(0, COALESCE(cut_wins, 0)) + GREATEST(0, COALESCE(cut_losses, 0)) + GREATEST(0, COALESCE(cut_draws, 0))
+                    GREATEST(0, COALESCE(ps.swiss_wins, 0)) + GREATEST(0, COALESCE(ps.swiss_losses, 0)) + GREATEST(0, COALESCE(ps.swiss_draws, 0))
+                    + GREATEST(0, COALESCE(ps.cut_wins, 0)) + GREATEST(0, COALESCE(ps.cut_losses, 0)) + GREATEST(0, COALESCE(ps.cut_draws, 0))
                 ) as games,
-                COUNT(DISTINCT list_id) as different_lists_count,
-                COUNT(DISTINCT ship_list) as squadron_count
-            FROM upgrade_values, jsonb_array_elements_text(upgrades_json) u_elem
-            WHERE u_elem IS NOT NULL
-            GROUP BY u_elem
+                COUNT(DISTINCT ps.list_id) as different_lists_count,
+                COUNT(DISTINCT l.ship_list) as squadron_count
+            FROM playerstanding ps
+            JOIN tournament t ON t.id = ps.tournament_id
+            JOIN list l ON l.id = ps.list_id
+            JOIN list_pilot_upgrades lu ON lu.list_id = l.id
+            WHERE {where_sql}
+            GROUP BY lu.upgrade_xws
         """)
     else:
         # Unknown mode — return whatever the catalog produced.

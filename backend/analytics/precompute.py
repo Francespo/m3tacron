@@ -26,6 +26,7 @@ from sqlalchemy import text
 from ..cache import get_cached_or_compute
 from ..database import engine
 from ..data_structures.data_source import DataSource
+from ..list_index import list_pilot_upgrades_cte, list_pilots_cte
 
 
 def _safe_games(swiss_wins, swiss_losses, swiss_draws, cut_wins, cut_losses, cut_draws):
@@ -50,58 +51,24 @@ def build_snapshot(ds: DataSource) -> dict:
     pilot_configs: dict = defaultdict(lambda: defaultdict(dict))
 
     with Session(engine) as session:
-        # ---- Pass 1: per (pilot, upgrade) game/lists/wins + month buckets + config combos.
-        # Unnest pilots -> upgrades, keep format + month for chart buckets and
-        # pilot id for config grouping. One scan of the joined tables.
-        sql = text("""
-            WITH pilot_data AS (
-                SELECT
-                    ps.id AS ps_id,
-                    l.ship_list,
-                    l.list_json,
-                    ps.swiss_wins, ps.swiss_losses, ps.swiss_draws,
-                    ps.cut_wins, ps.cut_losses, ps.cut_draws,
-                    p,
-                    t.format,
-                    to_char(t.date, 'YYYY-MM') AS month
-                FROM playerstanding ps
-                JOIN tournament t ON t.id = ps.tournament_id
-                JOIN list l ON l.id = ps.list_id
-                JOIN jsonb_array_elements(l.list_json::jsonb->'pilots') p ON true
-                WHERE (NOT t.is_team_event OR ps.is_team_member)
-            ),
-            upgrade_values AS (
-                SELECT
-                    ps_id, ship_list, list_json,
-                    swiss_wins, swiss_losses, swiss_draws,
-                    cut_wins, cut_losses, cut_draws,
-                    p->>'id' AS pilot_xws,
-                    month, format,
-                    CASE
-                        WHEN jsonb_typeof(p->'upgrades') = 'array' THEN p->'upgrades'
-                        WHEN jsonb_typeof(p->'upgrades') = 'object' THEN
-                            COALESCE(
-                                (SELECT jsonb_agg(v)
-                                 FROM jsonb_each(p->'upgrades') e,
-                                      jsonb_array_elements_text(e.value) v
-                                 WHERE jsonb_typeof(e.value) = 'array'),
-                                '[]'::jsonb
-                            )
-                        ELSE '[]'::jsonb
-                    END AS upgrades_json
-                FROM pilot_data
-            )
+        # ---- Pass 1: per (pilot, upgrade) game/lists/wins + month buckets.
+        # One join over the flat pilot/upgrade index (or the JSON fallback).
+        sql = text(f"""
+            WITH {list_pilot_upgrades_cte()}
             SELECT
-                pilot_xws,
-                u_elem AS upgrade_xws,
-                format,
-                month,
-                GREATEST(0, COALESCE(swiss_wins,0)) + GREATEST(0, COALESCE(swiss_losses,0))
-                    + GREATEST(0, COALESCE(swiss_draws,0)) + GREATEST(0, COALESCE(cut_wins,0))
-                    + GREATEST(0, COALESCE(cut_losses,0)) + GREATEST(0, COALESCE(cut_draws,0)) AS games,
-                GREATEST(0, COALESCE(swiss_wins,0)) + GREATEST(0, COALESCE(cut_wins,0)) AS wins
-            FROM upgrade_values, jsonb_array_elements_text(upgrades_json) u_elem
-            WHERE u_elem IS NOT NULL
+                lu.pilot_xws,
+                lu.upgrade_xws,
+                t.format,
+                to_char(t.date, 'YYYY-MM') AS month,
+                GREATEST(0, COALESCE(ps.swiss_wins,0)) + GREATEST(0, COALESCE(ps.swiss_losses,0))
+                    + GREATEST(0, COALESCE(ps.swiss_draws,0)) + GREATEST(0, COALESCE(ps.cut_wins,0))
+                    + GREATEST(0, COALESCE(ps.cut_losses,0)) + GREATEST(0, COALESCE(ps.cut_draws,0)) AS games,
+                GREATEST(0, COALESCE(ps.swiss_wins,0)) + GREATEST(0, COALESCE(ps.cut_wins,0)) AS wins
+            FROM playerstanding ps
+            JOIN tournament t ON t.id = ps.tournament_id
+            JOIN list l ON l.id = ps.list_id
+            JOIN list_pilot_upgrades lu ON lu.list_id = l.id
+            WHERE (NOT t.is_team_event OR ps.is_team_member)
         """)
         rows = session.execute(sql).fetchall()
 
@@ -109,9 +76,10 @@ def build_snapshot(ds: DataSource) -> dict:
         # e.g. standard-loadout / horizontal quickbuild cards). One scan grouped
         # by (pilot, format, month). Kept separate so upgrade-unnest drops never
         # lose chart rows for upgrade-less pilots.
-        sql_chart = text("""
+        sql_chart = text(f"""
+            WITH {list_pilots_cte()}
             SELECT
-                p->>'id' AS pilot_xws,
+                lp.pilot_xws,
                 t.format,
                 to_char(t.date, 'YYYY-MM') AS month,
                 SUM(GREATEST(0, COALESCE(ps.swiss_wins,0)) + GREATEST(0, COALESCE(ps.swiss_losses,0))
@@ -120,9 +88,9 @@ def build_snapshot(ds: DataSource) -> dict:
             FROM playerstanding ps
             JOIN tournament t ON t.id = ps.tournament_id
             JOIN list l ON l.id = ps.list_id
-            JOIN jsonb_array_elements(l.list_json::jsonb->'pilots') p ON true
+            JOIN list_pilots lp ON lp.list_id = l.id
             WHERE (NOT t.is_team_event OR ps.is_team_member)
-            GROUP BY p->>'id', t.format, to_char(t.date, 'YYYY-MM')
+            GROUP BY lp.pilot_xws, t.format, to_char(t.date, 'YYYY-MM')
         """)
         chart_rows = session.execute(sql_chart).fetchall()
 
@@ -154,51 +122,36 @@ def build_snapshot(ds: DataSource) -> dict:
         # upgrade chart (only upgrade carriers — upgrades have no chart without rows)
         upgrade_chart[f][upg_xws][month or "unknown"] += games
 
-    # Pass 1b: pilot config combos — separate GROUP BY over the full list (pilot->combo).
+    # Pass 1b: pilot config combos — one row per (playerstanding, pilot entry),
+    # with that entry's upgrades sorted into a combo key.
     with Session(engine) as session:
-        sql2 = text("""
-            WITH pilot_data AS (
+        sql2 = text(f"""
+            WITH {list_pilots_cte()},
+            {list_pilot_upgrades_cte()},
+            pilot_combos AS (
                 SELECT
-                    ps.id AS ps_id,
-                    ps.swiss_wins, ps.swiss_losses, ps.swiss_draws,
-                    ps.cut_wins, ps.cut_losses, ps.cut_draws,
-                    p, t.format
-                FROM playerstanding ps
-                JOIN tournament t ON t.id = ps.tournament_id
-                JOIN list l ON l.id = ps.list_id
-                JOIN jsonb_array_elements(l.list_json::jsonb->'pilots') p ON true
-                WHERE (NOT t.is_team_event OR ps.is_team_member)
-            ),
-            upg AS (
-                SELECT
-                    ps_id,
-                    swiss_wins, swiss_losses, swiss_draws,
-                    cut_wins, cut_losses, cut_draws,
-                    p->>'id' AS pilot_xws,
-                    format,
-                    CASE
-                        WHEN jsonb_typeof(p->'upgrades') = 'array' THEN p->'upgrades'
-                        WHEN jsonb_typeof(p->'upgrades') = 'object' THEN
-                            COALESCE(
-                                (SELECT jsonb_agg(v ORDER BY v)
-                                 FROM jsonb_each(p->'upgrades') e,
-                                      jsonb_array_elements_text(e.value) v
-                                 WHERE jsonb_typeof(e.value) = 'array'),
-                                '[]'::jsonb
-                            )
-                        ELSE '[]'::jsonb
-                    END AS ids_json
-                FROM pilot_data
+                    lp.list_id,
+                    lp.entry_idx,
+                    lp.pilot_xws,
+                    COALESCE(string_agg(lu.upgrade_xws, '|' ORDER BY lu.upgrade_xws), '') AS combo
+                FROM list_pilots lp
+                LEFT JOIN list_pilot_upgrades lu
+                       ON lu.list_id = lp.list_id AND lu.entry_idx = lp.entry_idx
+                GROUP BY lp.list_id, lp.entry_idx, lp.pilot_xws
             )
             SELECT
-                pilot_xws,
-                format,
-                array_to_string(ARRAY(SELECT jsonb_array_elements_text(ids_json) ORDER BY 1), '|') AS combo,
-                GREATEST(0, COALESCE(swiss_wins,0)) + GREATEST(0, COALESCE(swiss_losses,0))
-                    + GREATEST(0, COALESCE(swiss_draws,0)) + GREATEST(0, COALESCE(cut_wins,0))
-                    + GREATEST(0, COALESCE(cut_losses,0)) + GREATEST(0, COALESCE(cut_draws,0)) AS games,
-                GREATEST(0, COALESCE(swiss_wins,0)) + GREATEST(0, COALESCE(cut_wins,0)) AS wins
-            FROM upg
+                pc.pilot_xws,
+                t.format,
+                pc.combo,
+                GREATEST(0, COALESCE(ps.swiss_wins,0)) + GREATEST(0, COALESCE(ps.swiss_losses,0))
+                    + GREATEST(0, COALESCE(ps.swiss_draws,0)) + GREATEST(0, COALESCE(ps.cut_wins,0))
+                    + GREATEST(0, COALESCE(ps.cut_losses,0)) + GREATEST(0, COALESCE(ps.cut_draws,0)) AS games,
+                GREATEST(0, COALESCE(ps.swiss_wins,0)) + GREATEST(0, COALESCE(ps.cut_wins,0)) AS wins
+            FROM playerstanding ps
+            JOIN tournament t ON t.id = ps.tournament_id
+            JOIN list l ON l.id = ps.list_id
+            JOIN pilot_combos pc ON pc.list_id = l.id
+            WHERE (NOT t.is_team_event OR ps.is_team_member)
         """)
         rows2 = session.execute(sql2).fetchall()
 
@@ -222,9 +175,10 @@ def build_snapshot(ds: DataSource) -> dict:
 
     # ---- Header stats (one GROUP BY per source, same as cards/pilots). ----
     with Session(engine) as session:
-        sql3 = text("""
+        sql3 = text(f"""
+            WITH {list_pilots_cte()}
             SELECT
-                p->>'id' AS card_xws,
+                lp.pilot_xws AS card_xws,
                 COUNT(DISTINCT ps.id) AS entries_count,
                 SUM(GREATEST(0, COALESCE(ps.swiss_wins,0)) + GREATEST(0, COALESCE(ps.cut_wins,0))) AS wins,
                 SUM(
@@ -237,10 +191,10 @@ def build_snapshot(ds: DataSource) -> dict:
             FROM playerstanding ps
             JOIN tournament t ON t.id = ps.tournament_id
             JOIN list l ON l.id = ps.list_id
-            JOIN jsonb_array_elements(l.list_json::jsonb->'pilots') p ON true
+            JOIN list_pilots lp ON lp.list_id = l.id
             WHERE (NOT t.is_team_event OR ps.is_team_member)
               AND t.format = :fmt
-            GROUP BY p->>'id'
+            GROUP BY lp.pilot_xws
         """)
         target_fmt = "xwa" if ds == DataSource.XWA else "legacy_x2po"
         header_rows = session.execute(sql3, {"fmt": target_fmt}).fetchall()

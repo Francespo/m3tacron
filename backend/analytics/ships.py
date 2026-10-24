@@ -33,6 +33,7 @@ from ..database import engine
 from ..data_structures.factions import Faction
 from ..data_structures.data_source import DataSource
 from ..data_structures.sorting_order import SortingCriteria, SortDirection
+from ..list_index import list_pilots_cte
 from ..utils.stats import merge_ship_faction_rows
 
 
@@ -46,13 +47,13 @@ def _non_single_faction_list_ids(source: str) -> list[int]:
     """
     def compute() -> list[int]:
         sql = text(
-            """
-            SELECT l.id
-            FROM list l
-            JOIN jsonb_array_elements(l.list_json::jsonb->'pilots') p ON true
+            f"""
+            WITH {list_pilots_cte()}
+            SELECT lp.list_id
+            FROM list_pilots lp
             JOIN pilot_ship_mapping psm
-              ON psm.pilot_xws = (p->>'id') AND psm.source = :source
-            GROUP BY l.id
+              ON psm.pilot_xws = lp.pilot_xws AND psm.source = :source
+            GROUP BY lp.list_id
             HAVING COUNT(DISTINCT lower(replace(replace(
                 COALESCE(NULLIF(psm.faction, ''), 'unknown'), ' ', ''), '-', ''))) <> 1
             """
@@ -75,7 +76,7 @@ def aggregate_ship_stats(
     """
     source_str = "xwa" if data_source == DataSource.XWA else "legacy"
 
-    where_clauses = ["p->>'id' IS NOT NULL"]
+    where_clauses = ["lp.pilot_xws IS NOT NULL"]
     params: dict[str, object] = {"source": source_str}
 
     if filters.get("date_start"):
@@ -159,7 +160,8 @@ def aggregate_ship_stats(
     # those mixed lists into "unknown" and make the per-faction stats not sum
     # to the ship's total (the ARC-170 case: 460 + 2166 + 2 != 2628).
     sql = text(f"""
-        WITH ship_lists AS (
+        WITH {list_pilots_cte()},
+        ship_lists AS (
             SELECT DISTINCT
                 ps.id AS ps_id,
                 COALESCE(NULLIF(psm.faction, ''), 'unknown') AS faction,
@@ -167,8 +169,8 @@ def aggregate_ship_stats(
             FROM playerstanding ps
             JOIN tournament t ON t.id = ps.tournament_id
             JOIN list l ON l.id = ps.list_id
-            JOIN jsonb_array_elements(l.list_json::jsonb->'pilots') p ON true
-            JOIN pilot_ship_mapping psm ON psm.pilot_xws = (p->>'id') AND psm.source = :source
+            JOIN list_pilots lp ON lp.list_id = l.id
+            JOIN pilot_ship_mapping psm ON psm.pilot_xws = lp.pilot_xws AND psm.source = :source
             WHERE {where_sql}
         )
         SELECT

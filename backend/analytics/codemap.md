@@ -5,6 +5,7 @@ Aggregation/analytics layer that computes derived metrics from raw ORM data (tou
 
 ## Design
 - **SQL-first filtering, Python-side aggregation**: every aggregator runs a `SELECT PlayerStanding, Tournament` join, applies SQL-level filters via `filters.filter_query`, then streams rows and tallies counts in Python dicts keyed by signature/xws.
+- **Flat pilot/upgrade index**: `backend/list_index.py` keeps `list_pilot` / `list_pilot_upgrade` derived from `list.list_json` (rebuilt once per `data_version`, see `ensure_list_index`). The ship, card and card-detail aggregators join those tables instead of unnesting the JSON; if they are missing or stale the queries fall back to the JSON CTE (`list_pilots_cte` / `list_pilot_upgrades_cte`).
 - **List deduplication via canonical signatures**: lists and squadrons are collapsed by sorting pilots/upgrades and hashing the JSON (or using `utils.list_keys.get_list_key`); `different_lists_count` is the size of the per-key signature set.
 - **No external DataFrame libs**: pure `dict`/`set`/`defaultdict` aggregation; JSON used for canonical signatures.
 - **Format/legality gating**: `filters.get_active_formats` + `apply_tournament_filters` handle Python-side filtering of tournament.format and Tournament.location (continent/country/city) that SQL can't express. Card-level `valid_in_standard`/`wildspace`/`epic` flags gate which cards are even initialised.

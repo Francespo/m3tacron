@@ -268,6 +268,26 @@ def _warm_detail_snapshots() -> None:
             _warm_state["detail_snapshots"][ds.value] = {"error": str(e)}
 
 
+def _partition_lists_by_ship(
+    items: list[dict], ship_list_by_signature: dict[str, str]
+) -> dict[str, list[dict]]:
+    """Group aggregated lists under every ship they contain.
+
+    The aggregations do not carry ``ship_list``; the caller passes the
+    signature -> ships map. Using ``item["ship_list"]`` (which does not exist)
+    silently returned an empty group for every ship and blanked the "Top
+    lists" section on ship detail pages after a warm-up.
+    """
+    by_ship: dict[str, list[dict]] = {}
+    for item in items:
+        sl = ship_list_by_signature.get(item.get("signature"), "")
+        ships = sl.split(",") if isinstance(sl, str) else []
+        for ship in set(ships):
+            if ship:
+                by_ship.setdefault(ship, []).append(item)
+    return by_ship
+
+
 def _warm_ship_details() -> None:
     """Bulk-prewarm all ship detail pages (xwa/legacy) **in-process**.
 
@@ -352,10 +372,14 @@ def _warm_ship_details() -> None:
             platforms=None, sources=None, date_start=None, date_end=None,
             player_count_min=None, player_count_max=None, search=None, epic=False, faction=None,
         )
+        # The filters must match the suffix they are cached under. The suffix
+        # always encodes epic=False (the endpoint default), so the bulk values
+        # must exclude huge ships too; otherwise the warmed page and a lazily
+        # computed one return different lists.
         suffixes = [
-            (base, {"epic": True, "include_epic": True}),
-            (xwa, {"epic": True, "include_epic": True, "allowed_formats": ["xwa"]}),
-            (legacy, {"epic": True, "include_epic": True, "allowed_formats": ["legacy_x2po"]}),
+            (base, {"epic": False, "include_epic": False}),
+            (xwa, {"epic": False, "include_epic": False, "allowed_formats": ["xwa"]}),
+            (legacy, {"epic": False, "include_epic": False, "allowed_formats": ["legacy_x2po"]}),
         ]
         if pts_date:
             base_pts = _ship_filter_cache_suffix(
@@ -369,10 +393,10 @@ def _warm_ship_details() -> None:
                 platforms=None, sources=None, date_start=pts_date, date_end=None,
                 player_count_min=None, player_count_max=None, search=None, epic=False, faction=None,
             )
-            suffixes.append((base_pts, {"epic": True, "include_epic": True, "date_start": pts_date}))
+            suffixes.append((base_pts, {"epic": False, "include_epic": False, "date_start": pts_date}))
             suffixes.append((fmt_pts, {
-                "epic": True,
-                "include_epic": True,
+                "epic": False,
+                "include_epic": False,
                 "allowed_formats": ["xwa"] if ds == DataSource.XWA else ["legacy_x2po"],
                 "date_start": pts_date,
             }))
@@ -382,6 +406,21 @@ def _warm_ship_details() -> None:
 
     def _all_cached(keys: list[str]) -> bool:
         return all(has_cached(k) for k in keys)
+
+    # The bulk aggregations do not return the ship composition, so fetch it
+    # once and partition by ship below. Without this the fan-out stored an
+    # empty list for every ship (ship detail "Top lists" was blank after a
+    # warm) because item["ship_list"] does not exist.
+    ship_list_by_signature: dict[str, str] = {}
+    try:
+        with engine.connect() as conn:
+            for signature, ships in conn.exec_driver_sql(
+                "SELECT canonical_signature, ship_list FROM list"
+            ).fetchall():
+                if signature:
+                    ship_list_by_signature[signature] = ships or ""
+    except Exception as exc:
+        print(f"[prewarm] ship_list map failed: {exc}")
 
     for ds in combos:
         # Phase 1: ship_info and ship_pilots per suffix
@@ -437,13 +476,7 @@ def _warm_ship_details() -> None:
             else:
                 try:
                     bulk_lists = aggregate_list_stats(flt, data_source=ds)
-                    lists_by_ship: dict[str, list[dict]] = {}
-                    for item in bulk_lists:
-                        sl = item.get("ship_list", "")
-                        ships_in_list = sl.split(",") if isinstance(sl, str) else (sl if isinstance(sl, list) else [])
-                        for s in set(ships_in_list):
-                            if s:
-                                lists_by_ship.setdefault(s, []).append(item)
+                    lists_by_ship = _partition_lists_by_ship(bulk_lists, ship_list_by_signature)
                     for xws in sorted(all_xws):
                         cache_key = f"ship_lists|{xws}|{ds.value}|10{suffix}"
                         val = lists_by_ship.get(xws, [])
@@ -460,8 +493,7 @@ def _warm_ship_details() -> None:
                     bulk_sq = aggregate_squadron_stats(flt, SortingCriteria.WINRATE, SortDirection.DESCENDING, ds)
                     sq_by_ship: dict[str, list[dict]] = {}
                     for item in bulk_sq:
-                        sl = item.get("ship_list", "")
-                        ships_in_sq = sl.split(",") if isinstance(sl, str) else (sl if isinstance(sl, list) else [])
+                        ships_in_sq = item.get("ships") or []
                         for s in set(ships_in_sq):
                             if s:
                                 sq_by_ship.setdefault(s, []).append(item)
@@ -570,6 +602,7 @@ def _prewarm_cache(trigger: str = "startup"):
         from .cache import (
             cache_is_stale,
             check_version_now,
+            get_db_version,
             reset_force_refresh,
             set_force_refresh,
         )
@@ -589,6 +622,11 @@ def _prewarm_cache(trigger: str = "startup"):
                     print("[prewarm] another process holds the warm lock; skipping")
                     _warm_state["last_skip_reason"] = "another process is warming the cache"
                     return
+                # Flat pilot/upgrade index: rebuild once per data_version so the
+                # aggregations do not have to unnest 118 MB of JSON. If it
+                # fails, queries fall back to the JSON path on their own.
+                from .list_index import ensure_list_index
+                ensure_list_index(get_db_version())
                 # Main pages first: they are what a visitor hits, and they take
                 # seconds. The detail fan-out below can take many minutes.
                 _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list(), refresh=refresh)
@@ -610,7 +648,7 @@ def _prewarm_cache(trigger: str = "startup"):
                 })
                 # Sync the cache version and persist warm cache to disk
                 try:
-                    from .cache import get_db_version, set_cached_version, save_cache
+                    from .cache import set_cached_version, save_cache
                     set_cached_version(get_db_version())
                     save_cache()
                 except Exception as exc:
@@ -718,6 +756,8 @@ def _start_cache_auto_rewarm():
                         t0 = time.time()
                         force_token = set_force_refresh(True)
                         try:
+                            from .list_index import ensure_list_index
+                            ensure_list_index(cur)
                             _analyze_tables()
                             _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list(), refresh=True)
                             _persist_warm_cache()
