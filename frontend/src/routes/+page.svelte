@@ -501,10 +501,10 @@
 
 <div class="min-h-screen p-6 font-sans">
     <header class="mb-5 flex flex-col gap-3">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex flex-col lg:flex-row lg:flex-wrap lg:items-center justify-between gap-3 lg:gap-x-8">
             <h1 class="text-3xl font-sans font-bold text-primary leading-none shrink-0">Meta Dashboard</h1>
 
-            <div class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center gap-3 lg:shrink-0">
                 <!-- Time Range Dropdown Selector -->
                 <div class="flex items-center gap-2">
                     <label for="time-range-select" class="text-xs text-secondary font-mono uppercase tracking-wider whitespace-nowrap">
@@ -522,12 +522,11 @@
                 </div>
 
                 {#if !loading && !error && meta}
-                    <div class="hidden md:flex items-center gap-2 text-xs font-mono text-secondary shrink-0">
-                        <span class="w-px h-4 bg-white/10"></span>
+                    <div class="hidden lg:flex items-center gap-x-3 text-xs font-mono text-secondary">
                         <span class="tracking-widest {filters.dataSource === 'legacy' ? 'text-violet-400' : 'text-amber-400'}">
                             {filters.dataSource === 'legacy' ? 'Legacy' : 'XWA'}
                         </span>
-                        <span class="w-px h-4 bg-white/10"></span>
+                        <span class="hidden lg:inline w-px h-4 bg-white/10"></span>
                         <span class="hidden lg:inline text-secondary">
                             {#if periodRange}
                                 {#if periodRange.isAll}
@@ -539,16 +538,17 @@
                                 Tournament data · {meta.date_range || "Last 90 days"}
                             {/if}
                         </span>
-                        <span class="hidden lg:inline w-px h-4 bg-white/10"></span>
+                        <span class="hidden xl:inline w-px h-4 bg-white/10"></span>
                         <span class="hidden xl:inline text-secondary">Last sync {meta.last_sync || "Unknown"}</span>
                     </div>
                 {/if}
             </div>
         </div>
 
-        <!-- Mobile Info Banner / Subtitle (shown on mobile < md viewports) -->
+        <!-- Compact Info Banner / Subtitle (shown whenever the header controls are
+             stacked, i.e. below lg, where the full meta line has no room) -->
         {#if !loading && !error && meta}
-            <div class="flex md:hidden flex-wrap items-center gap-x-2 gap-y-1 text-xs font-mono text-secondary">
+            <div class="flex lg:hidden flex-wrap items-center gap-x-2 gap-y-1 text-xs font-mono text-secondary">
                 <span class="tracking-widest font-semibold {filters.dataSource === 'legacy' ? 'text-violet-400' : 'text-amber-400'}">
                     {filters.dataSource === 'legacy' ? 'Legacy' : 'XWA'}
                 </span>
