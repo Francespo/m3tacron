@@ -24,7 +24,7 @@ Francespo/m3tacron            ── 06:00 UTC daily
   • regenerates data-xwa/data-legacy manifests + points-history.json
   • scripts/validate_points_pipeline.py
   • opens/updates the chore/game-data-sync PR
-  • with SYNC_BOT_TOKEN: approves the PR and enables auto-merge
+  • enables auto-merge (no bot account required)
         │  merge → Coolify auto-deploy
         ▼
 production                    api.m3tacron.com / m3tacron.com
@@ -40,24 +40,22 @@ Pipeline Health (4×/day) + external uptime monitor
 Repo → **Settings → Actions → General → Workflow permissions** → enable
 **Allow GitHub Actions to create and approve pull requests** → Save.
 
-Without it `GITHUB_TOKEN` cannot call `createPullRequest`. The workflow then
-falls back to `SYNC_BOT_TOKEN`, but that makes the bot the PR author, so the
-bot cannot approve it and a human must merge. With the setting enabled the PR
-author is `github-actions[bot]`, the bot supplies the review, and auto-merge is
-fully hands-off.
+Without it `GITHUB_TOKEN` cannot call `createPullRequest` and the workflow fails
+with a direct link to this setting. This is the only repo setting required.
 
-### `SYNC_BOT_TOKEN`
+### Review policy on `Francespo/m3tacron`
 
-A classic PAT for a write-capable bot account (for example `Franc3s-bot`),
-stored as a repository secret in `Francespo/m3tacron`.
+Repo → **Settings → Rules → Rulesets → Protect main**.
 
-- The bot must have `repo` scope and write access to the repository.
-- The PR is authored by `github-actions[bot]`; the bot supplies the required
-  review, then auto-merge waits for CI.
-- Without the secret the workflow still opens the PR and prints a warning; the
-  health check flags a PR left open for more than 24 hours.
-- Do not use the repository `GITHUB_TOKEN` for the approval: a workflow cannot
-  approve its own PR.
+- **Recommended (solo maintainer):** set **Required approvals = 0**. CI is
+  still required; the workflow creates the PR and auto-merge merges it when
+  green. No bot/approver account is needed.
+- **If you want a review:** keep approvals ≥ 1 and use a different approver
+  (a GitHub App or another account). Auto-merge will wait for that review; the
+  health workflow flags a PR stuck for more than 24 hours.
+- `Francespo/xwing-unified-data` and `Francespo/xwing-data2` have no PR/review
+  rules; their workflows push directly.
+- The old `SYNC_BOT_TOKEN` / `Franc3s-bot` approval path has been removed.
 
 ## Validation
 
@@ -79,8 +77,8 @@ workflow before the PR is opened.
 |---|---|---|
 | Unified workflow red | Actions → `Sync Game Data & Auto-detect Points` | Rerun; inspect the submodule/changelog error |
 | Points released but not detected (Legacy) | `SogeMoge/xwing-data2-legacy/changelog/` contains a report with `**Date**` and `**Total Cards Updated**` | Ask upstream for the report, or add the entry manually |
-| Points released but not detected (XWA) | `Francespo/xwing-data2` master has a `50P x.y` commit | Update the fork (YASB feed is manual today) |
-| Sync PR open > 24h | `chore/game-data-sync` PR | Approve/merge; verify `SYNC_BOT_TOKEN` |
+| Points released but not detected (XWA) | `Francespo/xwing-data2` → `Sync YASB points` run | Check the YASB version commit / diff guard; rerun with `version`/`date` overrides |
+| Sync PR open > 24h | `chore/game-data-sync` PR | Approve/merge; check `Protect main` approvals |
 | Deploy drift | `Pipeline health` issue / `Deploy Drift Check` | Redeploy the `main` app in Coolify |
 | API unreachable | `Pipeline health` issue | `docker ps`, backend logs, Coolify deployment |
 | Deployed points stale | API `date_range` vs repo `points-history.json` | Merge the sync PR, wait for deploy |
@@ -97,25 +95,26 @@ monitor (the monitor detects “the site is down”; the health workflow detects
 1. Add or fix the changelog report in the source repo.
 2. Run `xwing-unified-data` → `Sync Game Data & Auto-detect Points`.
 3. Run `m3tacron` → `Sync Game Data` (or wait for 06:00 UTC).
-4. Merge/approve the `chore/game-data-sync` PR (auto-merge if the bot token is
-   configured).
+4. Let auto-merge merge the `chore/game-data-sync` PR (or approve it if
+   `Protect main` still requires a review).
 5. Confirm `/api/meta-snapshot?...&time_range=points_update` shows the new date.
 
-## Known gap: XWA / YASB
+## XWA / YASB feed
 
-The scheduled unified workflow updates submodules and detects versions, but it
-does **not** run `--sync-yasb`. Even if it did, the YASB patch would modify the
-nested `xwing-data2` working tree, and the parent can only commit the submodule
-gitlink.
+Implemented in `Francespo/xwing-data2` by `.github/workflows/sync-yasb-points.yml`
+(04:30 UTC, before unified):
 
-Phase 2 (not implemented yet) is a workflow inside `Francespo/xwing-data2` that:
+1. finds the latest YASB commit whose subject is a points version (`2.1.1`);
+2. fetches `cards-common.coffee` at that commit and at its parent;
+3. diffs only `points`/`loadout` and applies the release diff to
+   `data/pilots` and `data/upgrades`;
+4. commits `data: apply YASB 50P x.y points (YYYY-MM-DD)` and pushes `master`;
+5. unified 05:00 parses the version/date, updates the submodule and points_history;
+6. m3tacron 06:00 opens the data PR and auto-merges it.
 
-1. downloads YASB `cards-common.coffee`;
-2. patches pilot (and upgrade) costs/loadouts;
-3. reads the latest YASB commit with a `50P x.y[.z]` version and its date;
-4. commits with `data: apply YASB 50P x.y points (YYYY-MM-DD)`;
-5. pushes master (or opens a PR with auto-merge).
+The data repo is not a full YASB mirror; only the release diff is applied, and a
+diff over 100 entries is refused. A YASB release without a version-shaped commit
+subject needs a manual `workflow_dispatch` with `version`/`date` overrides.
 
-The unified detector then needs to parse the `(YYYY-MM-DD)` from that commit
-subject instead of using the workflow run date. Until then, an XWA release that
-is not committed to `Francespo/xwing-data2` will not be detected.
+The first run applies the missing 2.1.1 items (Boba Fett variants and the
+Marauder title).
