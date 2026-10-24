@@ -66,11 +66,6 @@ jobs:
     # environment was chosen (none = SQLite artifact only, no DB).
     env:
       NEEDS_DB: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.environment != 'none') }}
-      # PROD_DB_PASSWORD is the production Postgres password (or a full URL).
-      # PROD_DATABASE_URL is the old name, kept as a migration fallback.
-      PROD_DB_PASSWORD_NEW: ${{ secrets.PROD_DB_PASSWORD }}
-      PROD_DB_PASSWORD_OLD: ${{ secrets.PROD_DATABASE_URL }}
-      PROD_DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD || secrets.PROD_DATABASE_URL }}
 
     steps:
       - uses: actions/checkout@v4
@@ -133,6 +128,8 @@ jobs:
       # Must run AFTER 'Start database tunnel' — it queries SHOW server_version_num.
       - name: Derive DB password for pg client match
         if: env.NEEDS_DB == 'true'
+        env:
+          PROD_DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
         run: |
           # PROD_DB_PASSWORD may be a full URL or a bare password; each step
           # gets a fresh shell so re-derive it here (same pattern as below).
@@ -151,17 +148,19 @@ jobs:
 
       - name: Verify database credentials
         if: env.NEEDS_DB == 'true'
+        env:
+          PROD_DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
         run: |
           if [ -z "${PROD_DB_PASSWORD:-}" ]; then
             echo "::error::PROD_DB_PASSWORD is empty. Set the repository secret to the production Postgres password."
             exit 1
           fi
-          echo "Secret source: new=$([ -n "${PROD_DB_PASSWORD_NEW:-}" ] && echo yes || echo no) old=$([ -n "${PROD_DB_PASSWORD_OLD:-}" ] && echo yes || echo no)"
           psql -h localhost -p 5432 -U postgres -d postgres -tAc "SELECT current_database(), current_user;"
 
       - name: Run Scraper
         env:
           PYTHONPATH: .
+          PROD_DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
         run: |
           PLATFORM="${{ inputs.platform }}"
           TIME_RANGE="${{ inputs.time_range }}"
@@ -227,6 +226,8 @@ jobs:
 
       - name: Backup production database
         if: env.NEEDS_DB == 'true'
+        env:
+          PROD_DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
         run: |
           # Re-derive DB password (each step has a fresh shell; PASS from
           # the Run Scraper step is not persisted).
