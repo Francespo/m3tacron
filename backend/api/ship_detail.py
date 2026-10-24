@@ -209,6 +209,30 @@ def _fetch_ship_pilots(
     return get_cached_or_compute(cache_key, compute)
 
 
+def _ship_rank_key(item: dict):
+    """Deterministic ordering for the ship page (ties used to be arbitrary)."""
+    return (item.get("win_rate", 0), item.get("games", 0), item.get("signature", ""))
+
+
+def rank_ship_lists(data: list[dict], limit: int) -> list[dict]:
+    """The top lists a ship page shows (games >= 5, then win rate desc).
+
+    Extracted so the warm-up stores exactly what the endpoint would return
+    instead of caching thousands of lists per ship. The signature tie-breaker
+    keeps the warm and lazy paths in sync when many lists share a win rate.
+    """
+    filtered = [d for d in data if d.get("games", 0) >= 5]
+    filtered.sort(key=_ship_rank_key, reverse=True)
+    return (filtered or data)[:limit]
+
+
+def rank_ship_squadrons(data: list[dict], limit: int) -> list[dict]:
+    """Top squadrons a ship page shows (same deterministic ordering)."""
+    filtered = [d for d in data if d.get("games", 0) >= 5]
+    filtered.sort(key=_ship_rank_key, reverse=True)
+    return (filtered or data)[:limit]
+
+
 def _fetch_ship_lists(
     ship_xws: str,
     ds: DataSource,
@@ -253,16 +277,12 @@ def _fetch_ship_lists(
             search=search,
             epic=epic,
         )
-        return aggregate_list_stats(filters, data_source=ds)
+        return rank_ship_lists(aggregate_list_stats(filters, data_source=ds), limit)
 
     data = get_cached_or_compute(cache_key, compute_lists)
-    
-    filtered_data = [d for d in data if d.get("games", 0) >= 5]
-    filtered_data.sort(key=lambda x: x.get("win_rate", 0), reverse=True)
-    if not filtered_data:
-        filtered_data = data
 
-    top = filtered_data[:limit]
+    # Idempotent: keeps entries written by older code (full lists) correct.
+    top = rank_ship_lists(data, limit)
     signatures: list[str] = [l["signature"] for l in top if l.get("signature")]
     pilots_map = fetch_list_pilots(signatures) if signatures else {}
     enriched = [
@@ -317,13 +337,13 @@ def _fetch_ship_squadrons(
             search=search,
             epic=epic,
         )
-        return aggregate_squadron_stats(filters, SortingCriteria.WINRATE, SortDirection.DESCENDING, ds)
+        return rank_ship_squadrons(
+            aggregate_squadron_stats(filters, SortingCriteria.WINRATE, SortDirection.DESCENDING, ds),
+            limit,
+        )
 
     data = get_cached_or_compute(cache_key, compute_squadrons)
-    filtered_data = [d for d in data if d.get("games", 0) >= 5]
-    if not filtered_data:
-        filtered_data = data
-    return filtered_data[:limit]
+    return rank_ship_squadrons(data, limit)
 
 
 @router.get("/{ship_xws}")

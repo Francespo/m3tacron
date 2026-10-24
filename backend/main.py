@@ -314,7 +314,12 @@ def _warm_ship_details() -> None:
         from .analytics.lists import aggregate_list_stats, fetch_list_pilots
         from .analytics.squadrons import aggregate_squadron_stats
         from .data_structures.sorting_order import SortingCriteria, SortDirection
-        from .api.ship_detail import _build_filters, _ship_filter_cache_suffix
+        from .api.ship_detail import (
+            _build_filters,
+            _ship_filter_cache_suffix,
+            rank_ship_lists,
+            rank_ship_squadrons,
+        )
         from .api.formatters import enrich_list_data
     except Exception as e:
         print(f"[prewarm] ship details: FAILED to load deps ({e})")
@@ -479,7 +484,7 @@ def _warm_ship_details() -> None:
                     lists_by_ship = _partition_lists_by_ship(bulk_lists, ship_list_by_signature)
                     for xws in sorted(all_xws):
                         cache_key = f"ship_lists|{xws}|{ds.value}|10{suffix}"
-                        val = lists_by_ship.get(xws, [])
+                        val = rank_ship_lists(lists_by_ship.get(xws, []), 10)
                         get_cached_or_compute(cache_key, lambda v=val: list(v))
                         ok += 1
                 except Exception as e:
@@ -499,7 +504,7 @@ def _warm_ship_details() -> None:
                                 sq_by_ship.setdefault(s, []).append(item)
                     for xws in sorted(all_xws):
                         cache_key = f"ship_squadrons|{xws}|{ds.value}|10{suffix}"
-                        val = sq_by_ship.get(xws, [])
+                        val = rank_ship_squadrons(sq_by_ship.get(xws, []), 10)
                         get_cached_or_compute(cache_key, lambda v=val: list(v))
                         ok += 1
                 except Exception as e:
