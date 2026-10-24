@@ -71,7 +71,9 @@ jobs:
           git switch -C "$SYNC_BRANCH"
           git commit -m "chore(data): sync game data and rebuild manifests"
 
-          git push --force-with-lease origin "$SYNC_BRANCH"
+          # The branch is owned by this workflow; force keeps a single open PR
+          # instead of accumulating one branch per day.
+          git push --force origin "$SYNC_BRANCH"
 
           EXISTING="$(gh pr list --head "$SYNC_BRANCH" --state open --json number --jq '.[0].number // empty')"
           if [ -n "$EXISTING" ]; then
