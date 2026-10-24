@@ -66,6 +66,15 @@ async function proxyToBackend({ params, url, request }, method) {
 	if (contentType) headers['content-type'] = contentType;
 	const accept = request.headers.get('accept');
 	if (accept) headers['accept'] = accept;
+	// Forward the client identity so the backend bot guard can classify and
+	// rate-limit per IP. The X-Forwarded-For chain is passed through untouched:
+	// its last hop is the address Traefik recorded for the real peer.
+	const userAgent = request.headers.get('user-agent');
+	if (userAgent) headers['user-agent'] = userAgent;
+	const forwardedFor = request.headers.get('x-forwarded-for');
+	if (forwardedFor) headers['x-forwarded-for'] = forwardedFor;
+	const realIp = request.headers.get('x-real-ip');
+	if (realIp && !forwardedFor) headers['x-real-ip'] = realIp;
 
 	/** @type {RequestInit & { duplex?: string }} */
 	const init = { method, headers };

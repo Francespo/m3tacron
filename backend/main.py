@@ -10,6 +10,7 @@ from .models import Tournament, PlayerStanding
 from .analytics.factions import get_meta_snapshot
 from .data_structures.data_source import DataSource
 from .cache import get_cached_or_compute
+from .bot_guard import BotGuardMiddleware
 from .api.schemas import MetaSnapshotResponse
 from .api.tournaments import router as tournaments_router
 from .api.lists import router as lists_router
@@ -49,6 +50,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Reject crawlers and rate-limit scripted clients on the expensive analytics
+# endpoints. Added after CORS so it runs first; preflights are exempt inside.
+app.add_middleware(BotGuardMiddleware)
 
 @app.on_event("startup")
 def on_startup():
