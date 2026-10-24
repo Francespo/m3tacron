@@ -45,8 +45,10 @@
         shipXws ? xwingData.getShip(shipXws)?.name || pilot.ship_name : pilot.ship_name,
     );
     const subtitle = $derived(pData?.caption || "");
-    const points = $derived(pData?.cost ?? pilot.points ?? pilot.cost ?? 0);
-    const loadout = $derived(pData?.loadout ?? pilot.loadout);
+    // Prefer the server-provided cost/loadout (cards + ship pilots endpoints)
+    // so a stale browser manifest cannot disagree with the detail pages.
+    const points = $derived(pilot.cost ?? pData?.cost ?? pilot.points ?? 0);
+    const loadout = $derived(pilot.loadout ?? pData?.loadout);
 </script>
 
 {#if viewMode === "grid"}

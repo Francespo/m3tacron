@@ -5,6 +5,7 @@ from sqlalchemy import text
 from ..database import engine
 from ..data_structures.data_source import parse_data_source
 from ..analytics.filter_helpers import format_filter_clause
+from ..utils.xwing_data.pilots import get_pilot_info
 from .formatters import enrich_list_data
 
 router = APIRouter(prefix="/api/squadron", tags=["Squadron Detail"])
@@ -93,6 +94,7 @@ def get_squadron_pilots(
     list.list_json (one row per signature, not N rows in playerstanding).
     """
     ship_sig = _normalize_ship_signature(signature)
+    ds_enum = parse_data_source(data_source)
 
     with Session(engine) as session:
         params: dict = {"ship_sig": ship_sig}
@@ -149,11 +151,25 @@ def get_squadron_pilots(
         for p_id, copies in copies_counter.items():
             p = id_to_entry[p_id]
             if p_id not in pilot_stats:
+                # Show the *current* cost/loadout from the server-side
+                # manifest, falling back to the per-pilot points stored in
+                # the list. The browser can keep a stale manifest cached, so
+                # the server value is the one every page should agree on.
+                p_info = get_pilot_info(p_id, source=ds_enum) or {}
+                try:
+                    p_cost = int(p_info.get("cost") or p.get("points", 0) or 0)
+                except (ValueError, TypeError):
+                    p_cost = 0
+                try:
+                    p_loadout = int(p_info.get("loadout") or 0)
+                except (ValueError, TypeError):
+                    p_loadout = 0
                 pilot_stats[p_id] = {
                     "pilot_xws": p_id,
                     "ship_xws": p.get("ship") or "unknown",
                     "name": p.get("name", p_id),
-                    "cost": p.get("points", 0),
+                    "cost": p_cost,
+                    "loadout": p_loadout,
                     "games": 0,
                     "wins": 0,
                     "games_by_copies": {"1": 0, "2": 0, "3+": 0},
@@ -183,6 +199,7 @@ def get_squadron_pilots(
             "ship_xws": stats["ship_xws"],
             "name": stats["name"],
             "cost": stats["cost"],
+            "loadout": stats["loadout"],
             "games": w_g,
             "win_rate": win_rate,
             "percent_of_squadron": percent_of_squadron,

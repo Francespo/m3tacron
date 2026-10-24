@@ -8,7 +8,7 @@ This directory is the FastAPI service layer. It exposes versioned REST routers t
 - **Stateless module-level routers** — no service classes are used; "business logic" lives in the analytics package. Here it is mostly orchestration: filter shaping, pagination, sort-direction mapping, and response wrapping.
 - **Transactional boundaries** for non-aggregated reads/writes: `tournaments.py`, `list_detail.py`, `squadron_detail.py`, `pilot_detail.py`, and `support.py` open explicit `with Session(engine) as session:` blocks; the webhook in `support.kofi_webhook` commits Supporter/Contribution writes transactionally.
 - **Pydantic contracts** live in `schemas.py` (`ListData`, `PilotData`, `UpgradeData`, `TournamentData`, `PlayerStandingData`, `MatchData`, plus `Paginated*` and `FundStatusResponse` envelopes). Endpoints declare `response_model=` so FastAPI serializes ORM rows + raw dicts into typed shapes.
-- **Enrichment seam**: `formatters.enrich_list_data` joins raw aggregate dicts with static game metadata from `backend/utils/xwing_data` (`get_pilot_info`, `get_upgrade_info`, `get_ship_icon_name`) and normalizes the faction key through `Faction.from_xws`. Used by `list_detail`, `ship_detail`, and `squadron_detail`.
+- **Enrichment seam**: `formatters.enrich_list_data` joins raw aggregate dicts with static game metadata from `backend/utils/xwing_data` (`get_pilot_info`, `get_upgrade_info`, `get_ship_icon_name`) and normalizes the faction key through `Faction.from_xws`; its `points`/`original_points` pair is the single source of truth for current vs played point totals. Used by `lists`, `list_detail`, `ship_detail`, and `squadron_detail`.
 - **Data source awareness**: nearly every endpoint normalizes the `data_source` query string to a `DataSource` enum (`XWA` | `LEGACY`) and threads it into both analytics aggregators and xwing-data lookups.
 - **Inline filter builders**: `cards._build_filters` and similar local helpers translate HTTP query params into the dict shape `analytics.filters.filter_query` consumes.
 
@@ -30,7 +30,7 @@ This directory is the FastAPI service layer. It exposes versioned REST routers t
   - `backend.data_structures` — `DataSource`, `Faction`, `Format`, `Source`, `SortingCriteria`, `SortDirection`
   - `backend.utils.xwing_data` — `pilots`, `ships`, `upgrades` lookup helpers and `list_keys.get_list_key`
 - **Exposes** (public routers/handlers):
-  - `cards.get_pilots`, `cards.get_upgrades` — paginated pilot/upgrade analytics
+  - `cards.get_pilots`, `cards.get_upgrades` — paginated pilot/upgrade analytics (includes current `cost`, plus `loadout` for pilots)
   - `ships.get_ships`, `ships.get_all_ships` — paginated ship list and full chassis catalog
   - `lists.get_lists` — paginated list analytics
   - `squadrons.get_squadrons` — paginated squadron (chassis-combo) analytics

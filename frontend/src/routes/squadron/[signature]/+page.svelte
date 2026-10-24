@@ -84,8 +84,7 @@
                 ).toLowerCase();
             }
             case "cost": {
-                const md = xwingData.getPilot(p.pilot_xws) as any;
-                const c = md?.cost ?? p.cost;
+                const c = p.cost ?? (xwingData.getPilot(p.pilot_xws) as any)?.cost;
                 return typeof c === "number" ? c : 0;
             }
             case "games":
@@ -333,8 +332,8 @@
             <div class="grid gap-4 grid-cols-1 md:grid-cols-2">
                 {#each sortedPilots as p (p.pilot_xws)}
                     {@const pilotData = xwingData.getPilot(p.pilot_xws) as any}
-                    {@const pts = pilotData?.cost ?? p.cost ?? 0}
-                    {@const loadout = pilotData?.loadout}
+                    {@const pts = p.cost ?? pilotData?.cost ?? 0}
+                    {@const loadout = p.loadout ?? pilotData?.loadout}
                     {@const hasLoadout = isXwa && loadout !== undefined && loadout !== null}
                     {@const pct = Math.max(0, Math.min(100, Number(p.percent_of_squadron ?? 0)))}
                     {@const wr = Math.min(100, Math.max(0, Number(p.win_rate ?? 0)))}

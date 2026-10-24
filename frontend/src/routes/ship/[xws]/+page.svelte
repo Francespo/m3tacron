@@ -266,7 +266,7 @@
         const wr = games > 0 ? (wins / games) * 100 : -1;
         const pct = totalGames > 0 ? (games / totalGames) * 100 : 0;
         const pData = xwingData.getPilot(p.xws) as any;
-        const cost = pData?.cost ?? p.cost ?? 0;
+        const cost = p.cost ?? pData?.cost ?? 0;
 
         switch (pilotSortKey) {
             case "name":
@@ -616,8 +616,8 @@
                 {#each sortedPilots as pilot (pilot.xws)}
                     {@const pData = xwingData.getPilot(pilot.xws) as any}
                     {@const pilotName = resolvePilotName(pilot)}
-                    {@const pts = pData?.cost ?? pilot.cost ?? 0}
-                    {@const loadout = pData?.loadout}
+                    {@const pts = pilot.cost ?? pData?.cost ?? 0}
+                    {@const loadout = pilot.loadout ?? pData?.loadout}
                     {@const hasLoadout = isXwa && loadout !== undefined && loadout !== null}
                     {@const gamesVal = Math.max(0, pilot.games_count || 0)}
                     {@const winsVal = Math.max(0, pilot.wins || 0)}

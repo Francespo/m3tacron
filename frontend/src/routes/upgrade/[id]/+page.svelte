@@ -55,7 +55,9 @@
     const slotIconChar = $derived(getSlotIcon(slotXws));
     const slotLabel = $derived(slotXws ? slotXws.toUpperCase() : (uData ? "UPGRADE" : "UPGRADE"));
     const title = $derived(uData?.sides?.[0]?.title || info?.sides?.[0]?.title || name);
-    const cost = $derived(uData?.cost?.value ?? info?.cost?.value ?? stats?.cost ?? 0);
+    // The backend info comes from the deployed manifest; prefer it over the
+    // browser-cached manifest so the cost is always the current one.
+    const cost = $derived(info?.cost?.value ?? uData?.cost?.value ?? stats?.cost ?? 0);
     const limited = $derived(uData?.limited ?? info?.limited ?? stats?.limited ?? 0);
 
     const games = $derived(Math.max(0, Number(stats?.games_count ?? stats?.games ?? 0)));

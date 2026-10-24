@@ -11,6 +11,7 @@ from ..data_structures.data_source import DataSource, parse_data_source
 from ..data_structures.factions import Faction
 from ..database import engine
 from ..utils.xwing_data.pilots import load_all_pilots
+from .formatters import enrich_list_data
 from .schemas import PaginatedListsResponse
 
 router = APIRouter(prefix="/api/lists", tags=["Lists"])
@@ -137,9 +138,12 @@ def _fetch_current_points(signatures: list[str], data_source: DataSource) -> dic
     """Current point cost per list: sum of its pilots' manifest costs.
 
     Computed in SQL from `list_json` so the full JSON never enters Python
-    (the aggregation deliberately avoids that). Mirrors `ListRowCard`'s
-    `computedCurrentPoints`; a zero total means no pilot resolved and the
-    caller falls back to the stored points.
+    (the aggregation deliberately avoids that). Mirrors
+    `formatters.enrich_list_data` — which is what the list page and the
+    list-detail page display: prefer the manifest cost, fall back to the
+    per-pilot points stored in `list_json` when the pilot is missing (or
+    priced at 0). A zero total means no pilot resolved and the caller falls
+    back to the stored points.
     """
     sigs = [s for s in set(signatures) if s]
     if not sigs:
@@ -148,9 +152,14 @@ def _fetch_current_points(signatures: list[str], data_source: DataSource) -> dic
         """
         SELECT l.canonical_signature,
                COALESCE((
-                   SELECT SUM(COALESCE(NULLIF(
-                       CAST(:costs AS jsonb) ->> (COALESCE(p->>'id', p->>'name')), ''
-                   )::numeric, 0))
+                   SELECT SUM(COALESCE(
+                       NULLIF(NULLIF(
+                           CAST(:costs AS jsonb) ->> (COALESCE(p->>'id', p->>'name')),
+                           ''
+                       ), '0'),
+                       NULLIF(p->>'points', ''),
+                       '0'
+                   )::numeric)
                    FROM jsonb_array_elements(l.list_json::jsonb -> 'pilots') AS p
                ), 0)::int
         FROM list l
@@ -174,10 +183,11 @@ def _apply_current_points_range(
 
     "Current" is the value the list card displays, not the stored
     `list.points` column: for XWA that is the sum of the pilots' manifest
-    costs, falling back to stored points when no pilot resolves. Legacy
-    lists always display stored points, so they filter on it directly. An
-    empty bound is unbounded; different bounds are ANDed. `points_lookup`
-    is injectable so the logic is testable without a database.
+    costs with a per-pilot fallback to the stored points, falling back to the
+    list total when no pilot resolves. Legacy lists always display stored
+    points, so they filter on it directly. An empty bound is unbounded;
+    different bounds are ANDed. `points_lookup` is injectable so the logic is
+    testable without a database.
     """
     cost_min = _num(filters.get("cost_min"))
     cost_max = _num(filters.get("cost_max"))
@@ -377,10 +387,27 @@ def get_lists(
     # must never be mutated.
     signatures: list[str] = [row["signature"] for row in page_items if row.get("signature")]
     pilots_map = fetch_list_pilots(signatures) if signatures else {}
-    items = [
-        {**row, "pilots": pilots_map.get(row["signature"], [])}
-        for row in page_items
-        if row.get("signature")
-    ]
+    ds_enum = parse_data_source(data_source)
+    # Enrich the page the same way the list-detail and squadron endpoints do.
+    # `points` becomes the *current* manifest-derived total and
+    # `original_points` the stored total. The card must not re-derive points
+    # from the browser-cached game-data manifest: a stale `/data-xwa/...`
+    # copy made the list browser disagree with the list detail after a points
+    # sync (e.g. a 50-point row that the server already priced at 52).
+    items = []
+    for row in page_items:
+        signature = row.get("signature")
+        if not signature:
+            continue
+        item = enrich_list_data(
+            {**row, "pilots": pilots_map.get(signature, [])},
+            source=ds_enum,
+        )
+        # Keep the "computed 0 → stored total" fallback: a row whose pilots
+        # yielded no cost at all (e.g. an empty/missing list_json) should
+        # still show the total recorded at play time.
+        if item.points == 0 and item.original_points:
+            item = item.model_copy(update={"points": item.original_points})
+        items.append(item)
 
     return PaginatedListsResponse(items=items, total=total, page=page, size=size)

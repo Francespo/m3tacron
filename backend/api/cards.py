@@ -45,8 +45,10 @@ def _sort_card_stats(data: list[dict], sort_metric: str, sort_direction: str) ->
             return item["wins"] / item["games_count"] if item.get("games_count", 0) > 0 else 0
         elif sort_metric == "Name":
             return item.get("xws", "")
-        elif sort_metric in ("Cost", "Loadout"):
-            return 0
+        elif sort_metric == "Cost":
+            return item.get("cost", 0)
+        elif sort_metric == "Loadout":
+            return item.get("loadout", 0)
         return (item.get("list_count", 0), item.get("games_count", 0))
 
     return sorted(data, key=sort_key, reverse=(sort_direction == "desc"))

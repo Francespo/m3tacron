@@ -1,9 +1,14 @@
 """Unit tests for the Lists page current-point-cost range filter.
 
-The filter must agree with the value the list row displays:
-- XWA rows display the sum of the pilots' manifest costs, falling back to the
-  stored `list.points` when no pilot resolves.
-- Legacy rows always display the stored `list.points`.
+The filter must agree with the value the list row displays. That value is now
+computed server-side by `enrich_list_data` (the same helper the list-detail
+page uses) and returned as `points`, with the stored total in
+`original_points`:
+
+- XWA rows display the sum of the pilots' manifest costs, falling back to each
+  pilot's stored points when the manifest has no entry.
+- Legacy rows display the stored `list.points` (the card picks
+  `original_points`), and the filter uses the stored total too.
 
 `_apply_current_points_range` takes an injectable lookup so the range logic is
 tested without a database or the game-data manifest. The lookup itself is
@@ -70,7 +75,7 @@ def test_xwa_min_only_and_max_only():
 
 
 def test_xwa_zero_computed_falls_back_to_stored_points():
-    """Mirrors ListRowCard: computed > 0 wins, otherwise list.points is shown."""
+    """A list with no resolvable pilot is shown/filtered on its stored points."""
     rows = [_row("resolved", 10), _row("unresolved", 55)]
     computed = {"resolved": 50, "unresolved": 0}
 
@@ -146,17 +151,78 @@ def test_pilot_costs_alias_pack_suffixed_pilots():
             assert costs[xws] == own_cost
 
 
+def test_enrich_list_data_uses_manifest_costs_and_keeps_stored_total():
+    """The list page's `points`/`original_points` come from this helper.
+
+    Guards the list browser against re-deriving points from a stale
+    browser-cached manifest: the server value is the one the detail page and
+    the card both display.
+    """
+    from backend.api.formatters import enrich_list_data
+    from backend.data_structures.data_source import DataSource
+
+    priced = _xwa_pilots_with_cost()
+    if len(priced) < 2:
+        pytest.skip("XWA manifest is empty (external_data submodule not checked out)")
+    (xws_a, cost_a), (xws_b, cost_b) = priced[:2]
+
+    data = enrich_list_data(
+        {
+            "signature": "sig",
+            "name": "Name",
+            "faction": "rebelalliance",
+            "points": 99,
+            "pilots": [{"id": xws_a}, {"id": xws_b}],
+            "count": 1,
+            "games": 0,
+            "wins": 0,
+            "win_rate": 0,
+        },
+        source=DataSource.XWA,
+    )
+
+    assert data.points == cost_a + cost_b
+    assert data.original_points == 99
+
+
+def test_enrich_list_data_falls_back_to_stored_pilot_points():
+    """Unresolved pilots contribute their stored points, not zero."""
+    from backend.api.formatters import enrich_list_data
+    from backend.data_structures.data_source import DataSource
+
+    data = enrich_list_data(
+        {
+            "signature": "sig",
+            "name": "Name",
+            "faction": "rebelalliance",
+            "points": 50,
+            "pilots": [
+                {"xws": "zz-not-in-manifest", "points": 7},
+                {"xws": "zz-also-missing", "points": 11},
+            ],
+            "count": 1,
+            "games": 0,
+            "wins": 0,
+            "win_rate": 0,
+        },
+        source=DataSource.XWA,
+    )
+
+    assert data.points == 18
+    assert data.original_points == 50
+
+
 @pytest.mark.skipif(
     not os.getenv("DATABASE_URL", "").startswith("postgresql"),
     reason="requires PostgreSQL (set DATABASE_URL)",
 )
 def test_fetch_current_points_sums_manifest_costs():
-    """The raw SQL must reproduce `ListRowCard.computedCurrentPoints`.
+    """The raw SQL must reproduce `enrich_list_data`'s XWA point totals.
 
     Covers what the injected-lookup tests cannot: the JSONB sum itself, the
-    `id`/`name` pilot keys, and the zero total that triggers the stored-points
-    fallback. Expected costs come from the manifest, so data syncs don't break
-    this test.
+    `id`/`name` pilot keys, the per-pilot stored-points fallback, and the zero
+    total that triggers the stored-points fallback. Expected costs come from
+    the manifest, so data syncs don't break this test.
     """
     from sqlmodel import Session, SQLModel
 
@@ -181,6 +247,13 @@ def test_fetch_current_points_sums_manifest_costs():
         (f"{marker}-unknown", 55, [{"id": f"{marker}-nope"}], 0),
         (f"{marker}-named", 77, [{"name": xws_a}], cost_a),
         (f"{marker}-empty", 42, [], 0),
+        # Unresolved pilot falls back to its stored points, like the detail page.
+        (
+            f"{marker}-pilot-fallback",
+            88,
+            [{"id": f"{marker}-nope", "points": 7}, {"id": xws_a}],
+            7 + cost_a,
+        ),
     ]
 
     created: list[int] = []
