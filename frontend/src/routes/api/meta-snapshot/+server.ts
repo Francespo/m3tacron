@@ -52,6 +52,7 @@ export async function GET({ url, fetch, request }) {
     const dateStart = url.searchParams.get('date_start');
     const dateEnd = url.searchParams.get('date_end');
     const timeRange = url.searchParams.get('time_range');
+    const listsLimit = url.searchParams.get('lists_limit');
     const backendApiBase = resolveBackendApiBase(url);
     const CACHE_HEADERS = ['etag', 'cache-control', 'last-modified', 'vary'];
 
@@ -63,6 +64,7 @@ export async function GET({ url, fetch, request }) {
         if (dateStart) params.set('date_start', dateStart);
         if (dateEnd) params.set('date_end', dateEnd);
         if (timeRange) params.set('time_range', timeRange);
+        if (listsLimit) params.set('lists_limit', listsLimit);
 
         const upstreamHeaders: Record<string, string> = {};
         const ifNoneMatch = request.headers.get('if-none-match');

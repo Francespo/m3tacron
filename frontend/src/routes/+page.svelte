@@ -178,6 +178,9 @@
 
         const params = new URLSearchParams();
         params.set("data_source", source);
+        // Only the top lists are shown; the full all-time set is 26k lists
+        // with every pilot (~30 MB of JSON) for four visible cards.
+        params.set("lists_limit", "100");
         if (epic) params.set("epic", "true");
         if (timeRange === "points_update") {
             const pointsDate = getLatestPointsDate(source);

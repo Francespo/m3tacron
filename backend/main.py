@@ -183,18 +183,21 @@ def _warm_endpoint_list() -> list[str]:
     }
 
     endpoints: list[str] = [
-        # Dashboard meta-snapshot (all-time)
-        "meta-snapshot?data_source=xwa",
-        "meta-snapshot?data_source=legacy",
-        "meta-snapshot?data_source=xwa&days=0",
-        "meta-snapshot?data_source=legacy&days=0",
+        # Dashboard meta-snapshot (all-time, 90-day default) with the same
+        # lists_limit the dashboard sends; without it an all-time snapshot
+        # ships 26k lists with every pilot.
+        "meta-snapshot?data_source=xwa&lists_limit=100",
+        "meta-snapshot?data_source=legacy&lists_limit=100",
+        "meta-snapshot?data_source=xwa&days=90&lists_limit=100",
+        "meta-snapshot?data_source=legacy&days=90&lists_limit=100",
+        "meta-snapshot?data_source=xwa&days=0&lists_limit=100",
+        "meta-snapshot?data_source=legacy&days=0&lists_limit=100",
     ]
 
-    # Dashboard meta-snapshot (since latest points update)
+    # Dashboard meta-snapshot (since latest points update) — the default view.
     for ds, pts_date in pts_dates.items():
         if pts_date:
-            endpoints.append(f"meta-snapshot?data_source={ds}&time_range=points_update")
-            endpoints.append(f"meta-snapshot?data_source={ds}&date_start={pts_date}")
+            endpoints.append(f"meta-snapshot?data_source={ds}&date_start={pts_date}&lists_limit=100")
 
     # Ships (all-time + latest points update)
     for ds in ("xwa", "legacy"):
@@ -870,6 +873,12 @@ def get_snapshot(
     date_start: str | None = Query(None, description="Start date (YYYY-MM-DD)"),
     date_end: str | None = Query(None, description="End date (YYYY-MM-DD)"),
     time_range: str | None = Query(None, description="Time range preset, e.g. points_update"),
+    lists_limit: int = Query(
+        0,
+        ge=0,
+        le=2000,
+        description="Keep only the top N lists per sort dimension (0 = all). The dashboard uses 100.",
+    ),
 ):
     ds_enum = DataSource.XWA if data_source == "xwa" else DataSource.LEGACY
     normalized_days = None if (days == 0 or days is None) else days
@@ -897,6 +906,7 @@ def get_snapshot(
             days_back=normalized_days,
             date_start=date_start,
             date_end=date_end,
+            lists_limit=lists_limit,
         )
 
         # Enrich list data with pilot/ship metadata (names, ship icons,
@@ -967,7 +977,7 @@ def get_snapshot(
         }
 
     cached = get_cached_or_compute(
-        f"meta_snapshot|{ds_enum.value}|True|{normalized_days}|{date_start or ''}|{date_end or ''}",
+        f"meta_snapshot|{ds_enum.value}|True|{normalized_days}|{date_start or ''}|{date_end or ''}|ll={lists_limit}",
         compute,
     )
     return MetaSnapshotResponse(**cached)
