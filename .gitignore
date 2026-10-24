@@ -62,8 +62,9 @@ local-data/
 # --- Agentic Workflows ---
 # Project-level skills are committed, except the m3tacron runbook: it encodes
 # internal infrastructure (host addresses, container ids, ops commands) and the
-# repository is public. Keep it local.
-.agents/skills/m3tacron/
+# repository is public. It lives in the private infra-config repo and is
+# symlinked here, so match the symlink too (no trailing slash).
+.agents/skills/m3tacron
 .agents/agents/
 .agents/state/
 .agents/cache/
