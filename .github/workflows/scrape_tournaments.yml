@@ -2,6 +2,9 @@ name: Scrape Tournaments
 
 permissions:
   contents: write
+  # Workload identity federation: lets the Tailscale action request a GitHub
+  # OIDC token and exchange it for a short-lived tailnet credential.
+  id-token: write
 
 on:
   schedule:
@@ -86,6 +89,22 @@ jobs:
         if: env.NEEDS_DB == 'true'
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
+      # Public port 22 on the production host is filtered upstream. Reach it
+      # through the tailnet instead: the ephemeral CI node gets tag:ci and the
+      # Tailscale ACL only allows tag:ci -> tag:server:22.
+      #
+      # Auth uses Tailscale workload identity federation (OIDC): no long-lived
+      # OAuth client secret. The client ID and audience are public identifiers,
+      # not secrets — repo variables override them when present.
+      - name: Join Tailscale network
+        if: env.NEEDS_DB == 'true'
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: "${{ vars.TS_OAUTH_CLIENT_ID || 'TM4Z2oLQBM11CNTRL-kbAksPDhFP11CNTRL' }}"
+          audience: "${{ vars.TS_AUDIENCE || 'api.tailscale.com/TM4Z2oLQBM11CNTRL-kbAksPDhFP11CNTRL' }}"
+          tags: tag:ci
+          ping: 100.109.76.51
+
       - name: Open SSH tunnel to database
         if: env.NEEDS_DB == 'true'
         run: |
@@ -99,14 +118,14 @@ jobs:
           ssh-add /tmp/m3tacron_deploy_key
           echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
           echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
-          ssh-keyscan -H -t ed25519 84.8.253.2 >> ~/.ssh/known_hosts
+          ssh-keyscan -H -t ed25519 100.109.76.51 >> ~/.ssh/known_hosts
 
       - name: Start database tunnel
         if: env.NEEDS_DB == 'true'
         run: |
           ssh -f -N -L 5432:localhost:3000 \
             -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes \
-            audit-bot@84.8.253.2
+            audit-bot@100.109.76.51
           echo "Waiting for tunnel..."
           for i in $(seq 1 15); do
             if pg_isready -h localhost -p 5432 2>/dev/null | grep -q "accepting"; then
@@ -270,9 +289,9 @@ jobs:
             echo "No backup file to rotate on server, skipping scp."
           else
             scp -o StrictHostKeyChecking=accept-new -i /tmp/m3tacron_deploy_key \
-              "$BACKUP_FILE" audit-bot@84.8.253.2:~/dumps/ || echo "scp to server failed (non-fatal)"
+              "$BACKUP_FILE" audit-bot@100.109.76.51:~/dumps/ || echo "scp to server failed (non-fatal)"
           fi
-          ssh -o StrictHostKeyChecking=accept-new -i /tmp/m3tacron_deploy_key audit-bot@84.8.253.2 "bash -s" << 'EOSSH' || echo "server rotation failed (non-fatal)"
+          ssh -o StrictHostKeyChecking=accept-new -i /tmp/m3tacron_deploy_key audit-bot@100.109.76.51 "bash -s" << 'EOSSH' || echo "server rotation failed (non-fatal)"
           set -e
           PREFIX="${BACKUP_DB_NAME:-postgres}"
           if [ -f ~/m3tacron-catchup/scripts/db_backup.py ]; then
