@@ -185,6 +185,39 @@ def _read_last_scrape_at() -> str | None:
     return None
 
 
+def _limit_snapshot_lists(list_stats: list[dict], lists_limit: int) -> list[dict]:
+    """Keep the union of the top N lists by the keys the dashboard can sort on.
+
+    Without a limit an all-time snapshot ships 26k lists with every pilot
+    (~30 MB of JSON) to render four cards. The frontend can sort by games,
+    entries and win rate, so the union of those rankings is enough.
+    """
+    if not lists_limit or lists_limit <= 0 or len(list_stats) <= lists_limit:
+        return list_stats
+
+    def _top(items: list[dict], key, n: int) -> list[dict]:
+        return sorted(items, key=key, reverse=True)[:n]
+
+    candidates = (
+        _top(list_stats, lambda x: x.get("games", 0), lists_limit)
+        + _top(list_stats, lambda x: x.get("entries", 0), lists_limit)
+        + _top(
+            [x for x in list_stats if x.get("games", 0) >= 3],
+            lambda x: x.get("win_rate", 0),
+            lists_limit,
+        )
+    )
+    seen: set[str] = set()
+    trimmed: list[dict] = []
+    for item in candidates:
+        signature = item.get("signature")
+        if not signature or signature in seen:
+            continue
+        seen.add(signature)
+        trimmed.append(item)
+    return trimmed
+
+
 def get_meta_snapshot(
     data_source: DataSource = DataSource.XWA,
     allowed_formats: list[str] | None = None,
@@ -192,10 +225,16 @@ def get_meta_snapshot(
     days_back: int | None = 90,
     date_start: str | None = None,
     date_end: str | None = None,
+    lists_limit: int = 0,
 ) -> dict:
     """
     Get meta snapshot data for home page.
     Combines aggregated statistics from factions, ships, lists, pilots, and upgrades.
+
+    ``lists_limit`` > 0 keeps only the union of the top N lists by games,
+    entries and win rate (the keys the dashboard can sort on). The dashboard
+    displays four; without a limit an all-time snapshot ships 26k lists with
+    every pilot (~30 MB of JSON), which dominates both compute and transfer.
     """
     from datetime import datetime, timedelta
 
@@ -250,6 +289,9 @@ def get_meta_snapshot(
 
     from .lists import aggregate_list_stats, fetch_list_pilots
     list_stats = aggregate_list_stats(filters, data_source=data_source)
+
+    # Keep only the lists the dashboard can actually surface (see helper).
+    list_stats = _limit_snapshot_lists(list_stats, lists_limit)
 
     # Attach pilots lazily — aggregation returns empty pilots to avoid
     # pulling list_json for every row; the snapshot only ships a handful
