@@ -81,15 +81,35 @@ def on_startup():
     except Exception as exc:
         print(f"[startup] initial set_cached_version failed: {exc}")
 
-    if os.getenv("PREWARM_CACHE", "true").lower() == "true":
+    # PR previews share the production database. Warming the cache there means
+    # every open PR re-runs the full set of whole-history aggregations against
+    # prod (twice per container: one per uvicorn worker), which is enough to
+    # saturate Postgres. Previews compute lazily instead.
+    preview = _is_preview_deployment()
+    if preview:
+        print("[startup] preview deployment: cache warm-up and auto-rewarm disabled")
+
+    if not preview and os.getenv("PREWARM_CACHE", "true").lower() == "true":
         _prewarm_cache()
 
     # Auto-rewarm on any DB mutation: poll scrape_meta.data_version and
     # repopulate hot keys when it changes (scraper, promote, or manual bump).
     # This makes cache self-healing after *any* DB modification without
     # requiring a restart or an external webhook.
-    if os.getenv("CACHE_AUTO_REWARM", "true").lower() == "true":
+    if not preview and os.getenv("CACHE_AUTO_REWARM", "true").lower() == "true":
         _start_cache_auto_rewarm()
+
+
+def _is_preview_deployment() -> bool:
+    """True when this container serves a Coolify PR preview or the dev app.
+
+    Coolify sets COOLIFY_BRANCH to the branch being deployed (quoted, and with
+    a ``/head`` suffix for PRs). Frontend previews also set ENV_VAR_SOURCE.
+    """
+    branch = os.getenv("COOLIFY_BRANCH", "").strip().strip('"').strip("'")
+    if branch.startswith("pull/"):
+        return True
+    return os.getenv("ENV_VAR_SOURCE", "").strip().lower() == "preview"
 
 
 # ---------------------------------------------------------------------------
