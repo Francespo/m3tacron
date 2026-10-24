@@ -38,7 +38,9 @@
     const differentListsCount = $derived(
         upgrade.different_lists_count ?? upgrade.different_list_count ?? 0,
     );
-    const points = $derived(uData?.cost?.value ?? upgrade.points ?? upgrade.cost ?? 0);
+    // Prefer the server-provided cost (cards endpoint) so a stale browser
+    // manifest cannot disagree with the upgrade detail page.
+    const points = $derived(upgrade.cost ?? uData?.cost?.value ?? upgrade.points ?? 0);
     const slotName = $derived(upgrade.slot_name || slot);
 </script>
 

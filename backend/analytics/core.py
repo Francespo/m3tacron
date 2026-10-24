@@ -465,6 +465,8 @@ def aggregate_card_stats(
                 "entries_count": 0,
                 "squadron_count": 0,
                 "wins": 0,
+                "cost": p_cost,
+                "loadout": p_loadout,
                 "_signatures": set(),
             }
 
@@ -626,6 +628,7 @@ def aggregate_card_stats(
                 "entries_count": 0,
                 "squadron_count": 0,
                 "wins": 0,
+                "cost": u_cost,
                 "_signatures": set(),
             }
 
@@ -866,7 +869,9 @@ def _finalize_results(
         elif sort_criteria == SortingCriteria.NAME:
             return item["xws"]
         elif sort_criteria == SortingCriteria.COST:
-            return 0  # Cost not stored in aggregated stats; rely on catalog
+            return item.get("cost", 0)
+        elif sort_criteria == SortingCriteria.LOADOUT:
+            return item.get("loadout", 0)
         return 0
 
     results.sort(key=sort_key, reverse=(sort_direction == SortDirection.DESCENDING))

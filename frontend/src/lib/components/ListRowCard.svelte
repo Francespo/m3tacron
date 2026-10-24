@@ -16,18 +16,28 @@
         return String(value ?? "").trim();
     }
 
-    let computedCurrentPoints = $derived.by(() => {
-        let total = 0;
-        for (const pilotEntry of list.pilots || []) {
-            const pilotXws = normalizeXws(pilotEntry.xws);
-            const p = xwingData.getPilot(pilotXws);
-            total += p?.cost ?? 0;
-        }
-        return total;
-    });
-
+    // Points are computed server-side by `/api/lists` (same `enrich_list_data`
+    // path as the list-detail page): `points` is the current total derived
+    // from the deployed game-data manifest, `original_points` is the total
+    // stored when the list was played. Never recompute them from the
+    // browser-cached manifest here — a stale `/data-xwa/xwing-data.json` made
+    // the card disagree with the detail page after a points sync.
+    //
+    // XWA cards show the current total. Legacy cards keep showing the stored
+    // total (the legacy rows are also filtered and sorted on it).
     let displayedPoints = $derived(
-        isXwa && computedCurrentPoints > 0 ? computedCurrentPoints : (list.points ?? 0),
+        isXwa
+            ? (list.points ?? list.original_points ?? 0)
+            : (list.original_points ?? list.points ?? 0),
+    );
+
+    let storedPoints = $derived(
+        isXwa &&
+            typeof list.original_points === "number" &&
+            list.original_points > 0 &&
+            list.original_points !== displayedPoints
+            ? list.original_points
+            : null,
     );
 
     let listHref = $derived(
@@ -80,13 +90,9 @@
                     class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-mono font-bold"
                 >
                     PTS {displayedPoints}
-                    {#if displayedPoints !== (list.points ?? 0)}
+                    {#if storedPoints !== null}
                         <span class="text-secondary/60 text-[10px] ml-1 font-normal"
-                            >(orig. {list.points ?? 0})</span
-                        >
-                    {:else if list.original_points && list.original_points !== list.points}
-                        <span class="text-secondary/60 text-[10px] ml-1 font-normal"
-                            >(orig. {list.original_points})</span
+                            >(orig. {storedPoints})</span
                         >
                     {/if}
                 </span>
@@ -128,6 +134,7 @@
                                         {@const upgradeXws = normalizeXws(upgEntry.xws)}
                                         {@const upg = xwingData.getUpgrade(upgradeXws)}
                                         {@const slot = upg?.sides?.[0]?.slots?.[0] || 'unknown'}
+                                        {@const upgCost = upgEntry.cost ?? upg?.cost?.value}
                                         <span
                                             class="inline-flex items-center gap-0.5 px-1.5 py-0.5 border border-border-dark rounded-md bg-[#00000030] text-[10px] font-mono text-secondary"
                                             title={upg?.name}
@@ -138,9 +145,9 @@
                                                 >
                                             {/if}
                                             {upg?.name || upgradeXws}
-                                            {#if upg?.cost?.value}
+                                            {#if upgCost}
                                                 <span class="text-secondary/60"
-                                                    >({upg.cost.value})</span
+                                                    >({upgCost})</span
                                                 >
                                             {/if}
                                         </span>

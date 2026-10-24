@@ -527,7 +527,7 @@
                                                             {@const upgName = upgData
                                                                 ?.name ||
                                                                 upgrade.xws}
-                                                            {@const upgCost = upgData
+                                                            {@const upgCost = upgrade.cost ?? upgData
                                                                 ?.cost?.value}
                                                             <div class="p-1">
                                                                 <a

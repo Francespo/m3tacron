@@ -12,6 +12,10 @@ from backend.data_structures.source import Source
 class UpgradeData(BaseModel):
     xws: str
     slot_xws: str = ""
+    # Current card cost from the server-side manifest (0 when unresolved).
+    # The UI uses this instead of the browser-cached manifest so a points
+    # sync cannot make the list page disagree with the detail page.
+    cost: int = 0
 
 
 class PilotData(BaseModel):
@@ -60,6 +64,8 @@ class PilotStats(BaseModel):
     entries_count: int = 0
     squadron_count: int = 0
     wins: int
+    cost: int = 0
+    loadout: int = 0
 
 
 class UpgradeStats(BaseModel):
@@ -70,6 +76,7 @@ class UpgradeStats(BaseModel):
     entries_count: int = 0
     squadron_count: int = 0
     wins: int
+    cost: int = 0
 
 
 class ShipFactionStats(BaseModel):

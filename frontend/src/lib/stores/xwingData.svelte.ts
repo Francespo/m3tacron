@@ -4,6 +4,8 @@
  * Loads the pre-generated monolithic manifest (xwing-data.json).
  */
 
+import { version } from '$app/environment';
+
 export type XWingSource = 'xwa' | 'legacy';
 
 export interface XWingStat {
@@ -160,7 +162,12 @@ class XwingDataStore {
         this.loading = true;
         try {
             const basePath = source === 'xwa' ? '/data-xwa' : '/data-legacy';
-            const response = await fetch(`${basePath}/xwing-data.json`);
+            // Version the manifest URL with the app build. The file path is
+            // stable across deploys, so a browser can keep serving a stale
+            // copy (and stale point costs) after a game-data sync otherwise.
+            const response = await fetch(
+                `${basePath}/xwing-data.json?v=${encodeURIComponent(version)}`
+            );
             if (!response.ok) throw new Error(`Failed to load ${source} data`);
             const json = await response.json();
 

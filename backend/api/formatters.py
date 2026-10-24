@@ -117,7 +117,8 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
 
                     rich_upgrades.append(UpgradeData(
                         xws=item_id,
-                        slot_xws=norm_slot
+                        slot_xws=norm_slot,
+                        cost=upg_cost,
                     ))
         elif isinstance(upgrades_data, list):
             for raw_item in upgrades_data:
@@ -142,7 +143,8 @@ def enrich_list_data(stats: dict, source: DataSource = DataSource.XWA) -> ListDa
 
                 rich_upgrades.append(UpgradeData(
                     xws=item_id,
-                    slot_xws=norm_slot
+                    slot_xws=norm_slot,
+                    cost=upg_cost,
                 ))
         
         rich_pilots.append(PilotData(
