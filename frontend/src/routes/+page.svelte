@@ -504,7 +504,7 @@
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h1 class="text-3xl font-sans font-bold text-primary leading-none shrink-0">Meta Dashboard</h1>
 
-            <div class="flex flex-wrap items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3 sm:justify-end">
                 <!-- Time Range Dropdown Selector -->
                 <div class="flex items-center gap-2">
                     <label for="time-range-select" class="text-xs text-secondary font-mono uppercase tracking-wider whitespace-nowrap">
@@ -522,12 +522,11 @@
                 </div>
 
                 {#if !loading && !error && meta}
-                    <div class="hidden md:flex items-center gap-2 text-xs font-mono text-secondary shrink-0">
-                        <span class="w-px h-4 bg-white/10"></span>
+                    <div class="hidden md:flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs font-mono text-secondary">
                         <span class="tracking-widest {filters.dataSource === 'legacy' ? 'text-violet-400' : 'text-amber-400'}">
                             {filters.dataSource === 'legacy' ? 'Legacy' : 'XWA'}
                         </span>
-                        <span class="w-px h-4 bg-white/10"></span>
+                        <span class="hidden lg:inline w-px h-4 bg-white/10"></span>
                         <span class="hidden lg:inline text-secondary">
                             {#if periodRange}
                                 {#if periodRange.isAll}
@@ -539,7 +538,7 @@
                                 Tournament data · {meta.date_range || "Last 90 days"}
                             {/if}
                         </span>
-                        <span class="hidden lg:inline w-px h-4 bg-white/10"></span>
+                        <span class="hidden xl:inline w-px h-4 bg-white/10"></span>
                         <span class="hidden xl:inline text-secondary">Last sync {meta.last_sync || "Unknown"}</span>
                     </div>
                 {/if}
