@@ -1,8 +1,11 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select, func
 from datetime import datetime, timedelta
+import contextlib
+import hmac
 import os
+import threading
 import time
 
 from .database import engine, create_db_and_tables
@@ -10,6 +13,7 @@ from .models import Tournament, PlayerStanding
 from .analytics.factions import get_meta_snapshot
 from .data_structures.data_source import DataSource
 from .cache import get_cached_or_compute
+from .bot_guard import BotGuardMiddleware
 from .api.schemas import MetaSnapshotResponse
 from .api.tournaments import router as tournaments_router
 from .api.lists import router as lists_router
@@ -50,6 +54,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Reject crawlers and rate-limit scripted clients on the expensive analytics
+# endpoints. Added after CORS so it runs first; preflights are exempt inside.
+app.add_middleware(BotGuardMiddleware)
+
 @app.on_event("startup")
 def on_startup():
     retries = int(os.getenv("DB_STARTUP_RETRIES", "20"))
@@ -76,15 +84,49 @@ def on_startup():
     except Exception as exc:
         print(f"[startup] initial set_cached_version failed: {exc}")
 
-    if os.getenv("PREWARM_CACHE", "true").lower() == "true":
+    # PR previews share the production database. Warming the cache there means
+    # every open PR re-runs the full set of whole-history aggregations against
+    # prod (twice per container: one per uvicorn worker), which is enough to
+    # saturate Postgres. Previews compute lazily unless they opt in explicitly
+    # with PREWARM_CACHE=true, or trigger POST /api/cache/warm.
+    preview = _is_preview_deployment()
+    if preview and not _cache_warm_enabled("PREWARM_CACHE", preview):
+        print("[startup] preview deployment: cache warm-up disabled (opt in with PREWARM_CACHE=true)")
+
+    if _cache_warm_enabled("PREWARM_CACHE", preview):
         _prewarm_cache()
 
     # Auto-rewarm on any DB mutation: poll scrape_meta.data_version and
     # repopulate hot keys when it changes (scraper, promote, or manual bump).
     # This makes cache self-healing after *any* DB modification without
     # requiring a restart or an external webhook.
-    if os.getenv("CACHE_AUTO_REWARM", "true").lower() == "true":
+    if _cache_warm_enabled("CACHE_AUTO_REWARM", preview):
         _start_cache_auto_rewarm()
+
+
+def _is_preview_deployment() -> bool:
+    """True when this container serves a Coolify PR preview or the dev app.
+
+    Coolify sets COOLIFY_BRANCH to the branch being deployed (quoted, and with
+    a ``/head`` suffix for PRs). Frontend previews also set ENV_VAR_SOURCE.
+    """
+    branch = os.getenv("COOLIFY_BRANCH", "").strip().strip('"').strip("'")
+    if branch.startswith("pull/"):
+        return True
+    return os.getenv("ENV_VAR_SOURCE", "").strip().lower() == "preview"
+
+
+def _cache_warm_enabled(env_name: str, preview: bool) -> bool:
+    """Whether to warm automatically.
+
+    Default: on for production, off for previews. Setting the variable to an
+    explicit "true" overrides the default, so a preview can opt in at startup
+    with PREWARM_CACHE=true.
+    """
+    raw = os.getenv(env_name)
+    if raw is None or not raw.strip():
+        return not preview
+    return raw.strip().lower() in ("1", "true", "yes", "on")
 
 
 # ---------------------------------------------------------------------------
@@ -94,6 +136,7 @@ def on_startup():
 _warm_state: dict = {
     "last_warm_at": None,          # ISO timestamp of last warm completion
     "last_warm_duration_s": None,  # seconds of last full warm (snapshots + endpoints + ship details)
+    "last_skip_reason": None,      # why the last warm attempt did nothing (e.g. another process holds the lock)
     "detail_snapshots": {},        # {ds: {elapsed_s, pilots, upgrades}}
     "endpoints": {"ok": 0, "fail": 0, "elapsed_s": None, "items": []},  # last _probe_warm_endpoints
     "ship_details": {"ok": 0, "fail": 0, "elapsed_s": None, "total_urls": 0, "workers": None},
@@ -440,7 +483,7 @@ def _probe_warm_endpoints(base: str, endpoints: list[str]) -> None:
     }
 
 
-def _prewarm_cache():
+def _prewarm_cache(trigger: str = "startup"):
     """Hit the API endpoints via HTTP so cache keys exactly match what users request.
 
     Runs in a daemon thread so startup returns immediately. Uses internal
@@ -450,37 +493,96 @@ def _prewarm_cache():
     Fix 2: sync the in-memory cache version after warm so the next request
     does not re-clear (the 2026-08-31 prod incident stayed at entries:0).
     """
-    import threading
+    if not _warm_running.acquire(blocking=False):
+        print("[prewarm] a warm-up is already running in this process; skipping")
+        return False
 
     def _run():
         import datetime as _dt
         t0 = time.time()
         time.sleep(1.5)  # wait for uvicorn to finish binding
-        _warm_detail_snapshots()
-        _warm_ship_details()
-        _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
-        elapsed = time.time() - t0
-        now = _dt.datetime.now(_dt.timezone.utc).isoformat()
-        _warm_state["last_warm_at"] = now
-        _warm_state["last_warm_duration_s"] = round(elapsed, 1)
-        _record_warm_history({
-            "at": now, "elapsed_s": round(elapsed, 1),
-            "endpoints": dict(_warm_state["endpoints"]),
-            "ship_details": dict(_warm_state["ship_details"]),
-            "detail_snapshots": dict(_warm_state["detail_snapshots"]),
-            "trigger": "startup",
-        })
-        # Sync the cache version and persist warm cache to disk
         try:
-            from .cache import get_db_version, set_cached_version, save_cache
-            set_cached_version(get_db_version())
-            save_cache()
-        except Exception as exc:
-            print(f"[prewarm] set_cached_version / save_cache failed: {exc}")
-        print(f"[prewarm] done in {elapsed:.1f}s")
+            with _warm_lock() as acquired:
+                if not acquired:
+                    print("[prewarm] another process holds the warm lock; skipping")
+                    _warm_state["last_skip_reason"] = "another process is warming the cache"
+                    return
+                _warm_detail_snapshots()
+                _warm_ship_details()
+                _probe_warm_endpoints("http://127.0.0.1:8888", _warm_endpoint_list())
+                elapsed = time.time() - t0
+                now = _dt.datetime.now(_dt.timezone.utc).isoformat()
+                _warm_state["last_warm_at"] = now
+                _warm_state["last_warm_duration_s"] = round(elapsed, 1)
+                _warm_state["last_skip_reason"] = None
+                _record_warm_history({
+                    "at": now, "elapsed_s": round(elapsed, 1),
+                    "endpoints": dict(_warm_state["endpoints"]),
+                    "ship_details": dict(_warm_state["ship_details"]),
+                    "detail_snapshots": dict(_warm_state["detail_snapshots"]),
+                    "trigger": trigger,
+                })
+                # Sync the cache version and persist warm cache to disk
+                try:
+                    from .cache import get_db_version, set_cached_version, save_cache
+                    set_cached_version(get_db_version())
+                    save_cache()
+                except Exception as exc:
+                    print(f"[prewarm] set_cached_version / save_cache failed: {exc}")
+                print(f"[prewarm] done in {elapsed:.1f}s")
+        finally:
+            _warm_running.release()
 
     thread = threading.Thread(target=_run, daemon=True, name="cache-prewarm")
     thread.start()
+    return True
+
+
+# Guards a warm-up inside one process; the advisory lock guards it across
+# workers and containers.
+_warm_running = threading.Lock()
+
+# Arbitrary constant, unique to this app: every process that wants to warm the
+# cache takes the same Postgres advisory lock, so only one of them actually
+# runs the aggregations while the others skip.
+_WARM_ADVISORY_KEY = 7_340_031
+
+
+@contextlib.contextmanager
+def _warm_lock():
+    """Cross-process mutex for the cache warm-up.
+
+    Postgres advisory locks are visible to every session on the database, so a
+    second uvicorn worker, another container or a preview can see that a
+    warm-up is already running and skip it. SQLite has no advisory locks, so
+    there we fall back to per-process coordination only.
+    """
+    from sqlalchemy import text as _text
+
+    if engine.dialect.name != "postgresql":
+        yield True
+        return
+
+    conn = engine.connect()
+    acquired = False
+    try:
+        acquired = bool(
+            conn.execute(
+                _text("SELECT pg_try_advisory_lock(:k)"), {"k": _WARM_ADVISORY_KEY}
+            ).scalar()
+        )
+        yield acquired
+    finally:
+        try:
+            if acquired:
+                conn.execute(
+                    _text("SELECT pg_advisory_unlock(:k)"), {"k": _WARM_ADVISORY_KEY}
+                )
+                conn.commit()
+        except Exception as exc:
+            print(f"[prewarm] advisory unlock failed: {exc}")
+        finally:
+            conn.close()
 
 
 def _start_cache_auto_rewarm():
@@ -549,6 +651,33 @@ def _start_cache_auto_rewarm():
 
     thread = threading.Thread(target=_loop, daemon=True, name="cache-auto-rewarm")
     thread.start()
+
+
+@app.post("/api/cache/warm", status_code=202)
+def cache_warm_endpoint(request: Request):
+    """Start a cache warm-up on demand.
+
+    Previews skip the warm-up by default because they share the production
+    database. A preview that needs a warm cache can call this endpoint (the
+    warm-preview GitHub workflow does exactly that) instead of paying the full
+    warm-up on every deploy.
+
+    Disabled unless CACHE_WARM_TOKEN is set; callers must send it in
+    X-Cache-Warm-Token. Warm-ups are single-flight: the in-process lock and a
+    Postgres advisory lock stop two workers/containers from duplicating the
+    work, and a duplicate request gets 409.
+    """
+    expected = os.getenv("CACHE_WARM_TOKEN", "").strip()
+    if not expected:
+        raise HTTPException(status_code=403, detail="Warm trigger disabled: CACHE_WARM_TOKEN is not set.")
+    provided = (request.headers.get("x-cache-warm-token") or "").strip()
+    if not hmac.compare_digest(provided, expected):
+        raise HTTPException(status_code=403, detail="Invalid warm token.")
+
+    if not _prewarm_cache(trigger="http"):
+        raise HTTPException(status_code=409, detail="A warm-up is already running in this process.")
+
+    return {"started": True, "trigger": "http", "poll": "/api/cache/stats"}
 
 
 @app.get("/api/cache/stats")
