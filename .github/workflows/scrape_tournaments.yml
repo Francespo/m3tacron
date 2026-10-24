@@ -66,6 +66,11 @@ jobs:
     # environment was chosen (none = SQLite artifact only, no DB).
     env:
       NEEDS_DB: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.environment != 'none') }}
+      # PROD_DB_PASSWORD is the production Postgres password (or a full URL).
+      # PROD_DATABASE_URL is the old name, kept as a migration fallback.
+      PROD_DB_PASSWORD_NEW: ${{ secrets.PROD_DB_PASSWORD }}
+      PROD_DB_PASSWORD_OLD: ${{ secrets.PROD_DATABASE_URL }}
+      PROD_DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD || secrets.PROD_DATABASE_URL }}
 
     steps:
       - uses: actions/checkout@v4
@@ -129,9 +134,9 @@ jobs:
       - name: Derive DB password for pg client match
         if: env.NEEDS_DB == 'true'
         run: |
-          # PROD_DATABASE_URL may be a full URL or a bare password; each step
+          # PROD_DB_PASSWORD may be a full URL or a bare password; each step
           # gets a fresh shell so re-derive it here (same pattern as below).
-          RAW="${{ secrets.PROD_DATABASE_URL }}"
+          RAW="${PROD_DB_PASSWORD}"
           if echo "$RAW" | grep -q "://"; then
             PASS=$(python3 -c "from urllib.parse import urlparse; import sys; u=urlparse(sys.argv[1]); print(u.password or '')" "$RAW")
           else
@@ -143,6 +148,16 @@ jobs:
       - name: Match PostgreSQL client to server version
         if: env.NEEDS_DB == 'true'
         uses: ./.github/actions/pg-client-match
+
+      - name: Verify database credentials
+        if: env.NEEDS_DB == 'true'
+        run: |
+          if [ -z "${PROD_DB_PASSWORD:-}" ]; then
+            echo "::error::PROD_DB_PASSWORD is empty. Set the repository secret to the production Postgres password."
+            exit 1
+          fi
+          echo "Secret source: new=$([ -n "${PROD_DB_PASSWORD_NEW:-}" ] && echo yes || echo no) old=$([ -n "${PROD_DB_PASSWORD_OLD:-}" ] && echo yes || echo no)"
+          psql -h localhost -p 5432 -U postgres -d postgres -tAc "SELECT current_database(), current_user;"
 
       - name: Run Scraper
         env:
@@ -171,8 +186,8 @@ jobs:
             echo "Schedule mode: overriding TIME_RANGE to $TIME_RANGE (14d ending yesterday, excludes today)"
           fi
 
-          # Build DATABASE_URL from secrets via SSH tunnel.
-          # Secrets may be a full URL (postgres://user:pass@host/db) or just a password.
+          # Build DATABASE_URL from PROD_DB_PASSWORD via the SSH tunnel.
+          # The secret may be a full URL (postgres://user:pass@host/db) or just a password.
           # We extract the password and reconstruct a localhost tunnel URL.
           _extract_pass() {
             local raw="$1"
@@ -184,11 +199,11 @@ jobs:
           }
 
           if [ "$DB_ENV" = "prod" ]; then
-            RAW="${{ secrets.PROD_DATABASE_URL }}"
+            RAW="${PROD_DB_PASSWORD}"
             PASS=$(_extract_pass "$RAW")
             export DATABASE_URL="postgres://postgres:${PASS}@localhost:5432/postgres"
           elif [ "$DB_ENV" = "staging" ]; then
-            RAW="${{ secrets.PROD_DATABASE_URL }}"
+            RAW="${PROD_DB_PASSWORD}"
             PASS=$(_extract_pass "$RAW")
             export DATABASE_URL="postgres://postgres:${PASS}@localhost:5432/m3tacron_staging"
           fi
@@ -229,10 +244,10 @@ jobs:
 
           if [ "$_DB_ENV" = "prod" ] || [ "${{ github.event_name }}" = "schedule" ]; then
             BACKUP_DB="postgres"
-            RAW="${{ secrets.PROD_DATABASE_URL }}"
+            RAW="${PROD_DB_PASSWORD}"
           elif [ "$_DB_ENV" = "staging" ]; then
             BACKUP_DB="m3tacron_staging"
-            RAW="${{ secrets.PROD_DATABASE_URL }}"
+            RAW="${PROD_DB_PASSWORD}"
           else
             echo "No DB target for backup, skipping."
             exit 0
