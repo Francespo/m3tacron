@@ -522,7 +522,7 @@
                 </div>
 
                 {#if !loading && !error && meta}
-                    <div class="hidden md:flex items-center gap-x-3 text-xs font-mono text-secondary">
+                    <div class="hidden lg:flex items-center gap-x-3 text-xs font-mono text-secondary">
                         <span class="tracking-widest {filters.dataSource === 'legacy' ? 'text-violet-400' : 'text-amber-400'}">
                             {filters.dataSource === 'legacy' ? 'Legacy' : 'XWA'}
                         </span>
@@ -545,9 +545,10 @@
             </div>
         </div>
 
-        <!-- Mobile Info Banner / Subtitle (shown on mobile < md viewports) -->
+        <!-- Compact Info Banner / Subtitle (shown whenever the header controls are
+             stacked, i.e. below lg, where the full meta line has no room) -->
         {#if !loading && !error && meta}
-            <div class="flex md:hidden flex-wrap items-center gap-x-2 gap-y-1 text-xs font-mono text-secondary">
+            <div class="flex lg:hidden flex-wrap items-center gap-x-2 gap-y-1 text-xs font-mono text-secondary">
                 <span class="tracking-widest font-semibold {filters.dataSource === 'legacy' ? 'text-violet-400' : 'text-amber-400'}">
                     {filters.dataSource === 'legacy' ? 'Legacy' : 'XWA'}
                 </span>
