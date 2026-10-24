@@ -89,7 +89,7 @@ jobs:
             PR_CREATED="$(printf '%s' "$PR_JSON" | jq -r '.createdAt')"
             PR_AGE=$(( ( $(date -u +%s) - $(date -u -d "$PR_CREATED" +%s) ) / 3600 ))
             if [ "$PR_AGE" -gt 24 ]; then
-              add "data sync PR #$PR_NUMBER open for ${PR_AGE}h (review/merge or check SYNC_BOT_TOKEN)"
+              add "data sync PR #$PR_NUMBER open for ${PR_AGE}h (review/merge, check SYNC_PR_TOKEN and Protect main approvals)"
             fi
           fi
 
