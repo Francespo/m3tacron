@@ -135,6 +135,7 @@
         btls8kwing: "k",
         droidtrifighter: "+",
         delta7aethersprite: "\\",
+        delta7baethersprite: "\\",
         escapecraft: "X",
         eta2actis: "-",
         ewing: "e",
@@ -178,6 +179,16 @@
         st70assaultship: "'",
         gauntletfighter: "6",
         z95af4headhunter: "z",
+        // Aliases for XWS values used by the dataset that differ from the
+        // font's canonical names, plus ships added after the original map.
+        btanr2wywing: "{",
+        cr90corelliancorvette: "2",
+        croccruiser: "5",
+        gozanticlasscruiser: "4",
+        gr75mediumtransport: "1",
+        raiderclasscorvette: "3",
+        tiesebomber: "!",
+        yt2400lightfreighter2023: "o",
     };
     const fontFamily = $derived(isShip ? "'XWingShip'" : "'XWing'");
     const iconChar = $derived((() => {
