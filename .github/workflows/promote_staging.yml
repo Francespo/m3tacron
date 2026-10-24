@@ -153,3 +153,11 @@ jobs:
             END \$\$;
           " 2>&1 | tail -1
           echo "Cache invalidated."
+
+      # Same as the scrape workflow: the preview database should follow
+      # production as soon as the data changes.
+      - name: Refresh preview database
+        if: success()
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new audit-bot@84.8.253.2 \
+            "m3tacron-preview-sync" || echo "preview database sync failed (non-fatal)"
