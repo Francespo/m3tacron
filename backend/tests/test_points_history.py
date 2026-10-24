@@ -1,5 +1,5 @@
 import pytest
-from backend.data.points_history import (
+from backend.points_history import (
     get_latest_points_date,
     get_points_updates,
     load_points_history,

@@ -210,7 +210,7 @@ def get_meta_snapshot(
 
     if resolved_date_start:
         filters["date_start"] = resolved_date_start
-        from ..data.points_history import get_latest_points_date
+        from ..points_history import get_latest_points_date
         latest_pts = get_latest_points_date(data_source.value if hasattr(data_source, "value") else str(data_source))
         if resolved_date_end:
             filters["date_end"] = resolved_date_end

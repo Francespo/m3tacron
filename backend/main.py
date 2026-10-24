@@ -121,7 +121,7 @@ def _warm_endpoint_list() -> list[str]:
     and tournaments for both XWA and Legacy. Total ~24 keys. Per-ship detail
     is warmed separately via _warm_ship_details() in-process.
     """
-    from .data.points_history import get_latest_points_date
+    from .points_history import get_latest_points_date
 
     pts_dates = {
         "xwa": get_latest_points_date("xwa"),
@@ -280,7 +280,7 @@ def _warm_ship_details() -> None:
     # 1. All-time (base + format-filtered)
     # 2. Since latest points update (base + format-filtered with date_start=pts_date)
     def _suffixes_for_ds(ds: DataSource) -> list[tuple[str, dict]]:
-        from .data.points_history import get_latest_points_date
+        from .points_history import get_latest_points_date
         pts_date = get_latest_points_date(ds.value)
 
         base = _ship_filter_cache_suffix(
@@ -597,7 +597,7 @@ def get_snapshot(
     ds_enum = DataSource.XWA if data_source == "xwa" else DataSource.LEGACY
     normalized_days = None if (days == 0 or days is None) else days
     if time_range == "points_update" and not date_start:
-        from .data.points_history import get_latest_points_date
+        from .points_history import get_latest_points_date
         date_start = get_latest_points_date(data_source)
         normalized_days = None
     elif date_start:
