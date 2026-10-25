@@ -12,8 +12,6 @@ Sources supported:
 
 import argparse
 import json
-import os
-import re
 import subprocess
 import sys
 import urllib.request
@@ -24,6 +22,11 @@ EXTERNAL_DATA_DIR = ROOT_DIR / "external_data"
 XWA_DIR = EXTERNAL_DATA_DIR / "xwing-data2"
 LEGACY_DIR = EXTERNAL_DATA_DIR / "xwing-data2-legacy"
 GENERATE_SCRIPT = ROOT_DIR / "frontend" / "scripts" / "generate-xwing-data.js"
+# Shared YASB parser/matcher, owned by the xwing-data2 submodule. Name-only
+# matching silently skipped variants such as Anakin Skywalker (Delta-7b).
+YASB_SCRIPTS_DIR = XWA_DIR / "scripts"
+if YASB_SCRIPTS_DIR.exists():
+    sys.path.insert(0, str(YASB_SCRIPTS_DIR))
 
 
 def run_cmd(cmd: list[str], cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess:
@@ -92,89 +95,121 @@ def sync_legacy_darker():
     run_cmd(["git", "merge", "darker/master", "--no-edit"], cwd=LEGACY_DIR, check=False)
 
 
-def normalize_xws(name: str) -> str:
-    """Canonicalize a card/pilot name to XWS format."""
-    return re.sub(r"[^a-z0-9]", "", name.lower())
-
-
 def sync_yasb_fast_points():
-    """Download YASB cards-common.coffee and patch points/loadouts in xwing-data2 JSONs."""
+    """Apply the current YASB snapshot to every pilot and upgrade.
+
+    Uses the shared matcher in the xwing-data2 submodule (name + file-level
+    ship/faction + xwsaddon/variant suffix) instead of matching by name alone,
+    which silently skipped Delta-7B variants and could overwrite a same-name
+    pilot on a different chassis.
+    """
     print("\n=== Sincronizzazione Punti Lampo da YASB (Raithos) ===")
+    try:
+        from yasb_cards import (
+            build_pilot_index,
+            build_upgrade_index,
+            lookup_pilot,
+            lookup_upgrade,
+            parse_yasb,
+        )
+    except ImportError:
+        print(
+            "Cannot import scripts/yasb_cards.py from the xwing-data2 submodule; "
+            "run `git submodule update --init --recursive` first."
+        )
+        return
+
     url = "https://raw.githubusercontent.com/raithos/xwing/master/coffeescripts/content/cards-common.coffee"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "M3tacron-Data-Sync/1.0"})
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:
             content = resp.read().decode("utf-8")
     except Exception as e:
         print(f"Failed to fetch YASB cards-common.coffee: {e}")
         return
 
-    # Parse pilot blocks with regex
-    # Format in cards-common.coffee:
-    # name: "Luke Skywalker"
-    # ...
-    # points: 14
-    # loadout: 10
-    pilot_points: dict[str, dict[str, int]] = {}
-    
-    # Split by pilot/upgrade entries
-    blocks = re.split(r'\n\s*name:\s*"', content)
-    for block in blocks[1:]:
-        name_match = re.match(r'^([^"]+)"', block)
-        if not name_match:
-            continue
-        name = name_match.group(1)
-        pts_match = re.search(r'\bpoints:\s*(\d+)', block)
-        loadout_match = re.search(r'\bloadout:\s*(\d+)', block)
-        ship_match = re.search(r'\bship:\s*"([^"]+)"', block)
+    entries = parse_yasb(content)
+    pilot_index = build_pilot_index(entries)
+    upgrade_index = build_upgrade_index(entries)
+    print(f"Found {len(entries)} card definitions in YASB.")
 
-        if pts_match:
-            pts = int(pts_match.group(1))
-            loadout = int(loadout_match.group(1)) if loadout_match else 0
-            xws_key = normalize_xws(name)
-            # If ship is specified, also key by xws+ship
-            pilot_points[xws_key] = {"points": pts, "loadout": loadout, "name": name}
-            if ship_match:
-                ship_xws = normalize_xws(ship_match.group(1))
-                pilot_points[f"{xws_key}-{ship_xws}"] = {"points": pts, "loadout": loadout, "name": name}
-
-    print(f"Found {len(pilot_points)} point definitions in YASB.")
-
-    # Patch local JSON files in XWA_DIR
     pilots_dir = XWA_DIR / "data" / "pilots"
+    upgrades_dir = XWA_DIR / "data" / "upgrades"
     if not pilots_dir.exists():
         print(f"Pilots directory {pilots_dir} not found.")
         return
 
     updated_count = 0
+    unmatched_pilots = 0
     for json_file in pilots_dir.rglob("*.json"):
         try:
-            with open(json_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            pilots = data.get("pilots", [])
+            data = json.loads(json_file.read_text(encoding="utf-8"))
+            ship = data.get("name") or data.get("xws") or ""
+            faction = data.get("faction") or ""
             file_changed = False
-            for p in pilots:
-                pxws = p.get("xws") or normalize_xws(p.get("name", ""))
-                match = pilot_points.get(pxws) or pilot_points.get(normalize_xws(p.get("name", "")))
-                if match:
-                    new_cost = match["points"]
-                    new_loadout = match["loadout"]
-                    if p.get("cost") != new_cost or p.get("loadout") != new_loadout:
-                        p["cost"] = new_cost
-                        if "loadout" in p or new_loadout > 0:
-                            p["loadout"] = new_loadout
-                        file_changed = True
-                        updated_count += 1
-
+            for pilot in data.get("pilots", []):
+                match = lookup_pilot(pilot_index, pilot, ship, faction)
+                if not match:
+                    unmatched_pilots += 1
+                    continue
+                if pilot.get("cost") != match["points"]:
+                    pilot["cost"] = match["points"]
+                    file_changed = True
+                    updated_count += 1
+                if match["loadout"] is not None and pilot.get("loadout") != match["loadout"]:
+                    pilot["loadout"] = match["loadout"]
+                    file_changed = True
+                    updated_count += 1
             if file_changed:
-                with open(json_file, "w", encoding="utf-8") as f:
-                    json.dump(data, f, indent=2, ensure_ascii=False)
-                    f.write("\n")
+                written = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+                json_file.write_text(written, encoding="utf-8")
         except Exception as err:
             print(f"Error updating {json_file}: {err}")
 
-    print(f"Updated {updated_count} pilot points/loadouts in xwing-data2.")
+    unmatched_upgrades = 0
+    if upgrades_dir.exists():
+        for json_file in upgrades_dir.glob("*.json"):
+            try:
+                data = json.loads(json_file.read_text(encoding="utf-8"))
+                if isinstance(data, list):
+                    items = data
+                elif isinstance(data, dict) and isinstance(data.get("upgrades"), list):
+                    items = data["upgrades"]
+                else:
+                    continue
+                file_changed = False
+                for upgrade in items:
+                    match = lookup_upgrade(upgrade_index, upgrade)
+                    if not match:
+                        unmatched_upgrades += 1
+                        continue
+                    cost = upgrade.get("cost")
+                    new_cost = match["points"]
+                    if isinstance(cost, dict):
+                        if cost.get("value") != new_cost:
+                            cost["value"] = new_cost
+                            file_changed = True
+                            updated_count += 1
+                    elif isinstance(cost, (int, float)):
+                        if cost != new_cost:
+                            upgrade["cost"] = new_cost
+                            file_changed = True
+                            updated_count += 1
+                    elif cost is None:
+                        upgrade["cost"] = {"value": new_cost}
+                        file_changed = True
+                        updated_count += 1
+                if file_changed:
+                    written = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+                    json_file.write_text(written, encoding="utf-8")
+            except Exception as err:
+                print(f"Error updating {json_file}: {err}")
+
+    print(
+        f"Updated {updated_count} pilot/upgrade fields in xwing-data2 "
+        f"({unmatched_pilots} pilots and {unmatched_upgrades} upgrades had no "
+        "confident match and were left unchanged)."
+    )
 
 
 def rebuild_manifests():
