@@ -505,10 +505,20 @@ import { untrack } from "svelte";
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {#each configPageItems as config, j (config.upgrades.map((u: any) => u.xws).join("|") + ":" + j)}
                     {@const i = configPage * CONFIG_PAGE_SIZE + j}
+                    {@const cfgUpgTotal = configUpgradeTotal(config)}
+                    {@const cfgOverLV = overLoadoutConfigs.has(config)}
                     <div class="bg-terminal-panel border border-border-dark rounded-lg p-3 overflow-hidden flex flex-col">
                         <div class="flex items-center justify-between gap-2 mb-3">
                             <span class="text-xs font-mono text-secondary">#{i + 1}</span>
                             <div class="flex flex-wrap items-center gap-1.5 justify-end">
+                                <span
+                                    class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold leading-none border {cfgOverLV
+                                        ? 'bg-red-500/20 text-red-400 border-red-500/30'
+                                        : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'}"
+                                    title={cfgOverLV
+                                        ? "Total upgrade cost: " + cfgUpgTotal + " PT — exceeds this pilot's loadout value (LV " + loadoutValue + "), no longer playable in XWA."
+                                        : "Total upgrade cost of this configuration" + (data.ds === "xwa" && loadoutValue > 0 ? " — pilot loadout value (LV): " + loadoutValue : "")}
+                                >COST {cfgUpgTotal} PT</span>
                                 <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary">LISTS {config.lists ?? config.count}</span>
                                 <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary">GAMES {config.games ?? 0}</span>
                                 <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold" style="background: {wrColor(config.win_rate)}15; color: {wrColor(config.win_rate)};">WR {Number(config.win_rate ?? 0).toFixed(1)}%</span>
