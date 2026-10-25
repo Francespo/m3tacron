@@ -84,6 +84,9 @@ jobs:
       - name: Validate points data
         run: python3 scripts/validate_points_pipeline.py
 
+      - name: Reconcile every pilot with the latest YASB release
+        run: python3 external_data/xwing-data2/scripts/check_yasb_pilots.py
+
       - name: Open or update the data sync PR
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
