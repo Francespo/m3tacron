@@ -474,7 +474,7 @@ import { untrack } from "svelte";
                     {#if data.ds === "xwa" && illegalConfigCount > 0}
                         <label
                             class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
-                            title="Hide the {illegalConfigCount} configurations whose upgrade point total exceeds this pilot's loadout value (LV {loadoutValue}) — they are no longer playable in XWA."
+                            title="Hide the {illegalConfigCount} of {(configurations as any[]).length} configurations whose upgrade point total exceeds this pilot's loadout value (LV {loadoutValue}) — they are no longer playable in XWA."
                         >
                             <Toggle
                                 size="xs"
@@ -483,7 +483,7 @@ import { untrack } from "svelte";
                                 onchange={(e) => (cfgHideIllegal = (e.currentTarget as HTMLInputElement).checked)}
                             />
                             <span class="font-mono whitespace-nowrap">Hide over-loadout</span>
-                            <span class="px-1 py-0.5 rounded text-[10px] font-mono font-bold leading-none bg-violet-500/20 text-violet-400 border border-violet-500/30">{illegalConfigCount}</span>
+                            <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary">{illegalConfigCount}/{(configurations as any[]).length}</span>
                         </label>
                     {/if}
                     <SortBy
@@ -512,13 +512,13 @@ import { untrack } from "svelte";
                             <span class="text-xs font-mono text-secondary">#{i + 1}</span>
                             <div class="flex flex-wrap items-center gap-1.5 justify-end">
                                 <span
-                                    class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold leading-none border {cfgOverLV
-                                        ? 'bg-red-500/20 text-red-400 border-red-500/30'
-                                        : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'}"
+                                    class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold leading-none bg-violet-500/20 text-violet-400 border border-violet-500/30"
                                     title={cfgOverLV
-                                        ? "Total upgrade cost: " + cfgUpgTotal + " PT — exceeds this pilot's loadout value (LV " + loadoutValue + "), no longer playable in XWA."
-                                        : "Total upgrade cost of this configuration" + (data.ds === "xwa" && loadoutValue > 0 ? " — pilot loadout value (LV): " + loadoutValue : "")}
-                                >COST {cfgUpgTotal} PT</span>
+                                        ? "Uses " + cfgUpgTotal + " loadout (LV " + loadoutValue + " available) — exceeds the pilot's loadout value, no longer playable in XWA."
+                                        : data.ds === "xwa" && loadoutValue > 0
+                                            ? "Uses " + cfgUpgTotal + " loadout of the " + loadoutValue + " available for this pilot."
+                                            : "Total upgrade point cost of this configuration."}
+                                >{cfgUpgTotal} LV</span>
                                 <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary">LISTS {config.lists ?? config.count}</span>
                                 <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary">GAMES {config.games ?? 0}</span>
                                 <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold" style="background: {wrColor(config.win_rate)}15; color: {wrColor(config.win_rate)};">WR {Number(config.win_rate ?? 0).toFixed(1)}%</span>
