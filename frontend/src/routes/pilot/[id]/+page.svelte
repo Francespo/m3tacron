@@ -6,6 +6,7 @@
     import { getFactionColor } from "$lib/data/factions";
 import SortBy from "$lib/components/SortBy.svelte";
 import FactionIcon from "$lib/components/FactionIcon.svelte";
+import Toggle from "$lib/components/Toggle.svelte";
 import { xwingData } from "$lib/stores/xwingData.svelte";
 import ListRowCard from "$lib/components/ListRowCard.svelte";
 import LocalFilterBar from "$lib/components/LocalFilterBar.svelte";
@@ -72,7 +73,47 @@ import { untrack } from "svelte";
     let pilotListsItems = $state(data.pilotLists ?? []);
     let pilotListsTotal = $state(Number(data.pilotListsTotal ?? 0) || 0);
     let filteredListsSource = $derived(pilotListsItems as any[]);
-    let filteredConfigurationsSource = $derived(configurations as any[]);
+
+    // --- XWA loadout-legal filter ---
+    // A configuration whose upgrade point total exceeds the pilot's loadout
+    // value (LV) can no longer be fielded in XWA; the toggle below hides them.
+    let cfgHideIllegal = $state(false);
+
+    function upgradePtValue(u: any): number | null {
+        const raw = u?.cost;
+        if (raw == null) return null;
+        const v = typeof raw === "object" ? Number(raw.value) : Number(raw);
+        return Number.isFinite(v) ? v : null;
+    }
+
+    function configUpgradeTotal(c: any): number {
+        let total = 0;
+        for (const u of c?.upgrades ?? []) total += upgradePtValue(u) ?? 0;
+        return total;
+    }
+
+    // Loadout legality is an XWA-only concept; legacy data has no LV.
+    let loadoutValue = $derived.by(() => {
+        const raw = Number(info?.loadout);
+        return Number.isFinite(raw) && raw > 0 ? raw : 0;
+    });
+    let overLoadoutConfigs = $derived.by(() => {
+        const set = new Set<any>();
+        if (data.ds !== "xwa" || loadoutValue <= 0) return set;
+        for (const c of (configurations as any[])) {
+            if (configUpgradeTotal(c) > loadoutValue) set.add(c);
+        }
+        return set;
+    });
+    let illegalConfigCount = $derived(overLoadoutConfigs.size);
+
+    let filteredConfigurationsSource = $derived.by(() => {
+        const list = configurations as any[];
+        if (cfgHideIllegal && illegalConfigCount > 0) {
+            return list.filter((c) => !overLoadoutConfigs.has(c));
+        }
+        return list;
+    });
 
     let sortedConfigurations = $derived.by(() => {
         const dir = configSortDir === "asc" ? 1 : -1;
@@ -429,7 +470,23 @@ import { untrack } from "svelte";
         <section>
             <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
                 <h2 class="text-xl font-sans font-bold text-primary uppercase tracking-wider border-b border-border-dark pb-2">Configurations</h2>
-                <SortBy
+                <div class="flex items-center gap-4 flex-wrap">
+                    {#if data.ds === "xwa" && illegalConfigCount > 0}
+                        <label
+                            class="flex items-center gap-2 cursor-pointer text-xs text-secondary hover:text-primary"
+                            title="Hide the {illegalConfigCount} of {(configurations as any[]).length} configurations whose upgrade point total exceeds this pilot's loadout value (LV {loadoutValue}) — they are no longer playable in XWA."
+                        >
+                            <Toggle
+                                size="xs"
+                                ariaLabel="Show only configurations legal under this pilot's loadout value"
+                                checked={cfgHideIllegal}
+                                onchange={(e) => (cfgHideIllegal = (e.currentTarget as HTMLInputElement).checked)}
+                            />
+                            <span class="font-mono whitespace-nowrap">Hide over-loadout</span>
+                            <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary">{illegalConfigCount}/{(configurations as any[]).length}</span>
+                        </label>
+                    {/if}
+                    <SortBy
                     value={configSortKey}
                     direction={configSortDir}
                     options={[
@@ -442,14 +499,26 @@ import { untrack } from "svelte";
                         configSortDir = d;
                     }}
                 />
+                </div>
             </div>
+            {#if configPageItems.length > 0}
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {#each configPageItems as config, j (config.upgrades.map((u: any) => u.xws).join("|") + ":" + j)}
                     {@const i = configPage * CONFIG_PAGE_SIZE + j}
+                    {@const cfgUpgTotal = configUpgradeTotal(config)}
+                    {@const cfgOverLV = overLoadoutConfigs.has(config)}
                     <div class="bg-terminal-panel border border-border-dark rounded-lg p-3 overflow-hidden flex flex-col">
                         <div class="flex items-center justify-between gap-2 mb-3">
                             <span class="text-xs font-mono text-secondary">#{i + 1}</span>
                             <div class="flex flex-wrap items-center gap-1.5 justify-end">
+                                <span
+                                    class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold leading-none bg-violet-500/20 text-violet-400 border border-violet-500/30"
+                                    title={cfgOverLV
+                                        ? "Uses " + cfgUpgTotal + " loadout (LV " + loadoutValue + " available) — exceeds the pilot's loadout value, no longer playable in XWA."
+                                        : data.ds === "xwa" && loadoutValue > 0
+                                            ? "Uses " + cfgUpgTotal + " loadout of the " + loadoutValue + " available for this pilot."
+                                            : "Total upgrade point cost of this configuration."}
+                                >{cfgUpgTotal} LV</span>
                                 <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary">LISTS {config.lists ?? config.count}</span>
                                 <span class="px-1.5 py-0.5 bg-[#ffffff05] border border-border-dark rounded-md text-[10px] font-mono font-bold text-secondary">GAMES {config.games ?? 0}</span>
                                 <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold" style="background: {wrColor(config.win_rate)}15; color: {wrColor(config.win_rate)};">WR {Number(config.win_rate ?? 0).toFixed(1)}%</span>
@@ -479,6 +548,13 @@ import { untrack } from "svelte";
                 <span class="text-xs font-mono text-secondary">Showing {configPage * CONFIG_PAGE_SIZE + 1}–{Math.min((configPage + 1) * CONFIG_PAGE_SIZE, sortedConfigurations.length)} of {sortedConfigurations.length} · Page {configPage + 1}/{configTotalPages}</span>
                 <button type="button" class="px-3 py-1.5 rounded-md border text-xs font-mono transition-colors {configPage >= configTotalPages - 1 ? 'border-border-dark text-secondary' : 'border-primary text-primary hover:bg-white/[0.04]'}" disabled={configPage >= configTotalPages - 1} onclick={() => configPage = Math.min(configTotalPages - 1, configPage + 1)}>Next →</button>
             </div>
+            {:else}
+            <div class="bg-terminal-panel border border-border-dark rounded-lg p-8 text-center">
+                <p class="text-secondary font-mono text-sm">
+                    {cfgHideIllegal ? "All configurations exceed this pilot's loadout value (LV " + loadoutValue + ") — none is playable in XWA." : "No configurations to display."}
+                </p>
+            </div>
+            {/if}
         </section>
     {/if}
 
