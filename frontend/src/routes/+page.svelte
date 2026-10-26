@@ -760,8 +760,9 @@
                     {#each sortedPilots.slice(0, 6) as pilot}
                         {@const p = getPilotDisplay(pilot.xws)}
                         {@const wr = getWinRate(pilot.wins || 0, pilot.games_count || 0)}
-                        <div
-                            class="py-[12px] border-b border-border-dark flex items-center justify-between w-full last:border-0 relative"
+                        <a
+                            href="/pilot/{pilot.xws}"
+                            class="py-[12px] border-b border-border-dark flex items-center justify-between w-full last:border-0 relative group hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer rounded-md"
                         >
                             <div
                                 class="flex items-center gap-3 overflow-hidden mr-2"
@@ -779,7 +780,7 @@
                                     class="flex flex-col overflow-hidden min-w-0 relative"
                                 >
                                     <span
-                                        class="text-base font-bold text-primary truncate min-w-0"
+                                        class="text-base font-bold text-primary truncate min-w-0 group-hover:text-accent transition-colors"
                                         title={p.name}>{p.name}</span
                                     >
                                     <div
@@ -810,7 +811,7 @@
                                     >{pilot.games_count || 0} games · {pilot.list_count ?? pilot.lists ?? 0} lists</span
                                 >
                             </div>
-                        </div>
+                        </a>
                     {/each}
                 </div>
             </div>
@@ -845,8 +846,9 @@
                         {@const upType = uData?.sides?.[0]?.type || "upgrade"}
                         {@const upName = uData?.name || upgrade.xws}
                         {@const wr = getWinRate(upgrade.wins || 0, upgrade.games_count || 0)}
-                        <div
-                            class="py-[12px] border-b border-border-dark flex items-center justify-between w-full last:border-0 relative"
+                        <a
+                            href="/upgrade/{upgrade.xws}"
+                            class="py-[12px] border-b border-border-dark flex items-center justify-between w-full last:border-0 relative group hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer rounded-md"
                         >
                             <div
                                 class="flex items-center gap-3 overflow-hidden mr-2"
@@ -864,7 +866,7 @@
                                     class="flex flex-col overflow-hidden min-w-0 relative"
                                 >
                                     <span
-                                        class="text-base font-bold text-primary truncate min-w-0"
+                                        class="text-base font-bold text-primary truncate min-w-0 group-hover:text-accent transition-colors"
                                         title={upName}
                                         >{upName}</span
                                     >
@@ -890,7 +892,7 @@
                                     >{upgrade.games_count || 0} games · {upgrade.list_count ?? upgrade.lists ?? 0} lists</span
                                 >
                             </div>
-                        </div>
+                        </a>
                     {/each}
                 </div>
             </div>
@@ -925,8 +927,9 @@
                         {@const shipName = shipData?.name || ship.xws}
                         {@const factionXws = ship.faction_xws}
                         {@const wr = getWinRate(ship.wins || 0, ship.games_count || 0)}
-                        <div
-                            class="py-[12px] border-b border-border-dark flex items-center justify-between w-full last:border-0 relative"
+                        <a
+                            href="/ship/{ship.xws}"
+                            class="py-[12px] border-b border-border-dark flex items-center justify-between w-full last:border-0 relative group hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer rounded-md"
                         >
                             <div
                                 class="flex items-center gap-3 overflow-hidden mr-2"
@@ -944,7 +947,7 @@
                                     class="flex flex-col overflow-hidden min-w-0 relative"
                                 >
                                     <span
-                                        class="text-base font-bold text-primary truncate min-w-0"
+                                        class="text-base font-bold text-primary truncate min-w-0 group-hover:text-accent transition-colors"
                                         title={shipName}
                                         >{shipName}</span
                                     >
@@ -974,7 +977,7 @@
                                     >{ship.games_count || 0} games · {ship.list_count ?? ship.lists ?? 0} lists</span
                                 >
                             </div>
-                        </div>
+                        </a>
                     {/each}
                 </div>
             </div>
@@ -1009,8 +1012,9 @@
                     {#each sortedLists.slice(0, 4) as list}
                         {@const factionXws = list.faction_xws}
                         {@const wr = getWinRate(list.wins || 0, list.games || 0)}
-                        <div
-                            class="p-4 bg-[rgba(255,255,255,0.01)] border border-border-dark border-l-[3px] hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer w-full flex flex-col gap-3 rounded-lg overflow-hidden"
+                        <a
+                            href="/list/{encodeURIComponent(list.signature || list.name || list.id)}"
+                            class="group p-4 bg-[rgba(255,255,255,0.01)] border border-border-dark border-l-[3px] hover:bg-[rgba(255,255,255,0.03)] hover:border-primary/40 transition-colors cursor-pointer w-full flex flex-col gap-3 rounded-lg overflow-hidden"
                             style="border-left: 3px solid {getFactionColor(factionXws)};"
                         >
                             <div
@@ -1026,7 +1030,7 @@
                                     />
                                     <div class="flex flex-col min-w-0">
                                         <span
-                                            class="text-base font-bold text-primary line-clamp-2 leading-tight"
+                                            class="text-base font-bold text-primary line-clamp-2 leading-tight group-hover:text-accent transition-colors"
                                             title={list.name || "Unnamed List"}
                                             >{list.name || "Unnamed List"}</span
                                         >
@@ -1079,7 +1083,7 @@
                                     </div>
                                 {/each}
                             </div>
-                        </div>
+                        </a>
                     {/each}
                 </div>
             </div>
