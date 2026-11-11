@@ -10553,5 +10553,25 @@
     "city": "Mahwah",
     "country": "United States",
     "continent": "North America"
+  },
+  "Brea, California,\u00a0United States": {
+    "city": "Brea",
+    "country": "United States",
+    "continent": "North America"
+  },
+  "TRYP Lisboa Caparica Mar Av. Gen. Humberto Delgado 47, 2829-506 Costa da Caparica, Portugal": {
+    "city": "Costa da Caparica",
+    "country": "Portugal",
+    "continent": "Europe"
+  },
+  "TUAN, Budapest, Andr\u00e1ssy \u00fat 86, 1062 \u2022Hungary, Hungary": {
+    "city": "Budapest",
+    "country": "Hungary",
+    "continent": "Europe"
+  },
+  "CHERBOURG EN COTENTIN, Normandy,\u00a0France": {
+    "city": "Manche",
+    "country": "France",
+    "continent": "Europe"
   }
 }
