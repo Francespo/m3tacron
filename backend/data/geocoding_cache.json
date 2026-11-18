@@ -10553,5 +10553,15 @@
     "city": "Mahwah",
     "country": "United States",
     "continent": "North America"
+  },
+  "Piranha Cafe, Cornwall,\u00a0United Kingdom": {
+    "city": "Truro",
+    "country": "United Kingdom",
+    "continent": "Europe"
+  },
+  "Roma, Italy": {
+    "city": "Roma Capitale",
+    "country": "Italy",
+    "continent": "Europe"
   }
 }
