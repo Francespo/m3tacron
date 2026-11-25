@@ -10553,5 +10553,25 @@
     "city": "Mahwah",
     "country": "United States",
     "continent": "North America"
+  },
+  "Roma, Italy": {
+    "city": "Roma Capitale",
+    "country": "Italy",
+    "continent": "Europe"
+  },
+  "Hotel Villa de Nava, Nava. Asturias, Espa\u00f1a., Asturias,\u00a0Spain": {
+    "city": "Nava",
+    "country": "Spain",
+    "continent": "Europe"
+  },
+  "Stuttgarter Jugendhaus, Baden-W\u00fcrttemberg,\u00a0Germany": {
+    "city": "Fellbach",
+    "country": "Germany",
+    "continent": "Europe"
+  },
+  "Coventry, Black Country,\u00a0United Kingdom": {
+    "city": "Sandwell",
+    "country": "United Kingdom",
+    "continent": "Europe"
   }
 }
